@@ -22,7 +22,8 @@ The design aim was to provide flexibility in running the code.  The default work
 
 Within the **working directory** is a config file, getssl.cfg which is a simple bash file containing variables, an example of which is 
 
-`# uncomment and modify any variables you need
+<p>
+# uncomment and modify any variables you need
 # The staging server is best for testing
 CA="https://acme-staging.api.letsencrypt.org"
 # This server issues full certificates, however has rate limits
@@ -41,6 +42,7 @@ WORKING_DIR=~/.getssl
 #RELOAD_CMD=""
 #The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
 RENEW_ALLOW="30"`
+<p>
 
 then, within the **working directory** there will be a folder for each certificate (based on it's domain name). Within that folder will be a config file (again called getssl.cfg).  An example of which is;
 
