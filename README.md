@@ -87,23 +87,28 @@ ssh can also be used for the reload command if using on remote servers.
 
 The easiest way to get started is to use
 
+```
 getssl -c yourdomain.com 
+```
 
 where yourdomain.com is the primary domain name that you want to create a certificate for.   This will create
 
+```
 ~/.getssl
 ~/.getssl/getssl.cfg
 ~/.getssl/yourdomain.com
 ~/.getssl/yourdomain.com/getssl.cfg
+```
 
 You can then edit ~/.getssl/getssl.cfg to have the values you want as the default for the majority of your certificates. 
 Edit ~/.getssl/yourdomain.com/getssl.cfg to have the values you want for this specific domain. 
 
 You can then just run;
 
-getssl yourdomain.com 
+```getssl yourdomain.com ```
 
 and it should run, providing output like;
+```
 Registering account
 Verify each domain
 Verifing yourdomain.com
@@ -117,6 +122,4 @@ copying domain certificate to ssh:server5:/home/yourdomain/ssl/domain.crt
 copying private key to ssh:server5:/home/yourdomain/ssl/domain.key
 copying CA certificate to ssh:server5:/home/yourdomain/ssl/chain.crt
 reloading SSL services
-
-
-
+```
