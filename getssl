@@ -18,10 +18,11 @@
 # Revision history:
 # 2016-01-08 Created (v0.1)
 # 2016-01-11 type correction and upload to github (v0.2)
+# 2016-01-11 added import of any existing cert on -c  option (v0.3)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.2"
+VERSION="0.3"
 
 # defaults
 #umask 077 # paranoid umask, as we're creating private keys
@@ -119,10 +120,10 @@ send_signed_request() {
 
   sig=$(echo -n "$protected64.$payload64" |  openssl   dgst   -sha256  -sign  $ACCOUNT_KEY | base64 -w 0 | _b64)
   debug sig "$sig"
-  
+
   body="{\"header\": $HEADER, \"protected\": \"$protected64\", \"payload\": \"$payload64\", \"signature\": \"$sig\"}"
   debug body "$body"
-  
+
   if [ "$needbase64" ] ; then
     response="$($CURL -X POST --data "$body" $url | base64 -w 0)"
   else
@@ -130,7 +131,7 @@ send_signed_request() {
   fi
 
   responseHeaders="$(sed 's/\r//g' $CURL_HEADER)"
-  
+
   debug responseHeaders "$responseHeaders"
   debug response  "$response"
   code="$(grep ^HTTP $CURL_HEADER | tail -1 | cut -d " " -f 2)"
@@ -154,7 +155,7 @@ copy_file_to_location() {
       cp $from $to
     fi
     debug "copied $from to $to"
-  fi  
+  fi
 }
 
 getcr() {
@@ -169,7 +170,7 @@ getcr() {
 }
 
 _requires() {
-  result=$(which $1)
+  result=$(which $1 2>/dev/null)
   debug checking for required $1 ... $result
   if [ -z "$result" ]; then
     echo "This script requires $1 installed"
@@ -257,16 +258,16 @@ CA=\"https://acme-staging.api.letsencrypt.org\"
 
 AGREEMENT=\"https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf\"
 
-#set an email address associated with your account 
+#set an email address associated with your account
 #ACCOUNT_EMAIL=\"me@example.com\"
 ACCOUNT_KEY_LENGTH=4096
 
-#The default directory for all your certs to be stored within ( in subdirectories by domain name ) 
+#The default directory for all your certs to be stored within ( in subdirectories by domain name )
 WORKING_DIR=~/.getssl
 
 # the command needed to reload apache / gninx or whatever you use
 #RELOAD_CMD=\"\"
-#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
+#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 RENEW_ALLOW=\"30\"
 " >> $WORKING_DIR/getssl.cfg
   fi
@@ -278,6 +279,15 @@ RENEW_ALLOW=\"30\"
     info "domain config already exists $DOMAIN_DIR/getssl.cfg"
   else
     info "creating domain config file in $DOMAIN_DIR/getssl.cfg"
+    EX_CERT=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 2>/dev/null)
+    EX_SANS="www.${DOMAIN}"
+    if [ ! -z "${EX_CERT}" ]; then
+      if [ ! -f $DOMAIN_DIR/domain.crt ]; then
+        echo $EX_CERT > $DOMAIN_DIR/domain.crt
+      fi
+      EX_SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
+                | grep -Eo "DNS:[a-zA-Z 0-9.]*" |sed "s@DNS:$DOMAIN@@g"| cut -c 5-)
+    fi
     echo "# uncomment and modify any variables you need
 # The staging server is best for testing
 #CA=\"https://acme-staging.api.letsencrypt.org\"
@@ -286,12 +296,12 @@ RENEW_ALLOW=\"30\"
 
 #AGREEMENT=\"https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf\"
 
-#set an email address associated with your account - generally set at account level rather than domain. 
+#set an email address associated with your account - generally set at account level rather than domain.
 #ACCOUNT_EMAIL=\"me@example.com\"
 #ACCOUNT_KEY_LENGTH=4096
 
 # additional domains - this could be multiple domains / subdomains in a comma separated list
-SANS=www.${DOMAIN}
+SANS=${EX_SANS}
 
 #Acme Challenge Location.   The first line for the domain, the following ones for each additional domain
 #if these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
@@ -305,10 +315,10 @@ SANS=www.${DOMAIN}
 #CA_CERT_LOCATION=\"/etc/ssl/chain.crt\"
 # the command needed to reload apache / gninx or whatever you use
 #RELOAD_CMD=\"\"
-#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
+#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 #RENEW_ALLOW=\"30\"
 " >> $DOMAIN_DIR/getssl.cfg
-    
+
   fi
   graceful_exit
 fi
@@ -391,34 +401,34 @@ else
   <(cat $SSLCONF <(printf "$SANLIST")) > $DOMAIN_DIR/${DOMAIN}.csr
 fi
 
-# use account key to register with CA 
+# use account key to register with CA
 
 pub_exp=$(openssl rsa -in $ACCOUNT_KEY  -noout -text | grep "^publicExponent:"| cut -d '(' -f 2 | cut -d 'x' -f 2 | cut -d ')' -f 1)
 if [ "${#pub_exp}" == "5" ] ; then
   pub_exp=0$pub_exp
 fi
 debug pub_exp "$pub_exp"
-  
+
 e=$(echo $pub_exp | xxd -r -p | base64)
 debug e "$e"
-  
+
 modulus=$(openssl rsa -in $ACCOUNT_KEY -modulus -noout | cut -d '=' -f 2 )
 n=$(echo $modulus| xxd -r -p | base64 -w 0 | _b64 )
 
 jwk='{"e": "'$e'", "kty": "RSA", "n": "'$n'"}'
-  
+
 HEADER='{"alg": "RS256", "jwk": '$jwk'}'
 HEADERPLACE='{"nonce": "NONCE", "alg": "RS256", "jwk": '$jwk'}'
 debug HEADER "$HEADER"
-  
+
 accountkey_json=$(echo -n "$jwk" | sed "s/ //g")
 thumbprint=$(echo -n "$accountkey_json" | sha256sum | xxd -r -p | base64 -w 0 | _b64)
-  
+
 info "Registering account"
 regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
 if [ "$ACCOUNT_EMAIL" ] ; then
   regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
-fi  
+fi
 send_signed_request   "$CA/acme/new-reg"  "$regjson"
 
 if [ "$code" == "" ] || [ "$code" == '201' ] ; then
@@ -436,7 +446,7 @@ info "Verify each domain"
 
 alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
 dn=0
-for d in $alldomains; do  
+for d in $alldomains; do
   info "Verifing $d"
   debug "domain $d has location ${ACL[$dn]}"
   if [ -z "${ACL[$dn]}" ]; then
@@ -452,16 +462,16 @@ for d in $alldomains; do
 
   http01=$(echo $response | egrep -o  '{[^{]*"type":"http-01"[^}]*')
   debug http01 "$http01"
-    
+
   token=$(echo "$http01" | sed 's/,/\n'/g| grep '"token":'| cut -d : -f 2|sed 's/"//g')
   debug token $token
-    
+
   uri=$(echo "$http01" | sed 's/,/\n'/g| grep '"uri":'| cut -d : -f 2,3|sed 's/"//g')
   debug uri $uri
-    
+
   keyauthorization="$token.$thumbprint"
   debug keyauthorization "$keyauthorization"
-  
+
   echo -n "$keyauthorization" > $DOMAIN_DIR/tmp/$token
   chmod 755 $DOMAIN_DIR/tmp/$token
 
@@ -470,14 +480,14 @@ for d in $alldomains; do
 
   wellknown_url="http://$d/.well-known/acme-challenge/$token"
   debug wellknown_url "$wellknown_url"
-  
+
   if [ ! "$(curl --silent $wellknown_url)" == "$keyauthorization" ]; then
     error_exit "for some reason could not reach $wellknown_url - please check it manually"
   fi
 
   debug challenge "$challenge"
   send_signed_request $uri "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
-    
+
   if [ ! -z "$code" ] && [ ! "$code" == '202' ] ; then
     error_exit "$d:Challenge error: $resource"
   fi
@@ -487,27 +497,27 @@ for d in $alldomains; do
     if ! getcr $uri ; then
       error_exit "$d:Verify error:$resource"
     fi
-     
+
     status=$(echo $response | egrep -o  '"status":"[^"]+"' | cut -d : -f 2 | sed 's/"//g')
     if [ "$status" == "valid" ] ; then
       info "Verified $d"
       break;
     fi
-      
+
     if [ "$status" == "invalid" ] ; then
       error=$(echo $response | egrep -o '"error":{[^}]*}' | grep -o '"detail":"[^"]*"' | cut -d '"' -f 4)
       error_exit "$d:Verify error:$error"
     fi
-    
+
     if [ "$status" == "pending" ] ; then
       info "Pending"
     else
-      error_exit "$d:Verify error:$response" 
-    fi    
+      error_exit "$d:Verify error:$response"
+    fi
     debug "sleep 5 secs berfore testiing verify again"
     sleep 5
   done
-  
+
   debug "remove token from ${ACL[$dn]}"
   if [[ "${ACL[$dn]:0:4}" == "ssh:" ]] ; then
     sshhost=$(echo "${ACL[$dn]}"| awk -F: '{print $2}')
@@ -519,29 +529,29 @@ for d in $alldomains; do
   else
     rm -f ${ACL[$dn]}
   fi
-  
-done 
+
+done
 
 info "Verification completed, obtaining certificate."
 der="$(openssl req  -in $DOMAIN_DIR/${DOMAIN}.csr -outform DER | base64 -w 0 | _b64)"
 send_signed_request "$CA/acme/new-cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
-  
+
 CertData="$(grep -i -o '^Location.*' $CURL_HEADER |sed 's/\r//g'| cut -d " " -f 2)"
-  
+
 if [ "$CertData" ] ; then
   echo -----BEGIN CERTIFICATE----- > "$CERT_FILE"
   curl --silent "$CertData" | base64  >> "$CERT_FILE"
   echo -----END CERTIFICATE-----  >> "$CERT_FILE"
   info "Certificate saved in $CERT_FILE"
 fi
-  
+
 if [ -z "$CertData" ] ; then
   response="$(echo $response | base64 -d)"
   error_exit "Sign failed: $(echo "$response" | grep -o  '"detail":"[^"]*"')"
 fi
-  
+
 IssuerData=$(grep -i '^Link' $CURL_HEADER | cut -d " " -f 2| cut -d ';' -f 1 | sed 's/<//g' | sed 's/>//g')
-  
+
 if [ "$IssuerData" ] ; then
   echo -----BEGIN CERTIFICATE----- > "$CA_CERT"
   curl --silent "$IssuerData" | base64  >> "$CA_CERT"
@@ -560,7 +570,7 @@ copy_file_to_location $DOMAIN_DIR/${DOMAIN}.key $DOMAIN_KEY_LOCATION
 info "copying CA certificate to $CA_CERT_LOCATION"
 copy_file_to_location $CA_CERT $CA_CERT_LOCATION
 
-# Run reload command to restart apache / gninx or whatever system 
+# Run reload command to restart apache / gninx or whatever system
 
 if [ ! -z "$RELOAD_CMD" ]; then
   info "reloading SSL services"

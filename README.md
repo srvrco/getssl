@@ -3,7 +3,7 @@ get an SSL certificate via LetsEncryot.  Suitable for automating the process in 
 
 This was written as an addition to checkssl for servers to automatically renew certifictes.  In addition it allows the running of this script in standard bash ( on a desktop computer, or even virtualbox) and add the checks, and certificates to a remote server ( providing you have an ssh key on the remote server with access). Potentially I can include FTP as an option for uploading as well. 
 
-   getssl ver. 0.1
+   getssl ver. 0.2
    To obtain a letsencrypt SSL cert
 
    Usage: getssl [-h|--help] [-d|--debug] [-c] [-w working_dir] domain
