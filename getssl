@@ -1,0 +1,575 @@
+#!/bin/bash
+# ---------------------------------------------------------------------------
+# getssl - Obtains a LetsEncrypt SSL cert
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License at <http://www.gnu.org/licenses/> for
+# more details.
+
+# Usage: getssl [-h|--help] [-d|--debug] [-w working_dir] domain
+
+# Revision history:
+# 2016-01-08 Created (v0.1)
+# ---------------------------------------------------------------------------
+
+PROGNAME=${0##*/}
+VERSION="0.1"
+
+# defaults
+#umask 077 # paranoid umask, as we're creating private keys
+#CA="https://acme-v01.api.letsencrypt.org"
+CA="https://acme-staging.api.letsencrypt.org"
+AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+ACCOUNT_KEY_LENGTH=4096
+WORKING_DIR=~/.getssl
+DOMAIN_KEY_LENGTH=4096
+SSLCONF=/etc/ssl/openssl.cnf
+RELOAD_CMD=""
+RENEW_ALLOW="30"
+
+clean_up() { # Perform pre-exit housekeeping
+  if [ ! -z $DOMAIN_DIR ]; then
+    rm -rf ${DOMAIN_DIR}/tmp
+  fi
+  return
+}
+
+error_exit() { # give error message on error exit
+  echo -e "${PROGNAME}: ${1:-"Unknown Error"}" >&2
+  clean_up
+  exit 1
+}
+
+graceful_exit() {
+  clean_up
+  exit
+}
+
+signal_exit() { # Handle trapped signals
+  case $1 in
+    INT)
+      error_exit "Program interrupted by user" ;;
+    TERM)
+      echo -e "\n$PROGNAME: Program terminated" >&2
+      graceful_exit ;;
+    *)
+      error_exit "$PROGNAME: Terminating on unknown signal" ;;
+  esac
+}
+
+usage() {
+  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-w working_dir] domain"
+}
+
+log() {
+     echo "[$(date +%Y-%m-%d\ %H:%M:%S)] $*" >> ${PROGNAME}.log
+}
+
+debug() {
+  if [[ "${_USE_DEBUG:-"0"}" -eq 1 ]]; then
+    echo "$@"
+  fi
+}
+
+info() {
+  echo "$@"
+}
+
+_b64() {
+  __n=$(cat)
+  echo $__n | tr '/+' '_-' | tr -d '= '
+}
+
+send_signed_request() {
+  url=$1
+  payload=$2
+  needbase64=$3
+
+  debug url $url
+  debug payload "$payload"
+
+  CURL_HEADER="$WORKING_DIR/curl.header"
+  dp="$WORKING_DIR/curl.dump"
+  CURL="curl --silent --dump-header $CURL_HEADER "
+  if [[ "${_USE_DEBUG:-"0"}" -eq 1 ]] ; then
+    CURL="$CURL --trace-ascii $dp "
+  fi
+  payload64=$(echo -n $payload | base64 -w 0 | _b64)
+  debug payload64 $payload64
+
+  nonceurl="$CA/directory"
+  nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | sed s/\\r//|sed s/\\n//| cut -d ' ' -f 2)
+
+  debug nonce $nonce
+
+  protected=$(echo -n "$HEADERPLACE" | sed "s/NONCE/$nonce/" )
+  debug protected "$protected"
+
+  protected64=$( echo -n $protected | base64 -w 0 | _b64)
+  debug protected64 "$protected64"
+
+  sig=$(echo -n "$protected64.$payload64" |  openssl   dgst   -sha256  -sign  $ACCOUNT_KEY | base64 -w 0 | _b64)
+  debug sig "$sig"
+  
+  body="{\"header\": $HEADER, \"protected\": \"$protected64\", \"payload\": \"$payload64\", \"signature\": \"$sig\"}"
+  debug body "$body"
+  
+  if [ "$needbase64" ] ; then
+    response="$($CURL -X POST --data "$body" $url | base64 -w 0)"
+  else
+    response="$($CURL -X POST --data "$body" $url)"
+  fi
+
+  responseHeaders="$(sed 's/\r//g' $CURL_HEADER)"
+  
+  debug responseHeaders "$responseHeaders"
+  debug response  "$response"
+  code="$(grep ^HTTP $CURL_HEADER | tail -1 | cut -d " " -f 2)"
+  debug code $code
+
+}
+
+copy_file_to_location() {
+  from=$1
+  to=$2
+  if [ ! -z "$to" ]; then
+    debug "copying from $from to $to"
+    if [[ "${to:0:4}" == "ssh:" ]] ; then
+      debug "using scp scp -q $from ${to:4}"
+      res=$(scp -q $from ${to:4} >/dev/null 2>&1)
+      if [ $? -gt 0 ]; then
+        error_exit "problem copying file to the server using scp.
+        scp $from ${to:4}"
+      fi
+    else
+      cp $from $to
+    fi
+    debug "copied $from to $to"
+  fi  
+}
+
+getcr() {
+  url="$1"
+  debug url $url
+  response="$(curl --silent $url)"
+  ret=$?
+  debug response  "$response"
+  code="$(echo $response | grep -o '"status":[0-9]\+' | cut -d : -f 2)"
+  debug code $code
+  return $ret
+}
+
+_requires() {
+  result=$(which $1)
+  debug checking for required $1 ... $result
+  if [ -z "$result" ]; then
+    echo "This script requires $1 installed"
+    graceful_exit
+  fi
+}
+
+help_message() {
+   cat <<- _EOF_
+   $PROGNAME ver. $VERSION
+   To obtain a letsencrypt SSL cert
+
+   $(usage)
+
+   Options:
+  -h, --help  Display this help message and exit.
+  -d, --debug  outputs debug information
+  -w working_dir  working directory
+    Where 'working_dir' is the Working Directory.
+
+_EOF_
+  return
+}
+
+# Trap signals
+trap "signal_exit TERM" TERM HUP
+trap "signal_exit INT"  INT
+
+# Parse command-line
+while [[ -n $1 ]]; do
+  case $1 in
+    -h | --help)
+      help_message; graceful_exit ;;
+    -d | --debug)
+     _USE_DEBUG=1 ;;
+    -c | --create)
+     _CREATE_CONFIG=1 ;;
+    -w)
+      echo "working directory"; shift; WORKING_DIR="$1" ;;
+    -* | --*)
+      usage
+      error_exit "Unknown option $1" ;;
+    *)
+      DOMAIN="$1" ;;
+  esac
+  shift
+done
+
+# Main logic
+
+#check if required applications are included
+
+_requires openssl
+_requires curl
+_requires xxd
+_requires base64
+
+if [ -z "$DOMAIN" ]; then
+  help_message
+  graceful_exit
+fi
+
+if [ ! -d "$WORKING_DIR" ]; then
+  debug "Making working directory - $WORKING_DIR"
+  mkdir -p "$WORKING_DIR"
+fi
+
+ACCOUNT_KEY="$WORKING_DIR/account.key"
+DOMAIN_DIR="$WORKING_DIR/$DOMAIN"
+CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
+CA_CERT="$DOMAIN_DIR/chain.crt"
+
+if [ _CREATE_CONFIG ]; then
+  if [ -f "$WORKING_DIR/getssl.cfg" ]; then
+    info "reading main config from existing $WORKING_DIR/getssl.cfg"
+    . $WORKING_DIR/getssl.cfg
+  else
+    info "creating main config file $WORKING_DIR/getssl.cfg"
+    echo "# uncomment and modify any variables you need
+# The staging server is best for testing
+CA=\"https://acme-staging.api.letsencrypt.org\"
+# This server issues full certificates, however has rate limits
+#CA=\"https://acme-v01.api.letsencrypt.org\"
+
+AGREEMENT=\"https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf\"
+
+#set an email address associated with your account 
+#ACCOUNT_EMAIL=\"me@example.com\"
+ACCOUNT_KEY_LENGTH=4096
+
+#The default directory for all your certs to be stored within ( in subdirectories by domain name ) 
+WORKING_DIR=~/.getssl
+
+# the command needed to reload apache / gninx or whatever you use
+#RELOAD_CMD=\"\"
+#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
+RENEW_ALLOW=\"30\"
+" >> $WORKING_DIR/getssl.cfg
+  fi
+  if [ ! -d "$DOMAIN_DIR" ]; then
+    info "Making domain directory - $DOMAIN_DIR"
+    mkdir -p "$DOMAIN_DIR"
+  fi
+  if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
+    info "domain config already exists $DOMAIN_DIR/getssl.cfg"
+  else
+    info "creating domain config file in $DOMAIN_DIR/getssl.cfg"
+    echo "# uncomment and modify any variables you need
+# The staging server is best for testing
+#CA=\"https://acme-staging.api.letsencrypt.org\"
+# This server issues full certificates, however has rate limits
+#CA=\"https://acme-v01.api.letsencrypt.org\"
+
+#AGREEMENT=\"https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf\"
+
+#set an email address associated with your account - generally set at account level rather than domain. 
+#ACCOUNT_EMAIL=\"me@example.com\"
+#ACCOUNT_KEY_LENGTH=4096
+
+# additional domains - this could be multiple domains / subdomains in a comma separated list
+SANS=www.${DOMAIN}
+
+#Acme Challenge Location.   The first line for the domain, the following ones for each additional domain
+#if these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
+#an ssh key will be needed to provide you with access to the remote server.
+#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge')
+
+# location for all your certs these can either be on the server ( so full path name) or using ssh as for the ACL
+#DOMAIN_CERT_LOCATION=\"ssh:server5:/home/domain/public_html/.well-known/acme-challenge/domain.crt\"
+#DOMAIN_KEY_LOCATION=\"ssh:server5:/home/domain/public_html/.well-known/acme-challenge/domain.key\"
+#CA_CERT_LOCATION=\"/etc/ssl/chain.crt\"
+# the command needed to reload apache / gninx or whatever you use
+#RELOAD_CMD=\"\"
+#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
+#RENEW_ALLOW=\"30\"
+" >> $DOMAIN_DIR/getssl.cfg
+    
+  fi
+  graceful_exit
+fi
+
+# read any variables from config in working directory
+if [ -f "$WORKING_DIR/getssl.cfg" ]; then
+  debug "reading config from $WORKING_DIR/getssl.cfg"
+  . $WORKING_DIR/getssl.cfg
+fi
+
+if [ ! -d "$DOMAIN_DIR" ]; then
+  debug "Making working directory - $DOMAIN_DIR"
+  mkdir -p "$DOMAIN_DIR"
+fi
+
+if [ ! -d "${DOMAIN_DIR}/tmp" ]; then
+  debug "Making temp directory - ${DOMAIN_DIR}/tmp"
+  mkdir -p "${DOMAIN_DIR}/tmp"
+fi
+
+# read any variables from config in domain directory
+if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
+  debug "reading config from $DOMAIN_DIR/getssl.cfg"
+  . $DOMAIN_DIR/getssl.cfg
+fi
+
+if [ -f $CERT_FILE ]; then
+  debug "certificate $CERT_FILE exists"
+  enddate=$(openssl x509 -in $CERT_FILE -noout -enddate 2>/dev/null| cut -d= -f 2-)
+  if [[ "$enddate" != "-" ]]; then
+    if [[ $(date -d "${RENEW_ALLOW} days" +%s) -lt $(date -d "$enddate" +%s) ]]; then
+      error_exit "existing certificate ( $CERT_FILE ) is still valid for more than $RENEW_ALLOW days - aborting"
+    else
+      formatted_enddate=$(date -d "${enddate}" +%F)
+      startdate=$(openssl x509 -in $CERT_FILE -noout -startdate 2>/dev/null| cut -d= -f 2-)
+      formatted_startdate=$(date -d "${startdate}" +%F)
+      mv "${CERT_FILE}" "${CERT_FILE}_${formatted_startdate}_${formatted_enddate}"
+      debug "backing up old certificate file to ${CERT_FILE}_${formatted_startdate}_${formatted_enddate}"
+    fi
+  fi
+fi
+
+if [ -f "$ACCOUNT_KEY" ]; then
+  debug "Account key exists at $ACCOUNT_KEY skipping generation"
+else
+  info "creating account key $ACCOUNT_KEY"
+  openssl genrsa $ACCOUNT_KEY_LENGTH > "$ACCOUNT_KEY"
+fi
+
+if [ -f $DOMAIN_DIR/${DOMAIN}.key ]; then
+  debug "domain key exists at $DOMAIN_DIR/${DOMAIN}.key - skipping generation"
+  # check validity of domain key
+  if [ "$(openssl rsa -noout -text -in $DOMAIN_DIR/${DOMAIN}.key|head -1)" != "Private-Key: ($DOMAIN_KEY_LENGTH bit)" ]; then
+    error_exit "$DOMAIN_DIR/${DOMAIN}.key does not appear to be an appropriate private key - aborting"
+  fi
+else
+  info "creating domain key - $DOMAIN_DIR/${DOMAIN}.key"
+  openssl genrsa $DOMAIN_KEY_LENGTH > $DOMAIN_DIR/${DOMAIN}.key
+fi
+
+#create SAN
+if [ -z "$SANS" ]; then
+  SANLIST="[SAN]\nsubjectAltName=DNS:${DOMAIN}"
+else
+  SANLIST="[SAN]\nsubjectAltName=DNS:${DOMAIN},DNS:${SANS//,/,DNS:}"
+fi
+debug "created SAN list = $SANLIST"
+
+# check if domain csr exists - if not then create it
+if [ -f $DOMAIN_DIR/${DOMAIN}.csr ]; then
+  debug "domain csr exists at - $DOMAIN_DIR/${DOMAIN}.csr - skipping generation"
+  #check csr is valid for domain
+  if [ "$(openssl req -noout -text -in $DOMAIN_DIR/${DOMAIN}.csr| grep -o DNS:${DOMAIN})" != "DNS:${DOMAIN}" ]; then
+    echo "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not appear to be valid for ${DOMAIN} - aborting"
+    graceful_exit
+  fi
+else
+  debug "creating domain csr - $DOMAIN_DIR/${DOMAIN}.csr"
+  openssl req -new -sha256 -key $DOMAIN_DIR/${DOMAIN}.key -subj "/" -reqexts SAN -config \
+  <(cat $SSLCONF <(printf "$SANLIST")) > $DOMAIN_DIR/${DOMAIN}.csr
+fi
+
+# use account key to register with CA 
+
+pub_exp=$(openssl rsa -in $ACCOUNT_KEY  -noout -text | grep "^publicExponent:"| cut -d '(' -f 2 | cut -d 'x' -f 2 | cut -d ')' -f 1)
+if [ "${#pub_exp}" == "5" ] ; then
+  pub_exp=0$pub_exp
+fi
+debug pub_exp "$pub_exp"
+  
+e=$(echo $pub_exp | xxd -r -p | base64)
+debug e "$e"
+  
+modulus=$(openssl rsa -in $ACCOUNT_KEY -modulus -noout | cut -d '=' -f 2 )
+n=$(echo $modulus| xxd -r -p | base64 -w 0 | _b64 )
+
+jwk='{"e": "'$e'", "kty": "RSA", "n": "'$n'"}'
+  
+HEADER='{"alg": "RS256", "jwk": '$jwk'}'
+HEADERPLACE='{"nonce": "NONCE", "alg": "RS256", "jwk": '$jwk'}'
+debug HEADER "$HEADER"
+  
+accountkey_json=$(echo -n "$jwk" | sed "s/ //g")
+thumbprint=$(echo -n "$accountkey_json" | sha256sum | xxd -r -p | base64 -w 0 | _b64)
+  
+info "Registering account"
+regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
+if [ "$ACCOUNT_EMAIL" ] ; then
+  regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
+fi  
+send_signed_request   "$CA/acme/new-reg"  "$regjson"
+
+if [ "$code" == "" ] || [ "$code" == '201' ] ; then
+  info "Registered"
+  echo $response > $WORKING_DIR/account.json
+elif [ "$code" == '409' ] ; then
+  debug "Already registered"
+else
+  echo "Error registering account"
+  graceful_exit
+fi
+
+# verify each domain
+info "Verify each domain"
+
+alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
+dn=0
+for d in $alldomains; do  
+  info "Verifing $d"
+  debug "domain $d has location ${ACL[$dn]}"
+  if [ -z "${ACL[$dn]}" ]; then
+    error_exit "ACL location not specified for domain $d in $DOMAIN_DIR/getssl.cfg"
+  fi
+
+  send_signed_request "$CA/acme/new-authz" "{\"resource\": \"new-authz\", \"identifier\": {\"type\": \"dns\", \"value\": \"$d\"}}"
+
+  debug "completed send_signed_request"
+  if [ ! -z "$code" ] && [ ! "$code" == '201' ] ; then
+    error_exit "new-authz error: $response"
+  fi
+
+  http01=$(echo $response | egrep -o  '{[^{]*"type":"http-01"[^}]*')
+  debug http01 "$http01"
+    
+  token=$(echo "$http01" | sed 's/,/\n'/g| grep '"token":'| cut -d : -f 2|sed 's/"//g')
+  debug token $token
+    
+  uri=$(echo "$http01" | sed 's/,/\n'/g| grep '"uri":'| cut -d : -f 2,3|sed 's/"//g')
+  debug uri $uri
+    
+  keyauthorization="$token.$thumbprint"
+  debug keyauthorization "$keyauthorization"
+  
+  echo -n "$keyauthorization" > $DOMAIN_DIR/tmp/$token
+  chmod 755 $DOMAIN_DIR/tmp/$token
+
+# copy to token to acme challenge location
+  copy_file_to_location $DOMAIN_DIR/tmp/$token ${ACL[$dn]}
+
+  wellknown_url="http://$d/.well-known/acme-challenge/$token"
+  debug wellknown_url "$wellknown_url"
+  
+  if [ ! "$(curl --silent $wellknown_url)" == "$keyauthorization" ]; then
+    error_exit "for some reason could not reach $wellknown_url - please check it manually"
+  fi
+
+  debug challenge "$challenge"
+  send_signed_request $uri "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
+    
+  if [ ! -z "$code" ] && [ ! "$code" == '202' ] ; then
+    error_exit "$d:Challenge error: $resource"
+  fi
+
+  while [ "1" ] ; do
+    debug "checking"
+    if ! getcr $uri ; then
+      error_exit "$d:Verify error:$resource"
+    fi
+     
+    status=$(echo $response | egrep -o  '"status":"[^"]+"' | cut -d : -f 2 | sed 's/"//g')
+    if [ "$status" == "valid" ] ; then
+      info "Verified $d"
+      break;
+    fi
+      
+    if [ "$status" == "invalid" ] ; then
+      error=$(echo $response | egrep -o '"error":{[^}]*}' | grep -o '"detail":"[^"]*"' | cut -d '"' -f 4)
+      error_exit "$d:Verify error:$error"
+    fi
+    
+    if [ "$status" == "pending" ] ; then
+      info "Pending"
+    else
+      error_exit "$d:Verify error:$response" 
+    fi    
+    debug "sleep 5 secs berfore testiing verify again"
+    sleep 5
+  done
+  
+  debug "remove token from ${ACL[$dn]}"
+  if [[ "${ACL[$dn]:0:4}" == "ssh:" ]] ; then
+    sshhost=$(echo "${ACL[$dn]}"| awk -F: '{print $2}')
+    command="rm -f ${ACL[$dn]:(( ${#sshhost} + 5))}/$token"
+    debug "running following comand to remove token"
+    debug "ssh $sshhost ${command}"
+    ssh $sshhost "${command}" 1>/dev/null 2>&1
+    rm -f $DOMAIN_DIR/tmp/$token
+  else
+    rm -f ${ACL[$dn]}
+  fi
+  
+done 
+
+info "Verification completed, obtaining certificate."
+der="$(openssl req  -in $DOMAIN_DIR/${DOMAIN}.csr -outform DER | base64 -w 0 | _b64)"
+send_signed_request "$CA/acme/new-cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
+  
+CertData="$(grep -i -o '^Location.*' $CURL_HEADER |sed 's/\r//g'| cut -d " " -f 2)"
+  
+if [ "$CertData" ] ; then
+  echo -----BEGIN CERTIFICATE----- > "$CERT_FILE"
+  curl --silent "$CertData" | base64  >> "$CERT_FILE"
+  echo -----END CERTIFICATE-----  >> "$CERT_FILE"
+  info "Certificate saved in $CERT_FILE"
+fi
+  
+if [ -z "$CertData" ] ; then
+  response="$(echo $response | base64 -d)"
+  error_exit "Sign failed: $(echo "$response" | grep -o  '"detail":"[^"]*"')"
+fi
+  
+IssuerData=$(grep -i '^Link' $CURL_HEADER | cut -d " " -f 2| cut -d ';' -f 1 | sed 's/<//g' | sed 's/>//g')
+  
+if [ "$IssuerData" ] ; then
+  echo -----BEGIN CERTIFICATE----- > "$CA_CERT"
+  curl --silent "$IssuerData" | base64  >> "$CA_CERT"
+  echo -----END CERTIFICATE-----  >> "$CA_CERT"
+  info "The intermediate CA cert is in $CA_CERT"
+fi
+
+# copy certs to the correct location
+
+info "copying domain certificate to $DOMAIN_CERT_LOCATION"
+copy_file_to_location $CERT_FILE $DOMAIN_CERT_LOCATION
+
+info "copying private key to $DOMAIN_KEY_LOCATION"
+copy_file_to_location $DOMAIN_DIR/${DOMAIN}.key $DOMAIN_KEY_LOCATION
+
+info "copying CA certificate to $CA_CERT_LOCATION"
+copy_file_to_location $CA_CERT $CA_CERT_LOCATION
+
+# Run reload command to restart apache / gninx or whatever system 
+
+if [ ! -z "$RELOAD_CMD" ]; then
+  if [[ "${ACL[$dn]:0:4}" == "ssh:" ]] ; then
+    sshhost=$(echo "$RELOAD_CMD"| awk -F: '{print $2}')
+    command=${RELOAD_CMD:(( ${#sshhost} + 5))}
+    debug "running following comand to reload cert"
+    debug "ssh $sshhost ${command}"
+    ssh $sshhost "${command}" 1>/dev/null 2>&1
+  else
+    debug "running reload command $RELOAD_CMD"
+    $RELOAD_CMD
+  fi
+fi
+
+graceful_exit
