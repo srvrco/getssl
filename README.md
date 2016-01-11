@@ -22,58 +22,61 @@ The design aim was to provide flexibility in running the code.  The default work
 
 Within the **working directory** is a config file, getssl.cfg which is a simple bash file containing variables, an example of which is 
 
-\# uncomment and modify any variables you need
-\# The staging server is best for testing
+```
+# uncomment and modify any variables you need
+# The staging server is best for testing
 CA="https://acme-staging.api.letsencrypt.org"
-\# This server issues full certificates, however has rate limits
-\#CA="https://acme-v01.api.letsencrypt.org"
+# This server issues full certificates, however has rate limits
+#CA="https://acme-v01.api.letsencrypt.org"
 
 AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 
-\#set an email address associated with your account 
+#set an email address associated with your account 
 ACCOUNT_EMAIL="me@example.com"
 ACCOUNT_KEY_LENGTH=4096
 
-\#The default directory for all your certs to be stored within ( in subdirectories by domain name ) 
+#The default directory for all your certs to be stored within ( in subdirectories by domain name ) 
 WORKING_DIR=~/.getssl
 
-\# the command needed to reload apache / gninx or whatever you use
-\#RELOAD_CMD=""
-\#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
+# the command needed to reload apache / gninx or whatever you use
+#RELOAD_CMD=""
+#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
 RENEW_ALLOW="30"`
-<p>
+```
 
 then, within the **working directory** there will be a folder for each certificate (based on it's domain name). Within that folder will be a config file (again called getssl.cfg).  An example of which is;
 
-\# uncomment and modify any variables you need
-\# The staging server is best for testing
-\#CA="https://acme-staging.api.letsencrypt.org"
-\# This server issues full certificates, however has rate limits
-\#CA="https://acme-v01.api.letsencrypt.org"
+```
+# uncomment and modify any variables you need
+# The staging server is best for testing
+#CA="https://acme-staging.api.letsencrypt.org"
+# This server issues full certificates, however has rate limits
+#CA="https://acme-v01.api.letsencrypt.org"
 
-\#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 
-\#set an email address associated with your account - generally set at account level rather than domain. 
-\#ACCOUNT_EMAIL="me@example.com"
-\#ACCOUNT_KEY_LENGTH=4096
+#set an email address associated with your account - generally set at account level rather than domain. 
+#ACCOUNT_EMAIL="me@example.com"
+#ACCOUNT_KEY_LENGTH=4096
 
-\# additional domains - this could be multiple domains / subdomains in a comma separated list
+# additional domains - this could be multiple domains / subdomains in a comma separated list
 SANS=www.testdomain.com
 
-\#Acme Challenge Location.   The first line for the domain, the following ones for each additional domain
-\#if these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
-\#an ssh key will be needed to provide you with access to the remote server.
-\#ACL=('/var/www/testdomain.com/web/.well-known/acme-challenge'
-\#     'ssh:server5:/var/www/testdomain.com/web/.well-known/acme-challenge')
+#Acme Challenge Location.   The first line for the domain, the following ones for each additional domain
+#if these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
+#an ssh key will be needed to provide you with access to the remote server.
+#ACL=('/var/www/testdomain.com/web/.well-known/acme-challenge'
+#     'ssh:server5:/var/www/testdomain.com/web/.well-known/acme-challenge')
 
-\# location for all your certs these can either be on the server ( so full path name) or using ssh as for the ACL
-\#DOMAIN_CERT_LOCATION="ssh:server5:/home/domain/public_html/.well-known/acme-challenge/domain.crt"
-\#DOMAIN_KEY_LOCATION="ssh:server5:/home/domain/public_html/.well-known/acme-challenge/domain.key"
-\#CA_CERT_LOCATION="/etc/ssl/chain.crt"
-\# the command needed to reload apache / gninx or whatever you use
-\#RELOAD_CMD="ssh:server5:service apache2 reload"
-\#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
-\#RENEW_ALLOW="30"`
+# location for all your certs these can either be on the server ( so full path name) or using ssh as for the ACL
+#DOMAIN_CERT_LOCATION="ssh:server5:/home/domain/public_html/.well-known/acme-challenge/domain.crt"
+#DOMAIN_KEY_LOCATION="ssh:server5:/home/domain/public_html/.well-known/acme-challenge/domain.key"
+#CA_CERT_LOCATION="/etc/ssl/chain.crt"
+# the command needed to reload apache / gninx or whatever you use
+#RELOAD_CMD="ssh:server5:service apache2 reload"
+#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
+#RENEW_ALLOW="30"`
+```
 
 if a location for a file starts with ssh:  it is assumed the next part of the file is the hostname, followed by a colon, and then the path. 
 files will be copied using scp, and it assumes that you have a key on the server ( for passwordless access).  You can set the user, port etc for the server in your .ssh/config file
