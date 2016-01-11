@@ -13,14 +13,15 @@
 # GNU General Public License at <http://www.gnu.org/licenses/> for
 # more details.
 
-# Usage: getssl [-h|--help] [-d|--debug] [-w working_dir] domain
+# Usage: getssl [-h|--help] [-d|--debug] [-c] [-w working_dir] domain
 
 # Revision history:
 # 2016-01-08 Created (v0.1)
+# 2016-01-11 type correction and upload to github (v0.2)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.1"
+VERSION="0.2"
 
 # defaults
 #umask 077 # paranoid umask, as we're creating private keys
@@ -33,6 +34,7 @@ DOMAIN_KEY_LENGTH=4096
 SSLCONF=/etc/ssl/openssl.cnf
 RELOAD_CMD=""
 RENEW_ALLOW="30"
+_CREATE_CONFIG=0
 
 clean_up() { # Perform pre-exit housekeeping
   if [ ! -z $DOMAIN_DIR ]; then
@@ -65,7 +67,7 @@ signal_exit() { # Handle trapped signals
 }
 
 usage() {
-  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-w working_dir] domain"
+  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c] [-w working_dir] domain"
 }
 
 log() {
@@ -185,6 +187,7 @@ help_message() {
    Options:
   -h, --help  Display this help message and exit.
   -d, --debug  outputs debug information
+  -c,          create default config files
   -w working_dir  working directory
     Where 'working_dir' is the Working Directory.
 
@@ -240,7 +243,7 @@ DOMAIN_DIR="$WORKING_DIR/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 
-if [ _CREATE_CONFIG ]; then
+if [ ${_CREATE_CONFIG} -eq 1 ]; then
   if [ -f "$WORKING_DIR/getssl.cfg" ]; then
     info "reading main config from existing $WORKING_DIR/getssl.cfg"
     . $WORKING_DIR/getssl.cfg
@@ -560,6 +563,7 @@ copy_file_to_location $CA_CERT $CA_CERT_LOCATION
 # Run reload command to restart apache / gninx or whatever system 
 
 if [ ! -z "$RELOAD_CMD" ]; then
+  info "reloading SSL services"
   if [[ "${ACL[$dn]:0:4}" == "ssh:" ]] ; then
     sshhost=$(echo "$RELOAD_CMD"| awk -F: '{print $2}')
     command=${RELOAD_CMD:(( ${#sshhost} + 5))}
