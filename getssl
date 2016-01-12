@@ -19,10 +19,11 @@
 # 2016-01-08 Created (v0.1)
 # 2016-01-11 type correction and upload to github (v0.2)
 # 2016-01-11 added import of any existing cert on -c  option (v0.3)
+# 2016-01-12 corrected formatting of imported certificate (v0.4)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.3"
+VERSION="0.4"
 
 # defaults
 #umask 077 # paranoid umask, as we're creating private keys
@@ -282,11 +283,12 @@ RENEW_ALLOW=\"30\"
     EX_CERT=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 2>/dev/null)
     EX_SANS="www.${DOMAIN}"
     if [ ! -z "${EX_CERT}" ]; then
-      if [ ! -f $DOMAIN_DIR/domain.crt ]; then
-        echo $EX_CERT > $DOMAIN_DIR/domain.crt
+      if [ ! -f $DOMAIN_DIR/${DOMAIN}.crt ]; then
+        echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
       fi
       EX_SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
                 | grep -Eo "DNS:[a-zA-Z 0-9.]*" |sed "s@DNS:$DOMAIN@@g"| cut -c 5-)
+      EX_SANS=${EX_SANS//$'\n'/}
     fi
     echo "# uncomment and modify any variables you need
 # The staging server is best for testing
