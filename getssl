@@ -20,10 +20,11 @@
 # 2016-01-11 type correction and upload to github (v0.2)
 # 2016-01-11 added import of any existing cert on -c  option (v0.3)
 # 2016-01-12 corrected formatting of imported certificate (v0.4)
+# 2016-01-12 corrected error on removal of token in some instances (v0.5)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.4"
+VERSION="0.5"
 
 # defaults
 #umask 077 # paranoid umask, as we're creating private keys
@@ -40,7 +41,7 @@ _CREATE_CONFIG=0
 
 clean_up() { # Perform pre-exit housekeeping
   if [ ! -z $DOMAIN_DIR ]; then
-    rm -rf ${DOMAIN_DIR}/tmp
+    rm -rf ${TEMP_DIR}
   fi
   return
 }
@@ -99,8 +100,8 @@ send_signed_request() {
   debug url $url
   debug payload "$payload"
 
-  CURL_HEADER="$WORKING_DIR/curl.header"
-  dp="$WORKING_DIR/curl.dump"
+  CURL_HEADER="$TEMP_DIR/curl.header"
+  dp="$TEMP_DIR/curl.dump"
   CURL="curl --silent --dump-header $CURL_HEADER "
   if [[ "${_USE_DEBUG:-"0"}" -eq 1 ]] ; then
     CURL="$CURL --trace-ascii $dp "
@@ -240,6 +241,7 @@ if [ ! -d "$WORKING_DIR" ]; then
   mkdir -p "$WORKING_DIR"
 fi
 
+TEMP_DIR="$DOMAIN_DIR/tmp"
 ACCOUNT_KEY="$WORKING_DIR/account.key"
 DOMAIN_DIR="$WORKING_DIR/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
@@ -262,6 +264,7 @@ AGREEMENT=\"https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf\"
 #set an email address associated with your account
 #ACCOUNT_EMAIL=\"me@example.com\"
 ACCOUNT_KEY_LENGTH=4096
+ACCOUNT_KEY=\"$WORKING_DIR/account.key\"
 
 #The default directory for all your certs to be stored within ( in subdirectories by domain name )
 WORKING_DIR=~/.getssl
@@ -301,6 +304,7 @@ RENEW_ALLOW=\"30\"
 #set an email address associated with your account - generally set at account level rather than domain.
 #ACCOUNT_EMAIL=\"me@example.com\"
 #ACCOUNT_KEY_LENGTH=4096
+#ACCOUNT_KEY=\"$WORKING_DIR/account.key\"
 
 # additional domains - this could be multiple domains / subdomains in a comma separated list
 SANS=${EX_SANS}
@@ -336,9 +340,11 @@ if [ ! -d "$DOMAIN_DIR" ]; then
   mkdir -p "$DOMAIN_DIR"
 fi
 
-if [ ! -d "${DOMAIN_DIR}/tmp" ]; then
-  debug "Making temp directory - ${DOMAIN_DIR}/tmp"
-  mkdir -p "${DOMAIN_DIR}/tmp"
+TEMP_DIR="$DOMAIN_DIR/tmp"
+
+if [ ! -d "${TEMP_DIR}" ]; then
+  debug "Making temp directory - ${TEMP_DIR}"
+  mkdir -p "${TEMP_DIR}"
 fi
 
 # read any variables from config in domain directory
@@ -435,7 +441,7 @@ send_signed_request   "$CA/acme/new-reg"  "$regjson"
 
 if [ "$code" == "" ] || [ "$code" == '201' ] ; then
   info "Registered"
-  echo $response > $WORKING_DIR/account.json
+  echo $response > $TEMP_DIR/account.json
 elif [ "$code" == '409' ] ; then
   debug "Already registered"
 else
@@ -474,11 +480,11 @@ for d in $alldomains; do
   keyauthorization="$token.$thumbprint"
   debug keyauthorization "$keyauthorization"
 
-  echo -n "$keyauthorization" > $DOMAIN_DIR/tmp/$token
-  chmod 755 $DOMAIN_DIR/tmp/$token
+  echo -n "$keyauthorization" > $TEMP_DIR/$token
+  chmod 755 $TEMP_DIR/$token
 
 # copy to token to acme challenge location
-  copy_file_to_location $DOMAIN_DIR/tmp/$token ${ACL[$dn]}
+  copy_file_to_location $TEMP_DIR/$token ${ACL[$dn]}
 
   wellknown_url="http://$d/.well-known/acme-challenge/$token"
   debug wellknown_url "$wellknown_url"
@@ -527,9 +533,9 @@ for d in $alldomains; do
     debug "running following comand to remove token"
     debug "ssh $sshhost ${command}"
     ssh $sshhost "${command}" 1>/dev/null 2>&1
-    rm -f $DOMAIN_DIR/tmp/$token
+    rm -f $TEMP_DIR/$token
   else
-    rm -f ${ACL[$dn]}
+    rm -f ${ACL[$dn]}/$token
   fi
 
 done
