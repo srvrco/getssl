@@ -22,10 +22,11 @@
 # 2016-01-12 corrected formatting of imported certificate (v0.4)
 # 2016-01-12 corrected error on removal of token in some instances (v0.5)
 # 2016-01-18 corrected issue with removing tmp if run as root with the -c option (v0.6)
+# 2016-01-18 added option to upload a single PEN file ( used by cpanel) (v0.7)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.6"
+VERSION="0.7"
 
 # defaults
 #umask 077 # paranoid umask, as we're creating private keys
@@ -571,14 +572,26 @@ fi
 
 # copy certs to the correct location
 
-info "copying domain certificate to $DOMAIN_CERT_LOCATION"
-copy_file_to_location $CERT_FILE $DOMAIN_CERT_LOCATION
+if [ ! -z "$DOMAIN_CERT_LOCATION" ]; then
+  info "copying domain certificate to $DOMAIN_CERT_LOCATION"
+  copy_file_to_location $CERT_FILE $DOMAIN_CERT_LOCATION
+fi
 
-info "copying private key to $DOMAIN_KEY_LOCATION"
-copy_file_to_location $DOMAIN_DIR/${DOMAIN}.key $DOMAIN_KEY_LOCATION
+if [ ! -z "$DOMAIN_KEY_LOCATION" ]; then
+  info "copying private key to $DOMAIN_KEY_LOCATION"
+  copy_file_to_location $DOMAIN_DIR/${DOMAIN}.key $DOMAIN_KEY_LOCATION
+fi
 
-info "copying CA certificate to $CA_CERT_LOCATION"
-copy_file_to_location $CA_CERT $CA_CERT_LOCATION
+if [ ! -z "$CA_CERT_LOCATION" ]; then
+  info "copying CA certificate to $CA_CERT_LOCATION"
+  copy_file_to_location $CA_CERT $CA_CERT_LOCATION
+fi
+
+if [ ! -z "$DOMAIN_PEM_LOCATION" ]; then
+  # Create full pem
+  cat $DOMAIN_DIR/${DOMAIN}.key $CERT_FILE $CA_CERT > $DOMAIN_DIR/${DOMAIN}.pem
+  copy_file_to_location $DOMAIN_DIR/${DOMAIN}.pem  $DOMAIN_PEM_LOCATION
+fi
 
 # Run reload command to restart apache / gninx or whatever system
 
