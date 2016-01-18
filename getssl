@@ -21,10 +21,11 @@
 # 2016-01-11 added import of any existing cert on -c  option (v0.3)
 # 2016-01-12 corrected formatting of imported certificate (v0.4)
 # 2016-01-12 corrected error on removal of token in some instances (v0.5)
+# 2016-01-18 corrected issue with removing tmp if run as root with the -c option (v0.6)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.5"
+VERSION="0.6"
 
 # defaults
 #umask 077 # paranoid umask, as we're creating private keys
@@ -326,6 +327,7 @@ SANS=${EX_SANS}
 " >> $DOMAIN_DIR/getssl.cfg
 
   fi
+  TEMP_DIR="$DOMAIN_DIR/tmp"
   graceful_exit
 fi
 
