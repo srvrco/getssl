@@ -3,7 +3,7 @@ get an SSL certificate via LetsEncryot.  Suitable for automating the process in 
 
 This was written as an addition to checkssl for servers to automatically renew certifictes.  In addition it allows the running of this script in standard bash ( on a desktop computer, or even virtualbox) and add the checks, and certificates to a remote server ( providing you have an ssh key on the remote server with access). Potentially I can include FTP as an option for uploading as well. 
 
-   getssl ver. 0.2
+   getssl ver. 0.8
    To obtain a letsencrypt SSL cert
 
    Usage: getssl [-h|--help] [-d|--debug] [-c] [-w working_dir] domain
@@ -41,7 +41,11 @@ WORKING_DIR=~/.getssl
 # the command needed to reload apache / gninx or whatever you use
 #RELOAD_CMD=""
 #The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
-RENEW_ALLOW="30"`
+RENEW_ALLOW="30"
+#Use the following 3 variables if you want to validate via DNS
+#VALIDATE_VIA_DNS="true"
+#DNS_ADD_COMMAND=
+#DNS_DEL_COMMAND=
 ```
 
 then, within the **working directory** there will be a folder for each certificate (based on it's domain name). Within that folder will be a config file (again called getssl.cfg).  An example of which is;
@@ -75,7 +79,11 @@ SANS=www.testdomain.com
 # the command needed to reload apache / gninx or whatever you use
 #RELOAD_CMD="ssh:server5:service apache2 reload"
 #The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
-#RENEW_ALLOW="30"`
+#RENEW_ALLOW="30"
+#Use the following 3 variables if you want to validate via DNS
+#VALIDATE_VIA_DNS=\"true\"
+#DNS_ADD_COMMAND=
+#DNS_DEL_COMMAND=
 ```
 
 if a location for a file starts with ssh:  it is assumed the next part of the file is the hostname, followed by a colon, and then the path. 
@@ -123,3 +131,6 @@ copying private key to ssh:server5:/home/yourdomain/ssl/domain.key
 copying CA certificate to ssh:server5:/home/yourdomain/ssl/chain.crt
 reloading SSL services
 ```
+
+Note:   Using DNS validation is still in early stages, and there are a number of issues related to it (for example I tested with cloudflare DNS which wouldn't work and with an "internal boulder sanity check" - https://github.com/letsencrypt/boulder/issues/1391 
+ 

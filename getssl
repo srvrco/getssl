@@ -23,10 +23,11 @@
 # 2016-01-12 corrected error on removal of token in some instances (v0.5)
 # 2016-01-18 corrected issue with removing tmp if run as root with the -c option (v0.6)
 # 2016-01-18 added option to upload a single PEN file ( used by cpanel) (v0.7)
+# 2016-01-23 added dns challenge option (v0.8)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.7"
+VERSION="0.8"
 
 # defaults
 #umask 077 # paranoid umask, as we're creating private keys
@@ -37,6 +38,7 @@ ACCOUNT_KEY_LENGTH=4096
 WORKING_DIR=~/.getssl
 DOMAIN_KEY_LENGTH=4096
 SSLCONF=/etc/ssl/openssl.cnf
+VALIDATE_VIA_DNS=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
 _CREATE_CONFIG=0
@@ -275,6 +277,10 @@ WORKING_DIR=~/.getssl
 #RELOAD_CMD=\"\"
 #The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 RENEW_ALLOW=\"30\"
+#Use the following 3 variables if you want to validate via DNS
+#VALIDATE_VIA_DNS=\"true\"
+#DNS_ADD_COMMAND=
+#DNS_DEL_COMMAND=
 " >> $WORKING_DIR/getssl.cfg
   fi
   if [ ! -d "$DOMAIN_DIR" ]; then
@@ -325,6 +331,10 @@ SANS=${EX_SANS}
 #RELOAD_CMD=\"\"
 #The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 #RENEW_ALLOW=\"30\"
+#Use the following 3 variables if you want to validate via DNS
+#VALIDATE_VIA_DNS=\"true\"
+#DNS_ADD_COMMAND=
+#DNS_DEL_COMMAND=
 " >> $DOMAIN_DIR/getssl.cfg
 
   fi
@@ -460,8 +470,15 @@ dn=0
 for d in $alldomains; do
   info "Verifing $d"
   debug "domain $d has location ${ACL[$dn]}"
-  if [ -z "${ACL[$dn]}" ]; then
-    error_exit "ACL location not specified for domain $d in $DOMAIN_DIR/getssl.cfg"
+
+  if [[ $VALIDATE_VIA_DNS == "true" ]]; then
+    if [[ -z "$DNS_ADD_COMMAND" ]]; then
+      error_exit "DNS_ADD_COMMAND not defined for domain"
+    fi
+  else
+    if [ -z "${ACL[$dn]}" ]; then
+      error_exit "ACL location not specified for domain $d in $DOMAIN_DIR/getssl.cfg"
+    fi
   fi
 
   send_signed_request "$CA/acme/new-authz" "{\"resource\": \"new-authz\", \"identifier\": {\"type\": \"dns\", \"value\": \"$d\"}}"
@@ -471,29 +488,75 @@ for d in $alldomains; do
     error_exit "new-authz error: $response"
   fi
 
-  http01=$(echo $response | egrep -o  '{[^{]*"type":"http-01"[^}]*')
-  debug http01 "$http01"
+  if [[ $VALIDATE_VIA_DNS == "true" ]]; then # set up the correct DNS token for verification
+    dns01=$(echo $response | egrep -o  '{[^{]*"type":"dns-01"[^}]*')
+    debug dns01 "$dns01"
 
-  token=$(echo "$http01" | sed 's/,/\n'/g| grep '"token":'| cut -d : -f 2|sed 's/"//g')
-  debug token $token
+    token=$(echo "$dns01" | sed 's/,/\n'/g| grep '"token":'| cut -d : -f 2|sed 's/"//g')
+    debug token $token
 
-  uri=$(echo "$http01" | sed 's/,/\n'/g| grep '"uri":'| cut -d : -f 2,3|sed 's/"//g')
-  debug uri $uri
+    uri=$(echo "$dns01" | sed 's/,/\n'/g| grep '"uri":'| cut -d : -f 2,3|sed 's/"//g')
+    debug uri $uri
 
-  keyauthorization="$token.$thumbprint"
-  debug keyauthorization "$keyauthorization"
+    keyauthorization="$token.$thumbprint"
+    debug keyauthorization "$keyauthorization"
 
-  echo -n "$keyauthorization" > $TEMP_DIR/$token
-  chmod 755 $TEMP_DIR/$token
+    auth_key=$(printf '%s' "$keyauthorization" | openssl sha -sha256 -binary | openssl base64 -e | tr -d '\n\r' | sed -e 's:=*$::g' -e 'y:+/:-_:')
+    debug auth_key $auth_key
 
-# copy to token to acme challenge location
-  copy_file_to_location $TEMP_DIR/$token ${ACL[$dn]}
+    $DNS_ADD_COMMAND "$DOMAIN" "$auth_key"
 
-  wellknown_url="http://$d/.well-known/acme-challenge/$token"
-  debug wellknown_url "$wellknown_url"
+    primary_ns=$(dig -t NS ${DOMAIN} | grep ^${DOMAIN} | awk '{print $5}' | sed 's/.$//' | head -1)
+    debug primary_ns $primary_ns
 
-  if [ ! "$(curl --silent $wellknown_url)" == "$keyauthorization" ]; then
-    error_exit "for some reason could not reach $wellknown_url - please check it manually"
+    ntries=0
+    check_dns="fail"
+    while [[ "$check_dns" == "fail" ]]; do
+
+      check_result=$(dig _acme-challenge.${DOMAIN} TXT +short @${primary_ns}| sed 's/"//g')
+      debug result $check_result
+
+      if [[ "$check_result" == "$auth_key" ]]; then
+        check_dns="success"
+        debug "checking DNS ... _acme-challenge.$DOMAIN gave $check_result"
+      else
+        if [[ $ntries -lt 5 ]]; then
+          ntries=$(( $ntries + 1 ))
+          debug "try $ntries - sleep 2 secs before testiing verify again"
+          sleep 2
+        else
+          debug "dns check failed - removing existing value"
+          DNS_DEL_COMMAND $DOMAIN
+          error_exit "checking _acme-challenge.$DOMAIN gave $check_result not $auth_key"
+        fi
+      fi
+    done
+
+  else      # set up the correct http token for verification
+    http01=$(echo $response | egrep -o  '{[^{]*"type":"http-01"[^}]*')
+    debug http01 "$http01"
+
+    token=$(echo "$http01" | sed 's/,/\n'/g| grep '"token":'| cut -d : -f 2|sed 's/"//g')
+    debug token $token
+
+    uri=$(echo "$http01" | sed 's/,/\n'/g| grep '"uri":'| cut -d : -f 2,3|sed 's/"//g')
+    debug uri $uri
+
+    keyauthorization="$token.$thumbprint"
+    debug keyauthorization "$keyauthorization"
+
+    echo -n "$keyauthorization" > $TEMP_DIR/$token
+    chmod 755 $TEMP_DIR/$token
+
+    # copy to token to acme challenge location
+    copy_file_to_location $TEMP_DIR/$token ${ACL[$dn]}
+
+    wellknown_url="http://$d/.well-known/acme-challenge/$token"
+    debug wellknown_url "$wellknown_url"
+
+    if [ ! "$(curl --silent $wellknown_url)" == "$keyauthorization" ]; then
+      error_exit "for some reason could not reach $wellknown_url - please check it manually"
+    fi
   fi
 
   debug challenge "$challenge"
@@ -529,18 +592,22 @@ for d in $alldomains; do
     sleep 5
   done
 
-  debug "remove token from ${ACL[$dn]}"
-  if [[ "${ACL[$dn]:0:4}" == "ssh:" ]] ; then
-    sshhost=$(echo "${ACL[$dn]}"| awk -F: '{print $2}')
-    command="rm -f ${ACL[$dn]:(( ${#sshhost} + 5))}/$token"
-    debug "running following comand to remove token"
-    debug "ssh $sshhost ${command}"
-    ssh $sshhost "${command}" 1>/dev/null 2>&1
-    rm -f $TEMP_DIR/$token
+  if [[ $VALIDATE_VIA_DNS == "true" ]]; then
+    debug "remove DNS entry"
+    DNS_DEL_COMMAND $DOMAIN
   else
-    rm -f ${ACL[$dn]}/$token
+    debug "remove token from ${ACL[$dn]}"
+    if [[ "${ACL[$dn]:0:4}" == "ssh:" ]] ; then
+      sshhost=$(echo "${ACL[$dn]}"| awk -F: '{print $2}')
+      command="rm -f ${ACL[$dn]:(( ${#sshhost} + 5))}/$token"
+      debug "running following comand to remove token"
+      debug "ssh $sshhost ${command}"
+      ssh $sshhost "${command}" 1>/dev/null 2>&1
+      rm -f $TEMP_DIR/$token
+    else
+      rm -f ${ACL[$dn]}/$token
+    fi
   fi
-
 done
 
 info "Verification completed, obtaining certificate."
