@@ -158,6 +158,10 @@ copy_file_to_location() {
         scp $from ${to:4}"
       fi
     else
+      mkdir -p $to
+      if [ $? -gt 0 ]; then
+        error_exit "cannot create ACL directory $to"
+      fi
       cp $from $to
     fi
     debug "copied $from to $to"
