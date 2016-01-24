@@ -24,10 +24,11 @@
 # 2016-01-18 corrected issue with removing tmp if run as root with the -c option (v0.6)
 # 2016-01-18 added option to upload a single PEN file ( used by cpanel) (v0.7)
 # 2016-01-23 added dns challenge option (v0.8)
+# 2016-01-24 create the ACL directory if it does not exist. (v0.9) - dstosberg
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.8"
+VERSION="0.9"
 
 # defaults
 #umask 077 # paranoid umask, as we're creating private keys
