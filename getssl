@@ -613,6 +613,8 @@ for d in $alldomains; do
       rm -f ${ACL[$dn]}/$token
     fi
   fi
+  # increment domain-counter
+  let dn=dn+1;
 done
 
 info "Verification completed, obtaining certificate."
