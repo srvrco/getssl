@@ -3,7 +3,7 @@ get an SSL certificate via LetsEncryot.  Suitable for automating the process in 
 
 This was written as an addition to checkssl for servers to automatically renew certifictes.  In addition it allows the running of this script in standard bash ( on a desktop computer, or even virtualbox) and add the checks, and certificates to a remote server ( providing you have an ssh key on the remote server with access). Potentially I can include FTP as an option for uploading as well. 
 
-   getssl ver. 0.8
+   getssl ver. 0.10
    To obtain a letsencrypt SSL cert
 
    Usage: getssl [-h|--help] [-d|--debug] [-c] [-w working_dir] domain
@@ -73,9 +73,10 @@ SANS=www.testdomain.com
 #     'ssh:server5:/var/www/testdomain.com/web/.well-known/acme-challenge')
 
 # location for all your certs these can either be on the server ( so full path name) or using ssh as for the ACL
-#DOMAIN_CERT_LOCATION="ssh:server5:/home/domain/public_html/.well-known/acme-challenge/domain.crt"
-#DOMAIN_KEY_LOCATION="ssh:server5:/home/domain/public_html/.well-known/acme-challenge/domain.key"
+#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
+#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
 #CA_CERT_LOCATION="/etc/ssl/chain.crt"
+#DOMAIN_PEM_LOCATION="/etc/ssl/domain-bundle.pem" 
 # the command needed to reload apache / gninx or whatever you use
 #RELOAD_CMD="ssh:server5:service apache2 reload"
 #The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
@@ -131,6 +132,8 @@ copying private key to ssh:server5:/home/yourdomain/ssl/domain.key
 copying CA certificate to ssh:server5:/home/yourdomain/ssl/chain.crt
 reloading SSL services
 ```
+This will (by default) used the staging server, so should give you a certificate that isn't trusted ( by happy hacker).
+Change the server in your config file to get a fully valid certificate. 
 
 Note:   Using DNS validation is still in early stages, and there are a number of issues related to it (for example I tested with cloudflare DNS which wouldn't work and with an "internal boulder sanity check" - https://github.com/letsencrypt/boulder/issues/1391 
  

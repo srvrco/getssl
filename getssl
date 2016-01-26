@@ -25,10 +25,11 @@
 # 2016-01-18 added option to upload a single PEN file ( used by cpanel) (v0.7)
 # 2016-01-23 added dns challenge option (v0.8)
 # 2016-01-24 create the ACL directory if it does not exist. (v0.9) - dstosberg
+# 2016-01-26 correcting a couple of small bugs (v0.10)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.9"
+VERSION="0.10"
 
 # defaults
 #umask 077 # paranoid umask, as we're creating private keys
@@ -159,9 +160,9 @@ copy_file_to_location() {
         scp $from ${to:4}"
       fi
     else
-      mkdir -p $to
+      mkdir -p $(dirname $to)
       if [ $? -gt 0 ]; then
-        error_exit "cannot create ACL directory $to"
+        error_exit "cannot create ACL directory $(basename $to)"
       fi
       cp $from $to
     fi
@@ -329,9 +330,10 @@ SANS=${EX_SANS}
 #     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge')
 
 # location for all your certs these can either be on the server ( so full path name) or using ssh as for the ACL
-#DOMAIN_CERT_LOCATION=\"ssh:server5:/home/domain/public_html/.well-known/acme-challenge/domain.crt\"
-#DOMAIN_KEY_LOCATION=\"ssh:server5:/home/domain/public_html/.well-known/acme-challenge/domain.key\"
+#DOMAIN_CERT_LOCATION=\"ssh:server5:/etc/ssl/domain.crt\"
+#DOMAIN_KEY_LOCATION=\"ssh:server5:/etc/ssl/domain.key\"
 #CA_CERT_LOCATION=\"/etc/ssl/chain.crt\"
+#DOMAIN_PEM_LOCATION=\"\" 
 # the command needed to reload apache / gninx or whatever you use
 #RELOAD_CMD=\"\"
 #The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
@@ -613,6 +615,8 @@ for d in $alldomains; do
       rm -f ${ACL[$dn]}/$token
     fi
   fi
+  # increment domain-counter
+  let dn=dn+1;
 done
 
 info "Verification completed, obtaining certificate."
