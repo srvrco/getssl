@@ -25,7 +25,7 @@
 # 2016-01-18 added option to upload a single PEN file ( used by cpanel) (v0.7)
 # 2016-01-23 added dns challenge option (v0.8)
 # 2016-01-24 create the ACL directory if it does not exist. (v0.9) - dstosberg
-# 2016-01-26 correcting a couple of small bugs (v0.10)
+# 2016-01-26 correcting a couple of small bugs and allow curl to follow redirects (v0.10)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -561,7 +561,7 @@ for d in $alldomains; do
     wellknown_url="http://$d/.well-known/acme-challenge/$token"
     debug wellknown_url "$wellknown_url"
 
-    if [ ! "$(curl --silent $wellknown_url)" == "$keyauthorization" ]; then
+    if [ ! "$(curl --silent --location $wellknown_url)" == "$keyauthorization" ]; then
       error_exit "for some reason could not reach $wellknown_url - please check it manually"
     fi
   fi
