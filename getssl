@@ -304,8 +304,8 @@ RENEW_ALLOW=\"30\"
         echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
       fi
       EX_SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
-                | grep -Eo "DNS:[a-zA-Z 0-9.]*" |sed "s@DNS:$DOMAIN@@g"| cut -c 5-)
-      EX_SANS=${EX_SANS//$'\n'/}
+                | grep -Eo "DNS:[a-zA-Z 0-9.]*" | sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
+      EX_SANS=${EX_SANS//$'\n'/','}
     fi
     echo "# uncomment and modify any variables you need
 # The staging server is best for testing
