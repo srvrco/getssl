@@ -26,14 +26,13 @@
 # 2016-01-23 added dns challenge option (v0.8)
 # 2016-01-24 create the ACL directory if it does not exist. (v0.9) - dstosberg
 # 2016-01-26 correcting a couple of small bugs and allow curl to follow redirects (v0.10)
+# 2016-01-27 add a very basic openssl.cnf file if it doesn't exist and tidy code slightly (v0.11)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.10"
+VERSION="0.11"
 
 # defaults
-#umask 077 # paranoid umask, as we're creating private keys
-#CA="https://acme-v01.api.letsencrypt.org"
 CA="https://acme-staging.api.letsencrypt.org"
 AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 ACCOUNT_KEY_LENGTH=4096
@@ -98,6 +97,88 @@ _b64() {
   echo $__n | tr '/+' '_-' | tr -d '= '
 }
 
+write_openssl_conf() {
+  cat > "$1" <<- _EOF_openssl_conf_
+	# minimal openssl.cnf file
+	distinguished_name  = req_distinguished_name
+	[ req_distinguished_name ]
+	[v3_req]
+	[v3_ca]
+	_EOF_openssl_conf_
+}
+
+write_getssl_template() {
+  cat > "$1" <<- _EOF_getssl_
+	# uncomment and modify any variables you need
+	# The staging server is best for testing (hence set as default)
+	CA="https://acme-staging.api.letsencrypt.org"
+	# This server issues full certificates, however has rate limits
+	#CA="https://acme-v01.api.letsencrypt.org"
+
+	AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+
+	#set an email address associated with your account - generally set at account level rather than domain.
+	#ACCOUNT_EMAIL="me@example.com"
+	ACCOUNT_KEY_LENGTH=4096
+	ACCOUNT_KEY="$WORKING_DIR/account.key"
+
+	#The command needed to reload apache / gninx or whatever you use
+	#RELOAD_CMD=""
+	#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
+	RENEW_ALLOW="30"
+
+	# openssl config file.  The default should work in most cases.
+	SSLCONF="$SSLCONF"
+
+	#Use the following 3 variables if you want to validate via DNS
+	#VALIDATE_VIA_DNS="true"
+	#DNS_ADD_COMMAND=
+	#DNS_DEL_COMMAND=
+	_EOF_getssl_
+}
+
+write_domain_template() {
+  cat > "$1" <<- _EOF_domain_
+	# uncomment and modify any variables you need
+	# The staging server is best for testing
+	#CA="https://acme-staging.api.letsencrypt.org"
+	# This server issues full certificates, however has rate limits
+	#CA="https://acme-v01.api.letsencrypt.org"
+
+	#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+
+	#set an email address associated with your account - generally set at account level rather than domain.
+	#ACCOUNT_EMAIL="me@example.com"
+	#ACCOUNT_KEY_LENGTH=4096
+	#ACCOUNT_KEY="$WORKING_DIR/account.key"
+
+	# additional domains - this could be multiple domains / subdomains in a comma separated list
+	SANS=${EX_SANS}
+
+	#Acme Challenge Location.   The first line for the domain, the following ones for each additional domain
+	#if these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
+	#an ssh key will be needed to provide you with access to the remote server.
+	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge')
+
+	# location for all your certs these can either be on the server ( so full path name) or using ssh as for the ACL
+	#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
+	#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
+	#CA_CERT_LOCATION="/etc/ssl/chain.crt"
+	#DOMAIN_PEM_LOCATION="" 
+
+	# the command needed to reload apache / gninx or whatever you use
+	#RELOAD_CMD=""
+	#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
+	RENEW_ALLOW="30"
+
+	#Use the following 3 variables if you want to validate via DNS
+	#VALIDATE_VIA_DNS="true"
+	#DNS_ADD_COMMAND=
+	#DNS_DEL_COMMAND=
+	_EOF_domain_
+}
+
 send_signed_request() {
   url=$1
   payload=$2
@@ -154,13 +235,13 @@ copy_file_to_location() {
     debug "copying from $from to $to"
     if [[ "${to:0:4}" == "ssh:" ]] ; then
       debug "using scp scp -q $from ${to:4}"
-      res=$(scp -q $from ${to:4} >/dev/null 2>&1)
+      scp -q $from ${to:4} >/dev/null 2>&1
       if [ $? -gt 0 ]; then
         error_exit "problem copying file to the server using scp.
         scp $from ${to:4}"
       fi
     else
-      mkdir -p $(dirname $to)
+      mkdir -p "$(dirname $to)"
       if [ $? -gt 0 ]; then
         error_exit "cannot create ACL directory $(basename $to)"
       fi
@@ -263,31 +344,11 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
     . $WORKING_DIR/getssl.cfg
   else
     info "creating main config file $WORKING_DIR/getssl.cfg"
-    echo "# uncomment and modify any variables you need
-# The staging server is best for testing
-CA=\"https://acme-staging.api.letsencrypt.org\"
-# This server issues full certificates, however has rate limits
-#CA=\"https://acme-v01.api.letsencrypt.org\"
-
-AGREEMENT=\"https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf\"
-
-#set an email address associated with your account
-#ACCOUNT_EMAIL=\"me@example.com\"
-ACCOUNT_KEY_LENGTH=4096
-ACCOUNT_KEY=\"$WORKING_DIR/account.key\"
-
-#The default directory for all your certs to be stored within ( in subdirectories by domain name )
-WORKING_DIR=~/.getssl
-
-# the command needed to reload apache / gninx or whatever you use
-#RELOAD_CMD=\"\"
-#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
-RENEW_ALLOW=\"30\"
-#Use the following 3 variables if you want to validate via DNS
-#VALIDATE_VIA_DNS=\"true\"
-#DNS_ADD_COMMAND=
-#DNS_DEL_COMMAND=
-" >> $WORKING_DIR/getssl.cfg
+    if [[ ! -f "$SSLCONF" ]]; then
+      SSLCONF="$WORKING_DIR/openssl.cnf"
+      write_openssl_conf "$SSLCONF"
+    fi
+    write_getssl_template "$WORKING_DIR/getssl.cfg"
   fi
   if [ ! -d "$DOMAIN_DIR" ]; then
     info "Making domain directory - $DOMAIN_DIR"
@@ -307,43 +368,7 @@ RENEW_ALLOW=\"30\"
                 | grep -Eo "DNS:[a-zA-Z 0-9.]*" | sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
       EX_SANS=${EX_SANS//$'\n'/','}
     fi
-    echo "# uncomment and modify any variables you need
-# The staging server is best for testing
-#CA=\"https://acme-staging.api.letsencrypt.org\"
-# This server issues full certificates, however has rate limits
-#CA=\"https://acme-v01.api.letsencrypt.org\"
-
-#AGREEMENT=\"https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf\"
-
-#set an email address associated with your account - generally set at account level rather than domain.
-#ACCOUNT_EMAIL=\"me@example.com\"
-#ACCOUNT_KEY_LENGTH=4096
-#ACCOUNT_KEY=\"$WORKING_DIR/account.key\"
-
-# additional domains - this could be multiple domains / subdomains in a comma separated list
-SANS=${EX_SANS}
-
-#Acme Challenge Location.   The first line for the domain, the following ones for each additional domain
-#if these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
-#an ssh key will be needed to provide you with access to the remote server.
-#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge')
-
-# location for all your certs these can either be on the server ( so full path name) or using ssh as for the ACL
-#DOMAIN_CERT_LOCATION=\"ssh:server5:/etc/ssl/domain.crt\"
-#DOMAIN_KEY_LOCATION=\"ssh:server5:/etc/ssl/domain.key\"
-#CA_CERT_LOCATION=\"/etc/ssl/chain.crt\"
-#DOMAIN_PEM_LOCATION=\"\" 
-# the command needed to reload apache / gninx or whatever you use
-#RELOAD_CMD=\"\"
-#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
-#RENEW_ALLOW=\"30\"
-#Use the following 3 variables if you want to validate via DNS
-#VALIDATE_VIA_DNS=\"true\"
-#DNS_ADD_COMMAND=
-#DNS_DEL_COMMAND=
-" >> $DOMAIN_DIR/getssl.cfg
-
+    write_domain_template "$DOMAIN_DIR/getssl.cfg"
   fi
   TEMP_DIR="$DOMAIN_DIR/tmp"
   graceful_exit
@@ -552,11 +577,11 @@ for d in $alldomains; do
     keyauthorization="$token.$thumbprint"
     debug keyauthorization "$keyauthorization"
 
-    echo -n "$keyauthorization" > $TEMP_DIR/$token
-    chmod 755 $TEMP_DIR/$token
+    echo -n "$keyauthorization" > "$TEMP_DIR/$token"
+    chmod 755 "$TEMP_DIR/$token"
 
     # copy to token to acme challenge location
-    copy_file_to_location $TEMP_DIR/$token ${ACL[$dn]}
+    copy_file_to_location "$TEMP_DIR/$token" "${ACL[$dn]}"
 
     wellknown_url="http://$d/.well-known/acme-challenge/$token"
     debug wellknown_url "$wellknown_url"
@@ -566,17 +591,17 @@ for d in $alldomains; do
     fi
   fi
 
-  debug challenge "$challenge"
+  debug challenge
   send_signed_request $uri "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
 
   if [ ! -z "$code" ] && [ ! "$code" == '202' ] ; then
-    error_exit "$d:Challenge error: $resource"
+    error_exit "$d:Challenge error: $code"
   fi
 
   while [ "1" ] ; do
     debug "checking"
     if ! getcr $uri ; then
-      error_exit "$d:Verify error:$resource"
+      error_exit "$d:Verify error:$code"
     fi
 
     status=$(echo $response | egrep -o  '"status":"[^"]+"' | cut -d : -f 2 | sed 's/"//g')
@@ -610,9 +635,9 @@ for d in $alldomains; do
       debug "running following comand to remove token"
       debug "ssh $sshhost ${command}"
       ssh $sshhost "${command}" 1>/dev/null 2>&1
-      rm -f $TEMP_DIR/$token
+      rm -f "$TEMP_DIR/$token"
     else
-      rm -f ${ACL[$dn]}/$token
+      rm -f "${ACL[$dn]}/$token"
     fi
   fi
   # increment domain-counter
@@ -637,7 +662,7 @@ if [ -z "$CertData" ] ; then
   error_exit "Sign failed: $(echo "$response" | grep -o  '"detail":"[^"]*"')"
 fi
 
-IssuerData=$(grep -i '^Link' $CURL_HEADER | cut -d " " -f 2| cut -d ';' -f 1 | sed 's/<//g' | sed 's/>//g')
+IssuerData=$(grep -i '^Link' "$CURL_HEADER" | cut -d " " -f 2| cut -d ';' -f 1 | sed 's/<//g' | sed 's/>//g')
 
 if [ "$IssuerData" ] ; then
   echo -----BEGIN CERTIFICATE----- > "$CA_CERT"
@@ -650,23 +675,23 @@ fi
 
 if [ ! -z "$DOMAIN_CERT_LOCATION" ]; then
   info "copying domain certificate to $DOMAIN_CERT_LOCATION"
-  copy_file_to_location $CERT_FILE $DOMAIN_CERT_LOCATION
+  copy_file_to_location "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
 fi
 
 if [ ! -z "$DOMAIN_KEY_LOCATION" ]; then
   info "copying private key to $DOMAIN_KEY_LOCATION"
-  copy_file_to_location $DOMAIN_DIR/${DOMAIN}.key $DOMAIN_KEY_LOCATION
+  copy_file_to_location "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
 fi
 
 if [ ! -z "$CA_CERT_LOCATION" ]; then
   info "copying CA certificate to $CA_CERT_LOCATION"
-  copy_file_to_location $CA_CERT $CA_CERT_LOCATION
+  copy_file_to_location "$CA_CERT" "$CA_CERT_LOCATION"
 fi
 
 if [ ! -z "$DOMAIN_PEM_LOCATION" ]; then
   # Create full pem
-  cat $DOMAIN_DIR/${DOMAIN}.key $CERT_FILE $CA_CERT > $DOMAIN_DIR/${DOMAIN}.pem
-  copy_file_to_location $DOMAIN_DIR/${DOMAIN}.pem  $DOMAIN_PEM_LOCATION
+  cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$DOMAIN_DIR/${DOMAIN}.pem"
+  copy_file_to_location "$DOMAIN_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
 fi
 
 # Run reload command to restart apache / gninx or whatever system
