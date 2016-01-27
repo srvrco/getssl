@@ -38,7 +38,6 @@ AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 ACCOUNT_KEY_LENGTH=4096
 WORKING_DIR=~/.getssl
 DOMAIN_KEY_LENGTH=4096
-SSLCONF=/etc/ssl/openssl.cnf
 VALIDATE_VIA_DNS=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
@@ -451,7 +450,7 @@ if [ -f $DOMAIN_DIR/${DOMAIN}.csr ]; then
 else
   debug "creating domain csr - $DOMAIN_DIR/${DOMAIN}.csr"
   openssl req -new -sha256 -key $DOMAIN_DIR/${DOMAIN}.key -subj "/" -reqexts SAN -config \
-  <(cat $SSLCONF <(printf "$SANLIST")) > $DOMAIN_DIR/${DOMAIN}.csr
+  <(printf "[req]\ndistinguished_name=letsencrypt\n[letsencrypt]\n$SANLIST") > $DOMAIN_DIR/${DOMAIN}.csr
 fi
 
 # use account key to register with CA
