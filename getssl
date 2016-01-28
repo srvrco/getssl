@@ -702,7 +702,7 @@ fi
 
 if [ ! -z "$RELOAD_CMD" ]; then
   info "reloading SSL services"
-  if [[ "${ACL[$dn]:0:4}" == "ssh:" ]] ; then
+  if [[ "${RELOAD_CMD:0:4}" == "ssh:" ]] ; then
     sshhost=$(echo "$RELOAD_CMD"| awk -F: '{print $2}')
     command=${RELOAD_CMD:(( ${#sshhost} + 5))}
     debug "running following comand to reload cert"
