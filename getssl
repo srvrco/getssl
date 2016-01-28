@@ -28,10 +28,11 @@
 # 2016-01-26 correcting a couple of small bugs and allow curl to follow redirects (v0.10)
 # 2016-01-27 add a very basic openssl.cnf file if it doesn't exist and tidy code slightly (v0.11)
 # 2016-01-28 Typo corrections, quoted file variables and fix bug on DNS_DEL_COMMAND (v0.12)
+# 2016-01-28 changed DNS checks to use nslookup and allow hyphen in domain names (v0.13)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.12"
+VERSION="0.13"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -322,6 +323,7 @@ _requires openssl
 _requires curl
 _requires xxd
 _requires base64
+_requires nslookup
 
 if [ -z "$DOMAIN" ]; then
   help_message
@@ -366,7 +368,7 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
         echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
       fi
       EX_SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
-                | grep -Eo "DNS:[a-zA-Z 0-9.]*" | sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
+                | grep -Eo "DNS:[a-zA-Z 0-9.-]*" | sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
       EX_SANS=${EX_SANS//$'\n'/','}
     fi
     write_domain_template "$DOMAIN_DIR/getssl.cfg"
@@ -537,29 +539,30 @@ for d in $alldomains; do
     auth_key=$(printf '%s' "$keyauthorization" | openssl sha -sha256 -binary | openssl base64 -e | tr -d '\n\r' | sed -e 's:=*$::g' -e 'y:+/:-_:')
     debug auth_key "$auth_key"
 
-    $DNS_ADD_COMMAND "$DOMAIN" "$auth_key"
+    debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
+    $DNS_ADD_COMMAND "$d" "$auth_key"
 
-    primary_ns=$(dig -t NS ${DOMAIN} | grep ^${DOMAIN} | awk '{print $5}' | sed 's/.$//' | head -1)
+    primary_ns=$(nslookup -type=soa ${d} | grep origin | awk '{print $3}')
     debug primary_ns "$primary_ns"
 
     ntries=0
     check_dns="fail"
     while [[ "$check_dns" == "fail" ]]; do
 
-      check_result=$(dig _acme-challenge.${DOMAIN} TXT +short @${primary_ns}| sed 's/"//g')
+      check_result=$(nslookup -type=txt _acme-challenge.${d} ${primary_ns} | grep ^_acme|awk -F'"' '{ print $2}')
       debug result "$check_result"
 
       if [[ "$check_result" == "$auth_key" ]]; then
         check_dns="success"
-        debug "checking DNS ... _acme-challenge.$DOMAIN gave $check_result"
+        debug "checking DNS ... _acme-challenge.$d gave $check_result"
       else
-        if [[ $ntries -lt 5 ]]; then
+        if [[ $ntries -lt 100 ]]; then
           ntries=$(( $ntries + 1 ))
-          debug "try $ntries - sleep 2 secs before testing verify again"
-          sleep 2
+          info "testing DNS. Attempt $ntries completed. waiting 10 secs before testing verify again"
+          sleep 10
         else
           debug "dns check failed - removing existing value"
-          $DNS_DEL_COMMAND $DOMAIN
+          $DNS_DEL_COMMAND "$d"
           error_exit "checking _acme-challenge.$DOMAIN gave $check_result not $auth_key"
         fi
       fi
