@@ -27,10 +27,11 @@
 # 2016-01-24 create the ACL directory if it does not exist. (v0.9) - dstosberg
 # 2016-01-26 correcting a couple of small bugs and allow curl to follow redirects (v0.10)
 # 2016-01-27 add a very basic openssl.cnf file if it doesn't exist and tidy code slightly (v0.11)
+# 2016-01-28 Typo corrections, quoted file variables and fix bug on DNS_DEL_COMMAND (v0.12)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.11"
+VERSION="0.12"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -45,8 +46,8 @@ RENEW_ALLOW="30"
 _CREATE_CONFIG=0
 
 clean_up() { # Perform pre-exit housekeeping
-  if [ ! -z $DOMAIN_DIR ]; then
-    rm -rf ${TEMP_DIR}
+  if [ ! -z "$DOMAIN_DIR" ]; then
+    rm -rf "${TEMP_DIR}"
   fi
   return
 }
@@ -184,7 +185,7 @@ send_signed_request() {
   payload=$2
   needbase64=$3
 
-  debug url $url
+  debug url "$url"
   debug payload "$payload"
 
   CURL_HEADER="$TEMP_DIR/curl.header"
@@ -194,12 +195,12 @@ send_signed_request() {
     CURL="$CURL --trace-ascii $dp "
   fi
   payload64=$(echo -n $payload | base64 -w 0 | _b64)
-  debug payload64 $payload64
+  debug payload64 "$payload64"
 
   nonceurl="$CA/directory"
   nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | sed s/\\r//|sed s/\\n//| cut -d ' ' -f 2)
 
-  debug nonce $nonce
+  debug nonce "$nonce"
 
   protected=$(echo -n "$HEADERPLACE" | sed "s/NONCE/$nonce/" )
   debug protected "$protected"
@@ -207,7 +208,7 @@ send_signed_request() {
   protected64=$( echo -n $protected | base64 -w 0 | _b64)
   debug protected64 "$protected64"
 
-  sig=$(echo -n "$protected64.$payload64" |  openssl   dgst   -sha256  -sign  $ACCOUNT_KEY | base64 -w 0 | _b64)
+  sig=$(echo -n "$protected64.$payload64" |  openssl   dgst   -sha256  -sign  "$ACCOUNT_KEY" | base64 -w 0 | _b64)
   debug sig "$sig"
 
   body="{\"header\": $HEADER, \"protected\": \"$protected64\", \"payload\": \"$payload64\", \"signature\": \"$sig\"}"
@@ -224,7 +225,7 @@ send_signed_request() {
   debug responseHeaders "$responseHeaders"
   debug response  "$response"
   code="$(grep ^HTTP $CURL_HEADER | tail -1 | cut -d " " -f 2)"
-  debug code $code
+  debug code "$code"
 
 }
 
@@ -245,7 +246,7 @@ copy_file_to_location() {
       if [ $? -gt 0 ]; then
         error_exit "cannot create ACL directory $(basename $to)"
       fi
-      cp $from $to
+      cp "$from" "$to"
     fi
     debug "copied $from to $to"
   fi
@@ -253,18 +254,18 @@ copy_file_to_location() {
 
 getcr() {
   url="$1"
-  debug url $url
+  debug url "$url"
   response="$(curl --silent $url)"
   ret=$?
   debug response  "$response"
   code="$(echo $response | grep -o '"status":[0-9]\+' | cut -d : -f 2)"
-  debug code $code
+  debug code "$code"
   return $ret
 }
 
 _requires() {
   result=$(which $1 2>/dev/null)
-  debug checking for required $1 ... $result
+  debug "checking for required $1 ... $result"
   if [ -z "$result" ]; then
     echo "This script requires $1 installed"
     graceful_exit
@@ -341,7 +342,7 @@ CA_CERT="$DOMAIN_DIR/chain.crt"
 if [ ${_CREATE_CONFIG} -eq 1 ]; then
   if [ -f "$WORKING_DIR/getssl.cfg" ]; then
     info "reading main config from existing $WORKING_DIR/getssl.cfg"
-    . $WORKING_DIR/getssl.cfg
+    . "$WORKING_DIR/getssl.cfg"
   else
     info "creating main config file $WORKING_DIR/getssl.cfg"
     if [[ ! -f "$SSLCONF" ]]; then
@@ -361,7 +362,7 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
     EX_CERT=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 2>/dev/null)
     EX_SANS="www.${DOMAIN}"
     if [ ! -z "${EX_CERT}" ]; then
-      if [ ! -f $DOMAIN_DIR/${DOMAIN}.crt ]; then
+      if [ ! -f "$DOMAIN_DIR/${DOMAIN}.crt" ]; then
         echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
       fi
       EX_SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
@@ -377,7 +378,7 @@ fi
 # read any variables from config in working directory
 if [ -f "$WORKING_DIR/getssl.cfg" ]; then
   debug "reading config from $WORKING_DIR/getssl.cfg"
-  . $WORKING_DIR/getssl.cfg
+  . "$WORKING_DIR/getssl.cfg"
 fi
 
 if [ ! -d "$DOMAIN_DIR" ]; then
@@ -395,10 +396,10 @@ fi
 # read any variables from config in domain directory
 if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
   debug "reading config from $DOMAIN_DIR/getssl.cfg"
-  . $DOMAIN_DIR/getssl.cfg
+  . "$DOMAIN_DIR/getssl.cfg"
 fi
 
-if [ -f $CERT_FILE ]; then
+if [ -f "$CERT_FILE" ]; then
   debug "certificate $CERT_FILE exists"
   enddate=$(openssl x509 -in $CERT_FILE -noout -enddate 2>/dev/null| cut -d= -f 2-)
   if [[ "$enddate" != "-" ]]; then
@@ -421,7 +422,7 @@ else
   openssl genrsa $ACCOUNT_KEY_LENGTH > "$ACCOUNT_KEY"
 fi
 
-if [ -f $DOMAIN_DIR/${DOMAIN}.key ]; then
+if [ -f "$DOMAIN_DIR/${DOMAIN}.key" ]; then
   debug "domain key exists at $DOMAIN_DIR/${DOMAIN}.key - skipping generation"
   # check validity of domain key
   if [ "$(openssl rsa -noout -text -in $DOMAIN_DIR/${DOMAIN}.key|head -1)" != "Private-Key: ($DOMAIN_KEY_LENGTH bit)" ]; then
@@ -441,7 +442,7 @@ fi
 debug "created SAN list = $SANLIST"
 
 # check if domain csr exists - if not then create it
-if [ -f $DOMAIN_DIR/${DOMAIN}.csr ]; then
+if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
   debug "domain csr exists at - $DOMAIN_DIR/${DOMAIN}.csr - skipping generation"
   #check csr is valid for domain
   if [ "$(openssl req -noout -text -in $DOMAIN_DIR/${DOMAIN}.csr| grep -o DNS:${DOMAIN})" != "DNS:${DOMAIN}" ]; then
@@ -525,28 +526,28 @@ for d in $alldomains; do
     debug dns01 "$dns01"
 
     token=$(echo "$dns01" | sed 's/,/\n'/g| grep '"token":'| cut -d : -f 2|sed 's/"//g')
-    debug token $token
+    debug token "$token"
 
     uri=$(echo "$dns01" | sed 's/,/\n'/g| grep '"uri":'| cut -d : -f 2,3|sed 's/"//g')
-    debug uri $uri
+    debug uri "$uri"
 
     keyauthorization="$token.$thumbprint"
     debug keyauthorization "$keyauthorization"
 
     auth_key=$(printf '%s' "$keyauthorization" | openssl sha -sha256 -binary | openssl base64 -e | tr -d '\n\r' | sed -e 's:=*$::g' -e 'y:+/:-_:')
-    debug auth_key $auth_key
+    debug auth_key "$auth_key"
 
     $DNS_ADD_COMMAND "$DOMAIN" "$auth_key"
 
     primary_ns=$(dig -t NS ${DOMAIN} | grep ^${DOMAIN} | awk '{print $5}' | sed 's/.$//' | head -1)
-    debug primary_ns $primary_ns
+    debug primary_ns "$primary_ns"
 
     ntries=0
     check_dns="fail"
     while [[ "$check_dns" == "fail" ]]; do
 
       check_result=$(dig _acme-challenge.${DOMAIN} TXT +short @${primary_ns}| sed 's/"//g')
-      debug result $check_result
+      debug result "$check_result"
 
       if [[ "$check_result" == "$auth_key" ]]; then
         check_dns="success"
@@ -554,11 +555,11 @@ for d in $alldomains; do
       else
         if [[ $ntries -lt 5 ]]; then
           ntries=$(( $ntries + 1 ))
-          debug "try $ntries - sleep 2 secs before testiing verify again"
+          debug "try $ntries - sleep 2 secs before testing verify again"
           sleep 2
         else
           debug "dns check failed - removing existing value"
-          DNS_DEL_COMMAND $DOMAIN
+          $DNS_DEL_COMMAND $DOMAIN
           error_exit "checking _acme-challenge.$DOMAIN gave $check_result not $auth_key"
         fi
       fi
@@ -569,10 +570,10 @@ for d in $alldomains; do
     debug http01 "$http01"
 
     token=$(echo "$http01" | sed 's/,/\n'/g| grep '"token":'| cut -d : -f 2|sed 's/"//g')
-    debug token $token
+    debug token "$token"
 
     uri=$(echo "$http01" | sed 's/,/\n'/g| grep '"uri":'| cut -d : -f 2,3|sed 's/"//g')
-    debug uri $uri
+    debug uri "$uri"
 
     keyauthorization="$token.$thumbprint"
     debug keyauthorization "$keyauthorization"
@@ -620,13 +621,13 @@ for d in $alldomains; do
     else
       error_exit "$d:Verify error:$response"
     fi
-    debug "sleep 5 secs berfore testiing verify again"
+    debug "sleep 5 secs before testing verify again"
     sleep 5
   done
 
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then
     debug "remove DNS entry"
-    DNS_DEL_COMMAND $DOMAIN
+    $DNS_DEL_COMMAND $DOMAIN
   else
     debug "remove token from ${ACL[$dn]}"
     if [[ "${ACL[$dn]:0:4}" == "ssh:" ]] ; then
