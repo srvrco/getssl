@@ -135,5 +135,5 @@ reloading SSL services
 This will (by default) used the staging server, so should give you a certificate that isn't trusted ( by happy hacker).
 Change the server in your config file to get a fully valid certificate. 
 
-Note:   Using DNS validation is still in early stages, and there are a number of issues related to it (for example I tested with cloudflare DNS which wouldn't work and with an "internal boulder sanity check" - https://github.com/letsencrypt/boulder/issues/1391 
+Note:   Using DNS validation is now working successfully for issuing certificates.
  
