@@ -32,11 +32,11 @@
 # 2016-01-29 Fix ssh-reload-command, extra waiting for DNS-challenge, add some error_exit and cleanup help message (v0.14)
 # 2016-01-29 added -a|--all option to renew all configured certificates (v0.15)
 # 2016-01-29 added option for eliptic curve keys (v0.16)
-# 2016-01-29 added -r|--refetch option to refetch certificate from site (v0.16)
+# 2016-01-29 added -r|--refetch option to refetch certificate from site (v0.17)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.16"
+VERSION="0.17"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
