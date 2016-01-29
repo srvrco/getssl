@@ -29,10 +29,11 @@
 # 2016-01-27 add a very basic openssl.cnf file if it doesn't exist and tidy code slightly (v0.11)
 # 2016-01-28 Typo corrections, quoted file variables and fix bug on DNS_DEL_COMMAND (v0.12)
 # 2016-01-28 changed DNS checks to use nslookup and allow hyphen in domain names (v0.13)
+# 2016-01-29 Fix ssh-reload-command, extra waiting for DNS-challenge, add some error_exit and cleanup help message (v0.14)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.13"
+VERSION="0.14"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
