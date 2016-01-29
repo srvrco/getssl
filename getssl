@@ -455,7 +455,17 @@ fi
 if [ ${_REFETCH_CERT} -eq 1 ]; then
   info "refetch certificate for $DOMAIN and save to $DOMAIN_DIR/${DOMAIN}.crt"
   EX_CERT=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 2>/dev/null)
-  echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
+  if [ ! -z "${EX_CERT}" ]; then
+    # check if the certificate is for the right domain
+	EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -noout -subject | sed s/.*CN=//)
+    if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]
+      echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
+    else
+      error_exit "fetched certificate domain-name ($EX_CERT_DOMAIN) does not match $DOMAIN"
+    fi
+  else
+    error_exit "failed to fetch certificate for $DOMAIN"
+  fi
 fi
 
 if [ -f "$CERT_FILE" ]; then
