@@ -547,18 +547,19 @@ for d in $alldomains; do
 
     ntries=0
     check_dns="fail"
-    while [[ "$check_dns" == "fail" ]]; do
-
+    while [ "$check_dns" == "fail" ]; do
       check_result=$(nslookup -type=txt _acme-challenge.${d} ${primary_ns} | grep ^_acme|awk -F'"' '{ print $2}')
       debug result "$check_result"
 
       if [[ "$check_result" == "$auth_key" ]]; then
         check_dns="success"
         debug "checking DNS ... _acme-challenge.$d gave $check_result"
+        info "sleeping 60 seconds before asking letsencrypt to check the dns"
+        sleep 60 # smallest time for DNS TTL
       else
         if [[ $ntries -lt 100 ]]; then
           ntries=$(( $ntries + 1 ))
-          info "testing DNS. Attempt $ntries completed. waiting 10 secs before testing verify again"
+          info "testing DNS. Attempt $ntries/100 completed. waiting 10 secs before testing verify again"
           sleep 10
         else
           debug "dns check failed - removing existing value"
@@ -567,7 +568,6 @@ for d in $alldomains; do
         fi
       fi
     done
-
   else      # set up the correct http token for verification
     http01=$(echo $response | egrep -o  '{[^{]*"type":"http-01"[^}]*')
     debug http01 "$http01"
