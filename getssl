@@ -13,7 +13,7 @@
 # GNU General Public License at <http://www.gnu.org/licenses/> for
 # more details.
 
-# Usage: getssl [-h|--help] [-d|--debug] [-c] [-a|--all] [-w working_dir] domain
+# Usage: getssl [-h|--help] [-d|--debug] [-c] [-r|--refetch] [-a|--all] [-w working_dir] domain
 
 # Revision history:
 # 2016-01-08 Created (v0.1)
@@ -32,6 +32,7 @@
 # 2016-01-29 Fix ssh-reload-command, extra waiting for DNS-challenge, add some error_exit and cleanup help message (v0.14)
 # 2016-01-29 added -a|--all option to renew all configured certificates (v0.15)
 # 2016-01-29 added option for eliptic curve keys (v0.16)
+# 2016-01-29 added -r|--refetch option to refetch certificate from site (v0.16)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -50,6 +51,7 @@ RENEW_ALLOW="30"
 PRIVATE_KEY_ALG="rsa"
 _USE_DEBUG=0
 _CREATE_CONFIG=0
+_REFETCH_CERT=0
 _RENEW_ALL=0
 
 clean_up() { # Perform pre-exit housekeeping
@@ -83,7 +85,7 @@ signal_exit() { # Handle trapped signals
 }
 
 usage() {
-  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c] [-a|--all] [-w working_dir] domain"
+  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c] [-r|--refetch] [-a|--all] [-w working_dir] domain"
 }
 
 log() {
@@ -130,7 +132,7 @@ write_getssl_template() {
 	ACCOUNT_KEY_LENGTH=4096
 	ACCOUNT_KEY="$WORKING_DIR/account.key"
 	PRIVATE_KEY_ALG="rsa"
-  
+
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
 	# The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
@@ -163,7 +165,7 @@ write_domain_template() {
 	#ACCOUNT_KEY_LENGTH=4096
 	#ACCOUNT_KEY="$WORKING_DIR/account.key"
 	PRIVATE_KEY_ALG="rsa"
-  
+
 	# Additional domains - this could be multiple domains / subdomains in a comma separated list
 	SANS=${EX_SANS}
 
@@ -294,7 +296,8 @@ $(usage)
 Options:
   -h, --help      Display this help message and exit
   -d, --debug     Outputs debug information
-  -c,             Create default config files
+  -c, --create    Create default config files
+  -r, --refetch   Refetch current certificates from site
   -a, --all       Renew all certificates
   -w working_dir  Working directory
 
@@ -315,10 +318,12 @@ while [[ -n $1 ]]; do
      _USE_DEBUG=1 ;;
     -c | --create)
      _CREATE_CONFIG=1 ;;
+    -r | --refetch)
+     _REFETCH_CERT=1 ;;
     -a | --all)
      _RENEW_ALL=1 ;;
     -w)
-      echo "working directory"; shift; WORKING_DIR="$1" ;;
+      shift; WORKING_DIR="$1" ;;
     -* | --*)
       usage
       error_exit "Unknown option $1" ;;
@@ -356,6 +361,9 @@ if [ ${_RENEW_ALL} -eq 1 ]; then
       cmd="$0 -w '$WORKING_DIR'"
       if [ ${_USE_DEBUG} -eq 1 ]; then
         cmd="$cmd -d"
+      fi
+      if [ ${_REFETCH_CERT} -eq 1 ]; then
+        cmd="$cmd -r"
       fi
       cmd="$cmd $dir"
 
@@ -441,6 +449,13 @@ fi
 if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
   debug "reading config from $DOMAIN_DIR/getssl.cfg"
   . "$DOMAIN_DIR/getssl.cfg"
+fi
+
+# refetch the certificate from the server if option is set
+if [ ${_REFETCH_CERT} -eq 1 ]; then
+  info "refetch certificate for $DOMAIN and save to $DOMAIN_DIR/${DOMAIN}.crt"
+  EX_CERT=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 2>/dev/null)
+  echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
 fi
 
 if [ -f "$CERT_FILE" ]; then
