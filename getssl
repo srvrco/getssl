@@ -45,6 +45,7 @@ SSLCONF=/etc/ssl/openssl.cnf
 VALIDATE_VIA_DNS=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
+_USE_DEBUG=0
 _CREATE_CONFIG=0
 
 clean_up() { # Perform pre-exit housekeeping
@@ -86,7 +87,7 @@ log() {
 }
 
 debug() {
-  if [[ "${_USE_DEBUG:-"0"}" -eq 1 ]]; then
+  if [ ${_USE_DEBUG} -eq 1 ]; then
     echo "$@"
   fi
 }
@@ -197,7 +198,7 @@ send_signed_request() {
   CURL_HEADER="$TEMP_DIR/curl.header"
   dp="$TEMP_DIR/curl.dump"
   CURL="curl --silent --dump-header $CURL_HEADER "
-  if [[ "${_USE_DEBUG:-"0"}" -eq 1 ]] ; then
+  if [ ${_USE_DEBUG} -eq 1 ]; then
     CURL="$CURL --trace-ascii $dp "
   fi
   payload64=$(echo -n $payload | base64 -w 0 | _b64)
