@@ -31,10 +31,11 @@
 # 2016-01-28 changed DNS checks to use nslookup and allow hyphen in domain names (v0.13)
 # 2016-01-29 Fix ssh-reload-command, extra waiting for DNS-challenge, add some error_exit and cleanup help message (v0.14)
 # 2016-01-29 added -a|--all option to renew all configured certificates (v0.15)
+# 2016-01-29 added option for eliptic curve keys (v0.16)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.15"
+VERSION="0.16"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -42,10 +43,11 @@ AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 ACCOUNT_KEY_LENGTH=4096
 WORKING_DIR=~/.getssl
 DOMAIN_KEY_LENGTH=4096
-SSLCONF=/etc/ssl/openssl.cnf
+SSLCONF="$(openssl version -d | cut -d\" -f2)/openssl.cnf"
 VALIDATE_VIA_DNS=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
+PRIVATE_KEY_ALG="rsa"
 _USE_DEBUG=0
 _CREATE_CONFIG=0
 _RENEW_ALL=0
@@ -127,7 +129,8 @@ write_getssl_template() {
 	#ACCOUNT_EMAIL="me@example.com"
 	ACCOUNT_KEY_LENGTH=4096
 	ACCOUNT_KEY="$WORKING_DIR/account.key"
-
+	PRIVATE_KEY_ALG="rsa"
+  
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
 	# The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
@@ -159,7 +162,8 @@ write_domain_template() {
 	#ACCOUNT_EMAIL="me@example.com"
 	#ACCOUNT_KEY_LENGTH=4096
 	#ACCOUNT_KEY="$WORKING_DIR/account.key"
-
+	PRIVATE_KEY_ALG="rsa"
+  
 	# Additional domains - this could be multiple domains / subdomains in a comma separated list
 	SANS=${EX_SANS}
 
@@ -459,7 +463,13 @@ if [ -f "$ACCOUNT_KEY" ]; then
   debug "Account key exists at $ACCOUNT_KEY skipping generation"
 else
   info "creating account key $ACCOUNT_KEY"
-  openssl genrsa $ACCOUNT_KEY_LENGTH > "$ACCOUNT_KEY"
+  if [[ "${PRIVATE_KEY_ALG}" == "rsa" ]]; then
+    openssl genrsa $ACCOUNT_KEY_LENGTH > "$ACCOUNT_KEY"
+  elif [[ "${PRIVATE_KEY_ALG}" == "prime256v1" ]]; then
+    openssl ecparam -genkey -name prime256v1 > "$ACCOUNT_KEY"
+  else
+    error_exit "unknown private key algorithm type ${PRIVATE_KEY_ALG}"
+  fi
 fi
 
 if [ -f "$DOMAIN_DIR/${DOMAIN}.key" ]; then

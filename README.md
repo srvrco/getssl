@@ -3,18 +3,19 @@ get an SSL certificate via LetsEncrypt.  Suitable for automating the process in 
 
 This was written as an addition to checkssl for servers to automatically renew certifictes.  In addition it allows the running of this script in standard bash ( on a desktop computer, or even virtualbox) and add the checks, and certificates to a remote server ( providing you have an ssh key on the remote server with access). Potentially I can include FTP as an option for uploading as well. 
 
-   getssl ver. 0.10
-   To obtain a letsencrypt SSL cert
+```
+getssl ver. 0.16
+Obtain SSL certificates from the letsencrypt.org ACME server
 
-   Usage: getssl [-h|--help] [-d|--debug] [-c] [-w working_dir] domain
+Usage: getssl [-h|--help] [-d|--debug] [-c] [-a|--all] [-w working_dir] domain
 
-   Options:
-  -h, --help  Display this help message and exit.
-  -d, --debug  outputs debug information
-  -c,          Create default config files
-  -w working_dir  working directory
-    Where 'working_dir' is the Working Directory.
-
+Options:
+  -h, --help      Display this help message and exit
+  -d, --debug     Outputs debug information
+  -c,             Create default config files
+  -a, --all       Renew all certificates
+  -w working_dir  Working directory
+```
 
 ## Structure
 
@@ -23,35 +24,40 @@ The design aim was to provide flexibility in running the code.  The default work
 Within the **working directory** is a config file, getssl.cfg which is a simple bash file containing variables, an example of which is 
 
 ```
-# uncomment and modify any variables you need
-# The staging server is best for testing
+# Uncomment and modify any variables you need
+# The staging server is best for testing (hence set as default)
 CA="https://acme-staging.api.letsencrypt.org"
 # This server issues full certificates, however has rate limits
 #CA="https://acme-v01.api.letsencrypt.org"
 
 AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 
-#set an email address associated with your account 
-ACCOUNT_EMAIL="me@example.com"
+# Set an email address associated with your account - generally set at account level rather than domain.
+#ACCOUNT_EMAIL="me@example.com"
 ACCOUNT_KEY_LENGTH=4096
+ACCOUNT_KEY="/home/andy/.getssl/account.key"
 
-#The default directory for all your certs to be stored within ( in subdirectories by domain name ) 
-WORKING_DIR=~/.getssl
-
-# the command needed to reload apache / gninx or whatever you use
+# The command needed to reload apache / nginx or whatever you use
 #RELOAD_CMD=""
-#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
+# The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 RENEW_ALLOW="30"
-#Use the following 3 variables if you want to validate via DNS
+
+# openssl config file.  The default should work in most cases.
+SSLCONF="/usr/lib/ssl/openssl.cnf"
+
+# Use the following 3 variables if you want to validate via DNS
 #VALIDATE_VIA_DNS="true"
 #DNS_ADD_COMMAND=
 #DNS_DEL_COMMAND=
+# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
+#DNS_EXTRA_WAIT=60
+
 ```
 
 then, within the **working directory** there will be a folder for each certificate (based on it's domain name). Within that folder will be a config file (again called getssl.cfg).  An example of which is;
 
 ```
-# uncomment and modify any variables you need
+# Uncomment and modify any variables you need
 # The staging server is best for testing
 #CA="https://acme-staging.api.letsencrypt.org"
 # This server issues full certificates, however has rate limits
@@ -59,32 +65,37 @@ then, within the **working directory** there will be a folder for each certifica
 
 #AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 
-#set an email address associated with your account - generally set at account level rather than domain. 
+# Set an email address associated with your account - generally set at account level rather than domain.
 #ACCOUNT_EMAIL="me@example.com"
 #ACCOUNT_KEY_LENGTH=4096
+#ACCOUNT_KEY="/home/andy/.getssl/account.key"
 
-# additional domains - this could be multiple domains / subdomains in a comma separated list
-SANS=www.testdomain.com
+# Additional domains - this could be multiple domains / subdomains in a comma separated list
+SANS=www.example.org,example.edu,example.net,example.org,www.example.com,www.example.edu,www.example.net
 
-#Acme Challenge Location.   The first line for the domain, the following ones for each additional domain
-#if these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
-#an ssh key will be needed to provide you with access to the remote server.
-#ACL=('/var/www/testdomain.com/web/.well-known/acme-challenge'
-#     'ssh:server5:/var/www/testdomain.com/web/.well-known/acme-challenge')
+# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
+# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
+# An ssh key will be needed to provide you with access to the remote server.
+#ACL=('/var/www/example.com/web/.well-known/acme-challenge'
+#     'ssh:server5:/var/www/example.com/web/.well-known/acme-challenge')
 
-# location for all your certs these can either be on the server ( so full path name) or using ssh as for the ACL
+# Location for all your certs, these can either be on the server (so full path name) or using ssh as for the ACL
 #DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
 #DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
 #CA_CERT_LOCATION="/etc/ssl/chain.crt"
-#DOMAIN_PEM_LOCATION="/etc/ssl/domain-bundle.pem" 
-# the command needed to reload apache / gninx or whatever you use
-#RELOAD_CMD="ssh:server5:service apache2 reload"
-#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits. 
+#DOMAIN_PEM_LOCATION=""
+
+# The command needed to reload apache / nginx or whatever you use
+#RELOAD_CMD=""
+# The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 #RENEW_ALLOW="30"
-#Use the following 3 variables if you want to validate via DNS
-#VALIDATE_VIA_DNS=\"true\"
+
+# Use the following 3 variables if you want to validate via DNS
+#VALIDATE_VIA_DNS="true"
 #DNS_ADD_COMMAND=
 #DNS_DEL_COMMAND=
+# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
+#DNS_EXTRA_WAIT=60
 ```
 
 if a location for a file starts with ssh:  it is assumed the next part of the file is the hostname, followed by a colon, and then the path. 
