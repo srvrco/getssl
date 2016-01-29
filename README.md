@@ -13,7 +13,6 @@ Options:
   -h, --help      Display this help message and exit
   -d, --debug     Outputs debug information
   -c, --create    Create default config files
-  -r, --refetch   Refetch current certificates from site
   -a, --all       Renew all certificates
   -w working_dir  Working directory
 ```
@@ -43,8 +42,9 @@ PRIVATE_KEY_ALG="rsa"
 #RELOAD_CMD=""
 # The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 RENEW_ALLOW="30"
-# Always refetch the certificate from the server before checking expiry
-#ALWAYS_REFETCH_CERT="true"
+# Define the server type.  If it's a "webserver" then the main website will be checked for certificate expiry 
+# and also will be checked after an update to confirm correct certificate is running. 
+#SERVER_TYPE="webserver"
 
 # openssl config file.  The default should work in most cases.
 SSLCONF="/usr/lib/ssl/openssl.cnf"
@@ -94,8 +94,9 @@ SANS=www.example.org,example.edu,example.net,example.org,www.example.com,www.exa
 #RELOAD_CMD=""
 # The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 #RENEW_ALLOW="30"
-# Always refetch the certificate from the server before checking expiry
-#ALWAYS_REFETCH_CERT="true"
+# Define the server type.  If it's a "webserver" then the main website will be checked for certificate expiry 
+# and also will be checked after an update to confirm correct certificate is running. 
+#SERVER_TYPE="webserver"
 
 # Use the following 3 variables if you want to validate via DNS
 #VALIDATE_VIA_DNS="true"
