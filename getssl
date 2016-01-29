@@ -13,7 +13,7 @@
 # GNU General Public License at <http://www.gnu.org/licenses/> for
 # more details.
 
-# Usage: getssl [-h|--help] [-d|--debug] [-c] [-r|--refetch] [-a|--all] [-w working_dir] domain
+# Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-a|--all] [-w working_dir] domain
 
 # Revision history:
 # 2016-01-08 Created (v0.1)
@@ -49,7 +49,7 @@ VALIDATE_VIA_DNS=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
 PRIVATE_KEY_ALG="rsa"
-ALWAYS_REFETCH_CERT="false"
+SERVER_TYPE="webserver"
 _USE_DEBUG=0
 _CREATE_CONFIG=0
 _REFETCH_CERT=0
@@ -86,7 +86,7 @@ signal_exit() { # Handle trapped signals
 }
 
 usage() {
-  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c] [-r|--refetch] [-a|--all] [-w working_dir] domain"
+  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-a|--all] [-w working_dir] domain"
 }
 
 log() {
@@ -138,8 +138,9 @@ write_getssl_template() {
 	#RELOAD_CMD=""
 	# The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 	RENEW_ALLOW="30"
-	# Always refetch the certificate from the server before checking expiry
-	#ALWAYS_REFETCH_CERT="true"
+	# Define the server type.  If it's a "webserver" then the main website will be checked for certificate expiry 
+	# and also will be checked after an update to confirm correct certificate is running. 
+	#SERVER_TYPE="webserver"
 
 	# openssl config file.  The default should work in most cases.
 	SSLCONF="$SSLCONF"
@@ -188,8 +189,9 @@ write_domain_template() {
 	#RELOAD_CMD=""
 	# The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 	#RENEW_ALLOW="30"
-	# Always refetch the certificate from the server before checking expiry
-	#ALWAYS_REFETCH_CERT="true"
+	# Define the server type.  If it's a "webserver" then the main website will be checked for certificate expiry 
+	# and also will be checked after an update to confirm correct certificate is running. 
+	#SERVER_TYPE="webserver"
 
 	# Use the following 3 variables if you want to validate via DNS
 	#VALIDATE_VIA_DNS="true"
@@ -302,7 +304,6 @@ Options:
   -h, --help      Display this help message and exit
   -d, --debug     Outputs debug information
   -c, --create    Create default config files
-  -r, --refetch   Refetch current certificates from site
   -a, --all       Renew all certificates
   -w working_dir  Working directory
 
@@ -323,8 +324,6 @@ while [[ -n $1 ]]; do
      _USE_DEBUG=1 ;;
     -c | --create)
      _CREATE_CONFIG=1 ;;
-    -r | --refetch)
-     _REFETCH_CERT=1 ;;
     -a | --all)
      _RENEW_ALL=1 ;;
     -w)
@@ -366,9 +365,6 @@ if [ ${_RENEW_ALL} -eq 1 ]; then
       cmd="$0 -w '$WORKING_DIR'"
       if [ ${_USE_DEBUG} -eq 1 ]; then
         cmd="$cmd -d"
-      fi
-      if [ ${_REFETCH_CERT} -eq 1 ]; then
-        cmd="$cmd -r"
       fi
       cmd="$cmd $dir"
 
@@ -456,24 +452,28 @@ if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
   . "$DOMAIN_DIR/getssl.cfg"
 fi
 
-if [ "$ALWAYS_REFETCH_CERT" == "true" ]; then
-  _REFETCH_CERT=1
-fi
-
-# refetch the certificate from the server if option is set
-if [ ${_REFETCH_CERT} -eq 1 ]; then
-  info "refetch certificate for $DOMAIN and save to $DOMAIN_DIR/${DOMAIN}.crt"
+# if it's a webserver, connect and obtain the certificate 
+if [[ ${SERVER_TYPE} == "webserver" ]]; then
+  info "getting certificate for $DOMAIN"
   EX_CERT=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 2>/dev/null)
-  if [ ! -z "${EX_CERT}" ]; then
+  CERT_REMOTE=$(cat "$EX_CERT" | openssl x509 -noout -fingerprint 2>/dev/null)
+  CERT_LOCAL=$(cat "$CERT_FILE" | openssl x509 -noout -fingerprint 2>/dev/null)
+  if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
+    debug "certificate on server is same as the local cert"
+  else
     # check if the certificate is for the right domain
-	EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -noout -subject | sed s/.*CN=//)
+    EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -noout -subject | sed s/.*CN=//)
     if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]
-      echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
+      # check renew-date on ex_cert and compare to local ( if local exists) 
+      # if remote has longer to expiry date then
+        # archive local copy with dates
+        # copy remote to local echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
+      # endif ( if not true, then we want to use the existing local one or renew local depending on dates. ) 
     else
+      # we probably don't want to exit here .... we probably just want to ignore it and use the local copy 
+      # for example it may be the first time, and we haven't got a valid cert on it yet ....
       error_exit "fetched certificate domain-name ($EX_CERT_DOMAIN) does not match $DOMAIN"
     fi
-  else
-    error_exit "failed to fetch certificate for $DOMAIN"
   fi
 fi
 
