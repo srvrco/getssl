@@ -13,7 +13,7 @@
 # GNU General Public License at <http://www.gnu.org/licenses/> for
 # more details.
 
-# Usage: getssl [-h|--help] [-d|--debug] [-c] [-w working_dir] domain
+# Usage: getssl [-h|--help] [-d|--debug] [-c] [-a|--all] [-w working_dir] domain
 
 # Revision history:
 # 2016-01-08 Created (v0.1)
@@ -30,10 +30,11 @@
 # 2016-01-28 Typo corrections, quoted file variables and fix bug on DNS_DEL_COMMAND (v0.12)
 # 2016-01-28 changed DNS checks to use nslookup and allow hyphen in domain names (v0.13)
 # 2016-01-29 Fix ssh-reload-command, extra waiting for DNS-challenge, add some error_exit and cleanup help message (v0.14)
+# 2016-01-29 added -a|--all option to renew all configured certificates (v0.15)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.14"
+VERSION="0.15"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -47,6 +48,7 @@ RELOAD_CMD=""
 RENEW_ALLOW="30"
 _USE_DEBUG=0
 _CREATE_CONFIG=0
+_RENEW_ALL=0
 
 clean_up() { # Perform pre-exit housekeeping
   if [ ! -z "$DOMAIN_DIR" ]; then
@@ -79,7 +81,7 @@ signal_exit() { # Handle trapped signals
 }
 
 usage() {
-  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c] [-w working_dir] domain"
+  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c] [-a|--all] [-w working_dir] domain"
 }
 
 log() {
@@ -289,6 +291,7 @@ Options:
   -h, --help      Display this help message and exit
   -d, --debug     Outputs debug information
   -c,             Create default config files
+  -a, --all       Renew all certificates
   -w working_dir  Working directory
 
 _EOF_
@@ -308,6 +311,8 @@ while [[ -n $1 ]]; do
      _USE_DEBUG=1 ;;
     -c | --create)
      _CREATE_CONFIG=1 ;;
+    -a | --all)
+     _RENEW_ALL=1 ;;
     -w)
       echo "working directory"; shift; WORKING_DIR="$1" ;;
     -* | --*)
@@ -328,6 +333,35 @@ _requires curl
 _requires xxd
 _requires base64
 _requires nslookup
+
+if [ ${_RENEW_ALL} -eq 1 ]; then
+  info "Renew all certificates"
+
+  if [ ${_CREATE_CONFIG} -eq 1 ]; then
+    error_exit "cannot combine -c|--create with -a|--all"
+  fi
+
+  if [ ! -d "$WORKING_DIR" ]; then
+    error_exit "working dir not found or not set - $WORKING_DIR"
+  fi
+
+  for dir in $(ls "$WORKING_DIR"); do
+    if [ -d "$WORKING_DIR/$dir" ]; then
+      info "Renewing $dir"
+
+      cmd="$0 -w '$WORKING_DIR'"
+      if [ ${_USE_DEBUG} -eq 1 ]; then
+        cmd="$cmd -d"
+      fi
+      cmd="$cmd $dir"
+
+      debug "CMD: $cmd"
+      eval "$cmd"
+    fi
+  done
+
+  graceful_exit
+fi
 
 if [ -z "$DOMAIN" ]; then
   help_message
