@@ -112,7 +112,7 @@ write_openssl_conf() {
 
 write_getssl_template() {
   cat > "$1" <<- _EOF_getssl_
-	# uncomment and modify any variables you need
+	# Uncomment and modify any variables you need
 	# The staging server is best for testing (hence set as default)
 	CA="https://acme-staging.api.letsencrypt.org"
 	# This server issues full certificates, however has rate limits
@@ -120,29 +120,31 @@ write_getssl_template() {
 
 	AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 
-	#set an email address associated with your account - generally set at account level rather than domain.
+	# Set an email address associated with your account - generally set at account level rather than domain.
 	#ACCOUNT_EMAIL="me@example.com"
 	ACCOUNT_KEY_LENGTH=4096
 	ACCOUNT_KEY="$WORKING_DIR/account.key"
 
-	#The command needed to reload apache / gninx or whatever you use
+	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
-	#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
+	# The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 	RENEW_ALLOW="30"
 
 	# openssl config file.  The default should work in most cases.
 	SSLCONF="$SSLCONF"
 
-	#Use the following 3 variables if you want to validate via DNS
+	# Use the following 3 variables if you want to validate via DNS
 	#VALIDATE_VIA_DNS="true"
 	#DNS_ADD_COMMAND=
 	#DNS_DEL_COMMAND=
+	# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
+	#DNS_EXTRA_WAIT=60
 	_EOF_getssl_
 }
 
 write_domain_template() {
   cat > "$1" <<- _EOF_domain_
-	# uncomment and modify any variables you need
+	# Uncomment and modify any variables you need
 	# The staging server is best for testing
 	#CA="https://acme-staging.api.letsencrypt.org"
 	# This server issues full certificates, however has rate limits
@@ -150,35 +152,37 @@ write_domain_template() {
 
 	#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 
-	#set an email address associated with your account - generally set at account level rather than domain.
+	# Set an email address associated with your account - generally set at account level rather than domain.
 	#ACCOUNT_EMAIL="me@example.com"
 	#ACCOUNT_KEY_LENGTH=4096
 	#ACCOUNT_KEY="$WORKING_DIR/account.key"
 
-	# additional domains - this could be multiple domains / subdomains in a comma separated list
+	# Additional domains - this could be multiple domains / subdomains in a comma separated list
 	SANS=${EX_SANS}
 
-	#Acme Challenge Location.   The first line for the domain, the following ones for each additional domain
-	#if these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
-	#an ssh key will be needed to provide you with access to the remote server.
+	# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
+	# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
+	# An ssh key will be needed to provide you with access to the remote server.
 	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge')
 
-	# location for all your certs these can either be on the server ( so full path name) or using ssh as for the ACL
+	# Location for all your certs, these can either be on the server (so full path name) or using ssh as for the ACL
 	#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
 	#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
 	#CA_CERT_LOCATION="/etc/ssl/chain.crt"
-	#DOMAIN_PEM_LOCATION="" 
+	#DOMAIN_PEM_LOCATION=""
 
-	# the command needed to reload apache / gninx or whatever you use
+	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
-	#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
-	RENEW_ALLOW="30"
+	# The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
+	#RENEW_ALLOW="30"
 
-	#Use the following 3 variables if you want to validate via DNS
+	# Use the following 3 variables if you want to validate via DNS
 	#VALIDATE_VIA_DNS="true"
 	#DNS_ADD_COMMAND=
 	#DNS_DEL_COMMAND=
+	# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
+	#DNS_EXTRA_WAIT=60
 	_EOF_domain_
 }
 
@@ -551,8 +555,10 @@ for d in $alldomains; do
       if [[ "$check_result" == "$auth_key" ]]; then
         check_dns="success"
         debug "checking DNS ... _acme-challenge.$d gave $check_result"
-        info "sleeping 60 seconds before asking letsencrypt to check the dns"
-        sleep 60 # smallest time for DNS TTL
+        if [ "$DNS_EXTRA_WAIT" != "" ]; then
+          info "sleeping $DNS_EXTRA_WAIT seconds before asking the ACME-server to check the dns"
+          sleep $DNS_EXTRA_WAIT
+        fi
       else
         if [[ $ntries -lt 100 ]]; then
           ntries=$(( $ntries + 1 ))
@@ -695,7 +701,7 @@ if [ ! -z "$DOMAIN_PEM_LOCATION" ]; then
   copy_file_to_location "$DOMAIN_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
 fi
 
-# Run reload command to restart apache / gninx or whatever system
+# Run reload command to restart apache / nginx or whatever system
 
 if [ ! -z "$RELOAD_CMD" ]; then
   info "reloading SSL services"
