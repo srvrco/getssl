@@ -796,4 +796,13 @@ if [ ! -z "$RELOAD_CMD" ]; then
   fi
 fi
 
+# Check if the certificate is installed correctly
+CERT_REMOTE=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
+CERT_LOCAL=$(cat "$CERT_FILE" | openssl x509 -noout -fingerprint 2>/dev/null)
+if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
+  info "certificate installed OK on server"
+else
+  error_exit "certificate on server is different from local certificate"
+fi
+
 graceful_exit
