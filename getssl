@@ -101,84 +101,84 @@ _b64() {
 
 write_openssl_conf() {
   cat > "$1" <<- _EOF_openssl_conf_
-	# minimal openssl.cnf file
-	distinguished_name  = req_distinguished_name
-	[ req_distinguished_name ]
-	[v3_req]
-	[v3_ca]
-	_EOF_openssl_conf_
+# minimal openssl.cnf file
+distinguished_name  = req_distinguished_name
+[ req_distinguished_name ]
+[v3_req]
+[v3_ca]
+_EOF_openssl_conf_
 }
 
 write_getssl_template() {
   cat > "$1" <<- _EOF_getssl_
-	# uncomment and modify any variables you need
-	# The staging server is best for testing (hence set as default)
-	CA="https://acme-staging.api.letsencrypt.org"
-	# This server issues full certificates, however has rate limits
-	#CA="https://acme-v01.api.letsencrypt.org"
+# uncomment and modify any variables you need
+# The staging server is best for testing (hence set as default)
+CA="https://acme-staging.api.letsencrypt.org"
+# This server issues full certificates, however has rate limits
+#CA="https://acme-v01.api.letsencrypt.org"
 
-	AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 
-	#set an email address associated with your account - generally set at account level rather than domain.
-	#ACCOUNT_EMAIL="me@example.com"
-	ACCOUNT_KEY_LENGTH=4096
-	ACCOUNT_KEY="$WORKING_DIR/account.key"
+#set an email address associated with your account - generally set at account level rather than domain.
+#ACCOUNT_EMAIL="me@example.com"
+ACCOUNT_KEY_LENGTH=4096
+ACCOUNT_KEY="$WORKING_DIR/account.key"
 
-	#The command needed to reload apache / gninx or whatever you use
-	#RELOAD_CMD=""
-	#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
-	RENEW_ALLOW="30"
+#The command needed to reload apache / gninx or whatever you use
+#RELOAD_CMD=""
+#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
+RENEW_ALLOW="30"
 
-	# openssl config file.  The default should work in most cases.
-	SSLCONF="$SSLCONF"
+# openssl config file.  The default should work in most cases.
+SSLCONF="$SSLCONF"
 
-	#Use the following 3 variables if you want to validate via DNS
-	#VALIDATE_VIA_DNS="true"
-	#DNS_ADD_COMMAND=
-	#DNS_DEL_COMMAND=
-	_EOF_getssl_
+#Use the following 3 variables if you want to validate via DNS
+#VALIDATE_VIA_DNS="true"
+#DNS_ADD_COMMAND=
+#DNS_DEL_COMMAND=
+_EOF_getssl_
 }
 
 write_domain_template() {
   cat > "$1" <<- _EOF_domain_
-	# uncomment and modify any variables you need
-	# The staging server is best for testing
-	#CA="https://acme-staging.api.letsencrypt.org"
-	# This server issues full certificates, however has rate limits
-	#CA="https://acme-v01.api.letsencrypt.org"
+# uncomment and modify any variables you need
+# The staging server is best for testing
+#CA="https://acme-staging.api.letsencrypt.org"
+# This server issues full certificates, however has rate limits
+#CA="https://acme-v01.api.letsencrypt.org"
 
-	#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 
-	#set an email address associated with your account - generally set at account level rather than domain.
-	#ACCOUNT_EMAIL="me@example.com"
-	#ACCOUNT_KEY_LENGTH=4096
-	#ACCOUNT_KEY="$WORKING_DIR/account.key"
+#set an email address associated with your account - generally set at account level rather than domain.
+#ACCOUNT_EMAIL="me@example.com"
+#ACCOUNT_KEY_LENGTH=4096
+#ACCOUNT_KEY="$WORKING_DIR/account.key"
 
-	# additional domains - this could be multiple domains / subdomains in a comma separated list
-	SANS=${EX_SANS}
+# additional domains - this could be multiple domains / subdomains in a comma separated list
+SANS=${EX_SANS}
 
-	#Acme Challenge Location.   The first line for the domain, the following ones for each additional domain
-	#if these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
-	#an ssh key will be needed to provide you with access to the remote server.
-	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge')
+#Acme Challenge Location.   The first line for the domain, the following ones for each additional domain
+#if these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
+#an ssh key will be needed to provide you with access to the remote server.
+#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge')
 
-	# location for all your certs these can either be on the server ( so full path name) or using ssh as for the ACL
-	#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
-	#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
-	#CA_CERT_LOCATION="/etc/ssl/chain.crt"
-	#DOMAIN_PEM_LOCATION="" 
+# location for all your certs these can either be on the server ( so full path name) or using ssh as for the ACL
+#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
+#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
+#CA_CERT_LOCATION="/etc/ssl/chain.crt"
+#DOMAIN_PEM_LOCATION=""
 
-	# the command needed to reload apache / gninx or whatever you use
-	#RELOAD_CMD=""
-	#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
-	RENEW_ALLOW="30"
+# the command needed to reload apache / gninx or whatever you use
+#RELOAD_CMD=""
+#The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
+RENEW_ALLOW="30"
 
-	#Use the following 3 variables if you want to validate via DNS
-	#VALIDATE_VIA_DNS="true"
-	#DNS_ADD_COMMAND=
-	#DNS_DEL_COMMAND=
-	_EOF_domain_
+#Use the following 3 variables if you want to validate via DNS
+#VALIDATE_VIA_DNS="true"
+#DNS_ADD_COMMAND=
+#DNS_DEL_COMMAND=
+_EOF_domain_
 }
 
 send_signed_request() {
@@ -275,17 +275,16 @@ _requires() {
 
 help_message() {
    cat <<- _EOF_
-   $PROGNAME ver. $VERSION
-   To obtain a letsencrypt SSL cert
+$PROGNAME ver. $VERSION
+Obtain SSL certificates from the letsencrypt.org ACME server
 
-   $(usage)
+$(usage)
 
-   Options:
-  -h, --help  Display this help message and exit.
-  -d, --debug  outputs debug information
-  -c,          create default config files
-  -w working_dir  working directory
-    Where 'working_dir' is the Working Directory.
+Options:
+  -h, --help      Display this help message and exit
+  -d, --debug     Outputs debug information
+  -c,             Create default config files
+  -w working_dir  Working directory
 
 _EOF_
   return
