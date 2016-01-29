@@ -32,7 +32,7 @@
 # 2016-01-29 Fix ssh-reload-command, extra waiting for DNS-challenge, add some error_exit and cleanup help message (v0.14)
 # 2016-01-29 added -a|--all option to renew all configured certificates (v0.15)
 # 2016-01-29 added option for eliptic curve keys (v0.16)
-# 2016-01-29 added -r|--refetch option to refetch certificate from site (v0.17)
+# 2016-01-29 added server-type option to use and check cert validity from website (v0.17)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -52,7 +52,6 @@ PRIVATE_KEY_ALG="rsa"
 SERVER_TYPE="webserver"
 _USE_DEBUG=0
 _CREATE_CONFIG=0
-_REFETCH_CERT=0
 _RENEW_ALL=0
 
 clean_up() { # Perform pre-exit housekeeping
@@ -136,10 +135,13 @@ write_getssl_template() {
 
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
-	# The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
+	# The time period within which you want to allow renewal of a certificate 
+	#  this prevents hitting some of the rate limits.
 	RENEW_ALLOW="30"
-	# Define the server type.  If it's a "webserver" then the main website will be checked for certificate expiry 
-	# and also will be checked after an update to confirm correct certificate is running. 
+	
+	# Define the server type.  If it's a "webserver" then the main website 
+	# will be checked for certificate expiry and also will be checked after 
+	# an update to confirm correct certificate is running. 
 	#SERVER_TYPE="webserver"
 
 	# openssl config file.  The default should work in most cases.
@@ -187,10 +189,13 @@ write_domain_template() {
 
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
-	# The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
-	#RENEW_ALLOW="30"
-	# Define the server type.  If it's a "webserver" then the main website will be checked for certificate expiry 
-	# and also will be checked after an update to confirm correct certificate is running. 
+	# The time period within which you want to allow renewal of a certificate 
+	#  this prevents hitting some of the rate limits.
+	RENEW_ALLOW="30"
+	
+	# Define the server type.  If it's a "webserver" then the main website 
+	# will be checked for certificate expiry and also will be checked after 
+	# an update to confirm correct certificate is running. 
 	#SERVER_TYPE="webserver"
 
 	# Use the following 3 variables if you want to validate via DNS
@@ -291,6 +296,16 @@ _requires() {
   if [ -z "$result" ]; then
     error_exit "This script requires $1 installed"
   fi
+}
+
+cert_archive() {
+  certfile=$1
+  enddate=$(openssl x509 -in $certfile -noout -enddate 2>/dev/null| cut -d= -f 2-)
+  formatted_enddate=$(date -d "${enddate}" +%F)
+  startdate=$(openssl x509 -in $xertfile -noout -startdate 2>/dev/null| cut -d= -f 2-)
+  formatted_startdate=$(date -d "${startdate}" +%F)
+  mv "${certfile}" "${certfile}_${formatted_startdate}_${formatted_enddate}"
+  debug "backing up old certificate file to ${certfile}_${formatted_startdate}_${formatted_enddate}"
 }
 
 help_message() {
@@ -456,24 +471,40 @@ fi
 if [[ ${SERVER_TYPE} == "webserver" ]]; then
   info "getting certificate for $DOMAIN"
   EX_CERT=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 2>/dev/null)
-  CERT_REMOTE=$(cat "$EX_CERT" | openssl x509 -noout -fingerprint 2>/dev/null)
-  CERT_LOCAL=$(cat "$CERT_FILE" | openssl x509 -noout -fingerprint 2>/dev/null)
-  if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
-    debug "certificate on server is same as the local cert"
-  else
-    # check if the certificate is for the right domain
-    EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -noout -subject | sed s/.*CN=//)
-    if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]
-      # check renew-date on ex_cert and compare to local ( if local exists) 
-      # if remote has longer to expiry date then
-        # archive local copy with dates
-        # copy remote to local echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
-      # endif ( if not true, then we want to use the existing local one or renew local depending on dates. ) 
-    else
-      # we probably don't want to exit here .... we probably just want to ignore it and use the local copy 
-      # for example it may be the first time, and we haven't got a valid cert on it yet ....
-      error_exit "fetched certificate domain-name ($EX_CERT_DOMAIN) does not match $DOMAIN"
+  if [ ! -z "$EX_CERT" ]; then
+    if [ -f "$CERT_FILE" ]; then #if local exists
+      CERT_REMOTE=$(echo "$EX_CERT" | openssl x509 -noout -fingerprint 2>/dev/null)
+      CERT_LOCAL=$(cat "$CERT_FILE" | openssl x509 -noout -fingerprint 2>/dev/null)
+      if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
+        debug "certificate on server is same as the local cert"
+      else
+        # check if the certificate is for the right domain
+        EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -noout -subject | sed s/.*CN=//)
+        if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]; then
+          # check renew-date on ex_cert and compare to local ( if local exists) 
+          enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
+          enddate_lc=$(cat "$CERT_FILE" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
+          if [ $(date -d "$enddate_ex" +%s) -gt $(date -d "$enddate_lc" +%s) ]; then
+            #remote has longer to expiry date then
+            debug "backing up old certificate file to ${CERT_FILE}_${formatted_startdate}_${formatted_enddate}"
+            cert_archive "$CERT_FILE"
+            debug "copying remote cert to local"
+            echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
+          else
+            info "remote expires sooner than local ..... "
+            # remote expires sooner than local
+            # somehow need to tell it to potentially just upload the local ..... 
+          fi
+        else
+          info "Certificate on remote domain does not match domain, ignoring current remote certificate"
+        fi
+      fi
+    else 
+      info "local cert doesn't exist, saving copy from remote"
+      echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
     fi
+  else
+    info "no certificate obtained from host"
   fi
 fi
 
@@ -484,11 +515,7 @@ if [ -f "$CERT_FILE" ]; then
     if [[ $(date -d "${RENEW_ALLOW} days" +%s) -lt $(date -d "$enddate" +%s) ]]; then
       error_exit "existing certificate ( $CERT_FILE ) is still valid for more than $RENEW_ALLOW days - aborting"
     else
-      formatted_enddate=$(date -d "${enddate}" +%F)
-      startdate=$(openssl x509 -in $CERT_FILE -noout -startdate 2>/dev/null| cut -d= -f 2-)
-      formatted_startdate=$(date -d "${startdate}" +%F)
-      mv "${CERT_FILE}" "${CERT_FILE}_${formatted_startdate}_${formatted_enddate}"
-      debug "backing up old certificate file to ${CERT_FILE}_${formatted_startdate}_${formatted_enddate}"
+      cert_archive "${CERT_FILE}"
     fi
   fi
 fi
