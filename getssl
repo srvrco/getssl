@@ -49,6 +49,7 @@ VALIDATE_VIA_DNS=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
 PRIVATE_KEY_ALG="rsa"
+ALWAYS_REFETCH_CERT="false"
 _USE_DEBUG=0
 _CREATE_CONFIG=0
 _REFETCH_CERT=0
@@ -137,6 +138,8 @@ write_getssl_template() {
 	#RELOAD_CMD=""
 	# The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 	RENEW_ALLOW="30"
+	# Always refetch the certificate from the server before checking expiry
+	#ALWAYS_REFETCH_CERT="true"
 
 	# openssl config file.  The default should work in most cases.
 	SSLCONF="$SSLCONF"
@@ -185,6 +188,8 @@ write_domain_template() {
 	#RELOAD_CMD=""
 	# The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 	#RENEW_ALLOW="30"
+	# Always refetch the certificate from the server before checking expiry
+	#ALWAYS_REFETCH_CERT="true"
 
 	# Use the following 3 variables if you want to validate via DNS
 	#VALIDATE_VIA_DNS="true"
@@ -449,6 +454,10 @@ fi
 if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
   debug "reading config from $DOMAIN_DIR/getssl.cfg"
   . "$DOMAIN_DIR/getssl.cfg"
+fi
+
+if [ "$ALWAYS_REFETCH_CERT" == "true" ]; then
+  _REFETCH_CERT=1
 fi
 
 # refetch the certificate from the server if option is set
