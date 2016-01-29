@@ -268,8 +268,7 @@ _requires() {
   result=$(which $1 2>/dev/null)
   debug "checking for required $1 ... $result"
   if [ -z "$result" ]; then
-    echo "This script requires $1 installed"
-    graceful_exit
+    error_exit "This script requires $1 installed"
   fi
 }
 
@@ -448,8 +447,7 @@ if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
   debug "domain csr exists at - $DOMAIN_DIR/${DOMAIN}.csr - skipping generation"
   #check csr is valid for domain
   if [ "$(openssl req -noout -text -in $DOMAIN_DIR/${DOMAIN}.csr| grep -o DNS:${DOMAIN})" != "DNS:${DOMAIN}" ]; then
-    echo "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not appear to be valid for ${DOMAIN} - aborting"
-    graceful_exit
+    error_exit "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not appear to be valid for ${DOMAIN} - aborting"
   fi
 else
   debug "creating domain csr - $DOMAIN_DIR/${DOMAIN}.csr"
@@ -493,8 +491,7 @@ if [ "$code" == "" ] || [ "$code" == '201' ] ; then
 elif [ "$code" == '409' ] ; then
   debug "Already registered"
 else
-  echo "Error registering account"
-  graceful_exit
+  error_exit "Error registering account"
 fi
 
 # verify each domain
