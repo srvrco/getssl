@@ -275,17 +275,16 @@ _requires() {
 
 help_message() {
    cat <<- _EOF_
-   $PROGNAME ver. $VERSION
-   To obtain a letsencrypt SSL cert
+$PROGNAME ver. $VERSION
+Obtain SSL certificates from the letsencrypt.org ACME server
 
-   $(usage)
+$(usage)
 
-   Options:
-  -h, --help  Display this help message and exit.
-  -d, --debug  outputs debug information
-  -c,          create default config files
-  -w working_dir  working directory
-    Where 'working_dir' is the Working Directory.
+Options:
+  -h, --help      Display this help message and exit
+  -d, --debug     Outputs debug information
+  -c,             Create default config files
+  -w working_dir  Working directory
 
 _EOF_
   return
