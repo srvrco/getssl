@@ -302,7 +302,7 @@ cert_archive() {
   certfile=$1
   enddate=$(openssl x509 -in $certfile -noout -enddate 2>/dev/null| cut -d= -f 2-)
   formatted_enddate=$(date -d "${enddate}" +%F)
-  startdate=$(openssl x509 -in $xertfile -noout -startdate 2>/dev/null| cut -d= -f 2-)
+  startdate=$(openssl x509 -in $certfile -noout -startdate 2>/dev/null| cut -d= -f 2-)
   formatted_startdate=$(date -d "${startdate}" +%F)
   mv "${certfile}" "${certfile}_${formatted_startdate}_${formatted_enddate}"
   debug "backing up old certificate file to ${certfile}_${formatted_startdate}_${formatted_enddate}"
@@ -486,7 +486,6 @@ if [[ ${SERVER_TYPE} == "webserver" ]]; then
           enddate_lc=$(cat "$CERT_FILE" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
           if [ $(date -d "$enddate_ex" +%s) -gt $(date -d "$enddate_lc" +%s) ]; then
             #remote has longer to expiry date then
-            debug "backing up old certificate file to ${CERT_FILE}_${formatted_startdate}_${formatted_enddate}"
             cert_archive "$CERT_FILE"
             debug "copying remote cert to local"
             echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
