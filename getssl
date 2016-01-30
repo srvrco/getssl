@@ -13,7 +13,7 @@
 # GNU General Public License at <http://www.gnu.org/licenses/> for
 # more details.
 
-# Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-a|--all] [-w working_dir] domain
+# Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-w working_dir] domain
 
 # Revision history:
 # 2016-01-08 Created (v0.1)
@@ -53,6 +53,7 @@ SERVER_TYPE="webserver"
 _USE_DEBUG=0
 _CREATE_CONFIG=0
 _RENEW_ALL=0
+_FORCE_RENEW=0
 
 clean_up() { # Perform pre-exit housekeeping
   if [ ! -z "$DOMAIN_DIR" ]; then
@@ -85,7 +86,7 @@ signal_exit() { # Handle trapped signals
 }
 
 usage() {
-  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-a|--all] [-w working_dir] domain"
+  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-w working_dir] domain"
 }
 
 log() {
@@ -257,9 +258,11 @@ send_signed_request() {
 }
 
 copy_file_to_location() {
-  from=$1
-  to=$2
+  cert=$1
+  from=$2
+  to=$3
   if [ ! -z "$to" ]; then
+    info "copying $cert to $to"
     debug "copying from $from to $to"
     if [[ "${to:0:4}" == "ssh:" ]] ; then
       debug "using scp scp -q $from ${to:4}"
@@ -305,24 +308,41 @@ cert_archive() {
   startdate=$(openssl x509 -in $certfile -noout -startdate 2>/dev/null| cut -d= -f 2-)
   formatted_startdate=$(date -d "${startdate}" +%F)
   mv "${certfile}" "${certfile}_${formatted_startdate}_${formatted_enddate}"
-  debug "backing up old certificate file to ${certfile}_${formatted_startdate}_${formatted_enddate}"
+  info "archiving old certificate file to ${certfile}_${formatted_startdate}_${formatted_enddate}"
+}
+
+reload_service() {
+  if [ ! -z "$RELOAD_CMD" ]; then
+    info "reloading SSL services"
+    if [[ "${RELOAD_CMD:0:4}" == "ssh:" ]] ; then
+      sshhost=$(echo "$RELOAD_CMD"| awk -F: '{print $2}')
+      command=${RELOAD_CMD:(( ${#sshhost} + 5))}
+      debug "running following comand to reload cert"
+      debug "ssh $sshhost ${command}"
+      ssh $sshhost "${command}" 1>/dev/null 2>&1
+    else
+      debug "running reload command $RELOAD_CMD"
+      $RELOAD_CMD
+    fi
+  fi
 }
 
 help_message() {
-   cat <<- _EOF_
-$PROGNAME ver. $VERSION
-Obtain SSL certificates from the letsencrypt.org ACME server
+  cat <<- _EOF_
+	$PROGNAME ver. $VERSION
+	Obtain SSL certificates from the letsencrypt.org ACME server
 
-$(usage)
+	$(usage)
 
-Options:
-  -h, --help      Display this help message and exit
-  -d, --debug     Outputs debug information
-  -c, --create    Create default config files
-  -a, --all       Renew all certificates
-  -w working_dir  Working directory
-
-_EOF_
+	Options:
+	  -h, --help      Display this help message and exit
+	  -d, --debug     Outputs debug information
+	  -c, --create    Create default config files
+	  -f, --force     Fore renewal of cert (overrides expiry checks)
+	  -a, --all       Renew all certificates
+	  -w working_dir  Working directory
+	
+	_EOF_
   return
 }
 
@@ -339,6 +359,8 @@ while [[ -n $1 ]]; do
      _USE_DEBUG=1 ;;
     -c | --create)
      _CREATE_CONFIG=1 ;;
+    -f | --force)
+     _FORCE_RENEW=1 ;;
     -a | --all)
      _RENEW_ALL=1 ;;
     -w)
@@ -367,6 +389,10 @@ if [ ${_RENEW_ALL} -eq 1 ]; then
 
   if [ ${_CREATE_CONFIG} -eq 1 ]; then
     error_exit "cannot combine -c|--create with -a|--all"
+  fi
+
+  if [ ${_FORCE_RENEW} -eq 1 ]; then
+    error_exit "cannot combine -f|--force with -a|--all because of rate limits"
   fi
 
   if [ ! -d "$WORKING_DIR" ]; then
@@ -468,10 +494,10 @@ if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
 fi
 
 # if it's a webserver, connect and obtain the certificate 
-if [[ ${SERVER_TYPE} == "webserver" ]]; then
-  info "getting certificate for $DOMAIN"
+if [[ "${SERVER_TYPE}" == "webserver" ]] && [ $_FORCE_RENEW -eq 0 ]; then
+  info "getting certificate for $DOMAIN from webserver" 
   EX_CERT=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 2>/dev/null)
-  if [ ! -z "$EX_CERT" ]; then
+  if [ ! -z "$EX_CERT" ]; then # if obtained a cert
     if [ -f "$CERT_FILE" ]; then #if local exists
       CERT_REMOTE=$(echo "$EX_CERT" | openssl x509 -noout -fingerprint 2>/dev/null)
       CERT_LOCAL=$(cat "$CERT_FILE" | openssl x509 -noout -fingerprint 2>/dev/null)
@@ -485,26 +511,38 @@ if [[ ${SERVER_TYPE} == "webserver" ]]; then
           enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
           enddate_lc=$(cat "$CERT_FILE" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
           if [ $(date -d "$enddate_ex" +%s) -gt $(date -d "$enddate_lc" +%s) ]; then
-            #remote has longer to expiry date then
+            # remote has longer to expiry date than local copy.
+            # archive local copy and save remote to local
             cert_archive "$CERT_FILE"
-            debug "copying remote cert to local"
-            echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
+            debug "copying remote certificate to local"
+            echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
           else
-            info "remote expires sooner than local ..... "
-            # remote expires sooner than local
-            # somehow need to tell it to potentially just upload the local ..... 
+            info "remote expires sooner than local ..... will attempt to upload from local"
+            echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt.remote"
+            cert_archive "$DOMAIN_DIR/${DOMAIN}.crt.remote"
+            copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
+            copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
+            copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
+            cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
+            copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
+            reload_service
           fi
         else
           info "Certificate on remote domain does not match domain, ignoring current remote certificate"
         fi
       fi
-    else 
-      info "local cert doesn't exist, saving copy from remote"
-      echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
+    else # local cert doesn't exist"
+      info "local certificate doesn't exist, saving a copy from remote"
+      echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
     fi
   else
     info "no certificate obtained from host"
   fi
+fi
+
+# if force renew is set, set the date validity checks to 100000 days 
+if [ $_FORCE_RENEW -eq 1 ]; then
+  RENEW_ALLOW=100000
 fi
 
 if [ -f "$CERT_FILE" ]; then
@@ -785,50 +823,25 @@ fi
 
 # copy certs to the correct location
 
-if [ ! -z "$DOMAIN_CERT_LOCATION" ]; then
-  info "copying domain certificate to $DOMAIN_CERT_LOCATION"
-  copy_file_to_location "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
-fi
-
-if [ ! -z "$DOMAIN_KEY_LOCATION" ]; then
-  info "copying private key to $DOMAIN_KEY_LOCATION"
-  copy_file_to_location "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
-fi
-
-if [ ! -z "$CA_CERT_LOCATION" ]; then
-  info "copying CA certificate to $CA_CERT_LOCATION"
-  copy_file_to_location "$CA_CERT" "$CA_CERT_LOCATION"
-fi
-
-if [ ! -z "$DOMAIN_PEM_LOCATION" ]; then
-  # Create full pem
-  cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$DOMAIN_DIR/${DOMAIN}.pem"
-  copy_file_to_location "$DOMAIN_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
-fi
+copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
+copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
+copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
+cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
+copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
 
 # Run reload command to restart apache / nginx or whatever system
 
-if [ ! -z "$RELOAD_CMD" ]; then
-  info "reloading SSL services"
-  if [[ "${RELOAD_CMD:0:4}" == "ssh:" ]] ; then
-    sshhost=$(echo "$RELOAD_CMD"| awk -F: '{print $2}')
-    command=${RELOAD_CMD:(( ${#sshhost} + 5))}
-    debug "running following comand to reload cert"
-    debug "ssh $sshhost ${command}"
-    ssh $sshhost "${command}" 1>/dev/null 2>&1
-  else
-    debug "running reload command $RELOAD_CMD"
-    $RELOAD_CMD
-  fi
-fi
+reload_service
 
 # Check if the certificate is installed correctly
-CERT_REMOTE=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
-CERT_LOCAL=$(cat "$CERT_FILE" | openssl x509 -noout -fingerprint 2>/dev/null)
-if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
-  info "certificate installed OK on server"
-else
-  error_exit "certificate on server is different from local certificate"
+if [[ ${SERVER_TYPE} == "webserver" ]]; then
+  CERT_REMOTE=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
+  CERT_LOCAL=$(cat "$CERT_FILE" | openssl x509 -noout -fingerprint 2>/dev/null)
+  if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
+    info "certificate installed OK on server"
+  else
+    error_exit "certificate on server is different from local certificate"
+  fi
 fi
 
 graceful_exit
