@@ -13,7 +13,8 @@ Options:
   -h, --help      Display this help message and exit
   -d, --debug     Outputs debug information
   -c, --create    Create default config files
-  -a, --all       Renew all certificates
+  -f, --force     Force renewal of cert (overrides expiry checks)
+  -a, --all       Check all certificates
   -w working_dir  Working directory
 ```
 
