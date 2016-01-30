@@ -90,7 +90,7 @@ usage() {
 }
 
 log() {
-     echo "[$(date +%Y-%m-%d\ %H:%M:%S)] $*" >> ${PROGNAME}.log
+     echo "[$(date +%Y-%m-%d\ %H:%M:%S)] $*" >> "${PROGNAME}.log"
 }
 
 debug() {
@@ -105,7 +105,7 @@ info() {
 
 _b64() {
   __n=$(cat)
-  echo $__n | tr '/+' '_-' | tr -d '= '
+  echo "$__n" | tr '/+' '_-' | tr -d '= '
 }
 
 write_openssl_conf() {
@@ -222,7 +222,7 @@ send_signed_request() {
   if [ ${_USE_DEBUG} -eq 1 ]; then
     CURL="$CURL --trace-ascii $dp "
   fi
-  payload64=$(echo -n $payload | base64 -w 0 | _b64)
+  payload64=$(echo -n "$payload" | base64 -w 0 | _b64)
   debug payload64 "$payload64"
 
   nonceurl="$CA/directory"
@@ -233,7 +233,7 @@ send_signed_request() {
   protected=$(echo -n "$HEADERPLACE" | sed "s/NONCE/$nonce/" )
   debug protected "$protected"
 
-  protected64=$( echo -n $protected | base64 -w 0 | _b64)
+  protected64=$( echo -n "$protected" | base64 -w 0 | _b64)
   debug protected64 "$protected64"
 
   sig=$(echo -n "$protected64.$payload64" |  openssl   dgst   -sha256  -sign  "$ACCOUNT_KEY" | base64 -w 0 | _b64)
@@ -243,16 +243,16 @@ send_signed_request() {
   debug body "$body"
 
   if [ "$needbase64" ] ; then
-    response="$($CURL -X POST --data "$body" $url | base64 -w 0)"
+    response=$($CURL -X POST --data "$body" "$url" | base64 -w 0)
   else
-    response="$($CURL -X POST --data "$body" $url)"
+    response=$($CURL -X POST --data "$body" "$url")
   fi
 
-  responseHeaders="$(sed 's/\r//g' $CURL_HEADER)"
+  responseHeaders=$(sed 's/\r//g' "$CURL_HEADER")
 
   debug responseHeaders "$responseHeaders"
   debug response  "$response"
-  code="$(grep ^HTTP $CURL_HEADER | tail -1 | cut -d " " -f 2)"
+  code=$(grep ^HTTP "$CURL_HEADER" | tail -1 | cut -d " " -f 2)
   debug code "$code"
 
 }
@@ -266,15 +266,15 @@ copy_file_to_location() {
     debug "copying from $from to $to"
     if [[ "${to:0:4}" == "ssh:" ]] ; then
       debug "using scp scp -q $from ${to:4}"
-      scp -q $from ${to:4} >/dev/null 2>&1
+      scp -q "$from" "${to:4}" >/dev/null 2>&1
       if [ $? -gt 0 ]; then
         error_exit "problem copying file to the server using scp.
         scp $from ${to:4}"
       fi
     else
-      mkdir -p "$(dirname $to)"
+      mkdir -p "$(dirname "$to")"
       if [ $? -gt 0 ]; then
-        error_exit "cannot create ACL directory $(basename $to)"
+        error_exit "cannot create ACL directory $(basename "$to")"
       fi
       cp "$from" "$to"
     fi
@@ -285,16 +285,16 @@ copy_file_to_location() {
 getcr() {
   url="$1"
   debug url "$url"
-  response="$(curl --silent $url)"
+  response=$(curl --silent "$url")
   ret=$?
   debug response  "$response"
-  code="$(echo $response | grep -o '"status":[0-9]\+' | cut -d : -f 2)"
+  code=$(echo "$response" | grep -o '"status":[0-9]\+' | cut -d : -f 2)
   debug code "$code"
   return $ret
 }
 
 _requires() {
-  result=$(which $1 2>/dev/null)
+  result=$(which "$1" 2>/dev/null)
   debug "checking for required $1 ... $result"
   if [ -z "$result" ]; then
     error_exit "This script requires $1 installed"
@@ -303,9 +303,9 @@ _requires() {
 
 cert_archive() {
   certfile=$1
-  enddate=$(openssl x509 -in $certfile -noout -enddate 2>/dev/null| cut -d= -f 2-)
+  enddate=$(openssl x509 -in "$certfile" -noout -enddate 2>/dev/null| cut -d= -f 2-)
   formatted_enddate=$(date -d "${enddate}" +%F)
-  startdate=$(openssl x509 -in $certfile -noout -startdate 2>/dev/null| cut -d= -f 2-)
+  startdate=$(openssl x509 -in "$certfile" -noout -startdate 2>/dev/null| cut -d= -f 2-)
   formatted_startdate=$(date -d "${startdate}" +%F)
   mv "${certfile}" "${certfile}_${formatted_startdate}_${formatted_enddate}"
   info "archiving old certificate file to ${certfile}_${formatted_startdate}_${formatted_enddate}"
@@ -319,7 +319,8 @@ reload_service() {
       command=${RELOAD_CMD:(( ${#sshhost} + 5))}
       debug "running following comand to reload cert"
       debug "ssh $sshhost ${command}"
-      ssh $sshhost "${command}" 1>/dev/null 2>&1
+      # shellcheck disable=SC2029
+      ssh "$sshhost" "${command}" 1>/dev/null 2>&1
     else
       debug "running reload command $RELOAD_CMD"
       $RELOAD_CMD
@@ -406,7 +407,7 @@ if [ ${_CHECK_ALL} -eq 1 ]; then
       if [ ${_USE_DEBUG} -eq 1 ]; then
         cmd="$cmd -d"
       fi
-      cmd="$cmd $(basename $dir)"
+      cmd="$cmd $(basename "$dir")"
 
       debug "CMD: $cmd"
       eval "$cmd"
@@ -452,11 +453,11 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
     info "domain config already exists $DOMAIN_DIR/getssl.cfg"
   else
     info "creating domain config file in $DOMAIN_DIR/getssl.cfg"
-    EX_CERT=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 2>/dev/null)
+    EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null | openssl x509 2>/dev/null)
     EX_SANS="www.${DOMAIN}"
     if [ ! -z "${EX_CERT}" ]; then
       if [ ! -f "$DOMAIN_DIR/${DOMAIN}.crt" ]; then
-        echo "$EX_CERT" > $DOMAIN_DIR/${DOMAIN}.crt
+        echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
       fi
       EX_SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
                 | grep -Eo "DNS:[a-zA-Z 0-9.-]*" | sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
@@ -495,11 +496,11 @@ fi
 # if it's a webserver, connect and obtain the certificate 
 if [[ "${SERVER_TYPE}" == "webserver" ]] && [ $_FORCE_RENEW -eq 0 ]; then
   debug "getting certificate for $DOMAIN from webserver" 
-  EX_CERT=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 2>/dev/null)
+  EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null | openssl x509 2>/dev/null)
   if [ ! -z "$EX_CERT" ]; then # if obtained a cert
     if [ -f "$CERT_FILE" ]; then #if local exists
       CERT_REMOTE=$(echo "$EX_CERT" | openssl x509 -noout -fingerprint 2>/dev/null)
-      CERT_LOCAL=$(cat "$CERT_FILE" | openssl x509 -noout -fingerprint 2>/dev/null)
+      CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
       if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
         debug "certificate on server is same as the local cert"
       else
@@ -508,8 +509,8 @@ if [[ "${SERVER_TYPE}" == "webserver" ]] && [ $_FORCE_RENEW -eq 0 ]; then
         if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]; then
           # check renew-date on ex_cert and compare to local ( if local exists) 
           enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
-          enddate_lc=$(cat "$CERT_FILE" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
-          if [ $(date -d "$enddate_ex" +%s) -gt $(date -d "$enddate_lc" +%s) ]; then
+          enddate_lc=$(openssl x509 -noout -enddate < "$CERT_FILE" 2>/dev/null| cut -d= -f 2-)
+          if [ "$(date -d "$enddate_ex" +%s)" -gt "$(date -d "$enddate_lc" +%s)" ]; then
             # remote has longer to expiry date than local copy.
             # archive local copy and save remote to local
             cert_archive "$CERT_FILE"
@@ -546,7 +547,7 @@ fi
 
 if [ -f "$CERT_FILE" ]; then
   debug "certificate $CERT_FILE exists"
-  enddate=$(openssl x509 -in $CERT_FILE -noout -enddate 2>/dev/null| cut -d= -f 2-)
+  enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
   debug "enddate is $enddate"
   if [[ "$enddate" != "-" ]]; then
     if [[ $(date -d "${RENEW_ALLOW} days" +%s) -lt $(date -d "$enddate" +%s) ]]; then
@@ -574,19 +575,22 @@ fi
 if [ -f "$DOMAIN_DIR/${DOMAIN}.key" ]; then
   debug "domain key exists at $DOMAIN_DIR/${DOMAIN}.key - skipping generation"
   # check validity of domain key
-  if [ "$(openssl rsa -noout -text -in $DOMAIN_DIR/${DOMAIN}.key|head -1)" != "Private-Key: ($DOMAIN_KEY_LENGTH bit)" ]; then
+  cert_key_len=$(openssl rsa -noout -text -in "$DOMAIN_DIR/${DOMAIN}.key"|head -1)
+  debug "existing certificate key has header $cert_key_len"
+  cert_key_req="Private-Key: ($DOMAIN_KEY_LENGTH bit)"
+  if [ "$cert_key_len" != "$cert_key_req" ]; then
     error_exit "$DOMAIN_DIR/${DOMAIN}.key does not appear to be an appropriate private key - aborting"
   fi
 else
   info "creating domain key - $DOMAIN_DIR/${DOMAIN}.key"
-  openssl genrsa $DOMAIN_KEY_LENGTH > $DOMAIN_DIR/${DOMAIN}.key
+  openssl genrsa "$DOMAIN_KEY_LENGTH" > "$DOMAIN_DIR/${DOMAIN}.key"
 fi
 
 #create SAN
 if [ -z "$SANS" ]; then
-  SANLIST="[SAN]\nsubjectAltName=DNS:${DOMAIN}"
+  SANLIST="ubjectAltName=DNS:${DOMAIN}"
 else
-  SANLIST="[SAN]\nsubjectAltName=DNS:${DOMAIN},DNS:${SANS//,/,DNS:}"
+  SANLIST="subjectAltName=DNS:${DOMAIN},DNS:${SANS//,/,DNS:}"
 fi
 debug "created SAN list = $SANLIST"
 
@@ -594,28 +598,29 @@ debug "created SAN list = $SANLIST"
 if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
   debug "domain csr exists at - $DOMAIN_DIR/${DOMAIN}.csr - skipping generation"
   #check csr is valid for domain
-  if [ "$(openssl req -noout -text -in $DOMAIN_DIR/${DOMAIN}.csr| grep -o DNS:${DOMAIN})" != "DNS:${DOMAIN}" ]; then
+  domains_in_csr=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr"| grep -o "DNS:${DOMAIN}")
+  if [ "$domains_in_csr" != "DNS:${DOMAIN}" ]; then
     error_exit "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not appear to be valid for ${DOMAIN} - aborting"
   fi
 else
   debug "creating domain csr - $DOMAIN_DIR/${DOMAIN}.csr"
-  openssl req -new -sha256 -key $DOMAIN_DIR/${DOMAIN}.key -subj "/" -reqexts SAN -config \
-  <(cat $SSLCONF <(printf "$SANLIST")) > $DOMAIN_DIR/${DOMAIN}.csr
+  openssl req -new -sha256 -key "$DOMAIN_DIR/${DOMAIN}.key" -subj "/" -reqexts SAN -config \
+  <(cat "$SSLCONF" <(printf "[SAN]\n%s" "$SANLIST")) > "$DOMAIN_DIR/${DOMAIN}.csr"
 fi
 
 # use account key to register with CA
 
-pub_exp=$(openssl rsa -in $ACCOUNT_KEY  -noout -text | grep "^publicExponent:"| cut -d '(' -f 2 | cut -d 'x' -f 2 | cut -d ')' -f 1)
+pub_exp=$(openssl rsa -in "$ACCOUNT_KEY"  -noout -text | grep "^publicExponent:"| cut -d '(' -f 2 | cut -d 'x' -f 2 | cut -d ')' -f 1)
 if [ "${#pub_exp}" == "5" ] ; then
   pub_exp=0$pub_exp
 fi
 debug pub_exp "$pub_exp"
 
-e=$(echo $pub_exp | xxd -r -p | base64)
+e=$(echo "$pub_exp" | xxd -r -p | base64)
 debug e "$e"
 
-modulus=$(openssl rsa -in $ACCOUNT_KEY -modulus -noout | cut -d '=' -f 2 )
-n=$(echo $modulus| xxd -r -p | base64 -w 0 | _b64 )
+modulus=$(openssl rsa -in "$ACCOUNT_KEY" -modulus -noout | cut -d '=' -f 2 )
+n=$(echo "$modulus"| xxd -r -p | base64 -w 0 | _b64 )
 
 jwk='{"e": "'$e'", "kty": "RSA", "n": "'$n'"}'
 
@@ -635,7 +640,7 @@ send_signed_request   "$CA/acme/new-reg"  "$regjson"
 
 if [ "$code" == "" ] || [ "$code" == '201' ] ; then
   info "Registered"
-  echo $response > $TEMP_DIR/account.json
+  echo "$response" > "$TEMP_DIR/account.json"
 elif [ "$code" == '409' ] ; then
   debug "Already registered"
 else
@@ -669,7 +674,7 @@ for d in $alldomains; do
   fi
 
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then # set up the correct DNS token for verification
-    dns01=$(echo $response | egrep -o  '{[^{]*"type":"dns-01"[^}]*')
+    dns01=$(echo "$response" | egrep -o  '{[^{]*"type":"dns-01"[^}]*')
     debug dns01 "$dns01"
 
     token=$(echo "$dns01" | sed 's/,/\n'/g| grep '"token":'| cut -d : -f 2|sed 's/"//g')
@@ -687,13 +692,13 @@ for d in $alldomains; do
     debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
     $DNS_ADD_COMMAND "$d" "$auth_key"
 
-    primary_ns=$(nslookup -type=soa ${d} | grep origin | awk '{print $3}')
+    primary_ns=$(nslookup -type=soa "${d}" | grep origin | awk '{print $3}')
     debug primary_ns "$primary_ns"
 
     ntries=0
     check_dns="fail"
     while [ "$check_dns" == "fail" ]; do
-      check_result=$(nslookup -type=txt _acme-challenge.${d} ${primary_ns} | grep ^_acme|awk -F'"' '{ print $2}')
+      check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | grep ^_acme|awk -F'"' '{ print $2}')
       debug result "$check_result"
 
       if [[ "$check_result" == "$auth_key" ]]; then
@@ -701,11 +706,11 @@ for d in $alldomains; do
         debug "checking DNS ... _acme-challenge.$d gave $check_result"
         if [ "$DNS_EXTRA_WAIT" != "" ]; then
           info "sleeping $DNS_EXTRA_WAIT seconds before asking the ACME-server to check the dns"
-          sleep $DNS_EXTRA_WAIT
+          sleep "$DNS_EXTRA_WAIT"
         fi
       else
         if [[ $ntries -lt 100 ]]; then
-          ntries=$(( $ntries + 1 ))
+          ntries=$(( ntries + 1 ))
           info "testing DNS. Attempt $ntries/100 completed. waiting 10 secs before testing verify again"
           sleep 10
         else
@@ -716,7 +721,7 @@ for d in $alldomains; do
       fi
     done
   else      # set up the correct http token for verification
-    http01=$(echo $response | egrep -o  '{[^{]*"type":"http-01"[^}]*')
+    http01=$(echo "$response" | egrep -o  '{[^{]*"type":"http-01"[^}]*')
     debug http01 "$http01"
 
     token=$(echo "$http01" | sed 's/,/\n'/g| grep '"token":'| cut -d : -f 2|sed 's/"//g')
@@ -737,32 +742,33 @@ for d in $alldomains; do
     wellknown_url="http://$d/.well-known/acme-challenge/$token"
     debug wellknown_url "$wellknown_url"
 
-    if [ ! "$(curl --silent --location $wellknown_url)" == "$keyauthorization" ]; then
+    if [ ! "$(curl --silent --location "$wellknown_url")" == "$keyauthorization" ]; then
       error_exit "for some reason could not reach $wellknown_url - please check it manually"
     fi
   fi
 
   debug challenge
-  send_signed_request $uri "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
+  send_signed_request "$uri" "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
 
   if [ ! -z "$code" ] && [ ! "$code" == '202' ] ; then
     error_exit "$d:Challenge error: $code"
   fi
 
+  # shellcheck disable=SC2078
   while [ "1" ] ; do
     debug "checking"
-    if ! getcr $uri ; then
+    if ! getcr "$uri" ; then
       error_exit "$d:Verify error:$code"
     fi
 
-    status=$(echo $response | egrep -o  '"status":"[^"]+"' | cut -d : -f 2 | sed 's/"//g')
+    status=$(echo "$response" | egrep -o  '"status":"[^"]+"' | cut -d : -f 2 | sed 's/"//g')
     if [ "$status" == "valid" ] ; then
       info "Verified $d"
       break;
     fi
 
     if [ "$status" == "invalid" ] ; then
-      error=$(echo $response | egrep -o '"error":{[^}]*}' | grep -o '"detail":"[^"]*"' | cut -d '"' -f 4)
+      error=$(echo "$response" | egrep -o '"error":{[^}]*}' | grep -o '"detail":"[^"]*"' | cut -d '"' -f 4)
       error_exit "$d:Verify error:$error"
     fi
 
@@ -777,7 +783,7 @@ for d in $alldomains; do
 
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then
     debug "remove DNS entry"
-    $DNS_DEL_COMMAND $DOMAIN
+    $DNS_DEL_COMMAND "$DOMAIN"
   else
     debug "remove token from ${ACL[$dn]}"
     if [[ "${ACL[$dn]:0:4}" == "ssh:" ]] ; then
@@ -785,7 +791,8 @@ for d in $alldomains; do
       command="rm -f ${ACL[$dn]:(( ${#sshhost} + 5))}/$token"
       debug "running following comand to remove token"
       debug "ssh $sshhost ${command}"
-      ssh $sshhost "${command}" 1>/dev/null 2>&1
+      # shellcheck disable=SC2029
+      ssh "$sshhost" "${command}" 1>/dev/null 2>&1
       rm -f "$TEMP_DIR/$token"
     else
       rm -f "${ACL[$dn]}/$token"
@@ -796,10 +803,10 @@ for d in $alldomains; do
 done
 
 info "Verification completed, obtaining certificate."
-der="$(openssl req  -in $DOMAIN_DIR/${DOMAIN}.csr -outform DER | base64 -w 0 | _b64)"
+der=$(openssl req  -in "$DOMAIN_DIR/${DOMAIN}.csr" -outform DER | base64 -w 0 | _b64)
 send_signed_request "$CA/acme/new-cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
 
-CertData="$(grep -i -o '^Location.*' $CURL_HEADER |sed 's/\r//g'| cut -d " " -f 2)"
+CertData=$(grep -i -o '^Location.*' "$CURL_HEADER" |sed 's/\r//g'| cut -d " " -f 2)
 
 if [ "$CertData" ] ; then
   echo -----BEGIN CERTIFICATE----- > "$CERT_FILE"
@@ -809,7 +816,7 @@ if [ "$CertData" ] ; then
 fi
 
 if [ -z "$CertData" ] ; then
-  response="$(echo $response | base64 -d)"
+  response=$(echo "$response" | base64 -d)
   error_exit "Sign failed: $(echo "$response" | grep -o  '"detail":"[^"]*"')"
 fi
 
@@ -836,8 +843,8 @@ reload_service
 
 # Check if the certificate is installed correctly
 if [[ ${SERVER_TYPE} == "webserver" ]]; then
-  CERT_REMOTE=$(echo | openssl s_client -servername ${DOMAIN} -connect ${DOMAIN}:443 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
-  CERT_LOCAL=$(cat "$CERT_FILE" | openssl x509 -noout -fingerprint 2>/dev/null)
+  CERT_REMOTE=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
+  CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
   if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
     info "certificate installed OK on server"
   else
