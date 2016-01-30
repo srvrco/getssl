@@ -13,7 +13,7 @@
 # GNU General Public License at <http://www.gnu.org/licenses/> for
 # more details.
 
-# Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-w working_dir] domain
+# Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-w working_dir] domain
 
 # Revision history:
 # 2016-01-08 Created (v0.1)
@@ -33,10 +33,11 @@
 # 2016-01-29 added -a|--all option to renew all configured certificates (v0.15)
 # 2016-01-29 added option for eliptic curve keys (v0.16)
 # 2016-01-29 added server-type option to use and check cert validity from website (v0.17)
+# 2016-01-30 added --quiet option for running in cron (v0.18)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.17"
+VERSION="0.18"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -54,6 +55,7 @@ _USE_DEBUG=0
 _CREATE_CONFIG=0
 _CHECK_ALL=0
 _FORCE_RENEW=0
+_QUIET=0
 
 clean_up() { # Perform pre-exit housekeeping
   if [ ! -z "$DOMAIN_DIR" ]; then
@@ -86,7 +88,7 @@ signal_exit() { # Handle trapped signals
 }
 
 usage() {
-  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-w working_dir] domain"
+  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-w working_dir] domain"
 }
 
 log() {
@@ -100,7 +102,9 @@ debug() {
 }
 
 info() {
-  echo "$@"
+  if [ ${_QUIET} -eq 0 ]; then
+    echo "$@"
+  fi
 }
 
 _b64() {
@@ -136,13 +140,13 @@ write_getssl_template() {
 
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
-	# The time period within which you want to allow renewal of a certificate 
+	# The time period within which you want to allow renewal of a certificate
 	#  this prevents hitting some of the rate limits.
 	RENEW_ALLOW="30"
-	
-	# Define the server type.  If it's a "webserver" then the main website 
-	# will be checked for certificate expiry and also will be checked after 
-	# an update to confirm correct certificate is running. 
+
+	# Define the server type.  If it's a "webserver" then the main website
+	# will be checked for certificate expiry and also will be checked after
+	# an update to confirm correct certificate is running.
 	#SERVER_TYPE="webserver"
 
 	# openssl config file.  The default should work in most cases.
@@ -190,13 +194,13 @@ write_domain_template() {
 
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
-	# The time period within which you want to allow renewal of a certificate 
+	# The time period within which you want to allow renewal of a certificate
 	#  this prevents hitting some of the rate limits.
 	RENEW_ALLOW="30"
-	
-	# Define the server type.  If it's a "webserver" then the main website 
-	# will be checked for certificate expiry and also will be checked after 
-	# an update to confirm correct certificate is running. 
+
+	# Define the server type.  If it's a "webserver" then the main website
+	# will be checked for certificate expiry and also will be checked after
+	# an update to confirm correct certificate is running.
 	#SERVER_TYPE="webserver"
 
 	# Use the following 3 variables if you want to validate via DNS
@@ -341,8 +345,9 @@ help_message() {
 	  -c, --create    Create default config files
 	  -f, --force     Force renewal of cert (overrides expiry checks)
 	  -a, --all       Check all certificates
+    -q, --quiet     Quiet mode (only outputs on error)
 	  -w working_dir  Working directory
-	
+
 	_EOF_
   return
 }
@@ -364,6 +369,8 @@ while [[ -n $1 ]]; do
      _FORCE_RENEW=1 ;;
     -a | --all)
      _CHECK_ALL=1 ;;
+    -q | --quiet)
+     _QUIET=1 ;;
     -w)
       shift; WORKING_DIR="$1" ;;
     -* | --*)
@@ -406,6 +413,9 @@ if [ ${_CHECK_ALL} -eq 1 ]; then
       cmd="$0 -w '$WORKING_DIR'"
       if [ ${_USE_DEBUG} -eq 1 ]; then
         cmd="$cmd -d"
+      fi
+      if [ ${_QUIET} -eq 1 ]; then
+        cmd="$cmd -q"
       fi
       cmd="$cmd $(basename "$dir")"
 
@@ -493,9 +503,9 @@ if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
   . "$DOMAIN_DIR/getssl.cfg"
 fi
 
-# if it's a webserver, connect and obtain the certificate 
+# if it's a webserver, connect and obtain the certificate
 if [[ "${SERVER_TYPE}" == "webserver" ]] && [ $_FORCE_RENEW -eq 0 ]; then
-  debug "getting certificate for $DOMAIN from webserver" 
+  debug "getting certificate for $DOMAIN from webserver"
   EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null | openssl x509 2>/dev/null)
   if [ ! -z "$EX_CERT" ]; then # if obtained a cert
     if [ -f "$CERT_FILE" ]; then #if local exists
@@ -507,7 +517,7 @@ if [[ "${SERVER_TYPE}" == "webserver" ]] && [ $_FORCE_RENEW -eq 0 ]; then
         # check if the certificate is for the right domain
         EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -noout -subject | sed s/.*CN=//)
         if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]; then
-          # check renew-date on ex_cert and compare to local ( if local exists) 
+          # check renew-date on ex_cert and compare to local ( if local exists)
           enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
           enddate_lc=$(openssl x509 -noout -enddate < "$CERT_FILE" 2>/dev/null| cut -d= -f 2-)
           if [ "$(date -d "$enddate_ex" +%s)" -gt "$(date -d "$enddate_lc" +%s)" ]; then
@@ -540,7 +550,7 @@ if [[ "${SERVER_TYPE}" == "webserver" ]] && [ $_FORCE_RENEW -eq 0 ]; then
   fi
 fi
 
-# if force renew is set, set the date validity checks to 100000 days 
+# if force renew is set, set the date validity checks to 100000 days
 if [ $_FORCE_RENEW -eq 1 ]; then
   RENEW_ALLOW=100000
 fi
@@ -551,7 +561,8 @@ if [ -f "$CERT_FILE" ]; then
   debug "enddate is $enddate"
   if [[ "$enddate" != "-" ]]; then
     if [[ $(date -d "${RENEW_ALLOW} days" +%s) -lt $(date -d "$enddate" +%s) ]]; then
-      error_exit "certificate for $DOMAIN is still valid for more than $RENEW_ALLOW days"
+      info "certificate for $DOMAIN is still valid for more than $RENEW_ALLOW days"
+      graceful_exit
     else
       debug "certificate  for $DOMAIN needs renewal"
       cert_archive "${CERT_FILE}"
