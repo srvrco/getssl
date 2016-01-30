@@ -4,16 +4,17 @@ get an SSL certificate via LetsEncrypt.  Suitable for automating the process in 
 This was written as an addition to checkssl for servers to automatically renew certifictes.  In addition it allows the running of this script in standard bash ( on a desktop computer, or even virtualbox) and add the checks, and certificates to a remote server ( providing you have an ssh key on the remote server with access). Potentially I can include FTP as an option for uploading as well. 
 
 ```
-getssl ver. 0.16
+getssl ver. 0.17
 Obtain SSL certificates from the letsencrypt.org ACME server
 
-Usage: getssl [-h|--help] [-d|--debug] [-c] [-a|--all] [-w working_dir] domain
+Usage: getssl [-h|--help] [-d|--debug] [-c] [-r|--refetch] [-a|--all] [-w working_dir] domain
 
 Options:
   -h, --help      Display this help message and exit
   -d, --debug     Outputs debug information
-  -c,             Create default config files
-  -a, --all       Renew all certificates
+  -c, --create    Create default config files
+  -f, --force     Force renewal of cert (overrides expiry checks)
+  -a, --all       Check all certificates
   -w working_dir  Working directory
 ```
 
@@ -36,11 +37,15 @@ AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 #ACCOUNT_EMAIL="me@example.com"
 ACCOUNT_KEY_LENGTH=4096
 ACCOUNT_KEY="/home/andy/.getssl/account.key"
+PRIVATE_KEY_ALG="rsa"
 
 # The command needed to reload apache / nginx or whatever you use
 #RELOAD_CMD=""
 # The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 RENEW_ALLOW="30"
+# Define the server type.  If it's a "webserver" then the main website will be checked for certificate expiry 
+# and also will be checked after an update to confirm correct certificate is running. 
+#SERVER_TYPE="webserver"
 
 # openssl config file.  The default should work in most cases.
 SSLCONF="/usr/lib/ssl/openssl.cnf"
@@ -69,6 +74,7 @@ then, within the **working directory** there will be a folder for each certifica
 #ACCOUNT_EMAIL="me@example.com"
 #ACCOUNT_KEY_LENGTH=4096
 #ACCOUNT_KEY="/home/andy/.getssl/account.key"
+PRIVATE_KEY_ALG="rsa"
 
 # Additional domains - this could be multiple domains / subdomains in a comma separated list
 SANS=www.example.org,example.edu,example.net,example.org,www.example.com,www.example.edu,www.example.net
@@ -89,6 +95,9 @@ SANS=www.example.org,example.edu,example.net,example.org,www.example.com,www.exa
 #RELOAD_CMD=""
 # The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 #RENEW_ALLOW="30"
+# Define the server type.  If it's a "webserver" then the main website will be checked for certificate expiry 
+# and also will be checked after an update to confirm correct certificate is running. 
+#SERVER_TYPE="webserver"
 
 # Use the following 3 variables if you want to validate via DNS
 #VALIDATE_VIA_DNS="true"
