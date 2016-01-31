@@ -15,6 +15,7 @@ Options:
   -c, --create    Create default config files
   -f, --force     Force renewal of cert (overrides expiry checks)
   -a, --all       Check all certificates
+  -q, --quiet     Quiet mode (only outputs on error)
   -w working_dir  Working directory
 ```
 
