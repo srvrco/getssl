@@ -1,6 +1,6 @@
 #!/bin/bash
 # ---------------------------------------------------------------------------
-# getssl - Obtains a LetsEncrypt SSL cert
+# getssl - Obtain SSL certificates from the letsencrypt.org ACME server
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -34,11 +34,12 @@
 # 2016-01-29 added option for eliptic curve keys (v0.16)
 # 2016-01-29 added server-type option to use and check cert validity from website (v0.17)
 # 2016-01-30 added --quiet option for running in cron (v0.18)
-# 2016-01-31 removed usage of xxd to make script more compatible accross versions (v0.19)
+# 2016-01-31 removed usage of xxd to make script more compatible across versions (v0.19)
+# 2016-01-31 removed usage of base64 to make script more compatible across platforms (v0.20)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.19"
+VERSION="0.20"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -256,7 +257,6 @@ send_signed_request() {
   debug "data for account registration = $body"
 
   if [ "$needbase64" ] ; then
-#    response=$($CURL -X POST --data "$body" "$url" | base64 -w 0)
     response=$($CURL -X POST --data "$body" "$url" | urlbase64)
   else
     response=$($CURL -X POST --data "$body" "$url")
@@ -355,7 +355,7 @@ help_message() {
 	  -c, --create    Create default config files
 	  -f, --force     Force renewal of cert (overrides expiry checks)
 	  -a, --all       Check all certificates
-    -q, --quiet     Quiet mode (only outputs on error)
+	  -q, --quiet     Quiet mode (only outputs on error)
 	  -w working_dir  Working directory
 
 	_EOF_
@@ -398,8 +398,10 @@ done
 
 _requires openssl
 _requires curl
-_requires base64
 _requires nslookup
+_requires sed
+_requires grep
+_requires awk
 
 if [ ${_CHECK_ALL} -eq 1 ]; then
   info "Check all certificates"
@@ -816,21 +818,22 @@ CertData=$(grep -i -o '^Location.*' "$CURL_HEADER" |sed 's/\r//g'| cut -d " " -f
 
 if [ "$CertData" ] ; then
   echo -----BEGIN CERTIFICATE----- > "$CERT_FILE"
-  curl --silent "$CertData" | base64  >> "$CERT_FILE"
+  curl --silent "$CertData" | openssl base64 -e  >> "$CERT_FILE"
   echo -----END CERTIFICATE-----  >> "$CERT_FILE"
   info "Certificate saved in $CERT_FILE"
 fi
 
 if [ -z "$CertData" ] ; then
-  response=$(echo "$response" | base64 -d)
-  error_exit "Sign failed: $(echo "$response" | grep -o  '"detail":"[^"]*"')"
+  response2=$(echo "$response" | openssl base64 -e)
+  debug "respose was $response"
+  error_exit "Sign failed: $(echo "$response2" | grep -o  '"detail":"[^"]*"')"
 fi
 
 IssuerData=$(grep -i '^Link' "$CURL_HEADER" | cut -d " " -f 2| cut -d ';' -f 1 | sed 's/<//g' | sed 's/>//g')
 
 if [ "$IssuerData" ] ; then
   echo -----BEGIN CERTIFICATE----- > "$CA_CERT"
-  curl --silent "$IssuerData" | base64  >> "$CA_CERT"
+  curl --silent "$IssuerData" | openssl base64 -e  >> "$CA_CERT"
   echo -----END CERTIFICATE-----  >> "$CA_CERT"
   info "The intermediate CA cert is in $CA_CERT"
 fi
