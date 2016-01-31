@@ -604,7 +604,7 @@ fi
 
 #create SAN
 if [ -z "$SANS" ]; then
-  SANLIST="ubjectAltName=DNS:${DOMAIN}"
+  SANLIST="subjectAltName=DNS:${DOMAIN}"
 else
   SANLIST="subjectAltName=DNS:${DOMAIN},DNS:${SANS//,/,DNS:}"
 fi
@@ -812,6 +812,7 @@ done
 
 info "Verification completed, obtaining certificate."
 der=$(openssl req  -in "$DOMAIN_DIR/${DOMAIN}.csr" -outform DER | urlbase64)
+debug "der $der"
 send_signed_request "$CA/acme/new-cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
 
 CertData=$(grep -i -o '^Location.*' "$CURL_HEADER" |sed 's/\r//g'| cut -d " " -f 2)
