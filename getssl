@@ -34,10 +34,11 @@
 # 2016-01-29 added option for eliptic curve keys (v0.16)
 # 2016-01-29 added server-type option to use and check cert validity from website (v0.17)
 # 2016-01-30 added --quiet option for running in cron (v0.18)
+# 2016-01-31 removed usage of xxd to make script more compatible accross versions (v0.19)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.18"
+VERSION="0.19"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -107,9 +108,14 @@ info() {
   fi
 }
 
-_b64() {
-  __n=$(cat)
-  echo "$__n" | tr '/+' '_-' | tr -d '= '
+urlbase64() {
+  # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
+  openssl base64 -e | tr -d '\n\r' | sed -E -e 's:=*$::g' -e 'y:+/:-_:'
+}
+
+hex2bin() {
+  # Remove spaces, add leading zero, escape as hex string and parse with printf
+  printf -- "$(cat | sed -E -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
 }
 
 write_openssl_conf() {
@@ -226,7 +232,7 @@ send_signed_request() {
   if [ ${_USE_DEBUG} -eq 1 ]; then
     CURL="$CURL --trace-ascii $dp "
   fi
-  payload64=$(echo -n "$payload" | base64 -w 0 | _b64)
+  payload64="$(printf '%s' "${payload}" | urlbase64)"
   debug payload64 "$payload64"
 
   nonceurl="$CA/directory"
@@ -234,20 +240,24 @@ send_signed_request() {
 
   debug nonce "$nonce"
 
-  protected=$(echo -n "$HEADERPLACE" | sed "s/NONCE/$nonce/" )
+  # Build header with just our public key and algorithm information
+  header='{"alg": "RS256", "jwk": {"e": "'"${pub_exp64}"'", "kty": "RSA", "n": "'"${pub_mod64}"'"}}'
+
+  # Build another header which also contains the previously received nonce and encode it as urlbase64
+  protected='{"alg": "RS256", "jwk": {"e": "'"${pub_exp64}"'", "kty": "RSA", "n": "'"${pub_mod64}"'"}, "nonce": "'"${nonce}"'"}'
+  protected64="$(printf '%s' "${protected}" | urlbase64)"
   debug protected "$protected"
+  
+  # Sign header with nonce and our payload with our private key and encode signature as urlbase64
+  signed64="$(printf '%s' "${protected64}.${payload64}" | openssl dgst -sha256 -sign "${ACCOUNT_KEY}" | urlbase64)"
 
-  protected64=$( echo -n "$protected" | base64 -w 0 | _b64)
-  debug protected64 "$protected64"
-
-  sig=$(echo -n "$protected64.$payload64" |  openssl   dgst   -sha256  -sign  "$ACCOUNT_KEY" | base64 -w 0 | _b64)
-  debug sig "$sig"
-
-  body="{\"header\": $HEADER, \"protected\": \"$protected64\", \"payload\": \"$payload64\", \"signature\": \"$sig\"}"
-  debug body "$body"
+  # Send header + extended header + payload + signature to the acme-server
+  body='{"header": '"${header}"', "protected": "'"${protected64}"'", "payload": "'"${payload64}"'", "signature": "'"${signed64}"'"}'
+  debug "data for account registration = $body"
 
   if [ "$needbase64" ] ; then
-    response=$($CURL -X POST --data "$body" "$url" | base64 -w 0)
+#    response=$($CURL -X POST --data "$body" "$url" | base64 -w 0)
+    response=$($CURL -X POST --data "$body" "$url" | urlbase64)
   else
     response=$($CURL -X POST --data "$body" "$url")
   fi
@@ -388,7 +398,6 @@ done
 
 _requires openssl
 _requires curl
-_requires xxd
 _requires base64
 _requires nslookup
 
@@ -574,27 +583,21 @@ if [ -f "$ACCOUNT_KEY" ]; then
   debug "Account key exists at $ACCOUNT_KEY skipping generation"
 else
   info "creating account key $ACCOUNT_KEY"
-  if [[ "${PRIVATE_KEY_ALG}" == "rsa" ]]; then
-    openssl genrsa $ACCOUNT_KEY_LENGTH > "$ACCOUNT_KEY"
-  elif [[ "${PRIVATE_KEY_ALG}" == "prime256v1" ]]; then
-    openssl ecparam -genkey -name prime256v1 > "$ACCOUNT_KEY"
-  else
-    error_exit "unknown private key algorithm type ${PRIVATE_KEY_ALG}"
-  fi
+  openssl genrsa $ACCOUNT_KEY_LENGTH > "$ACCOUNT_KEY"
 fi
 
 if [ -f "$DOMAIN_DIR/${DOMAIN}.key" ]; then
   debug "domain key exists at $DOMAIN_DIR/${DOMAIN}.key - skipping generation"
-  # check validity of domain key
-  cert_key_len=$(openssl rsa -noout -text -in "$DOMAIN_DIR/${DOMAIN}.key"|head -1)
-  debug "existing certificate key has header $cert_key_len"
-  cert_key_req="Private-Key: ($DOMAIN_KEY_LENGTH bit)"
-  if [ "$cert_key_len" != "$cert_key_req" ]; then
-    error_exit "$DOMAIN_DIR/${DOMAIN}.key does not appear to be an appropriate private key - aborting"
-  fi
+  # ideally need to check validity of domain key
 else
   info "creating domain key - $DOMAIN_DIR/${DOMAIN}.key"
-  openssl genrsa "$DOMAIN_KEY_LENGTH" > "$DOMAIN_DIR/${DOMAIN}.key"
+  if [[ "${PRIVATE_KEY_ALG}" == "rsa" ]]; then
+    openssl genrsa "$DOMAIN_KEY_LENGTH" > "$DOMAIN_DIR/${DOMAIN}.key"
+  elif [[ "${PRIVATE_KEY_ALG}" == "prime256v1" ]]; then
+    openssl ecparam -genkey -name prime256v1 > "$DOMAIN_DIR/${DOMAIN}.key"
+  else
+    error_exit "unknown private key algorithm type ${PRIVATE_KEY_ALG}"
+  fi
 fi
 
 #create SAN
@@ -621,26 +624,17 @@ fi
 
 # use account key to register with CA
 
-pub_exp=$(openssl rsa -in "$ACCOUNT_KEY"  -noout -text | grep "^publicExponent:"| cut -d '(' -f 2 | cut -d 'x' -f 2 | cut -d ')' -f 1)
-if [ "${#pub_exp}" == "5" ] ; then
-  pub_exp=0$pub_exp
+# public component and modulus of key in base64
+pub_exp64=$(openssl rsa -in "${ACCOUNT_KEY}" -noout -text | grep publicExponent | grep -oE "0x[a-f0-9]+" | cut -d'x' -f2 | hex2bin | urlbase64)
+pub_mod64=$(openssl rsa -in "${ACCOUNT_KEY}" -noout -modulus | cut -d'=' -f2 | hex2bin | urlbase64)
+
+thumbprint="$(printf '{"e":"%s","kty":"RSA","n":"%s"}' "${pub_exp64}" "${pub_mod64}" | openssl sha -sha256 -binary | urlbase64)"
+
+if [ "$ACCOUNT_EMAIL" ] ; then
+  regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
+else
+  regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
 fi
-debug pub_exp "$pub_exp"
-
-e=$(echo "$pub_exp" | xxd -r -p | base64)
-debug e "$e"
-
-modulus=$(openssl rsa -in "$ACCOUNT_KEY" -modulus -noout | cut -d '=' -f 2 )
-n=$(echo "$modulus"| xxd -r -p | base64 -w 0 | _b64 )
-
-jwk='{"e": "'$e'", "kty": "RSA", "n": "'$n'"}'
-
-HEADER='{"alg": "RS256", "jwk": '$jwk'}'
-HEADERPLACE='{"nonce": "NONCE", "alg": "RS256", "jwk": '$jwk'}'
-debug HEADER "$HEADER"
-
-accountkey_json=$(echo -n "$jwk" | sed "s/ //g")
-thumbprint=$(echo -n "$accountkey_json" | sha256sum | xxd -r -p | base64 -w 0 | _b64)
 
 info "Registering account"
 regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
@@ -748,7 +742,8 @@ for d in $alldomains; do
     chmod 755 "$TEMP_DIR/$token"
 
     # copy to token to acme challenge location
-    copy_file_to_location "$TEMP_DIR/$token" "${ACL[$dn]}"
+    debug "copying file from $TEMP_DIR/$token to ${ACL[$dn]}"
+    copy_file_to_location "challenge token" "$TEMP_DIR/$token" "${ACL[$dn]}"
 
     wellknown_url="http://$d/.well-known/acme-challenge/$token"
     debug wellknown_url "$wellknown_url"
@@ -814,7 +809,7 @@ for d in $alldomains; do
 done
 
 info "Verification completed, obtaining certificate."
-der=$(openssl req  -in "$DOMAIN_DIR/${DOMAIN}.csr" -outform DER | base64 -w 0 | _b64)
+der=$(openssl req  -in "$DOMAIN_DIR/${DOMAIN}.csr" -outform DER | urlbase64)
 send_signed_request "$CA/acme/new-cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
 
 CertData=$(grep -i -o '^Location.*' "$CURL_HEADER" |sed 's/\r//g'| cut -d " " -f 2)
