@@ -37,11 +37,12 @@
 # 2016-01-31 removed usage of xxd to make script more compatible across versions (v0.19)
 # 2016-01-31 removed usage of base64 to make script more compatible across platforms (v0.20)
 # 2016-01-31 added option to safe a full chain certificate (v0.21)
-# 2016-02-01 commented code and added option for copying concatenated certs to file (v0.22) 
+# 2016-02-01 commented code and added option for copying concatenated certs to file (v0.22)
+# 2016-02-01 re-arrange flow for DNS-challenge, since waiting for DNS to be updated can take quite long (v0.23)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.22"
+VERSION="0.23"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -273,6 +274,52 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   debug response  "$response"
   code=$(grep ^HTTP "$CURL_HEADER" | tail -1 | cut -d " " -f 2)
   debug code "$code"
+}
+
+check_challenge_completion() { # checks with the ACME server if our challenge is OK
+  uri=$1
+  domain=$2
+  keyauthorization=$3
+
+  debug "sending request to ACME server saying we're ready for challenge"
+  send_signed_request "$uri" "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
+
+  # check respose from our request to perform challenge
+  if [ ! -z "$code" ] && [ ! "$code" == '202' ] ; then
+    error_exit "$domain:Challenge error: $code"
+  fi
+
+  # loop "forever" to keep checking for a response from the ACME server.
+  # shellcheck disable=SC2078
+  while [ "1" ] ; do
+    debug "checking"
+    if ! getcr "$uri" ; then
+      error_exit "$domain:Verify error:$code"
+    fi
+
+    status=$(echo "$response" | egrep -o  '"status":"[^"]+"' | cut -d : -f 2 | sed 's/"//g')
+
+    # If ACME respose is valid, then break out of loop
+    if [ "$status" == "valid" ] ; then
+      info "Verified $domain"
+      break;
+    fi
+
+    # if ACME response is that their check gave an invalid response, error exit
+    if [ "$status" == "invalid" ] ; then
+      error=$(echo "$response" | egrep -o '"error":{[^}]*}' | grep -o '"detail":"[^"]*"' | cut -d '"' -f 4)
+      error_exit "$domain:Verify error:$error"
+    fi
+
+    # if ACME response is pending ( they haven't completed checks yet) then wait and try again.
+    if [ "$status" == "pending" ] ; then
+      info "Pending"
+    else
+      error_exit "$domain:Verify error:$response"
+    fi
+    debug "sleep 5 secs before testing verify again"
+    sleep 5
+  done
 }
 
 copy_file_to_location() { # copies a file, using scp if required.
@@ -754,32 +801,21 @@ for d in $alldomains; do
     primary_ns=$(nslookup -type=soa "${d}" | grep origin | awk '{print $3}')
     debug primary_ns "$primary_ns"
 
-    # check for token at public dns server, waiting for a valid response. 
-    ntries=0
-    check_dns="fail"
-    while [ "$check_dns" == "fail" ]; do 
-      check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | grep ^_acme|awk -F'"' '{ print $2}')
-      debug result "$check_result"
+    # make a directory to hold pending dns-challenges
+	if [ ! -d "$TEMP_DIR/dns_verify" ]; then
+		mkdir "$TEMP_DIR/dns_verify"
+	fi
 
-      if [[ "$check_result" == "$auth_key" ]]; then
-        check_dns="success"
-        debug "checking DNS ... _acme-challenge.$d gave $check_result"
-        if [ "$DNS_EXTRA_WAIT" != "" ]; then
-          info "sleeping $DNS_EXTRA_WAIT seconds before asking the ACME-server to check the dns"
-          sleep "$DNS_EXTRA_WAIT"
-        fi
-      else
-        if [[ $ntries -lt 100 ]]; then
-          ntries=$(( ntries + 1 ))
-          info "testing DNS. Attempt $ntries/100 completed. waiting 10 secs before testing verify again"
-          sleep 10
-        else
-          debug "dns check failed - removing existing value"
-          $DNS_DEL_COMMAND "$d"
-          error_exit "checking _acme-challenge.$DOMAIN gave $check_result not $auth_key"
-        fi
-      fi
-    done
+    # generate a file with the current variables for the dns-challenge
+    cat > "$TEMP_DIR/dns_verify/$d" <<- _EOF_
+		token="${token}"
+		uri="${uri}"
+		keyauthorization="${keyauthorization}"
+		d="${d}"
+		primary_ns="${primary_ns}"
+		auth_key="${auth_key}"
+	_EOF_
+
   else      # set up the correct http token for verification
     # get the http component of the ACME response
     http01=$(echo "$response" | egrep -o  '{[^{]*"type":"http-01"[^}]*')
@@ -811,53 +847,9 @@ for d in $alldomains; do
     if [ ! "$(curl --silent --location "$wellknown_url")" == "$keyauthorization" ]; then
       error_exit "for some reason could not reach $wellknown_url - please check it manually"
     fi
-  fi
 
-  debug "sending request to ACME server saying we're ready for challenge"
-  send_signed_request "$uri" "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
+    check_challenge_completion "$uri" "$d" "$keyauthorization"
 
-  # check respose from our request to perform challenge
-  if [ ! -z "$code" ] && [ ! "$code" == '202' ] ; then
-    error_exit "$d:Challenge error: $code"
-  fi
-
-  # loop "forever" to keep checking for a response from the ACME server.
-  # shellcheck disable=SC2078
-  while [ "1" ] ; do
-    debug "checking"
-    if ! getcr "$uri" ; then
-      error_exit "$d:Verify error:$code"
-    fi
-
-    status=$(echo "$response" | egrep -o  '"status":"[^"]+"' | cut -d : -f 2 | sed 's/"//g')
-    
-    # If ACME respose is valid, then break out of loop
-    if [ "$status" == "valid" ] ; then
-      info "Verified $d"
-      break;
-    fi
-
-    # if ACME response is that their check gave an invalid response, error exit
-    if [ "$status" == "invalid" ] ; then
-      error=$(echo "$response" | egrep -o '"error":{[^}]*}' | grep -o '"detail":"[^"]*"' | cut -d '"' -f 4)
-      error_exit "$d:Verify error:$error"
-    fi
-
-    # if ACME response is pending ( they haven't completed checks yet) then wait and try again.
-    if [ "$status" == "pending" ] ; then
-      info "Pending"
-    else
-      error_exit "$d:Verify error:$response"
-    fi
-    debug "sleep 5 secs before testing verify again"
-    sleep 5
-  done
-
-  # remove the challenge token we added ( either DNS or HTTP ) 
-  if [[ $VALIDATE_VIA_DNS == "true" ]]; then
-    debug "remove DNS entry"
-    $DNS_DEL_COMMAND "$DOMAIN"
-  else
     debug "remove token from ${ACL[$dn]}"
     if [[ "${ACL[$dn]:0:4}" == "ssh:" ]] ; then
       sshhost=$(echo "${ACL[$dn]}"| awk -F: '{print $2}')
@@ -875,7 +867,54 @@ for d in $alldomains; do
   let dn=dn+1;
 done
 
-# Verification has been completed for all SANS, so  request certificate. 
+if [[ $VALIDATE_VIA_DNS == "true" ]]; then
+  # loop through dns-variable files to check if dns has been changed
+  for dnsfile in $TEMP_DIR/dns_verify/*; do
+    debug "loading DNSfile: $dnsfile"
+    . "$dnsfile"
+
+    # check for token at public dns server, waiting for a valid response.
+    ntries=0
+    check_dns="fail"
+    while [ "$check_dns" == "fail" ]; do
+      check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | grep ^_acme|awk -F'"' '{ print $2}')
+      debug result "$check_result"
+
+      if [[ "$check_result" == "$auth_key" ]]; then
+        check_dns="success"
+        debug "checking DNS ... _acme-challenge.$d gave $check_result"
+      else
+        if [[ $ntries -lt 100 ]]; then
+          ntries=$(( ntries + 1 ))
+          info "testing DNS. Attempt $ntries/100 completed. waiting 10 secs before testing verify again"
+          sleep 10
+        else
+          debug "dns check failed - removing existing value"
+          $DNS_DEL_COMMAND "$d"
+          error_exit "checking _acme-challenge.$DOMAIN gave $check_result not $auth_key"
+        fi
+      fi
+    done
+  done
+
+  if [ "$DNS_EXTRA_WAIT" != "" ]; then
+    info "sleeping $DNS_EXTRA_WAIT seconds before asking the ACME-server to check the dns"
+    sleep "$DNS_EXTRA_WAIT"
+  fi
+
+  # loop through dns-variable files to let the ACME server check the challenges
+  for dnsfile in $TEMP_DIR/dns_verify/*; do
+    debug "loading DNSfile: $dnsfile"
+    . "$dnsfile"
+
+    check_challenge_completion "$uri" "$d" "$keyauthorization"
+
+    debug "remove DNS entry"
+    $DNS_DEL_COMMAND "$d"
+  done
+fi
+
+# Verification has been completed for all SANS, so  request certificate.
 info "Verification completed, obtaining certificate."
 der=$(openssl req  -in "$DOMAIN_DIR/${DOMAIN}.csr" -outform DER | urlbase64)
 debug "der $der"
