@@ -612,13 +612,25 @@ debug "created SAN list = $SANLIST"
 
 # check if domain csr exists - if not then create it
 if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
-  debug "domain csr exists at - $DOMAIN_DIR/${DOMAIN}.csr - skipping generation"
-  #check csr is valid for domain
-  domains_in_csr=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr"| grep -o "DNS:${DOMAIN}")
-  if [ "$domains_in_csr" != "DNS:${DOMAIN}" ]; then
-    error_exit "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not appear to be valid for ${DOMAIN} - aborting"
+  debug "domain csr exists at - $DOMAIN_DIR/${DOMAIN}.csr"
+  # check all domains in config are in csr
+  alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
+  for d in $alldomains; do
+    domain_in_csr=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr" | grep -o "DNS:${d}")
+    if [ "$domain_in_csr" != "DNS:${d}" ]; then
+      info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not contain ${d} - re-create-csr"
+      _RECREATE_CSR=1
+    fi
+  done
+  # check all domains in csr are in config
+  domains_in_csr=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr" | grep -o 'DNS:.*' | sed s/'DNS:'/''/g | sed s/', '/' '/g)
+  if [ "$alldomains" != "$domains_in_csr" ]; then
+    info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not have the same domains as the config - re-create-csr"
+    _RECREATE_CSR=1
   fi
-else
+fi
+
+if [ ! -f "$DOMAIN_DIR/${DOMAIN}.csr" ] || [ "$_RECREATE_CSR" == "1" ]; then
   debug "creating domain csr - $DOMAIN_DIR/${DOMAIN}.csr"
   openssl req -new -sha256 -key "$DOMAIN_DIR/${DOMAIN}.key" -subj "/" -reqexts SAN -config \
   <(cat "$SSLCONF" <(printf "[SAN]\n%s" "$SANLIST")) > "$DOMAIN_DIR/${DOMAIN}.csr"
