@@ -54,6 +54,7 @@ SSLCONF="$(openssl version -d | cut -d\" -f2)/openssl.cnf"
 VALIDATE_VIA_DNS=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
+PORT=443
 PRIVATE_KEY_ALG="rsa"
 SERVER_TYPE="webserver"
 _USE_DEBUG=0
@@ -159,6 +160,10 @@ write_getssl_template() { # write out the main template file
 	# an update to confirm correct certificate is running.
 	#SERVER_TYPE="webserver"
 
+	# Port used by this service.
+	# Used for checking the existing certicate.
+	#PORT="443""
+
 	# openssl config file.  The default should work in most cases.
 	SSLCONF="$SSLCONF"
 
@@ -213,6 +218,10 @@ write_domain_template() { # write out a template file for a domain.
 	# will be checked for certificate expiry and also will be checked after
 	# an update to confirm correct certificate is running.
 	#SERVER_TYPE="webserver"
+
+	# Port used by this service.
+	# Used for checking the existing certicate.
+	#PORT="443""
 
 	# Use the following 3 variables if you want to validate via DNS
 	#VALIDATE_VIA_DNS="true"
@@ -533,7 +542,7 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
   else
     info "creating domain config file in $DOMAIN_DIR/getssl.cfg"
     # if domain has an existsing cert, copy from domain and use to create defaults.
-    EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null | openssl x509 2>/dev/null)
+    EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:{$PORT}" 2>/dev/null | openssl x509 2>/dev/null)
     EX_SANS=""
     if [ ! -z "${EX_CERT}" ]; then
       if [ ! -f "$DOMAIN_DIR/${DOMAIN}.crt" ]; then
