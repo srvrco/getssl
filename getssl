@@ -39,10 +39,11 @@
 # 2016-01-31 added option to safe a full chain certificate (v0.21)
 # 2016-02-01 commented code and added option for copying concatenated certs to file (v0.22)
 # 2016-02-01 re-arrange flow for DNS-challenge, since waiting for DNS to be updated can take quite long (v0.23)
+# 2016-02-04 added options for other server types (ldaps, or any port) and check_remote (v0.24)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.23"
+VERSION="0.24"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -56,6 +57,7 @@ RELOAD_CMD=""
 RENEW_ALLOW="30"
 PRIVATE_KEY_ALG="rsa"
 SERVER_TYPE="webserver"
+CHECK_REMOTE="true"
 _USE_DEBUG=0
 _CREATE_CONFIG=0
 _CHECK_ALL=0
@@ -154,10 +156,11 @@ write_getssl_template() { # write out the main template file
 	#  this prevents hitting some of the rate limits.
 	RENEW_ALLOW="30"
 
-	# Define the server type.  If it's a "webserver" then the main website
+	# Define the server type.  The can either webserver, ldaps or a port number which
 	# will be checked for certificate expiry and also will be checked after
-	# an update to confirm correct certificate is running.
-	#SERVER_TYPE="webserver"
+	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+	SERVER_TYPE="webserver"
+	CHECK_REMOTE="true"
 
 	# openssl config file.  The default should work in most cases.
 	SSLCONF="$SSLCONF"
@@ -209,10 +212,11 @@ write_domain_template() { # write out a template file for a domain.
 	#  this prevents hitting some of the rate limits.
 	RENEW_ALLOW="30"
 
-	# Define the server type.  If it's a "webserver" then the main website
+	# Define the server type.  The can either webserver, ldaps or a port number which
 	# will be checked for certificate expiry and also will be checked after
-	# an update to confirm correct certificate is running.
+	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
 	#SERVER_TYPE="webserver"
+	#CHECK_REMOTE="true"
 
 	# Use the following 3 variables if you want to validate via DNS
 	#VALIDATE_VIA_DNS="true"
@@ -575,10 +579,20 @@ if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
   . "$DOMAIN_DIR/getssl.cfg"
 fi
 
-# if it's a webserver, connect and obtain the current certificate
-if [[ "${SERVER_TYPE}" == "webserver" ]] && [ $_FORCE_RENEW -eq 0 ]; then
-  debug "getting certificate for $DOMAIN from webserver"
-  EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null | openssl x509 2>/dev/null)
+if [[ ${SERVER_TYPE} == "webserver" ]]; then
+  REMOTE_PORT=443
+elif [[ ${SERVER_TYPE} == "ldaps" ]]; then
+  REMOTE_PORT=636
+elif [[ ${SERVER_TYPE} =~ ^[0-9]+$ ]]; then
+  REMOTE_PORT=SERVER_TYPE
+else
+  error_exit "unknown server type"
+fi
+
+# if check)remote is true then connect and obtain the current certificate (if not forceing renewal)
+if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
+  debug "getting certificate for $DOMAIN from remote server"
+  EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" 2>/dev/null | openssl x509 2>/dev/null)
   if [ ! -z "$EX_CERT" ]; then # if obtained a cert
     if [ -f "$CERT_FILE" ]; then #if local exists
       CERT_REMOTE=$(echo "$EX_CERT" | openssl x509 -noout -fingerprint 2>/dev/null)
@@ -960,8 +974,8 @@ copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATIO
 reload_service
 
 # Check if the certificate is installed correctly
-if [[ ${SERVER_TYPE} == "webserver" ]]; then
-  CERT_REMOTE=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
+if [[ ${CHECK_REMOTE} == "true" ]]; then
+  CERT_REMOTE=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${CHECK_PORT}" 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
   CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
   if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
     info "certificate installed OK on server"
