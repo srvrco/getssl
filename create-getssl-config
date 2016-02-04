@@ -1,0 +1,363 @@
+#!/bin/bash
+# ---------------------------------------------------------------------------
+# create-getssl-config - Create a config file interactively to obtain an SSL certificate using getssl
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License at <http://www.gnu.org/licenses/> for
+# more details.
+
+# Usage: create-getssl-config [-h|--help] [-d|--debug]
+
+# Revision history:
+# 2016-02-04 Created (v0.1)
+# ---------------------------------------------------------------------------
+
+PROGNAME=${0##*/}
+VERSION="0.1"
+
+# defaults
+CA="https://acme-staging.api.letsencrypt.org"
+AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+ACCOUNT_KEY_LENGTH=4096
+WORKING_DIR=~/.getssl
+DOMAIN_KEY_LENGTH=4096
+SSLCONF="$(openssl version -d | cut -d\" -f2)/openssl.cnf"
+VALIDATE_VIA_DNS=""
+RELOAD_CMD=""
+RENEW_ALLOW="30"
+PRIVATE_KEY_ALG="rsa"
+SERVER_TYPE="webserver"
+CHECK_REMOTE="true"
+
+clean_up() { # Perform pre-exit housekeeping
+  return
+}
+
+error_exit() {
+  echo -e "${PROGNAME}: ${1:-"Unknown Error"}" >&2
+  clean_up
+  exit 1
+}
+
+graceful_exit() {
+  clean_up
+  exit
+}
+
+signal_exit() { # Handle trapped signals
+  case $1 in
+    INT)
+      error_exit "Program interrupted by user" ;;
+    TERM)
+      echo -e "\n$PROGNAME: Program terminated" >&2
+      graceful_exit ;;
+    *)
+      error_exit "$PROGNAME: Terminating on unknown signal" ;;
+  esac
+}
+
+usage() {
+  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug]"
+}
+
+log() {
+     echo "[$(date +%Y-%m-%d\ %H:%M:%S)] $*" >> "${PROGNAME}.log"
+}
+
+debug() {
+  if [[ "${_USE_DEBUG:-"0"}" -eq 1 ]]; then
+    echo "$@"
+  fi
+}
+
+info() {
+  echo "$@"
+}
+
+get_user_input() {
+  prompt=$1
+  DefVal=$2
+  HelpInfo=$3
+  response=""
+  echo ""
+  validresponse="false"
+  while [[ "$validresponse" == "false" ]]; do
+    read -p "${prompt} (${DefVal}) : " response
+    if [[ -z $response ]]; then
+      debug "response blank - used default - $DefVal"
+      res=$DefVal
+      validresponse="true"
+    elif [[ "$response" == "h" ]]; then
+      echo ""
+      echo "$HelpInfo"
+      echo ""
+    else
+      res=$response
+      validresponse="true"
+    fi
+  done
+}
+
+write_getssl_template() { # write out the main template file 
+  cat > "$1" <<- _EOF_getssl_
+	# Uncomment and modify any variables you need
+	# The staging server is best for testing (hence set as default)
+	#CA="https://acme-staging.api.letsencrypt.org"
+	# This server issues full certificates, however has rate limits
+	#CA="https://acme-v01.api.letsencrypt.org"
+	CA="$CA"
+
+	AGREEMENT="$AGREEMENT"
+
+	# Set an email address associated with your account - generally set at account level rather than domain.
+	#ACCOUNT_EMAIL="me@example.com"
+	ACCOUNT_KEY_LENGTH=4096
+	ACCOUNT_KEY="$WORKING_DIR/account.key"
+	PRIVATE_KEY_ALG="rsa"
+
+	# The command needed to reload apache / nginx or whatever you use
+	#RELOAD_CMD=""
+	# The time period within which you want to allow renewal of a certificate
+	#  this prevents hitting some of the rate limits.
+	RENEW_ALLOW="30"
+
+	# Define the server type.  The can either webserver, ldaps or a port number which
+	# will be checked for certificate expiry and also will be checked after
+	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+	SERVER_TYPE="webserver"
+	CHECK_REMOTE="true"
+
+	# openssl config file.  The default should work in most cases.
+	SSLCONF="$SSLCONF"
+
+	# Use the following 3 variables if you want to validate via DNS
+	#VALIDATE_VIA_DNS="true"
+	#DNS_ADD_COMMAND=
+	#DNS_DEL_COMMAND=
+	# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
+	#DNS_EXTRA_WAIT=60
+	_EOF_getssl_
+}
+
+write_domain_template() { # write out a template file for a domain.
+  cat > "$1" <<- _EOF_domain_
+	# Uncomment and modify any variables you need
+	# The staging server is best for testing
+	#CA="https://acme-staging.api.letsencrypt.org"
+	# This server issues full certificates, however has rate limits
+	#CA="https://acme-v01.api.letsencrypt.org"
+	CA="$CA"
+
+	AGREEMENT="$AGREEMENT"
+
+	ACCOUNT_EMAIL="$ACCOUNT_EMAIL"
+	ACCOUNT_KEY_LENGTH=$ACCOUNT_KEY_LENGTH
+	ACCOUNT_KEY="$ACCOUNT_KEY"
+	PRIVATE_KEY_ALG="$PRIVATE_KEY_ALG"
+
+	# Additional domains - this could be multiple domains / subdomains in a comma separated list
+	SANS=${EX_SANS}
+
+	# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
+	# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
+	# An ssh key will be needed to provide you with access to the remote server.
+	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge')
+
+	# Location for all your certs, these can either be on the server (so full path name) or using ssh as for the ACL
+	DOMAIN_CERT_LOCATION="$DOMAIN_CERT_LOCATION"
+	DOMAIN_KEY_LOCATION="$DOMAIN_KEY_LOCATION"
+	CA_CERT_LOCATION="$CA_CERT_LOCATION"
+	DOMAIN_CHAIN_LOCATION=""
+	DOMAIN_PEM_LOCATION="" 
+
+	# The command needed to reload apache / nginx or whatever you use
+	RELOAD_CMD="$RELOAD_CMD"
+	# The time period within which you want to allow renewal of a certificate
+	#  this prevents hitting some of the rate limits.
+	RENEW_ALLOW="$RENEW_ALLOW"
+
+	# Define the server type.  The can either webserver, ldaps or a port number which
+	# will be checked for certificate expiry and also will be checked after
+	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+	SERVER_TYPE="$SERVER_TYPE"
+	CHECK_REMOTE="$CHECK_REMOTE"
+
+	# Use the following 3 variables if you want to validate via DNS
+	VALIDATE_VIA_DNS="$VALIDATE_VIA_DNS"
+	DNS_ADD_COMMAND="$DNS_ADD_COMMAND"
+	DNS_DEL_COMMAND="$DNS_DEL_COMMAND"
+	# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
+	DNS_EXTRA_WAIT=$DNS_EXTRA_WAIT
+	_EOF_domain_
+}
+
+help_message() {
+   cat <<- _EOF_
+   $PROGNAME ver. $VERSION
+   Create a config file interactively to obtain an SSL certificate using getssl
+
+   $(usage)
+
+   Options:
+  -h, --help  Display this help message and exit.
+  -d, --debug  outputs debug information
+
+_EOF_
+  return
+}
+
+# Trap signals
+trap "signal_exit TERM" TERM HUP
+trap "signal_exit INT"  INT
+
+# Parse command-line
+while [[ -n $1 ]]; do
+  case $1 in
+    -h | --help)
+      help_message; graceful_exit ;;
+    -d | --debug)
+     _USE_DEBUG=1 ;;
+    -w)
+      shift; WORKING_DIR="$1" ;;
+    -* | --*)
+      usage
+      error_exit "Unknown option $1" ;;
+    *)
+      DOMAIN="$1" ;;
+  esac
+  shift
+done
+
+# Main logic
+
+info "This is an interactive script to create a config file for getssl, please answer the following questions"
+info "Just press return for using the default"
+info "enter the letter 'h' for help / more information"
+info ""
+
+if [ -f "$WORKING_DIR/getssl.cfg" ]; then
+  debug "reading main config from existing $WORKING_DIR/getssl.cfg"
+  . "$WORKING_DIR/getssl.cfg"
+fi
+
+get_user_input "What is the working directory for getssl" "$WORKING_DIR" \
+    "The working directory is where getssl saves all the config and certifcates"
+WORKING_DIR=$res
+
+# if the "working directory" doesn't exist, then create it.
+if [ ! -d "$WORKING_DIR" ]; then
+  debug "Making working directory - $WORKING_DIR"
+  mkdir -p "$WORKING_DIR"
+fi
+
+# if  main config file exists, read it, else write default.
+if [ -f "$WORKING_DIR/getssl.cfg" ]; then
+  debug "reading main config from existing $WORKING_DIR/getssl.cfg"
+  . "$WORKING_DIR/getssl.cfg"
+else
+  write_getssl_template "$WORKING_DIR/getssl.cfg"
+fi
+
+get_user_input "Domain name" "${DOMAIN}" \
+    "This should be the primary domain name you want on your SSL certificate"
+DOMAIN=$res
+
+# need to check if domain is valid
+
+DOMAIN_DIR="$WORKING_DIR/$DOMAIN"
+
+if [ ! -d "$DOMAIN_DIR" ]; then
+  info "Making domain directory - $DOMAIN_DIR"
+  mkdir -p "$DOMAIN_DIR"
+fi
+  
+#if domain config file exists, read it.
+if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
+  debug "reading config from $DOMAIN_DIR/getssl.cfg"
+  . "$DOMAIN_DIR/getssl.cfg"
+fi
+
+#prompt to use staging server .... best for testing
+#CA="https://acme-staging.api.letsencrypt.org"
+# This server issues full certificates, however has rate limits
+#CA="https://acme-v01.api.letsencrypt.org"
+
+#prompt for agreement
+#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+
+# Set an email address associated with your account - generally set at account level rather than domain.
+#ACCOUNT_EMAIL="me@example.com"
+#ACCOUNT_KEY_LENGTH=4096
+#ACCOUNT_KEY="$WORKING_DIR/account.key"
+#PRIVATE_KEY_ALG="rsa"
+
+# Additional domains - this could be multiple domains / subdomains in a comma separated list
+#SANS=${EX_SANS}
+
+# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
+# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
+# An ssh key will be needed to provide you with access to the remote server.
+#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge')
+
+# Location for all your certs, these can either be on the server (so full path name) or using ssh as for the ACL
+#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
+#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
+#CA_CERT_LOCATION="/etc/ssl/chain.crt"
+#DOMAIN_CHAIN_LOCATION="" this is the domain cert and CA cert
+#DOMAIN_PEM_LOCATION="" this is the domain_key. domain cert and CA cert
+
+# The command needed to reload apache / nginx or whatever you use
+#RELOAD_CMD=""
+# The time period within which you want to allow renewal of a certificate
+#  this prevents hitting some of the rate limits.
+#	RENEW_ALLOW="30"
+
+# Define the server type.  The can either webserver, ldaps or a port number which
+# will be checked for certificate expiry and also will be checked after
+# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+#SERVER_TYPE="webserver"
+#CHECK_REMOTE="true"
+
+get_user_input "Check server for certificate validity" "$CHECK_REMOTE" \
+    "If true, getssl will check the live server for certificate validity rather than using the local certs
+     getssl also checks after installation, that the new valid certificate is in place"
+CHECK_REMOTE=$res
+
+if [[ "$CHECK_REMOTE" == "true" ]]; then
+  get_user_input "server type" "$SERVER_TYPE" \
+    "This can be 'webserver', 'ldap', or a port number that getssl will use for certifcate checks"
+  SERVER_TYPE=$res
+else
+  SERVER_TYPE=""
+fi
+
+# Use the following 3 variables if you want to validate via DNS
+#VALIDATE_VIA_DNS="true"
+#DNS_ADD_COMMAND=
+#DNS_DEL_COMMAND=
+# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
+#DNS_EXTRA_WAIT=60
+
+# create domain directory if it doesn't exist
+if [ ! -d "$DOMAIN_DIR" ]; then
+  info "Making domain directory - $DOMAIN_DIR"
+  mkdir -p "$DOMAIN_DIR"
+fi
+
+#Write out domain config
+write_domain_template "$DOMAIN_DIR/getssl.cfg"
+
+# Is it worth, with this create script, setting it to run once on the "happy hacker" CA to test, before 
+# it would then change the CA ( if all OK ) and running on the live LE server ? 
+
+graceful_exit
+
