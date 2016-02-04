@@ -40,10 +40,11 @@
 # 2016-02-01 commented code and added option for copying concatenated certs to file (v0.22)
 # 2016-02-01 re-arrange flow for DNS-challenge, since waiting for DNS to be updated can take quite long (v0.23)
 # 2016-02-04 added options for other server types (ldaps, or any port) and check_remote (v0.24)
+# 2016-02-04 added short sleep following service restart before checking certs (v0.25)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.24"
+VERSION="0.25"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -390,6 +391,8 @@ reload_service() {  # Runs a command to reload services ( via ssh if needed)
       debug "ssh $sshhost ${command}"
       # shellcheck disable=SC2029
       ssh "$sshhost" "${command}" 1>/dev/null 2>&1
+      # allow 2 seconds for services to restart 
+      sleep 2
     else
       debug "running reload command $RELOAD_CMD"
       $RELOAD_CMD
@@ -975,7 +978,7 @@ reload_service
 
 # Check if the certificate is installed correctly
 if [[ ${CHECK_REMOTE} == "true" ]]; then
-  CERT_REMOTE=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${CHECK_PORT}" 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
+  CERT_REMOTE=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
   CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
   if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
     info "certificate installed OK on server"
