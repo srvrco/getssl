@@ -17,10 +17,11 @@
 
 # Revision history:
 # 2016-02-04 Created (v0.1)
+# 2016-02-05 Updated to include more variables. Still not full operational. (v0.2) 
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.1"
+VERSION="0.2"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -29,12 +30,13 @@ ACCOUNT_KEY_LENGTH=4096
 WORKING_DIR=~/.getssl
 DOMAIN_KEY_LENGTH=4096
 SSLCONF="$(openssl version -d | cut -d\" -f2)/openssl.cnf"
-VALIDATE_VIA_DNS=""
+VALIDATE_VIA_DNS="false"
 RELOAD_CMD=""
 RENEW_ALLOW="30"
 PRIVATE_KEY_ALG="rsa"
 SERVER_TYPE="webserver"
 CHECK_REMOTE="true"
+DNS_EXTRA_WAIT=0
 
 clean_up() { # Perform pre-exit housekeeping
   return
@@ -163,13 +165,10 @@ write_domain_template() { # write out a template file for a domain.
 	PRIVATE_KEY_ALG="$PRIVATE_KEY_ALG"
 
 	# Additional domains - this could be multiple domains / subdomains in a comma separated list
-	SANS=${EX_SANS}
+	SANS=${SANS}
 
-	# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
-	# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
-	# An ssh key will be needed to provide you with access to the remote server.
-	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge')
+	# Acme Challenge Location. The first entry for the domain, the following ones for each additional domain.
+	ACL=(${ACL[*]})
 
 	# Location for all your certs, these can either be on the server (so full path name) or using ssh as for the ACL
 	DOMAIN_CERT_LOCATION="$DOMAIN_CERT_LOCATION"
@@ -238,11 +237,11 @@ done
 
 # Main logic
 
+info ""
 info "This is an interactive script to create a config file for getssl, please answer the following questions"
 info "Just press return for using the default"
 info "enter the letter 'h' for help / more information"
 info ""
-
 if [ -f "$WORKING_DIR/getssl.cfg" ]; then
   debug "reading main config from existing $WORKING_DIR/getssl.cfg"
   . "$WORKING_DIR/getssl.cfg"
@@ -291,41 +290,26 @@ fi
 #CA="https://acme-v01.api.letsencrypt.org"
 
 #prompt for agreement
-#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+get_user_input "Agreement" "${AGREEMENT}" \
+    "This is the agreement with LetsEncrypt, and shouldn't generally be changed"
+AGREEMENT=$res
 
 # Set an email address associated with your account - generally set at account level rather than domain.
-#ACCOUNT_EMAIL="me@example.com"
-#ACCOUNT_KEY_LENGTH=4096
-#ACCOUNT_KEY="$WORKING_DIR/account.key"
-#PRIVATE_KEY_ALG="rsa"
+get_user_input "Account email address" "${ACCOUNT_EMAIL}" \
+    "The email address that will be used by LetsEncrypt to notify you when your certificate is due for renewal"
+ACCOUNT_EMAIL=$res
 
-# Additional domains - this could be multiple domains / subdomains in a comma separated list
-#SANS=${EX_SANS}
+get_user_input "Account key location" "${ACCOUNT_KEY}" \
+    "The location of the account key.  "
+ACCOUNT_KEY=$res
 
-# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
-# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
-# An ssh key will be needed to provide you with access to the remote server.
-#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge')
+get_user_input "Account key length" "${ACCOUNT_KEY_LENGTH}" \
+    "Account key length - the default is typically the best option"
+ACCOUNT_KEY_LENGTH=$res
 
-# Location for all your certs, these can either be on the server (so full path name) or using ssh as for the ACL
-#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
-#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
-#CA_CERT_LOCATION="/etc/ssl/chain.crt"
-#DOMAIN_CHAIN_LOCATION="" this is the domain cert and CA cert
-#DOMAIN_PEM_LOCATION="" this is the domain_key. domain cert and CA cert
-
-# The command needed to reload apache / nginx or whatever you use
-#RELOAD_CMD=""
-# The time period within which you want to allow renewal of a certificate
-#  this prevents hitting some of the rate limits.
-#	RENEW_ALLOW="30"
-
-# Define the server type.  The can either webserver, ldaps or a port number which
-# will be checked for certificate expiry and also will be checked after
-# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
-#SERVER_TYPE="webserver"
-#CHECK_REMOTE="true"
+get_user_input "Domain private key algorithm" "${PRIVATE_KEY_ALG}" \
+    "Domain private key algorithm - the default is typically the best option"
+PRIVATE_KEY_ALG=$res
 
 get_user_input "Check server for certificate validity" "$CHECK_REMOTE" \
     "If true, getssl will check the live server for certificate validity rather than using the local certs
@@ -340,12 +324,86 @@ else
   SERVER_TYPE=""
 fi
 
-# Use the following 3 variables if you want to validate via DNS
-#VALIDATE_VIA_DNS="true"
-#DNS_ADD_COMMAND=
-#DNS_DEL_COMMAND=
-# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
-#DNS_EXTRA_WAIT=60
+if [[ ${SERVER_TYPE} == "webserver" ]]; then
+  REMOTE_PORT=443
+elif [[ ${SERVER_TYPE} == "ldaps" ]]; then
+  REMOTE_PORT=636
+elif [[ ${SERVER_TYPE} =~ ^[0-9]+$ ]]; then
+  REMOTE_PORT=SERVER_TYPE
+fi
+
+SANS="www.${DOMAIN}"
+if [[ ! -z ${REMOTE_PORT} ]]; then
+  # Additional domains - this could be multiple domains / subdomains in a comma separated list
+  EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" 2>/dev/null | openssl x509 2>/dev/null)
+  if [ ! -z "${EX_CERT}" ]; then
+    SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
+              | grep -Eo "DNS:[a-zA-Z 0-9.-]*" | sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
+    SANS=${SANS//$'\n'/','}
+  fi
+fi
+
+get_user_input "Additional domain names" "${SANS}" \
+    "this could be multiple domains / subdomains in a comma separated list"
+SANS=$res
+
+get_user_input "Validate via DNS" "${VALIDATE_VIA_DNS}" \
+    "If true, getssl will use DNS to validate the domain, if false then http / https will be used"
+VALIDATE_VIA_DNS=$res
+
+if [[ $VALIDATE_VIA_DNS == "true" ]]; then
+  get_user_input "DNS add command" "${DNS_ADD_COMMAND}" \
+    "location/name of script which will add the token message to  DNS"
+  DNS_ADD_COMMAND=$res
+  get_user_input "DNS add command" "${DNS_DEL_COMMAND}" \
+    "location/name of script which will add the token message to  DNS"
+  DNS_DEL_COMMAND=$res
+  get_user_input "DNS extra wait time" "${DNS_EXTRA_WAIT}" \
+    "delay time, to wait for DNS to propagate once changed."
+  DNS_EXTRA_WAIT=$res
+else
+  # find IP of this server
+  LocalIP=$(dig +short @208.67.222.222 myip.opendns.com)
+
+  #loop over all domains 
+  alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
+  dn=0
+  for d in $alldomains; do
+    # find IP of domain
+    DomainIP=$(dig +short ${d})
+    # if domain is local, try and find location of files
+    if [[ "${DomainIP}" == "${LocalIP}" ]]; then
+      if [[ ! -d "/var/www/${d}/web" ]]; then
+        ACL[$dn]="/var/www/${DOMAIN}/web/.well-known/acme-challenge"
+      elif [[ ! -d "/var/www/${d}" ]]; then
+        ACL[$dn]="/var/www/${d}/.well-known/acme-challenge"
+      else
+        ACL[$dn]="/var/www/.well-known/acme-challenge"
+      fi
+    else #domain is remote
+      ACL[$dn]="ssh:${d}:/var/www/.well-known/acme-challenge"
+    fi
+
+    get_user_input "ACL for $d" "${ACL[$dn]}" \
+      "The Acme challenge location for domaind ${d}. This should be your web root plus .well-known/acme-challenge"
+    ACL[$dn]=$res
+
+    ((dn++))
+  done
+fi
+
+# Location for all your certs, these can either be on the server (so full path name) or using ssh as for the ACL
+#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
+#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
+#CA_CERT_LOCATION="/etc/ssl/chain.crt"
+#DOMAIN_CHAIN_LOCATION="" this is the domain cert and CA cert
+#DOMAIN_PEM_LOCATION="" this is the domain_key. domain cert and CA cert
+
+# The command needed to reload apache / nginx or whatever you use
+#RELOAD_CMD=""
+# The time period within which you want to allow renewal of a certificate
+#  this prevents hitting some of the rate limits.
+#	RENEW_ALLOW="30"
 
 # create domain directory if it doesn't exist
 if [ ! -d "$DOMAIN_DIR" ]; then
@@ -360,4 +418,3 @@ write_domain_template "$DOMAIN_DIR/getssl.cfg"
 # it would then change the CA ( if all OK ) and running on the live LE server ? 
 
 graceful_exit
-
