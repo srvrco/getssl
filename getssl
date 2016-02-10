@@ -347,6 +347,9 @@ copy_file_to_location() { # copies a file, using scp if required.
         error_exit "cannot create ACL directory $(basename "$to")"
       fi
       cp "$from" "$to"
+      if [ $? -ne 0 ]; then
+        error_exit "cannot copy $from to $to"
+      fi
     fi
     debug "copied $from to $to"
   fi
@@ -855,7 +858,7 @@ for d in $alldomains; do
 
     # copy to token to acme challenge location
     debug "copying file from $TEMP_DIR/$token to ${ACL[$dn]}"
-    copy_file_to_location "challenge token" "$TEMP_DIR/$token" "${ACL[$dn]}"
+    copy_file_to_location "challenge token" "$TEMP_DIR/$token" "${ACL[$dn]}/$token"
 
     wellknown_url="http://$d/.well-known/acme-challenge/$token"
     debug wellknown_url "$wellknown_url"
