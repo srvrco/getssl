@@ -41,10 +41,11 @@
 # 2016-02-01 re-arrange flow for DNS-challenge, since waiting for DNS to be updated can take quite long (v0.23)
 # 2016-02-04 added options for other server types (ldaps, or any port) and check_remote (v0.24)
 # 2016-02-04 added short sleep following service restart before checking certs (v0.25)
+# 2016-02-12 fix challenge token location when directory doesn't exist (v0.26)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.25"
+VERSION="0.26"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
