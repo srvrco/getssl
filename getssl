@@ -68,7 +68,7 @@ _QUIET=0
 
 clean_up() { # Perform pre-exit housekeeping
   if [ ! -z "$DOMAIN_DIR" ]; then
-    rm -rf "${TEMP_DIR}"
+    rm -rf "${TEMP_DIR:?}"
   fi
   return
 }
@@ -136,7 +136,7 @@ write_openssl_conf() { # write out a minimal openssl conf
 	_EOF_openssl_conf_
 }
 
-write_getssl_template() { # write out the main template file 
+write_getssl_template() { # write out the main template file
   cat > "$1" <<- _EOF_getssl_
 	# Uncomment and modify any variables you need
 	# The staging server is best for testing (hence set as default)
@@ -243,7 +243,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   if [ ${_USE_DEBUG} -eq 1 ]; then
     CURL="$CURL --trace-ascii $dp "
   fi
-  
+
   # convert payload to url base 64
   payload64="$(printf '%s' "${payload}" | urlbase64)"
   debug payload64 "$payload64"
@@ -261,7 +261,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   protected='{"alg": "RS256", "jwk": {"e": "'"${pub_exp64}"'", "kty": "RSA", "n": "'"${pub_mod64}"'"}, "nonce": "'"${nonce}"'"}'
   protected64="$(printf '%s' "${protected}" | urlbase64)"
   debug protected "$protected"
-  
+
   # Sign header with nonce and our payload with our private key and encode signature as urlbase64
   signed64="$(printf '%s' "${protected64}.${payload64}" | openssl dgst -sha256 -sign "${ACCOUNT_KEY}" | urlbase64)"
 
@@ -395,7 +395,7 @@ reload_service() {  # Runs a command to reload services ( via ssh if needed)
       debug "ssh $sshhost ${command}"
       # shellcheck disable=SC2029
       ssh "$sshhost" "${command}" 1>/dev/null 2>&1
-      # allow 2 seconds for services to restart 
+      # allow 2 seconds for services to restart
       sleep 2
     else
       debug "running reload command $RELOAD_CMD"
@@ -502,7 +502,7 @@ if [ ${_CHECK_ALL} -eq 1 ]; then
 fi  # end of "-a" option.
 
 # if nothing in command line, print help and exit.
-if [ -z "$DOMAIN" ]; then 
+if [ -z "$DOMAIN" ]; then
   help_message
   graceful_exit
 fi
@@ -514,7 +514,7 @@ if [ ! -d "$WORKING_DIR" ]; then
 fi
 
 # Define default file locations.
-TEMP_DIR="$DOMAIN_DIR/tmp"
+TEMP_DIR=$(mktemp -d "$DOMAIN_DIR/tmp.XXXXXX")
 ACCOUNT_KEY="$WORKING_DIR/account.key"
 DOMAIN_DIR="$WORKING_DIR/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
@@ -668,7 +668,7 @@ if [ -f "$CERT_FILE" ]; then
   fi
 fi
 
-# create account key if it doesn't exist. 
+# create account key if it doesn't exist.
 if [ -f "$ACCOUNT_KEY" ]; then
   debug "Account key exists at $ACCOUNT_KEY skipping generation"
 else
@@ -754,7 +754,7 @@ regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
 if [ "$ACCOUNT_EMAIL" ] ; then
   regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
 fi
-# send the request to the ACME server. 
+# send the request to the ACME server.
 send_signed_request   "$CA/acme/new-reg"  "$regjson"
 
 if [ "$code" == "" ] || [ "$code" == '201' ] ; then
@@ -874,14 +874,14 @@ for d in $alldomains; do
     debug "remove token from ${ACL[$dn]}"
     if [[ "${ACL[$dn]:0:4}" == "ssh:" ]] ; then
       sshhost=$(echo "${ACL[$dn]}"| awk -F: '{print $2}')
-      command="rm -f ${ACL[$dn]:(( ${#sshhost} + 5))}/$token"
+      command="rm -f ${ACL[$dn]:(( ${#sshhost} + 5))}/${token:?}"
       debug "running following comand to remove token"
       debug "ssh $sshhost ${command}"
       # shellcheck disable=SC2029
       ssh "$sshhost" "${command}" 1>/dev/null 2>&1
-      rm -f "$TEMP_DIR/$token"
+      rm -f "${TEMP_DIR:?}/${token:?}"
     else
-      rm -f "${ACL[$dn]}/$token"
+      rm -f "${ACL[$dn]:?}/${token:?}"
     fi
   fi
   # increment domain-counter
