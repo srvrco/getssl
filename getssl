@@ -528,7 +528,7 @@ ACCOUNT_KEY="$WORKING_DIR/account.key"
 DOMAIN_DIR="$WORKING_DIR/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
-TEMP_DIR=$(mktemp -d "$DOMAIN_DIR/tmp.XXXXXX")
+TEMP_DIR="$DOMAIN_DIR/tmp"
 
 # if "-c|--create" option used, then create config files.
 if [ ${_CREATE_CONFIG} -eq 1 ]; then
