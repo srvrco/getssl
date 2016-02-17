@@ -566,7 +566,6 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
     fi
     write_domain_template "$DOMAIN_DIR/getssl.cfg"
   fi
-  TEMP_DIR="$DOMAIN_DIR/tmp"
   # end of "-c|--create" option, so exit
   graceful_exit
 fi
@@ -583,8 +582,7 @@ if [ ! -d "$DOMAIN_DIR" ]; then
   mkdir -p "$DOMAIN_DIR"
 fi
 
-# define a temporary directory, and if it doesn't exist, create it.
-TEMP_DIR="$DOMAIN_DIR/tmp"
+# If temporary directory doesn't exist, create it.
 if [ ! -d "${TEMP_DIR}" ]; then
   debug "Making temp directory - ${TEMP_DIR}"
   mkdir -p "${TEMP_DIR}"
