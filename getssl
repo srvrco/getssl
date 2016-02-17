@@ -68,7 +68,7 @@ _QUIET=0
 
 clean_up() { # Perform pre-exit housekeeping
   if [ ! -z "$DOMAIN_DIR" ]; then
-    rm -rf "${TEMP_DIR}"
+    rm -rf "${TEMP_DIR:?}"
   fi
   return
 }
@@ -514,7 +514,7 @@ if [ ! -d "$WORKING_DIR" ]; then
 fi
 
 # Define default file locations.
-TEMP_DIR="$DOMAIN_DIR/tmp"
+TEMP_DIR=$(mktemp -d "$DOMAIN_DIR/tmp.XXXXXX")
 ACCOUNT_KEY="$WORKING_DIR/account.key"
 DOMAIN_DIR="$WORKING_DIR/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
@@ -874,14 +874,14 @@ for d in $alldomains; do
     debug "remove token from ${ACL[$dn]}"
     if [[ "${ACL[$dn]:0:4}" == "ssh:" ]] ; then
       sshhost=$(echo "${ACL[$dn]}"| awk -F: '{print $2}')
-      command="rm -f ${ACL[$dn]:(( ${#sshhost} + 5))}/$token"
+      command="rm -f ${ACL[$dn]:(( ${#sshhost} + 5))}/${token:?}"
       debug "running following comand to remove token"
       debug "ssh $sshhost ${command}"
       # shellcheck disable=SC2029
       ssh "$sshhost" "${command}" 1>/dev/null 2>&1
-      rm -f "$TEMP_DIR/$token"
+      rm -f "${TEMP_DIR:?}/${token:?}"
     else
-      rm -f "${ACL[$dn]}/$token"
+      rm -f "${ACL[$dn]:?}/${token:?}"
     fi
   fi
   # increment domain-counter
