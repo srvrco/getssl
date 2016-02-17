@@ -42,10 +42,11 @@
 # 2016-02-04 added options for other server types (ldaps, or any port) and check_remote (v0.24)
 # 2016-02-04 added short sleep following service restart before checking certs (v0.25)
 # 2016-02-12 fix challenge token location when directory doesn't exist (v0.26)
+# 2016-02-17 fix sed -E issue, and reduce length of renew check to 365 days for older systems (v0.27)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.26"
+VERSION="0.27"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -118,12 +119,21 @@ info() {
 
 urlbase64() {
   # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
-  openssl base64 -e | tr -d '\n\r' | sed -E -e 's:=*$::g' -e 'y:+/:-_:'
+  openssl base64 -e | tr -d '\n\r' | os_sed -e 's:=*$::g' -e 'y:+/:-_:'
 }
 
 hex2bin() {
   # Remove spaces, add leading zero, escape as hex string and parse with printf
-  printf -- "$(cat | sed -E -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
+  printf -- "$(cat | os_sed -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
+}
+
+# Use different sed version for different os types...
+os_sed() {
+  if [[ "$OSTYPE" == "linux-gnu" ]]; then
+    sed -r "${@}"
+  else
+    sed -E "${@}"
+  fi
 }
 
 write_openssl_conf() { # write out a minimal openssl conf
@@ -645,9 +655,9 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
   fi
 fi
 
-# if force renew is set, set the date validity checks to 100000 days
+# if force renew is set, set the date validity checks to 365 days
 if [ $_FORCE_RENEW -eq 1 ]; then
-  RENEW_ALLOW=100000
+  RENEW_ALLOW=365
 fi
 
 # if there is an existsing certificate file, check details.
