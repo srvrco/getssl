@@ -2,16 +2,15 @@
 # ---------------------------------------------------------------------------
 # getssl - Obtain SSL certificates from the letsencrypt.org ACME server
 
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License at <http://www.gnu.org/licenses/> for
-# more details.
+# Copyright (c) 2016, Server Co (@srvrco)
+# Copyright (c) 2016, Dennis Stosberg (@dstosberg)
+# Copyright (c) 2016, Michael Feige (@MichiShyGuy)
+# Copyright (c) 2016, Dennis Koot (@koter84)
+# Copyright (c) 2016, Brian Bennett (@bahamat)
 
 # Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-w working_dir] domain
 

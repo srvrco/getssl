@@ -2,22 +2,21 @@
 # ---------------------------------------------------------------------------
 # create-getssl-config - Create a config file interactively to obtain an SSL certificate using getssl
 
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License at <http://www.gnu.org/licenses/> for
-# more details.
+# Copyright (c) 2016, Server Co (@srvrco)
+# Copyright (c) 2016, Dennis Stosberg (@dstosberg)
+# Copyright (c) 2016, Michael Feige (@MichiShyGuy)
+# Copyright (c) 2016, Dennis Koot (@koter84)
+# Copyright (c) 2016, Brian Bennett (@bahamat)
 
 # Usage: create-getssl-config [-h|--help] [-d|--debug]
 
 # Revision history:
 # 2016-02-04 Created (v0.1)
-# 2016-02-05 Updated to include more variables. Still not full operational. (v0.2) 
+# 2016-02-05 Updated to include more variables. Still not full operational. (v0.2)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -107,7 +106,7 @@ get_user_input() {
   done
 }
 
-write_getssl_template() { # write out the main template file 
+write_getssl_template() { # write out the main template file
   cat > "$1" <<- _EOF_getssl_
 	# Uncomment and modify any variables you need
 	# The staging server is best for testing (hence set as default)
@@ -175,7 +174,7 @@ write_domain_template() { # write out a template file for a domain.
 	DOMAIN_KEY_LOCATION="$DOMAIN_KEY_LOCATION"
 	CA_CERT_LOCATION="$CA_CERT_LOCATION"
 	DOMAIN_CHAIN_LOCATION=""
-	DOMAIN_PEM_LOCATION="" 
+	DOMAIN_PEM_LOCATION=""
 
 	# The command needed to reload apache / nginx or whatever you use
 	RELOAD_CMD="$RELOAD_CMD"
@@ -277,7 +276,7 @@ if [ ! -d "$DOMAIN_DIR" ]; then
   info "Making domain directory - $DOMAIN_DIR"
   mkdir -p "$DOMAIN_DIR"
 fi
-  
+
 #if domain config file exists, read it.
 if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
   debug "reading config from $DOMAIN_DIR/getssl.cfg"
@@ -365,7 +364,7 @@ else
   # find IP of this server
   LocalIP=$(dig +short @208.67.222.222 myip.opendns.com)
 
-  #loop over all domains 
+  #loop over all domains
   alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
   dn=0
   for d in $alldomains; do
@@ -414,7 +413,7 @@ fi
 #Write out domain config
 write_domain_template "$DOMAIN_DIR/getssl.cfg"
 
-# Is it worth, with this create script, setting it to run once on the "happy hacker" CA to test, before 
-# it would then change the CA ( if all OK ) and running on the live LE server ? 
+# Is it worth, with this create script, setting it to run once on the "happy hacker" CA to test, before
+# it would then change the CA ( if all OK ) and running on the live LE server ?
 
 graceful_exit
