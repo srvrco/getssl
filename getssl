@@ -43,10 +43,11 @@
 # 2016-02-04 added short sleep following service restart before checking certs (v0.25)
 # 2016-02-12 fix challenge token location when directory doesn't exist (v0.26)
 # 2016-02-17 fix sed -E issue, and reduce length of renew check to 365 days for older systems (v0.27)
+# 2016-04-05 Ensure DNS cleanup on error exit. (0.28) - pecigonzalo
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.27"
+VERSION="0.28"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -70,6 +71,9 @@ _QUIET=0
 clean_up() { # Perform pre-exit housekeeping
   if [ ! -z "$DOMAIN_DIR" ]; then
     rm -rf "${TEMP_DIR:?}"
+  fi
+  if [[ $VALIDATE_VIA_DNS == "true" ]]; then
+    $DNS_DEL_COMMAND "$d"
   fi
   return
 }
@@ -921,7 +925,6 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
           sleep 10
         else
           debug "dns check failed - removing existing value"
-          $DNS_DEL_COMMAND "$d"
           error_exit "checking _acme-challenge.$DOMAIN gave $check_result not $auth_key"
         fi
       fi
