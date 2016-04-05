@@ -68,8 +68,12 @@ _FORCE_RENEW=0
 _QUIET=0
 
 clean_up() { # Perform pre-exit housekeeping
+  
   if [ ! -z "$DOMAIN_DIR" ]; then
     rm -rf "${TEMP_DIR:?}"
+  fi
+  if [[ $VALIDATE_VIA_DNS == "true" ]]; then
+    $DNS_DEL_COMMAND "$d"
   fi
   return
 }
@@ -921,7 +925,6 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
           sleep 10
         else
           debug "dns check failed - removing existing value"
-          $DNS_DEL_COMMAND "$d"
           error_exit "checking _acme-challenge.$DOMAIN gave $check_result not $auth_key"
         fi
       fi
