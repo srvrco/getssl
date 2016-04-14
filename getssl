@@ -715,13 +715,16 @@ debug "created SAN list = $SANLIST"
 
 # check nslookup for domains
 alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
-for d in $alldomains; do
-  debug "checking nslookup for ${d}"
-  exists=$(nslookup "${d}")
-  if [ "$?" != "0" ]; then
-    error_exit "DNS lookup failed for $d"
-  fi
-done
+if [[ $VALIDATE_VIA_DNS != "true" ]]; then
+    for d in $alldomains; do
+      debug "checking nslookup for ${d}"
+      exists=$(nslookup "${d}")
+      if [ "$?" != "0" ]; then
+        error_exit "DNS lookup failed for $d"
+      fi
+    done
+fi
+
 
 # check if domain csr exists - if not then create it
 if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
