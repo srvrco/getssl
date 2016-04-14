@@ -1,13 +1,13 @@
 # getssl
 get an SSL certificate via LetsEncrypt.  Suitable for automating the process in remote servers. 
 
-This was written as an addition to checkssl for servers to automatically renew certifictes.  In addition it allows the running of this script in standard bash ( on a desktop computer, or even virtualbox) and add the checks, and certificates to a remote server ( providing you have an ssh key on the remote server with access). Potentially I can include FTP as an option for uploading as well. 
+This was written in standard bash ( so can be run on a server,  a desktop computer, or even virtualbox) and add the checks, and certificates to a remote server ( providing you have an ssh key on the remote server with access).  
 
 ```
-getssl ver. 0.17
+getssl ver. 0.28
 Obtain SSL certificates from the letsencrypt.org ACME server
 
-Usage: getssl [-h|--help] [-d|--debug] [-c] [-r|--refetch] [-a|--all] [-w working_dir] domain
+Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-w working_dir] domain
 
 Options:
   -h, --help      Display this help message and exit
@@ -153,8 +153,8 @@ copying private key to ssh:server5:/home/yourdomain/ssl/domain.key
 copying CA certificate to ssh:server5:/home/yourdomain/ssl/chain.crt
 reloading SSL services
 ```
-This will (by default) used the staging server, so should give you a certificate that isn't trusted ( by happy hacker).
+This will (by default) used the staging server, so should give you a certificate that isn't trusted ( Fake Let's Encrypt).
 Change the server in your config file to get a fully valid certificate. 
 
-Note:   Using DNS validation is now working successfully for issuing certificates.
+Note:   Using DNS validation is now working successfully for issuing certificates. (examples provided on the wiki pages - https://github.com/srvrco/getssl/wiki/DNS-Challenge-example ) 
  
