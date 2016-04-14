@@ -837,12 +837,15 @@ for d in $alldomains; do
 
     # find a primary / authoratative DNS server for the domain
     primary_ns=$(nslookup -type=soa "${d}" | grep origin | awk '{print $3}')
+    if [ -z $primary_ns ]; then
+      primary_ns=$(nslookup -type=soa "${d}" -debug=1 | grep origin | awk '{print $3}')
+    fi
     debug primary_ns "$primary_ns"
 
     # make a directory to hold pending dns-challenges
-	if [ ! -d "$TEMP_DIR/dns_verify" ]; then
-		mkdir "$TEMP_DIR/dns_verify"
-	fi
+  	if [ ! -d "$TEMP_DIR/dns_verify" ]; then
+  		mkdir "$TEMP_DIR/dns_verify"
+  	fi
 
     # generate a file with the current variables for the dns-challenge
     cat > "$TEMP_DIR/dns_verify/$d" <<- _EOF_
