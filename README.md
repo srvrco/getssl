@@ -1,5 +1,5 @@
 # getssl
-get an SSL certificate via LetsEncrypt.  Suitable for automating the process in remote servers. 
+Obtain SSL certificates from the letsencrypt.org ACME server.  Suitable for automating the process on remote servers. 
 
 This was written in standard bash ( so can be run on a server,  a desktop computer, or even virtualbox) and add the checks, and certificates to a remote server ( providing you have an ssh key on the remote server with access).  
 
