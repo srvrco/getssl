@@ -44,10 +44,11 @@
 # 2016-02-12 fix challenge token location when directory doesn't exist (v0.26)
 # 2016-02-17 fix sed -E issue, and reduce length of renew check to 365 days for older systems (v0.27)
 # 2016-04-05 Ensure DNS cleanup on error exit. (0.28) - pecigonzalo
+# 2016-04-15 Remove NS Lookup of A record when using dns validation (0.29) - pecigonzalo
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.28"
+VERSION="0.29"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -843,9 +844,9 @@ for d in $alldomains; do
     debug primary_ns "$primary_ns"
 
     # make a directory to hold pending dns-challenges
-  	if [ ! -d "$TEMP_DIR/dns_verify" ]; then
-  		mkdir "$TEMP_DIR/dns_verify"
-  	fi
+    if [ ! -d "$TEMP_DIR/dns_verify" ]; then
+      mkdir "$TEMP_DIR/dns_verify"
+    fi
 
     # generate a file with the current variables for the dns-challenge
     cat > "$TEMP_DIR/dns_verify/$d" <<- _EOF_
@@ -855,7 +856,7 @@ for d in $alldomains; do
 		d="${d}"
 		primary_ns="${primary_ns}"
 		auth_key="${auth_key}"
-	_EOF_
+		_EOF_
 
   else      # set up the correct http token for verification
     # get the http component of the ACME response
