@@ -45,10 +45,11 @@
 # 2016-02-17 fix sed -E issue, and reduce length of renew check to 365 days for older systems (v0.27)
 # 2016-04-05 Ensure DNS cleanup on error exit. (0.28) - pecigonzalo
 # 2016-04-15 Remove NS Lookup of A record when using dns validation (0.29) - pecigonzalo
+# 2016-04-17 Improving the wording in a couple of comments and info statements. (0.30)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.29"
+VERSION="0.30"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -173,7 +174,7 @@ write_getssl_template() { # write out the main template file
 	#  this prevents hitting some of the rate limits.
 	RENEW_ALLOW="30"
 
-	# Define the server type.  The can either webserver, ldaps or a port number which
+	# Define the server type.  This can either be a webserver, ldaps or a port number which
 	# will be checked for certificate expiry and also will be checked after
 	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
 	SERVER_TYPE="webserver"
@@ -229,7 +230,7 @@ write_domain_template() { # write out a template file for a domain.
 	#  this prevents hitting some of the rate limits.
 	RENEW_ALLOW="30"
 
-	# Define the server type.  The can either webserver, ldaps or a port number which
+	# Define the server type.  This can either be a webserver, ldaps or a port number which
 	# will be checked for certificate expiry and also will be checked after
 	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
 	#SERVER_TYPE="webserver"
@@ -611,7 +612,7 @@ else
   error_exit "unknown server type"
 fi
 
-# if check)remote is true then connect and obtain the current certificate (if not forceing renewal)
+# if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
   debug "getting certificate for $DOMAIN from remote server"
   EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" 2>/dev/null | openssl x509 2>/dev/null)
@@ -672,7 +673,7 @@ if [ -f "$CERT_FILE" ]; then
   debug "enddate is $enddate"
   if [[ "$enddate" != "-" ]]; then
     if [[ $(date -d "${RENEW_ALLOW} days" +%s) -lt $(date -d "$enddate" +%s) ]]; then
-      info "certificate for $DOMAIN is still valid for more than $RENEW_ALLOW days"
+      info "certificate for $DOMAIN is still valid for more than $RENEW_ALLOW days (until $enddate)"
       # everything is OK, so exit.
       graceful_exit
     else
@@ -928,7 +929,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
       else
         if [[ $ntries -lt 100 ]]; then
           ntries=$(( ntries + 1 ))
-          info "testing DNS for ${d}. Attempt $ntries/100 completed. waiting 10 secs before testing verify again"
+          info "checking DNS for ${d}. Attempt $ntries/100 gave wrong result, waiting 10 secs before checking again"
           sleep 10
         else
           debug "dns check failed - removing existing value"

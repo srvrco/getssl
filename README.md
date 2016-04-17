@@ -4,7 +4,7 @@ Obtain SSL certificates from the letsencrypt.org ACME server.  Suitable for auto
 This was written in standard bash ( so can be run on a server,  a desktop computer, or even virtualbox) and add the checks, and certificates to a remote server ( providing you have an ssh key on the remote server with access).  
 
 ```
-getssl ver. 0.28
+getssl ver. 0.30
 Obtain SSL certificates from the letsencrypt.org ACME server
 
 Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-w working_dir] domain
@@ -83,22 +83,27 @@ SANS=www.example.org,example.edu,example.net,example.org,www.example.com,www.exa
 # Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
 # If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
 # An ssh key will be needed to provide you with access to the remote server.
-#ACL=('/var/www/example.com/web/.well-known/acme-challenge'
-#     'ssh:server5:/var/www/example.com/web/.well-known/acme-challenge')
+ACL=('/var/www/example.com/web/.well-known/acme-challenge'
+     'ssh:server5:/var/www/example.com/web/.well-known/acme-challenge')
 
 # Location for all your certs, these can either be on the server (so full path name) or using ssh as for the ACL
-#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
-#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
+DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
+DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
 #CA_CERT_LOCATION="/etc/ssl/chain.crt"
-#DOMAIN_PEM_LOCATION=""
+#DOMAIN_CHAIN_LOCATION="" this is the domain cert and CA cert
+#DOMAIN_PEM_LOCATION="" this is the domain_key. domain cert and CA cert
+
 
 # The command needed to reload apache / nginx or whatever you use
-#RELOAD_CMD=""
+RELOAD_CMD="service apache2 reload"
 # The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 #RENEW_ALLOW="30"
-# Define the server type.  If it's a "webserver" then the main website will be checked for certificate expiry 
-# and also will be checked after an update to confirm correct certificate is running. 
+
+# Define the server type.  The can either webserver, ldaps or a port number which
+# will be checked for certificate expiry and also will be checked after
+# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
 #SERVER_TYPE="webserver"
+#CHECK_REMOTE="true"
 
 # Use the following 3 variables if you want to validate via DNS
 #VALIDATE_VIA_DNS="true"
