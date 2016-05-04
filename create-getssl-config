@@ -18,10 +18,11 @@
 # Revision history:
 # 2016-02-04 Created (v0.1)
 # 2016-02-05 Updated to include more variables. Still not full operational. (v0.2) 
+# 2016-05-04 Corrected typo on DNS_DEL_COMMAND (v0.3)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.2"
+VERSION="0.3"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -353,10 +354,10 @@ VALIDATE_VIA_DNS=$res
 
 if [[ $VALIDATE_VIA_DNS == "true" ]]; then
   get_user_input "DNS add command" "${DNS_ADD_COMMAND}" \
-    "location/name of script which will add the token message to  DNS"
+    "location/name of script which will add the token message to DNS"
   DNS_ADD_COMMAND=$res
-  get_user_input "DNS add command" "${DNS_DEL_COMMAND}" \
-    "location/name of script which will add the token message to  DNS"
+  get_user_input "DNS del command" "${DNS_DEL_COMMAND}" \
+    "location/name of script which will delete the token message from DNS"
   DNS_DEL_COMMAND=$res
   get_user_input "DNS extra wait time" "${DNS_EXTRA_WAIT}" \
     "delay time, to wait for DNS to propagate once changed."

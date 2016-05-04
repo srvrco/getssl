@@ -46,10 +46,11 @@
 # 2016-04-05 Ensure DNS cleanup on error exit. (0.28) - pecigonzalo
 # 2016-04-15 Remove NS Lookup of A record when using dns validation (0.29) - pecigonzalo
 # 2016-04-17 Improving the wording in a couple of comments and info statements. (0.30)
+# 2016-05-04 Improve check for if DNS_DEL_COMMAND is blank. (0.31)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.30"
+VERSION="0.31"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -75,7 +76,9 @@ clean_up() { # Perform pre-exit housekeeping
     rm -rf "${TEMP_DIR:?}"
   fi
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then
-    $DNS_DEL_COMMAND "$d"
+    if [[ ! -z "$DNS_DEL_COMMAND" ]]; then
+      $DNS_DEL_COMMAND "$d"
+    fi
   fi
   return
 }
@@ -720,6 +723,7 @@ alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
 if [[ $VALIDATE_VIA_DNS != "true" ]]; then
     for d in $alldomains; do
       debug "checking nslookup for ${d}"
+      # shellcheck disable=SC2034
       exists=$(nslookup "${d}")
       if [ "$?" != "0" ]; then
         error_exit "DNS lookup failed for $d"
@@ -798,7 +802,10 @@ for d in $alldomains; do
   # check if we have the information needed to place the challenge
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then
     if [[ -z "$DNS_ADD_COMMAND" ]]; then
-      error_exit "DNS_ADD_COMMAND not defined for domain"
+      error_exit "DNS_ADD_COMMAND not defined for domain $d"
+    fi
+    if [[ -z "$DNS_DEL_COMMAND" ]]; then
+      error_exit "DNS_DEL_COMMAND not defined for domain $d"
     fi
   else
     if [ -z "${ACL[$dn]}" ]; then
@@ -839,7 +846,7 @@ for d in $alldomains; do
 
     # find a primary / authoratative DNS server for the domain
     primary_ns=$(nslookup -type=soa "${d}" | grep origin | awk '{print $3}')
-    if [ -z $primary_ns ]; then
+    if [ -z "$primary_ns" ]; then
       primary_ns=$(nslookup -type=soa "${d}" -debug=1 | grep origin | awk '{print $3}')
     fi
     debug primary_ns "$primary_ns"
