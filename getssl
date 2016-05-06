@@ -47,10 +47,11 @@
 # 2016-04-15 Remove NS Lookup of A record when using dns validation (0.29) - pecigonzalo
 # 2016-04-17 Improving the wording in a couple of comments and info statements. (0.30)
 # 2016-05-04 Improve check for if DNS_DEL_COMMAND is blank. (0.31)
+# 2016-05-06 Setting umask to 077 for security of private keys etc. (0.32) 
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.31"
+VERSION="0.32"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -65,6 +66,8 @@ RENEW_ALLOW="30"
 PRIVATE_KEY_ALG="rsa"
 SERVER_TYPE="webserver"
 CHECK_REMOTE="true"
+ORIG_UMASK=$(umask)
+umask 077
 _USE_DEBUG=0
 _CREATE_CONFIG=0
 _CHECK_ALL=0
@@ -72,6 +75,7 @@ _FORCE_RENEW=0
 _QUIET=0
 
 clean_up() { # Perform pre-exit housekeeping
+  umask=$ORIG_UMASK
   if [ ! -z "$DOMAIN_DIR" ]; then
     rm -rf "${TEMP_DIR:?}"
   fi
