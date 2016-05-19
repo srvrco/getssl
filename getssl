@@ -872,11 +872,11 @@ for d in $alldomains; do
 
   else      # set up the correct http token for verification
     # get the http component of the ACME response
-    http01=$(echo "$response" | egrep -o  '{[^{]*"type":"http-01"[^}]*')
+    http01=$(echo "$response" | grep -Po '{\n.*"type": "http-01"([^}]*\n)*')
     debug http01 "$http01"
 
     # get the token from the http component
-    token=$(echo "$http01" | sed 's/,/\n'/g| grep '"token":'| cut -d : -f 2|sed 's/"//g')
+    token=$(echo "$http01" | sed 's/,/\n'/g| grep '"token":'| cut -d : -f 2|sed 's/"//g' | tr -d ' ')
     debug token "$token"
 
     uri=$(echo "$http01" | sed 's/,/\n'/g| grep '"uri":'| cut -d : -f 2,3|sed 's/"//g')
