@@ -48,10 +48,11 @@
 # 2016-04-17 Improving the wording in a couple of comments and info statements. (0.30)
 # 2016-05-04 Improve check for if DNS_DEL_COMMAND is blank. (0.31)
 # 2016-05-06 Setting umask to 077 for security of private keys etc. (0.32) 
+# 2016-05-10 update to reflect changes in stating acme server json (0.33)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.32"
+VERSION="0.33"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -67,7 +68,6 @@ PRIVATE_KEY_ALG="rsa"
 SERVER_TYPE="webserver"
 CHECK_REMOTE="true"
 ORIG_UMASK=$(umask)
-umask 077
 _USE_DEBUG=0
 _CREATE_CONFIG=0
 _CHECK_ALL=0
@@ -326,7 +326,8 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
       error_exit "$domain:Verify error:$code"
     fi
 
-    status=$(echo "$response" | egrep -o  '"status":"[^"]+"' | cut -d : -f 2 | sed 's/"//g')
+    # shellcheck disable=SC2086
+    status=$(echo $response | grep -Po '"status":[ ]*"[^"]+"' | cut -d : -f 2 | sed 's/"//g' | tr -d ' ')
 
     # If ACME respose is valid, then break out of loop
     if [ "$status" == "valid" ] ; then
@@ -336,7 +337,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 
     # if ACME response is that their check gave an invalid response, error exit
     if [ "$status" == "invalid" ] ; then
-      error=$(echo "$response" | egrep -o '"error":{[^}]*}' | grep -o '"detail":"[^"]*"' | cut -d '"' -f 4)
+      error=$(echo "$response" | grep -Po '"error":[ ]*{[^}]*}' | grep -o '"detail":"[^"]*"' | cut -d '"' -f 4)
       error_exit "$domain:Verify error:$error"
     fi
 
@@ -385,8 +386,10 @@ getcr() {   # get curl response
   response=$(curl --silent "$url")
   ret=$?
   debug response  "$response"
-  code=$(echo "$response" | grep -o '"status":[0-9]\+' | cut -d : -f 2)
+  # shellcheck disable=SC2086
+  code=$(echo $response | grep -Eo '"status":[ ]*[0-9]*' | cut -d : -f 2)
   debug code "$code"
+  debug getcr return code $ret
   return $ret
 }
 
@@ -487,6 +490,7 @@ _requires nslookup
 _requires sed
 _requires grep
 _requires awk
+_requires tr
 
 # if "-a" option then check other parameters and create run for each domain.
 if [ ${_CHECK_ALL} -eq 1 ]; then
@@ -704,6 +708,7 @@ if [ -f "$DOMAIN_DIR/${DOMAIN}.key" ]; then
   debug "domain key exists at $DOMAIN_DIR/${DOMAIN}.key - skipping generation"
   # ideally need to check validity of domain key
 else
+  umask 077
   info "creating domain key - $DOMAIN_DIR/${DOMAIN}.key"
   if [[ "${PRIVATE_KEY_ALG}" == "rsa" ]]; then
     openssl genrsa "$DOMAIN_KEY_LENGTH" > "$DOMAIN_DIR/${DOMAIN}.key"
@@ -712,6 +717,7 @@ else
   else
     error_exit "unknown private key algorithm type ${PRIVATE_KEY_ALG}"
   fi
+  umask "$ORIG_UMASK"
 fi
 
 #create SAN
@@ -872,14 +878,15 @@ for d in $alldomains; do
 
   else      # set up the correct http token for verification
     # get the http component of the ACME response
-    http01=$(echo "$response" | egrep -o  '{[^{]*"type":"http-01"[^}]*')
+    # shellcheck disable=SC2086
+    http01=$(echo $response | grep -Po '{[ ]*"type":[ ]*"http-01"[^}]*')
     debug http01 "$http01"
 
     # get the token from the http component
-    token=$(echo "$http01" | sed 's/,/\n'/g| grep '"token":'| cut -d : -f 2|sed 's/"//g')
+    token=$(echo "$http01" | sed 's/,/\n'/g| grep '"token":'| cut -d : -f 2|sed 's/"//g' | tr -d ' ')
     debug token "$token"
 
-    uri=$(echo "$http01" | sed 's/,/\n'/g| grep '"uri":'| cut -d : -f 2,3|sed 's/"//g')
+    uri=$(echo "$http01" | sed 's/,/\n'/g| grep '"uri":'| cut -d : -f 2,3|sed 's/"//g' | tr -d ' ')
     debug uri "$uri"
 
     #create signed authorization key from token.
