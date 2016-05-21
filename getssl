@@ -51,11 +51,12 @@
 # 2016-05-20 update to reflect changes in staging ACME server json (0.33)
 # 2016-05-20 tidying up checking of json following AMCE changes. (0.34)
 # 2016-05-21 added AUTH_DNS_SERVER to getssl.cfg as optional definition of authoritative DNS server (0.35)
+# 2016-05-21 added DNS_WAIT to getssl.cfg as (default = 10 seconds as before) (0.36)
 # ---------------------------------------------------------------------------
 
 
 PROGNAME=${0##*/}
-VERSION="0.35"
+VERSION="0.36"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -70,6 +71,7 @@ RENEW_ALLOW="30"
 PRIVATE_KEY_ALG="rsa"
 SERVER_TYPE="webserver"
 CHECK_REMOTE="true"
+DNS_WAIT=10
 ORIG_UMASK=$(umask)
 _USE_DEBUG=0
 _CREATE_CONFIG=0
@@ -955,8 +957,8 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
       else
         if [[ $ntries -lt 100 ]]; then
           ntries=$(( ntries + 1 ))
-          info "checking DNS for ${d}. Attempt $ntries/100 gave wrong result, waiting 10 secs before checking again"
-          sleep 10
+          info "checking DNS for ${d}. Attempt $ntries/100 gave wrong result, waiting $DNS_WAIT secs before checking again"
+          sleep $DNS_WAIT
         else
           debug "dns check failed - removing existing value"
           error_exit "checking _acme-challenge.$DOMAIN gave $check_result not $auth_key"
