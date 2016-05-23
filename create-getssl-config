@@ -19,7 +19,7 @@
 # 2016-02-04 Created (v0.1)
 # 2016-02-05 Updated to include more variables. Still not full operational. (v0.2) 
 # 2016-05-04 Corrected typo on DNS_DEL_COMMAND (v0.3)
-# 2016-05-23 Added option to provide a blank response, for things like SANS.  (0.4)
+# 2016-05-23 Added option to provide a blank response, for things like SANS. (0.4)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -246,6 +246,7 @@ info ""
 info "This is an interactive script to create a config file for getssl, please answer the following questions"
 info "Just press return for using the default"
 info "enter the letter 'h' for help / more information"
+info "enter the minus character '-' to provide a completely empty response."
 info ""
 if [ -f "$WORKING_DIR/getssl.cfg" ]; then
   debug "reading main config from existing $WORKING_DIR/getssl.cfg"
