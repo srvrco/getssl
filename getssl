@@ -52,11 +52,12 @@
 # 2016-05-20 tidying up checking of json following AMCE changes. (0.34)
 # 2016-05-21 added AUTH_DNS_SERVER to getssl.cfg as optional definition of authoritative DNS server (0.35)
 # 2016-05-21 added DNS_WAIT to getssl.cfg as (default = 10 seconds as before) (0.36)
+# 2016-05-21 added PUBLIC_DNS_SERVER option, for when an external, not internal DNS server is required. (0.37)
 # ---------------------------------------------------------------------------
 
 
 PROGNAME=${0##*/}
-VERSION="0.36"
+VERSION="0.37"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -72,6 +73,7 @@ PRIVATE_KEY_ALG="rsa"
 SERVER_TYPE="webserver"
 CHECK_REMOTE="true"
 DNS_WAIT=10
+PUBLIC_DNS_SERVER=""
 ORIG_UMASK=$(umask)
 _USE_DEBUG=0
 _CREATE_CONFIG=0
@@ -864,9 +866,9 @@ for d in $alldomains; do
 
     # find a primary / authoritative DNS server for the domain
     if [ -z "$AUTH_DNS_SERVER" ]; then
-      primary_ns=$(nslookup -type=soa "${d}" | grep origin | awk '{print $3}')
+      primary_ns=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} | grep origin | awk '{print $3}')
       if [ -z "$primary_ns" ]; then
-        primary_ns=$(nslookup -type=soa "${d}" -debug=1 | grep origin | awk '{print $3}')
+        primary_ns=$(nslookup -type=soa "${d}" -debug=1 ${PUBLIC_DNS_SERVER} | grep origin | awk '{print $3}')
       fi
     else
       primary_ns="$AUTH_DNS_SERVER"
