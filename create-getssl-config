@@ -19,10 +19,11 @@
 # 2016-02-04 Created (v0.1)
 # 2016-02-05 Updated to include more variables. Still not full operational. (v0.2) 
 # 2016-05-04 Corrected typo on DNS_DEL_COMMAND (v0.3)
+# 2016-05-23 Added option to provide a blank response, for things like SANS.  (0.4)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.3"
+VERSION="0.4"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -101,6 +102,9 @@ get_user_input() {
       echo ""
       echo "$HelpInfo"
       echo ""
+    elif [[ "$response" == "-" ]]; then
+      res=""
+      validresponse="true"
     else
       res=$response
       validresponse="true"
@@ -345,7 +349,8 @@ if [[ ! -z ${REMOTE_PORT} ]]; then
 fi
 
 get_user_input "Additional domain names" "${SANS}" \
-    "this could be multiple domains / subdomains in a comma separated list"
+    "this could be multiple domains / subdomains in a comma separated list" \
+    "use the minus sign - if you don't want any SANS"
 SANS=$res
 
 get_user_input "Validate via DNS" "${VALIDATE_VIA_DNS}" \

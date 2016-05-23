@@ -253,6 +253,8 @@ write_domain_template() { # write out a template file for a domain.
 	#DNS_ADD_COMMAND=
 	#DNS_DEL_COMMAND=
 	# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
+	AUTH_DNS_SERVER=""
+	#DNS_WAIT=10
 	#DNS_EXTRA_WAIT=60
 	_EOF_domain_
 }
