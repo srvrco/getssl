@@ -85,8 +85,7 @@ _QUIET=0
 clean_up() { # Perform pre-exit housekeeping
   umask "$ORIG_UMASK"
   if [ ! -z "$DOMAIN_DIR" ]; then
-    a=1
-#    rm -rf "${TEMP_DIR:?}"
+    rm -rf "${TEMP_DIR:?}"
   fi
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then
     if [[ ! -z "$DNS_DEL_COMMAND" ]]; then
