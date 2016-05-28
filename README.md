@@ -83,8 +83,10 @@ SANS=www.example.org,example.edu,example.net,example.org,www.example.com,www.exa
 # Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
 # If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
 # An ssh key will be needed to provide you with access to the remote server.
+# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
 ACL=('/var/www/example.com/web/.well-known/acme-challenge'
-     'ssh:server5:/var/www/example.com/web/.well-known/acme-challenge')
+     'ssh:server5:/var/www/example.com/web/.well-known/acme-challenge'
+     'ftp:ftpuserid:ftppassword:example.com:/web/.well-known/acme-challenge')
 
 # Location for all your certs, these can either be on the server (so full path name) or using ssh as for the ACL
 DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
