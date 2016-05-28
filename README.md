@@ -4,7 +4,7 @@ Obtain SSL certificates from the letsencrypt.org ACME server.  Suitable for auto
 This was written in standard bash ( so can be run on a server,  a desktop computer, or even virtualbox) and add the checks, and certificates to a remote server ( providing you have an ssh key on the remote server with access).  
 
 ```
-getssl ver. 0.30
+getssl ver. 0.38
 Obtain SSL certificates from the letsencrypt.org ACME server
 
 Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-w working_dir] domain
@@ -115,6 +115,9 @@ RELOAD_CMD="service apache2 reload"
 
 if a location for a file starts with ssh:  it is assumed the next part of the file is the hostname, followed by a colon, and then the path. 
 files will be copied using scp, and it assumes that you have a key on the server ( for passwordless access).  You can set the user, port etc for the server in your .ssh/config file
+
+if an ACL starts with ftp:  it as assumed that the line is in the format "ftp:UserID:Password:someserver.com:/path/to/acme-challenge" 
+Note:  FTP can not be used for uploading private key or certificates as it's not a secure method of transfer. 
 
 ssh can also be used for the reload command if using on remote servers. 
 
