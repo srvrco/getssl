@@ -54,10 +54,11 @@
 # 2016-05-21 added DNS_WAIT to getssl.cfg as (default = 10 seconds as before) (0.36)
 # 2016-05-21 added PUBLIC_DNS_SERVER option, for when an external, not internal DNS server is required. (0.37)
 # 2016-05-28 added FTP method of uploading tokens to remote server (blocked for certs as not secure) (0.38)
+# 2016-05-28 added FTP method into the default config notes. (0.39)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.38"
+VERSION="0.39"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -229,8 +230,10 @@ write_domain_template() { # write out a template file for a domain.
 	# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
 	# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
 	# An ssh key will be needed to provide you with access to the remote server.
+	# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
 	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge')
+	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
 
 	# Location for all your certs, these can either be on the server (so full path name) or using ssh as for the ACL
 	#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
