@@ -126,10 +126,16 @@ ssh can also be used for the reload command if using on remote servers.
 
 ## Getting started
 
-The easiest way to get started is to use
+First you need to download the script.   You can either use git, or simply
 
 ```
-getssl -c yourdomain.com 
+curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl > getssl ; chmod 700 getssl
+```
+
+Once downloaded, the next step is to use
+
+```
+./getssl -c yourdomain.com 
 ```
 
 where yourdomain.com is the primary domain name that you want to create a certificate for.   This will create
