@@ -57,10 +57,11 @@
 # 2016-05-28 added FTP method into the default config notes. (0.39)
 # 2016-05-30 Add sftp with password to copy files (0.40)
 # 2016-05-30 Add version check to see if there is a more recent version of getssl (0.41)
+# 2016-05-30 Add [-u|--upgrade] option to automatically upgrade getssl (0.42)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.41"
+VERSION="0.42"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -83,6 +84,7 @@ _CREATE_CONFIG=0
 _CHECK_ALL=0
 _FORCE_RENEW=0
 _QUIET=0
+_UPGRADE=0
 
 clean_up() { # Perform pre-exit housekeeping
   umask "$ORIG_UMASK"
@@ -121,7 +123,7 @@ signal_exit() { # Handle trapped signals
 }
 
 usage() {
-  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-w working_dir] domain"
+  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-u|--upgrade] [-w working_dir] domain"
 }
 
 log() {
@@ -137,6 +139,41 @@ debug() {
 info() {
   if [ ${_QUIET} -eq 0 ]; then
     echo "$@"
+  fi
+}
+
+check_upgrade() {
+  # check if more recent version available
+  latestcode=$(curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl)
+  latestversion=$(echo "$latestcode" | grep VERSION= | head -1| awk -F'"' '{print $2}')
+  latestvdec=$(echo "$latestversion"| tr -d '.')
+  localvdec=$(echo "$VERSION"| tr -d '.' )
+  # use a default of 0 for cases where the latest code has not been obtained. 
+  if [ "${latestvdec:-0}" -gt "$localvdec" ]; then
+    info ""
+    info "A more recent version (v${latestversion}) of getssl is available, please update"
+    info "the easiest way may be either git pull (if using git) or "
+    info "curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl > $0"
+    info ""
+  fi
+}
+
+self_upgrade () {
+  latestcode=$(curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl)
+  latestversion=$(echo "$latestcode" | grep VERSION= | head -1| awk -F'"' '{print $2}')
+  latestvdec=$(echo "$latestversion"| tr -d '.')
+  localvdec=$(echo "$VERSION"| tr -d '.' )
+  # use a default of 0 for cases where the latest code has not been obtained.
+  if [ "${latestvdec:-0}" -gt "$localvdec" ]; then
+    info "Updating getssl from v${VERSION} to v${latestversion}"
+    temp_upgrade="$(mktemp)"
+    echo "$latestcode" > "$temp_upgrade"
+    install "$temp_upgrade" "$0"
+    rm -f "$temp_upgrade"
+    graceful_exit
+  else
+    debug "current version is up-to-date"
+    graceful_exit
   fi
 }
 
@@ -497,6 +534,7 @@ help_message() {
 	  -f, --force     Force renewal of cert (overrides expiry checks)
 	  -a, --all       Check all certificates
 	  -q, --quiet     Quiet mode (only outputs on error)
+	  -u, --upgrade   Upgrade getssl if more recent version available
 	  -w working_dir  Working directory
 
 	_EOF_
@@ -522,6 +560,8 @@ while [[ -n $1 ]]; do
      _CHECK_ALL=1 ;;
     -q | --quiet)
      _QUIET=1 ;;
+    -u | --upgrade)
+     _UPGRADE=1 ;;
     -w)
       shift; WORKING_DIR="$1" ;;
     -* | --*)
@@ -545,18 +585,12 @@ _requires grep
 _requires awk
 _requires tr
 
-# check if more recent version available
-latestcode=$(curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl)
-latestversion=$(echo "$latestcode" | grep VERSION= | head -1| awk -F'"' '{print $2}')
-latestvdec=$(echo "$latestversion"| tr -d '.')
-localvdec=$(echo "$VERSION"| tr -d '.' )
-if [ "$latestvdec" -gt "$localvdec" ]; then
-  info "a more recent version (v${latestversion}) of getssl is available, please update"
-  info "the easiest way may be either git update (if using git) or "
-  info "curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl > $0"
-  info ""
+# if --upgrade option is used, then attempt self-upgrade.
+if [ ${_UPGRADE} -eq 1 ]; then
+  self_upgrade
+else # perform a check and inform user if upgrade is available.
+  check_upgrade
 fi
-
 
 # if "-a" option then check other parameters and create run for each domain.
 if [ ${_CHECK_ALL} -eq 1 ]; then
