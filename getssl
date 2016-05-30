@@ -55,10 +55,11 @@
 # 2016-05-21 added PUBLIC_DNS_SERVER option, for when an external, not internal DNS server is required. (0.37)
 # 2016-05-28 added FTP method of uploading tokens to remote server (blocked for certs as not secure) (0.38)
 # 2016-05-28 added FTP method into the default config notes. (0.39)
+# 2016-05-30 Add sftp with password to copy files (0.40)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.39"
+VERSION="0.40"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -396,6 +397,23 @@ copy_file_to_location() { # copies a file, using scp if required.
       ftp -n <<- _EOF
 			open $ftphost
 			user $ftpuser $ftppass
+			cd $ftpdirn
+			lcd $fromdir
+			put $fromfile
+			_EOF
+    elif [[ "${to:0:5}" == "sftp:" ]] ; then
+      debug "using sftp to copy the file from $from"
+      ftpuser=$(echo "$to"| awk -F: '{print $2}')
+      ftppass=$(echo "$to"| awk -F: '{print $3}')
+      ftphost=$(echo "$to"| awk -F: '{print $4}')
+      ftplocn=$(echo "$to"| awk -F: '{print $5}')
+      ftpdirn=$(dirname "$ftplocn")
+      ftpfile=$(basename "$ftplocn")
+      fromdir=$(dirname "$from")
+      fromfile=$(basename "$from")
+      debug "sftp user=$ftpuser - pass=$ftppass - host=$ftphost dir=$ftpdirn file=$ftpfile"
+      debug "from dir=$fromdir  file=$fromfile"
+      sshpass -p $ftppass sftp $ftpuser@$ftphost <<- _EOF
 			cd $ftpdirn
 			lcd $fromdir
 			put $fromfile
