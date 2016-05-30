@@ -414,7 +414,7 @@ copy_file_to_location() { # copies a file, using scp if required.
       fromfile=$(basename "$from")
       debug "sftp user=$ftpuser - pass=$ftppass - host=$ftphost dir=$ftpdirn file=$ftpfile"
       debug "from dir=$fromdir  file=$fromfile"
-      sshpass -p $ftppass sftp $ftpuser@$ftphost <<- _EOF
+      sshpass -p "$ftppass" sftp "$ftpuser@$ftphost" <<- _EOF
 			cd $ftpdirn
 			lcd $fromdir
 			put $fromfile
@@ -547,8 +547,10 @@ _requires tr
 
 # check if more recent version available
 latestcode=$(curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl)
-latestversion=$(echo "$latestcode" | grep VERSION= | awk -F'"' '{print $2}')
-if [ $(echo $latestversion|tr -d '.') -gt $(echo $VERSION| tr -d '.') ]; then
+latestversion=$(echo "$latestcode" | grep VERSION= | head -1| awk -F'"' '{print $2}')
+latestvdec=$(echo "$latestversion"| tr -d '.')
+localvdec=$(echo "$VERSION"| tr -d '.' )
+if [ "$latestvdec" -gt "$localvdec" ]; then
   info "a more recent version (v${latestversion}) of getssl is available, please update"
   info "the easiest way may be either git update (if using git) or "
   info "curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl > $0"
