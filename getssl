@@ -55,10 +55,11 @@
 # 2016-05-21 added PUBLIC_DNS_SERVER option, for when an external, not internal DNS server is required. (0.37)
 # 2016-05-28 added FTP method of uploading tokens to remote server (blocked for certs as not secure) (0.38)
 # 2016-05-28 added FTP method into the default config notes. (0.39)
+# 2016-05-30 Add sftp with password to copy files (0.40)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.39"
+VERSION="0.40"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
