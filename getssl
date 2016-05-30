@@ -13,7 +13,7 @@
 # GNU General Public License at <http://www.gnu.org/licenses/> for
 # more details.
 
-# Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-w working_dir] domain
+# For usage, run "getssl -h" or see https://github.com/srvrco/getssl
 
 # Revision history:
 # 2016-01-08 Created (v0.1)
@@ -58,10 +58,11 @@
 # 2016-05-30 Add sftp with password to copy files (0.40)
 # 2016-05-30 Add version check to see if there is a more recent version of getssl (0.41)
 # 2016-05-30 Add [-u|--upgrade] option to automatically upgrade getssl (0.42)
+# 2016-05-30 Added backup when auto-upgrading (0.43)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.42"
+VERSION="0.43"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -148,11 +149,14 @@ check_upgrade() {
   latestversion=$(echo "$latestcode" | grep VERSION= | head -1| awk -F'"' '{print $2}')
   latestvdec=$(echo "$latestversion"| tr -d '.')
   localvdec=$(echo "$VERSION"| tr -d '.' )
+  debug "current code is version ${VERSION}"
+  debug "Most recent version is  ${latestversion}"
   # use a default of 0 for cases where the latest code has not been obtained. 
   if [ "${latestvdec:-0}" -gt "$localvdec" ]; then
     info ""
     info "A more recent version (v${latestversion}) of getssl is available, please update"
-    info "the easiest way may be either git pull (if using git) or "
+    info "the easiest way may be to use the -u or --upgrade option on getssl, or"
+    info "git pull (if using git) or "
     info "curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl > $0"
     info ""
   fi
@@ -165,11 +169,12 @@ self_upgrade () {
   localvdec=$(echo "$VERSION"| tr -d '.' )
   # use a default of 0 for cases where the latest code has not been obtained.
   if [ "${latestvdec:-0}" -gt "$localvdec" ]; then
-    info "Updating getssl from v${VERSION} to v${latestversion}"
     temp_upgrade="$(mktemp)"
     echo "$latestcode" > "$temp_upgrade"
+    install "$0" "${0}.v${VERSION}"
     install "$temp_upgrade" "$0"
     rm -f "$temp_upgrade"
+    info "Updated getssl from v${VERSION} to v${latestversion}"
     graceful_exit
   else
     debug "current version is up-to-date"
