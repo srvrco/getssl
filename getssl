@@ -56,10 +56,11 @@
 # 2016-05-28 added FTP method of uploading tokens to remote server (blocked for certs as not secure) (0.38)
 # 2016-05-28 added FTP method into the default config notes. (0.39)
 # 2016-05-30 Add sftp with password to copy files (0.40)
+# 2016-05-30 Add version check to see if there is a more recent version of getssl (0.41)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.40"
+VERSION="0.41"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
@@ -543,6 +544,17 @@ _requires sed
 _requires grep
 _requires awk
 _requires tr
+
+# check if more recent version available
+latestcode=$(curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl)
+latestversion=$(echo "$latestcode" | grep VERSION= | awk -F'"' '{print $2}')
+if [ $(echo $latestversion|tr -d '.') -gt $(echo $VERSION| tr -d '.') ]; then
+  info "a more recent version (v${latestversion}) of getssl is available, please update"
+  info "the easiest way may be either git update (if using git) or "
+  info "curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl > $0"
+  info ""
+fi
+
 
 # if "-a" option then check other parameters and create run for each domain.
 if [ ${_CHECK_ALL} -eq 1 ]; then
