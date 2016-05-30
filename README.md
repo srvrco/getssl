@@ -175,3 +175,13 @@ Change the server in your config file to get a fully valid certificate.
 
 Note:   Using DNS validation is now working successfully for issuing certificates. (examples provided on the wiki pages - https://github.com/srvrco/getssl/wiki/DNS-Challenge-example ) 
  
+## Automating updates
+
+I use 2 seperate crons, so my crontab looks like 
+```
+23  5 * * * /root/scripts/getssl -u -q
+47  5 * * * /root/scripts/getssl -a -q
+```
+The first cron will update getssl if there are any more recent versions available (the -u flag).   I use the -q flag so it only outputs and emails me if it has upgraded. 
+
+The second cron runs though all certificates (the -a flag) and uutomatically renews any certificates thatare due for renewal.   I use the -q flag so that it only outputs and emails me if any certificates were updated, or there was an error / issue.
