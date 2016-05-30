@@ -83,7 +83,7 @@ SANS=www.example.org,example.edu,example.net,example.org,www.example.com,www.exa
 # Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
 # If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
 # An ssh key will be needed to provide you with access to the remote server.
-# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
+# If these start with ftp: or sftp: then the next variables are userid:password:servername:ACL_location
 ACL=('/var/www/example.com/web/.well-known/acme-challenge'
      'ssh:server5:/var/www/example.com/web/.well-known/acme-challenge'
      'ftp:ftpuserid:ftppassword:example.com:/web/.well-known/acme-challenge')
@@ -118,7 +118,7 @@ RELOAD_CMD="service apache2 reload"
 if a location for a file starts with ssh:  it is assumed the next part of the file is the hostname, followed by a colon, and then the path. 
 files will be copied using scp, and it assumes that you have a key on the server ( for passwordless access).  You can set the user, port etc for the server in your .ssh/config file
 
-if an ACL starts with ftp:  it as assumed that the line is in the format "ftp:UserID:Password:someserver.com:/path/to/acme-challenge" 
+if an ACL starts with ftp: or sftp: it as assumed that the line is in the format "ftp:UserID:Password:someserver.com:/path/to/acme-challenge". sftp requires sshpass.
 Note:  FTP can not be used for uploading private key or certificates as it's not a secure method of transfer. 
 
 ssh can also be used for the reload command if using on remote servers. 
