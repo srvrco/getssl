@@ -21,7 +21,7 @@ Options:
 ```
 
 ## Features
-* **Bash** - so it runs on most linux machines.
+* **Bash** - It runs on virtually all linux machines.
 * **Get certificates for remote servers** - The tokens used to provide validation of domain ownership, and the certificates themselves can be automatically copied to remote servers (via ssh, sftp or ftp for tokens). The script doesn't need to run on the server itself. This can be useful if you don't have access to run such scripts on the server itself, as it's a shared server for example.
 * **Runs as a daily cron** - so certificates will be automatically renewed when required.
 * **Automatic certificate renewals**
@@ -186,7 +186,11 @@ I use the following cron
 ```
 23  5 * * * /root/scripts/getssl -u -a -q
 ```
-The cron will update getssl if there is a more recent version available (the -u flag). The -a flag automatically renews any certificates that are due for renewal.   I use the -q flag so that it only outputs and emails me if any certificates were updated, or there was an error / issue.
+The cron will automatically update getssl and  renew any certificates, only giving output if anything happens.
+
+* The -u flag updates getssl if there is a more recent version available.
+* The -a flag automatically renews any certificates that are due for renewal.
+* The -q flag is "quiet" so that it only outputs and emails me if any certificates were updated, or there was an error / issue.
 
 ## Issues / problems / help
 If you have any issues, please log them at https://github.com/srvrco/getssl/issues 
