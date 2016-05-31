@@ -529,7 +529,7 @@ help_message() { # print out the help message
 	  -f, --force     Force renewal of cert (overrides expiry checks)
 	  -a, --all       Check all certificates
 	  -q, --quiet     Quiet mode (only outputs on error)
-	  -u, --upgrade   Upgrade getssl if more recent version available
+	  -u, --upgrade   Upgrade getssl if a more recent version is available
 	  -w working_dir  Working directory
 
 	_EOF_
