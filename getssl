@@ -61,10 +61,11 @@
 # 2016-05-30 Added backup when auto-upgrading (0.43)
 # 2016-05-30 Improvements to auto-upgrade (0.44)
 # 2016-05-31 Improved comments - no structural changes
+# 2016-05-31 After running for nearly 6 months, final testing prior to a 1.00 stable version. (0.90)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.44"
+VERSION="0.90"
 
 ORIGCMD="$0 $*"
 
