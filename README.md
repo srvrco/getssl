@@ -187,3 +187,10 @@ I use the following cron
 23  5 * * * /root/scripts/getssl -u -a -q
 ```
 The cron will update getssl if there is a more recent version available (the -u flag). The -a flag automatically renews any certificates that are due for renewal.   I use the -q flag so that it only outputs and emails me if any certificates were updated, or there was an error / issue.
+
+## Issues / problems / help
+If you have any issues, please log them at https://github.com/srvrco/getssl/issues 
+
+There are additional help pages on the wiki - https://github.com/srvrco/getssl/wiki
+
+If you have any suggestions for improvements then pull requests are welcomed, or raise an issue.
