@@ -60,6 +60,7 @@
 # 2016-05-30 Add [-u|--upgrade] option to automatically upgrade getssl (0.42)
 # 2016-05-30 Added backup when auto-upgrading (0.43)
 # 2016-05-30 Improvements to auto-upgrade (0.44)
+# 2016-05-31 Improved comments - no structural changes
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -68,6 +69,7 @@ VERSION="0.44"
 ORIGCMD="$0 $*"
 
 # defaults
+CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
 CA="https://acme-staging.api.letsencrypt.org"
 AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 ACCOUNT_KEY_LENGTH=4096
@@ -81,6 +83,7 @@ PRIVATE_KEY_ALG="rsa"
 SERVER_TYPE="webserver"
 CHECK_REMOTE="true"
 DNS_WAIT=10
+DNS_EXTRA_WAIT=""
 PUBLIC_DNS_SERVER=""
 ORIG_UMASK=$(umask)
 _USE_DEBUG=0
@@ -100,7 +103,6 @@ clean_up() { # Perform pre-exit housekeeping
       $DNS_DEL_COMMAND "$d"
     fi
   fi
-  return
 }
 
 error_exit() { # give error message on error exit
@@ -109,7 +111,7 @@ error_exit() { # give error message on error exit
   exit 1
 }
 
-graceful_exit() {
+graceful_exit() { # normal exit function.
   clean_up
   exit
 }
@@ -126,29 +128,28 @@ signal_exit() { # Handle trapped signals
   esac
 }
 
-usage() {
-  echo -e "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-u|--upgrade] [-w working_dir] domain"
+usage() { # program usage
+  echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-u|--upgrade] [-w working_dir] domain"
 }
 
-log() {
+log() { # write info to log file with date / time stamp
      echo "[$(date +%Y-%m-%d\ %H:%M:%S)] $*" >> "${PROGNAME}.log"
 }
 
-debug() {
+debug() { # write out debug info if the debug flag has been set
   if [ ${_USE_DEBUG} -eq 1 ]; then
     echo "$@"
   fi
 }
 
-info() {
+info() { # write out info as long as the quiet flag has not been set. 
   if [ ${_QUIET} -eq 0 ]; then
     echo "$@"
   fi
 }
 
-check_upgrade() {
-  # check if more recent version available
-  latestcode=$(curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl)
+check_upgrade() { # check if a more recent version of code is available available
+  latestcode=$(curl --silent "$CODE_LOCATION")
   latestversion=$(echo "$latestcode" | grep VERSION= | head -1| awk -F'"' '{print $2}')
   latestvdec=$(echo "$latestversion"| tr -d '.')
   localvdec=$(echo "$VERSION"| tr -d '.' )
@@ -174,18 +175,15 @@ check_upgrade() {
   fi
 }
 
-urlbase64() {
-  # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
+urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
   openssl base64 -e | tr -d '\n\r' | os_sed -e 's:=*$::g' -e 'y:+/:-_:'
 }
 
-hex2bin() {
-  # Remove spaces, add leading zero, escape as hex string and parse with printf
+hex2bin() { # Remove spaces, add leading zero, escape as hex string and parse with printf
   printf -- "$(cat | os_sed -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
 }
 
-# Use different sed version for different os types...
-os_sed() {
+os_sed() { # Use different sed version for different os types...
   if [[ "$OSTYPE" == "linux-gnu" ]]; then
     sed -r "${@}"
   else
@@ -467,7 +465,7 @@ copy_file_to_location() { # copies a file, using scp if required.
   fi
 }
 
-getcr() {   # get curl response
+getcr() { # get curl response
   url="$1"
   debug url "$url"
   response=$(curl --silent "$url")
@@ -488,7 +486,7 @@ _requires() { # check if required function is available
   fi
 }
 
-cert_archive() {  # Archive certificate file by copoying with dates at end.
+cert_archive() {  # Archive certificate file by copying with dates at end.
   certfile=$1
   enddate=$(openssl x509 -in "$certfile" -noout -enddate 2>/dev/null| cut -d= -f 2-)
   formatted_enddate=$(date -d "${enddate}" +%F)
@@ -517,7 +515,7 @@ reload_service() {  # Runs a command to reload services ( via ssh if needed)
   fi
 }
 
-help_message() {
+help_message() { # print out the help message
   cat <<- _EOF_
 	$PROGNAME ver. $VERSION
 	Obtain SSL certificates from the letsencrypt.org ACME server
@@ -535,7 +533,6 @@ help_message() {
 	  -w working_dir  Working directory
 
 	_EOF_
-  return
 }
 
 # Trap signals
@@ -679,7 +676,7 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
   TEMP_DIR="$DOMAIN_DIR/tmp"
   # end of "-c|--create" option, so exit
   graceful_exit
-fi
+fi # end of "-c|--create" option to create config file.
 
 # read any variables from config in working directory
 if [ -f "$WORKING_DIR/getssl.cfg" ]; then
@@ -763,7 +760,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
   else
     info "no certificate obtained from host"
   fi
-fi
+fi # end of .... check_remote is true then connect and obtain the current certificate
 
 # if force renew is set, set the date validity checks to 365 days
 if [ $_FORCE_RENEW -eq 1 ]; then
@@ -786,7 +783,7 @@ if [ -f "$CERT_FILE" ]; then
       cert_archive "${CERT_FILE}"
     fi
   fi
-fi
+fi # end of .... f there is an existsing certificate file, check details.
 
 # create account key if it doesn't exist.
 if [ -f "$ACCOUNT_KEY" ]; then
@@ -853,8 +850,9 @@ if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
     info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not have the same domains as the config - re-create-csr"
     _RECREATE_CSR=1
   fi
-fi
+fi # end of ... check if domain csr exists - if not then create it
 
+# if CSR does not exist, or flag set to recreate, then create csr 
 if [ ! -f "$DOMAIN_DIR/${DOMAIN}.csr" ] || [ "$_RECREATE_CSR" == "1" ]; then
   debug "creating domain csr - $DOMAIN_DIR/${DOMAIN}.csr"
   openssl req -new -sha256 -key "$DOMAIN_DIR/${DOMAIN}.key" -subj "/" -reqexts SAN -config \
@@ -891,6 +889,7 @@ elif [ "$code" == '409' ] ; then
 else
   error_exit "Error registering account"
 fi
+# end of registering account with CA
 
 # verify each domain
 info "Verify each domain"
@@ -899,6 +898,7 @@ info "Verify each domain"
 alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
 dn=0
 for d in $alldomains; do
+  # $d is domain in current loop, which is number $dn for ACL
   info "Verifing $d"
   debug "domain $d has location ${ACL[$dn]}"
 
@@ -1037,8 +1037,9 @@ for d in $alldomains; do
   fi
   # increment domain-counter
   let dn=dn+1;
-done
+done # end of ... loop through domains for cert ( from SANS list)
 
+# perform validation if via DNS challenge
 if [[ $VALIDATE_VIA_DNS == "true" ]]; then
   # loop through dns-variable files to check if dns has been changed
   for dnsfile in $TEMP_DIR/dns_verify/*; do
@@ -1083,7 +1084,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
     debug "remove DNS entry"
     $DNS_DEL_COMMAND "$d"
   done
-fi
+fi # end of ... perform validation if via DNS challenge
 
 # Verification has been completed for all SANS, so  request certificate.
 info "Verification completed, obtaining certificate."
