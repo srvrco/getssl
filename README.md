@@ -4,7 +4,7 @@ Obtain SSL certificates from the letsencrypt.org ACME server.  Suitable for auto
 This was written in standard bash ( so can be run on a server,  a desktop computer, or even virtualbox) and add the checks, and certificates to a remote server ( providing you have an ssh key on the remote server with access).
 
 ```
-getssl ver. 0.42
+getssl ver. 1.00
 Obtain SSL certificates from the letsencrypt.org ACME server
 
 Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-u|--upgrade] [-w working_dir] domain

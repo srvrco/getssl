@@ -62,12 +62,11 @@
 # 2016-05-30 Improvements to auto-upgrade (0.44)
 # 2016-05-31 Improved comments - no structural changes
 # 2016-05-31 After running for nearly 6 months, final testing prior to a 1.00 stable version. (0.90)
+# 2016-06-01 Reorder functions alphabetically as part of code tidy. (0.91)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.90"
-
-ORIGCMD="$0 $*"
+VERSION="0.91"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -94,262 +93,17 @@ _FORCE_RENEW=0
 _QUIET=0
 _UPGRADE=0
 
-clean_up() { # Perform pre-exit housekeeping
-  umask "$ORIG_UMASK"
-  if [ ! -z "$DOMAIN_DIR" ]; then
-    rm -rf "${TEMP_DIR:?}"
-  fi
-  if [[ $VALIDATE_VIA_DNS == "true" ]]; then
-    if [[ ! -z "$DNS_DEL_COMMAND" ]]; then
-      $DNS_DEL_COMMAND "$d"
-    fi
-  fi
-}
+# store copy of original command in case of upgrading script and re-running
+ORIGCMD="$0 $*"
 
-error_exit() { # give error message on error exit
-  echo -e "${PROGNAME}: ${1:-"Unknown Error"}" >&2
-  clean_up
-  exit 1
-}
-
-graceful_exit() { # normal exit function.
-  clean_up
-  exit
-}
-
-signal_exit() { # Handle trapped signals
-  case $1 in
-    INT)
-      error_exit "Program interrupted by user" ;;
-    TERM)
-      echo -e "\n$PROGNAME: Program terminated" >&2
-      graceful_exit ;;
-    *)
-      error_exit "$PROGNAME: Terminating on unknown signal" ;;
-  esac
-}
-
-usage() { # program usage
-  echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-u|--upgrade] [-w working_dir] domain"
-}
-
-log() { # write info to log file with date / time stamp
-     echo "[$(date +%Y-%m-%d\ %H:%M:%S)] $*" >> "${PROGNAME}.log"
-}
-
-debug() { # write out debug info if the debug flag has been set
-  if [ ${_USE_DEBUG} -eq 1 ]; then
-    echo "$@"
-  fi
-}
-
-info() { # write out info as long as the quiet flag has not been set. 
-  if [ ${_QUIET} -eq 0 ]; then
-    echo "$@"
-  fi
-}
-
-check_upgrade() { # check if a more recent version of code is available available
-  latestcode=$(curl --silent "$CODE_LOCATION")
-  latestversion=$(echo "$latestcode" | grep VERSION= | head -1| awk -F'"' '{print $2}')
-  latestvdec=$(echo "$latestversion"| tr -d '.')
-  localvdec=$(echo "$VERSION"| tr -d '.' )
-  debug "current code is version ${VERSION}"
-  debug "Most recent version is  ${latestversion}"
-  # use a default of 0 for cases where the latest code has not been obtained. 
-  if [ "${latestvdec:-0}" -gt "$localvdec" ]; then
-    if [ ${_UPGRADE} -eq 1 ]; then
-      temp_upgrade="$(mktemp)"
-      echo "$latestcode" > "$temp_upgrade"
-      install "$0" "${0}.v${VERSION}"
-      install "$temp_upgrade" "$0"
-      rm -f "$temp_upgrade"
-      info "Updated getssl from v${VERSION} to v${latestversion}"
-      eval "$ORIGCMD"
-      graceful_exit
-    else
-      info ""
-      info "A more recent version (v${latestversion}) of getssl is available, please update"
-      info "the easiest way is to use the -u or --upgrade flag"
-      info ""
-    fi
-  fi
-}
-
-urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
-  openssl base64 -e | tr -d '\n\r' | os_sed -e 's:=*$::g' -e 'y:+/:-_:'
-}
-
-hex2bin() { # Remove spaces, add leading zero, escape as hex string and parse with printf
-  printf -- "$(cat | os_sed -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
-}
-
-os_sed() { # Use different sed version for different os types...
-  if [[ "$OSTYPE" == "linux-gnu" ]]; then
-    sed -r "${@}"
-  else
-    sed -E "${@}"
-  fi
-}
-
-write_openssl_conf() { # write out a minimal openssl conf
-  cat > "$1" <<- _EOF_openssl_conf_
-	# minimal openssl.cnf file
-	distinguished_name  = req_distinguished_name
-	[ req_distinguished_name ]
-	[v3_req]
-	[v3_ca]
-	_EOF_openssl_conf_
-}
-
-write_getssl_template() { # write out the main template file
-  cat > "$1" <<- _EOF_getssl_
-	# Uncomment and modify any variables you need
-	# The staging server is best for testing (hence set as default)
-	CA="https://acme-staging.api.letsencrypt.org"
-	# This server issues full certificates, however has rate limits
-	#CA="https://acme-v01.api.letsencrypt.org"
-
-	AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
-
-	# Set an email address associated with your account - generally set at account level rather than domain.
-	#ACCOUNT_EMAIL="me@example.com"
-	ACCOUNT_KEY_LENGTH=4096
-	ACCOUNT_KEY="$WORKING_DIR/account.key"
-	PRIVATE_KEY_ALG="rsa"
-
-	# The command needed to reload apache / nginx or whatever you use
-	#RELOAD_CMD=""
-	# The time period within which you want to allow renewal of a certificate
-	#  this prevents hitting some of the rate limits.
-	RENEW_ALLOW="30"
-
-	# Define the server type.  This can either be a webserver, ldaps or a port number which
-	# will be checked for certificate expiry and also will be checked after
-	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
-	SERVER_TYPE="webserver"
-	CHECK_REMOTE="true"
-
-	# openssl config file.  The default should work in most cases.
-	SSLCONF="$SSLCONF"
-
-	# Use the following 3 variables if you want to validate via DNS
-	#VALIDATE_VIA_DNS="true"
-	#DNS_ADD_COMMAND=
-	#DNS_DEL_COMMAND=
-	# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
-	#DNS_EXTRA_WAIT=60
-	_EOF_getssl_
-}
-
-write_domain_template() { # write out a template file for a domain.
-  cat > "$1" <<- _EOF_domain_
-	# Uncomment and modify any variables you need
-	# The staging server is best for testing
-	#CA="https://acme-staging.api.letsencrypt.org"
-	# This server issues full certificates, however has rate limits
-	#CA="https://acme-v01.api.letsencrypt.org"
-
-	#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
-
-	# Set an email address associated with your account - generally set at account level rather than domain.
-	#ACCOUNT_EMAIL="me@example.com"
-	#ACCOUNT_KEY_LENGTH=4096
-	#ACCOUNT_KEY="$WORKING_DIR/account.key"
-	PRIVATE_KEY_ALG="rsa"
-
-	# Additional domains - this could be multiple domains / subdomains in a comma separated list
-	SANS=${EX_SANS}
-
-	# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
-	# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
-	# An ssh key will be needed to provide you with access to the remote server.
-	# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
-	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
-
-	# Location for all your certs, these can either be on the server (so full path name) or using ssh as for the ACL
-	#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
-	#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
-	#CA_CERT_LOCATION="/etc/ssl/chain.crt"
-	#DOMAIN_CHAIN_LOCATION="" this is the domain cert and CA cert
-	#DOMAIN_PEM_LOCATION="" this is the domain_key. domain cert and CA cert
-
-	# The command needed to reload apache / nginx or whatever you use
-	#RELOAD_CMD=""
-	# The time period within which you want to allow renewal of a certificate
-	#  this prevents hitting some of the rate limits.
-	RENEW_ALLOW="30"
-
-	# Define the server type.  This can either be a webserver, ldaps or a port number which
-	# will be checked for certificate expiry and also will be checked after
-	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
-	#SERVER_TYPE="webserver"
-	#CHECK_REMOTE="true"
-
-	# Use the following 3 variables if you want to validate via DNS
-	#VALIDATE_VIA_DNS="true"
-	#DNS_ADD_COMMAND=
-	#DNS_DEL_COMMAND=
-	# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
-	AUTH_DNS_SERVER=""
-	#DNS_WAIT=10
-	#DNS_EXTRA_WAIT=60
-	_EOF_domain_
-}
-
-send_signed_request() { # Sends a request to the ACME server, signed with your private key.
-  url=$1
-  payload=$2
-  needbase64=$3
-
-  debug url "$url"
-  debug payload "$payload"
-
-  CURL_HEADER="$TEMP_DIR/curl.header"
-  dp="$TEMP_DIR/curl.dump"
-  CURL="curl --silent --dump-header $CURL_HEADER "
-  if [ ${_USE_DEBUG} -eq 1 ]; then
-    CURL="$CURL --trace-ascii $dp "
-  fi
-
-  # convert payload to url base 64
-  payload64="$(printf '%s' "${payload}" | urlbase64)"
-  debug payload64 "$payload64"
-
-  # get nonce from ACME server
-  nonceurl="$CA/directory"
-  nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | sed s/\\r//|sed s/\\n//| cut -d ' ' -f 2)
-
-  debug nonce "$nonce"
-
-  # Build header with just our public key and algorithm information
-  header='{"alg": "RS256", "jwk": {"e": "'"${pub_exp64}"'", "kty": "RSA", "n": "'"${pub_mod64}"'"}}'
-
-  # Build another header which also contains the previously received nonce and encode it as urlbase64
-  protected='{"alg": "RS256", "jwk": {"e": "'"${pub_exp64}"'", "kty": "RSA", "n": "'"${pub_mod64}"'"}, "nonce": "'"${nonce}"'"}'
-  protected64="$(printf '%s' "${protected}" | urlbase64)"
-  debug protected "$protected"
-
-  # Sign header with nonce and our payload with our private key and encode signature as urlbase64
-  signed64="$(printf '%s' "${protected64}.${payload64}" | openssl dgst -sha256 -sign "${ACCOUNT_KEY}" | urlbase64)"
-
-  # Send header + extended header + payload + signature to the acme-server
-  body='{"header": '"${header}"', "protected": "'"${protected64}"'", "payload": "'"${payload64}"'", "signature": "'"${signed64}"'"}'
-  debug "data for account registration = $body"
-
-  if [ "$needbase64" ] ; then
-    response=$($CURL -X POST --data "$body" "$url" | urlbase64)
-  else
-    response=$($CURL -X POST --data "$body" "$url")
-  fi
-
-  responseHeaders=$(sed 's/\r//g' "$CURL_HEADER")
-  debug responseHeaders "$responseHeaders"
-  debug response  "$response"
-  code=$(grep ^HTTP "$CURL_HEADER" | tail -1 | cut -d " " -f 2)
-  debug code "$code"
+cert_archive() {  # Archive certificate file by copying with dates at end.
+  certfile=$1
+  enddate=$(openssl x509 -in "$certfile" -noout -enddate 2>/dev/null| cut -d= -f 2-)
+  formatted_enddate=$(date -d "${enddate}" +%F)
+  startdate=$(openssl x509 -in "$certfile" -noout -startdate 2>/dev/null| cut -d= -f 2-)
+  formatted_startdate=$(date -d "${startdate}" +%F)
+  mv "${certfile}" "${certfile}_${formatted_startdate}_${formatted_enddate}"
+  info "archiving old certificate file to ${certfile}_${formatted_startdate}_${formatted_enddate}"
 }
 
 check_challenge_completion() { # checks with the ACME server if our challenge is OK
@@ -397,6 +151,45 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
     debug "sleep 5 secs before testing verify again"
     sleep 5
   done
+}
+
+check_upgrade() { # check if a more recent version of code is available available
+  latestcode=$(curl --silent "$CODE_LOCATION")
+  latestversion=$(echo "$latestcode" | grep VERSION= | head -1| awk -F'"' '{print $2}')
+  latestvdec=$(echo "$latestversion"| tr -d '.')
+  localvdec=$(echo "$VERSION"| tr -d '.' )
+  debug "current code is version ${VERSION}"
+  debug "Most recent version is  ${latestversion}"
+  # use a default of 0 for cases where the latest code has not been obtained. 
+  if [ "${latestvdec:-0}" -gt "$localvdec" ]; then
+    if [ ${_UPGRADE} -eq 1 ]; then
+      temp_upgrade="$(mktemp)"
+      echo "$latestcode" > "$temp_upgrade"
+      install "$0" "${0}.v${VERSION}"
+      install "$temp_upgrade" "$0"
+      rm -f "$temp_upgrade"
+      info "Updated getssl from v${VERSION} to v${latestversion}"
+      eval "$ORIGCMD"
+      graceful_exit
+    else
+      info ""
+      info "A more recent version (v${latestversion}) of getssl is available, please update"
+      info "the easiest way is to use the -u or --upgrade flag"
+      info ""
+    fi
+  fi
+}
+
+clean_up() { # Perform pre-exit housekeeping
+  umask "$ORIG_UMASK"
+  if [ ! -z "$DOMAIN_DIR" ]; then
+    rm -rf "${TEMP_DIR:?}"
+  fi
+  if [[ $VALIDATE_VIA_DNS == "true" ]]; then
+    if [[ ! -z "$DNS_DEL_COMMAND" ]]; then
+      $DNS_DEL_COMMAND "$d"
+    fi
+  fi
 }
 
 copy_file_to_location() { # copies a file, using scp if required.
@@ -466,6 +259,18 @@ copy_file_to_location() { # copies a file, using scp if required.
   fi
 }
 
+debug() { # write out debug info if the debug flag has been set
+  if [ ${_USE_DEBUG} -eq 1 ]; then
+    echo "$@"
+  fi
+}
+
+error_exit() { # give error message on error exit
+  echo -e "${PROGNAME}: ${1:-"Unknown Error"}" >&2
+  clean_up
+  exit 1
+}
+
 getcr() { # get curl response
   url="$1"
   debug url "$url"
@@ -479,22 +284,47 @@ getcr() { # get curl response
   return $ret
 }
 
-_requires() { # check if required function is available
-  result=$(which "$1" 2>/dev/null)
-  debug "checking for required $1 ... $result"
-  if [ -z "$result" ]; then
-    error_exit "This script requires $1 installed"
+graceful_exit() { # normal exit function.
+  clean_up
+  exit
+}
+
+help_message() { # print out the help message
+  cat <<- _EOF_
+	$PROGNAME ver. $VERSION
+	Obtain SSL certificates from the letsencrypt.org ACME server
+
+	$(usage)
+
+	Options:
+	  -h, --help      Display this help message and exit
+	  -d, --debug     Outputs debug information
+	  -c, --create    Create default config files
+	  -f, --force     Force renewal of cert (overrides expiry checks)
+	  -a, --all       Check all certificates
+	  -q, --quiet     Quiet mode (only outputs on error)
+	  -u, --upgrade   Upgrade getssl if a more recent version is available
+	  -w working_dir  Working directory
+
+	_EOF_
+}
+
+hex2bin() { # Remove spaces, add leading zero, escape as hex string and parse with printf
+  printf -- "$(cat | os_sed -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
+}
+
+info() { # write out info as long as the quiet flag has not been set. 
+  if [ ${_QUIET} -eq 0 ]; then
+    echo "$@"
   fi
 }
 
-cert_archive() {  # Archive certificate file by copying with dates at end.
-  certfile=$1
-  enddate=$(openssl x509 -in "$certfile" -noout -enddate 2>/dev/null| cut -d= -f 2-)
-  formatted_enddate=$(date -d "${enddate}" +%F)
-  startdate=$(openssl x509 -in "$certfile" -noout -startdate 2>/dev/null| cut -d= -f 2-)
-  formatted_startdate=$(date -d "${startdate}" +%F)
-  mv "${certfile}" "${certfile}_${formatted_startdate}_${formatted_enddate}"
-  info "archiving old certificate file to ${certfile}_${formatted_startdate}_${formatted_enddate}"
+os_sed() { # Use different sed version for different os types...
+  if [[ "$OSTYPE" == "linux-gnu" ]]; then
+    sed -r "${@}"
+  else
+    sed -E "${@}"
+  fi
 }
 
 reload_service() {  # Runs a command to reload services ( via ssh if needed)
@@ -516,24 +346,192 @@ reload_service() {  # Runs a command to reload services ( via ssh if needed)
   fi
 }
 
-help_message() { # print out the help message
-  cat <<- _EOF_
-	$PROGNAME ver. $VERSION
-	Obtain SSL certificates from the letsencrypt.org ACME server
+requires() { # check if required function is available
+  result=$(which "$1" 2>/dev/null)
+  debug "checking for required $1 ... $result"
+  if [ -z "$result" ]; then
+    error_exit "This script requires $1 installed"
+  fi
+}
 
-	$(usage)
+send_signed_request() { # Sends a request to the ACME server, signed with your private key.
+  url=$1
+  payload=$2
+  needbase64=$3
 
-	Options:
-	  -h, --help      Display this help message and exit
-	  -d, --debug     Outputs debug information
-	  -c, --create    Create default config files
-	  -f, --force     Force renewal of cert (overrides expiry checks)
-	  -a, --all       Check all certificates
-	  -q, --quiet     Quiet mode (only outputs on error)
-	  -u, --upgrade   Upgrade getssl if a more recent version is available
-	  -w working_dir  Working directory
+  debug url "$url"
+  debug payload "$payload"
 
-	_EOF_
+  CURL_HEADER="$TEMP_DIR/curl.header"
+  dp="$TEMP_DIR/curl.dump"
+  CURL="curl --silent --dump-header $CURL_HEADER "
+  if [ ${_USE_DEBUG} -eq 1 ]; then
+    CURL="$CURL --trace-ascii $dp "
+  fi
+
+  # convert payload to url base 64
+  payload64="$(printf '%s' "${payload}" | urlbase64)"
+  debug payload64 "$payload64"
+
+  # get nonce from ACME server
+  nonceurl="$CA/directory"
+  nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | sed s/\\r//|sed s/\\n//| cut -d ' ' -f 2)
+
+  debug nonce "$nonce"
+
+  # Build header with just our public key and algorithm information
+  header='{"alg": "RS256", "jwk": {"e": "'"${pub_exp64}"'", "kty": "RSA", "n": "'"${pub_mod64}"'"}}'
+
+  # Build another header which also contains the previously received nonce and encode it as urlbase64
+  protected='{"alg": "RS256", "jwk": {"e": "'"${pub_exp64}"'", "kty": "RSA", "n": "'"${pub_mod64}"'"}, "nonce": "'"${nonce}"'"}'
+  protected64="$(printf '%s' "${protected}" | urlbase64)"
+  debug protected "$protected"
+
+  # Sign header with nonce and our payload with our private key and encode signature as urlbase64
+  signed64="$(printf '%s' "${protected64}.${payload64}" | openssl dgst -sha256 -sign "${ACCOUNT_KEY}" | urlbase64)"
+
+  # Send header + extended header + payload + signature to the acme-server
+  body='{"header": '"${header}"', "protected": "'"${protected64}"'", "payload": "'"${payload64}"'", "signature": "'"${signed64}"'"}'
+  debug "data for account registration = $body"
+
+  if [ "$needbase64" ] ; then
+    response=$($CURL -X POST --data "$body" "$url" | urlbase64)
+  else
+    response=$($CURL -X POST --data "$body" "$url")
+  fi
+
+  responseHeaders=$(sed 's/\r//g' "$CURL_HEADER")
+  debug responseHeaders "$responseHeaders"
+  debug response  "$response"
+  code=$(grep ^HTTP "$CURL_HEADER" | tail -1 | cut -d " " -f 2)
+  debug code "$code"
+}
+
+signal_exit() { # Handle trapped signals
+  case $1 in
+    INT)
+      error_exit "Program interrupted by user" ;;
+    TERM)
+      echo -e "\n$PROGNAME: Program terminated" >&2
+      graceful_exit ;;
+    *)
+      error_exit "$PROGNAME: Terminating on unknown signal" ;;
+  esac
+}
+
+urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
+  openssl base64 -e | tr -d '\n\r' | os_sed -e 's:=*$::g' -e 'y:+/:-_:'
+}
+
+usage() { # program usage
+  echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-u|--upgrade] [-w working_dir] domain"
+}
+
+write_domain_template() { # write out a template file for a domain.
+  cat > "$1" <<- _EOF_domain_
+	# Uncomment and modify any variables you need
+	# The staging server is best for testing
+	#CA="https://acme-staging.api.letsencrypt.org"
+	# This server issues full certificates, however has rate limits
+	#CA="https://acme-v01.api.letsencrypt.org"
+
+	#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+
+	# Set an email address associated with your account - generally set at account level rather than domain.
+	#ACCOUNT_EMAIL="me@example.com"
+	#ACCOUNT_KEY_LENGTH=4096
+	#ACCOUNT_KEY="$WORKING_DIR/account.key"
+	PRIVATE_KEY_ALG="rsa"
+
+	# Additional domains - this could be multiple domains / subdomains in a comma separated list
+	SANS=${EX_SANS}
+
+	# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
+	# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
+	# An ssh key will be needed to provide you with access to the remote server.
+	# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
+	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
+
+	# Location for all your certs, these can either be on the server (so full path name) or using ssh as for the ACL
+	#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
+	#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
+	#CA_CERT_LOCATION="/etc/ssl/chain.crt"
+	#DOMAIN_CHAIN_LOCATION="" this is the domain cert and CA cert
+	#DOMAIN_PEM_LOCATION="" this is the domain_key. domain cert and CA cert
+
+	# The command needed to reload apache / nginx or whatever you use
+	#RELOAD_CMD=""
+	# The time period within which you want to allow renewal of a certificate
+	#  this prevents hitting some of the rate limits.
+	RENEW_ALLOW="30"
+
+	# Define the server type.  This can either be a webserver, ldaps or a port number which
+	# will be checked for certificate expiry and also will be checked after
+	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+	#SERVER_TYPE="webserver"
+	#CHECK_REMOTE="true"
+
+	# Use the following 3 variables if you want to validate via DNS
+	#VALIDATE_VIA_DNS="true"
+	#DNS_ADD_COMMAND=
+	#DNS_DEL_COMMAND=
+	# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
+	AUTH_DNS_SERVER=""
+	#DNS_WAIT=10
+	#DNS_EXTRA_WAIT=60
+	_EOF_domain_
+}
+
+write_getssl_template() { # write out the main template file
+  cat > "$1" <<- _EOF_getssl_
+	# Uncomment and modify any variables you need
+	# The staging server is best for testing (hence set as default)
+	CA="https://acme-staging.api.letsencrypt.org"
+	# This server issues full certificates, however has rate limits
+	#CA="https://acme-v01.api.letsencrypt.org"
+
+	AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+
+	# Set an email address associated with your account - generally set at account level rather than domain.
+	#ACCOUNT_EMAIL="me@example.com"
+	ACCOUNT_KEY_LENGTH=4096
+	ACCOUNT_KEY="$WORKING_DIR/account.key"
+	PRIVATE_KEY_ALG="rsa"
+
+	# The command needed to reload apache / nginx or whatever you use
+	#RELOAD_CMD=""
+	# The time period within which you want to allow renewal of a certificate
+	#  this prevents hitting some of the rate limits.
+	RENEW_ALLOW="30"
+
+	# Define the server type.  This can either be a webserver, ldaps or a port number which
+	# will be checked for certificate expiry and also will be checked after
+	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+	SERVER_TYPE="webserver"
+	CHECK_REMOTE="true"
+
+	# openssl config file.  The default should work in most cases.
+	SSLCONF="$SSLCONF"
+
+	# Use the following 3 variables if you want to validate via DNS
+	#VALIDATE_VIA_DNS="true"
+	#DNS_ADD_COMMAND=
+	#DNS_DEL_COMMAND=
+	# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
+	#DNS_EXTRA_WAIT=60
+	_EOF_getssl_
+}
+
+write_openssl_conf() { # write out a minimal openssl conf
+  cat > "$1" <<- _EOF_openssl_conf_
+	# minimal openssl.cnf file
+	distinguished_name  = req_distinguished_name
+	[ req_distinguished_name ]
+	[v3_req]
+	[v3_ca]
+	_EOF_openssl_conf_
 }
 
 # Trap signals
@@ -572,13 +570,13 @@ done
 
 #check if required applications are included
 
-_requires openssl
-_requires curl
-_requires nslookup
-_requires sed
-_requires grep
-_requires awk
-_requires tr
+requires openssl
+requires curl
+requires nslookup
+requires sed
+requires grep
+requires awk
+requires tr
 
 # Check if upgrades are available
 check_upgrade
