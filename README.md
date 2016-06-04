@@ -178,7 +178,7 @@ copying private key to ssh:server5:/home/yourdomain/ssl/domain.key
 copying CA certificate to ssh:server5:/home/yourdomain/ssl/chain.crt
 reloading SSL services
 ```
-This will (by default) used the staging server, so should give you a certificate that isn't trusted ( Fake Let's Encrypt).
+This will (by default) use the staging server, so should give you a certificate that isn't trusted ( Fake Let's Encrypt).
 Change the server in your config file to get a fully valid certificate. 
 
 Note:   Using DNS validation is now working successfully for issuing certificates. (examples provided on the wiki pages - https://github.com/srvrco/getssl/wiki/DNS-Challenge-example ) 
@@ -189,11 +189,11 @@ I use the following cron
 ```
 23  5 * * * /root/scripts/getssl -u -a -q
 ```
-The cron will automatically update getssl and  renew any certificates, only giving output if anything happens.
+The cron will automatically update getssl and  renew any certificates, only giving output if there are issues / errors.
 
 * The -u flag updates getssl if there is a more recent version available.
 * The -a flag automatically renews any certificates that are due for renewal.
-* The -q flag is "quiet" so that it only outputs and emails me if any certificates were updated, or there was an error / issue.
+* The -q flag is "quiet" so that it only outputs and emails me if there was an error / issue.
 
 ## Issues / problems / help
 If you have any issues, please log them at https://github.com/srvrco/getssl/issues 
