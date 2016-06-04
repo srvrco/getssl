@@ -19,7 +19,7 @@ Since the script is only one file, you can use the command
 ```
 curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl > getssl ; chmod 700 getssl
 ```
-Which will copy the getssl bash script to the current location and change the permission sto make it executable for you.
+Which will copy the getssl bash script to the current location and change the permissions to make it executable for you.
 
 Alternative you can use git
 ```
