@@ -63,10 +63,11 @@
 # 2016-05-31 Improved comments - no structural changes
 # 2016-05-31 After running for nearly 6 months, final testing prior to a 1.00 stable version. (0.90)
 # 2016-06-01 Reorder functions alphabetically as part of code tidy. (0.91)
+# 2016-06-03 Version 1.0 of code for release (1.00)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.91"
+VERSION="1.00"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -153,7 +154,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
   done
 }
 
-check_upgrade() { # check if a more recent version of code is available available
+check_getssl_upgrade() { # check if a more recent version of code is available available
   latestcode=$(curl --silent "$CODE_LOCATION")
   latestversion=$(echo "$latestcode" | grep VERSION= | head -1| awk -F'"' '{print $2}')
   latestvdec=$(echo "$latestversion"| tr -d '.')
@@ -477,8 +478,7 @@ write_domain_template() { # write out a template file for a domain.
 	#VALIDATE_VIA_DNS="true"
 	#DNS_ADD_COMMAND=
 	#DNS_DEL_COMMAND=
-	# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
-	AUTH_DNS_SERVER=""
+	#AUTH_DNS_SERVER=""
 	#DNS_WAIT=10
 	#DNS_EXTRA_WAIT=60
 	_EOF_domain_
@@ -519,7 +519,8 @@ write_getssl_template() { # write out the main template file
 	#VALIDATE_VIA_DNS="true"
 	#DNS_ADD_COMMAND=
 	#DNS_DEL_COMMAND=
-	# If your DNS-server needs extra time to make sure your DNS changes are readable by the ACME-server (time in seconds)
+	#AUTH_DNS_SERVER=""
+	#DNS_WAIT=10
 	#DNS_EXTRA_WAIT=60
 	_EOF_getssl_
 }
@@ -579,7 +580,7 @@ requires awk
 requires tr
 
 # Check if upgrades are available
-check_upgrade
+check_getssl_upgrade
 
 # if "-a" option then check other parameters and create run for each domain.
 if [ ${_CHECK_ALL} -eq 1 ]; then
@@ -596,10 +597,10 @@ if [ ${_CHECK_ALL} -eq 1 ]; then
   if [ ! -d "$WORKING_DIR" ]; then
     error_exit "working dir not found or not set - $WORKING_DIR"
   fi
+
   for dir in ${WORKING_DIR}/*; do
     if [ -d "$dir" ]; then
       debug "Checking $dir"
-
       cmd="$0 -w '$WORKING_DIR'"
       if [ ${_USE_DEBUG} -eq 1 ]; then
         cmd="$cmd -d"
@@ -717,7 +718,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
   debug "getting certificate for $DOMAIN from remote server"
   EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" 2>/dev/null | openssl x509 2>/dev/null)
   if [ ! -z "$EX_CERT" ]; then # if obtained a cert
-    if [ -f "$CERT_FILE" ]; then #if local exists
+    if [ -f "$CERT_FILE" ]; then # if local exists
       CERT_REMOTE=$(echo "$EX_CERT" | openssl x509 -noout -fingerprint 2>/dev/null)
       CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
       if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
@@ -749,16 +750,16 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
             reload_service
           fi
         else
-          info "Certificate on remote domain does not match domain, ignoring current remote certificate"
+          info "Certificate on remote domain does not match domain, ignoring remote certificate"
         fi
       fi
     else # local cert doesn't exist"
       debug "local certificate doesn't exist, saving a copy from remote"
       echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
-    fi
+    fi # end of .... if local exists
   else
     info "no certificate obtained from host"
-  fi
+  fi # end of .... if obtained a cert
 fi # end of .... check_remote is true then connect and obtain the current certificate
 
 # if force renew is set, set the date validity checks to 365 days
@@ -782,7 +783,7 @@ if [ -f "$CERT_FILE" ]; then
       cert_archive "${CERT_FILE}"
     fi
   fi
-fi # end of .... f there is an existsing certificate file, check details.
+fi # end of .... if there is an existsing certificate file, check details.
 
 # create account key if it doesn't exist.
 if [ -f "$ACCOUNT_KEY" ]; then
