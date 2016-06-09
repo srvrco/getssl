@@ -23,7 +23,7 @@ Which will copy the getssl bash script to the current location and change the pe
 
 Alternative you can use git
 ```
-git clone git@github.com:srvrco/getssl.git
+git clone https://github.com/srvrco/getssl.git
 ```
 
 ## Overview
