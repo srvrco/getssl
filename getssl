@@ -836,16 +836,15 @@ fi
 if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
   debug "domain csr exists at - $DOMAIN_DIR/${DOMAIN}.csr"
   # check all domains in config are in csr
-  alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
+  alldomains=$(echo "$DOMAIN,$SANS" | tr -d " " |tr , '\n')
+  domains_in_csr=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr" |grep "DNS:.*" |tr -d "DNS:" |tr -d " " |tr , '\n')
   for d in $alldomains; do
-    domain_in_csr=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr" | grep -o "DNS:${d}")
-    if [ "$domain_in_csr" != "DNS:${d}" ]; then
-      info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not contain ${d} - re-create-csr"
+    if [ "$(echo "${domains_in_csr}"| grep "^${d}$")" != "${d}" ]; then
+      info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not contain ${d} - re-create-csr .... $(echo "${list_domains_in_csr}"| grep "^${d}$")"
       _RECREATE_CSR=1
     fi
   done
   # check all domains in csr are in config
-  domains_in_csr=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr" | grep -o 'DNS:.*' | sed s/'DNS:'/''/g | sed s/', '/' '/g)
   if [ "$alldomains" != "$domains_in_csr" ]; then
     info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not have the same domains as the config - re-create-csr"
     _RECREATE_CSR=1
