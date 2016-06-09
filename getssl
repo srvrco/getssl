@@ -64,10 +64,11 @@
 # 2016-05-31 After running for nearly 6 months, final testing prior to a 1.00 stable version. (0.90)
 # 2016-06-01 Reorder functions alphabetically as part of code tidy. (0.91)
 # 2016-06-03 Version 1.0 of code for release (1.00)
+# 2016-06-09 bugfix of issue 44, and add success statement (ignoring quiet flag) (1.01)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.00"
+VERSION="1.01"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -1140,5 +1141,8 @@ if [[ ${CHECK_REMOTE} == "true" ]]; then
     error_exit "certificate on server is different from local certificate"
   fi
 fi
+
+# To have reached here, a certificate should have been successfully obtained.  Ese echo rather than info so that 'quiet' is ignored.
+echo "certificate obtained for ${DOMAIN}"
 
 graceful_exit
