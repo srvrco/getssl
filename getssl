@@ -947,6 +947,9 @@ for d in $alldomains; do
 
     debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
     $DNS_ADD_COMMAND "$d" "$auth_key"
+    if [ $? -gt 0 ]; then
+      error_exit "DNS_ADD_COMMAND failed for domain $d"
+    fi
 
     # find a primary / authoritative DNS server for the domain
     if [ -z "$AUTH_DNS_SERVER" ]; then
