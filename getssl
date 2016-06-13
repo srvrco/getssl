@@ -191,7 +191,7 @@ clean_up() { # Perform pre-exit housekeeping
     rm -rf "${TEMP_DIR:?}"
   fi
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then
-    # Tidy up DNS etries if things failed part way though. 
+    # Tidy up DNS entries if things failed part way though. 
     shopt -s nullglob
     for dnsfile in $TEMP_DIR/dns_verify/*; do
       . "$dnsfile"
