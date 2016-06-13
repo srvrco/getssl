@@ -190,6 +190,7 @@ clean_up() { # Perform pre-exit housekeeping
     rm -rf "${TEMP_DIR:?}"
   fi
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then
+    # Tidy up DNS etries if things failed part way though. 
     shopt -s nullglob
     for dnsfile in $TEMP_DIR/dns_verify/*; do
       . "$dnsfile"
@@ -1092,6 +1093,8 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
 
     debug "remove DNS entry"
     $DNS_DEL_COMMAND "$d"
+    # remove $dnsfile after each loop.
+    rm -f "$dnsfile"
   done
 fi # end of ... perform validation if via DNS challenge
 
