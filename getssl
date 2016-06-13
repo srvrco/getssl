@@ -190,9 +190,13 @@ clean_up() { # Perform pre-exit housekeeping
     rm -rf "${TEMP_DIR:?}"
   fi
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then
-    if [[ ! -z "$DNS_DEL_COMMAND" ]]; then
+    shopt -s nullglob
+    for dnsfile in $TEMP_DIR/dns_verify/*; do
+      . "$dnsfile"
+      debug "attempting to clean up DNS entry for $d"
       $DNS_DEL_COMMAND "$d"
-    fi
+    done
+    shopt -u nullglob
   fi
 }
 
@@ -843,7 +847,7 @@ if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
   domains_in_csr=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr" |grep "DNS:.*" |tr -d "DNS:" |tr -d " " |tr , '\n')
   for d in $alldomains; do
     if [ "$(echo "${domains_in_csr}"| grep "^${d}$")" != "${d}" ]; then
-      info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not contain ${d} - re-create-csr .... $(echo "${list_domains_in_csr}"| grep "^${d}$")"
+      info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not contain ${d} - re-create-csr .... $(echo "${domains_in_csr}"| grep "^${d}$")"
       _RECREATE_CSR=1
     fi
   done
