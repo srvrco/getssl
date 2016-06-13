@@ -65,10 +65,11 @@
 # 2016-06-01 Reorder functions alphabetically as part of code tidy. (0.91)
 # 2016-06-03 Version 1.0 of code for release (1.00)
 # 2016-06-09 bugfix of issue 44, and add success statement (ignoring quiet flag) (1.01)
+# 2016-06-13 test return status of DNS_ADD_COMMAND and error_exit if a problem (hadleyrich) (1.02)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.01"
+VERSION="1.02"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
