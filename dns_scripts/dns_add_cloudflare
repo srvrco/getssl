@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# need to add your email address and key to cloudflare below
+email=""
+key=""
+
+fulldomain="$1"
+token="$2"
+
+NumParts=$(echo "$fulldomain" | awk -F"." '{print NF}')
+if [[ $NumParts -gt 2 ]]; then
+  domain=$(echo "$fulldomain" | awk -F\. '{print $(NF-1) FS $NF}')
+  txtname="_acme-challenge$(echo $fulldomain | awk -F\. '{for (i=1; i<NF-1; i++) printf "." $i}')"
+else
+  domain=$fulldomain
+  txtname="_acme-challenge"
+fi
+
+response=$(curl --silent -X GET "https://api.cloudflare.com/client/v4/zones?name=${domain}&match=all" \
+  -H "X-Auth-Email: ${email}" -H "X-Auth-Key: ${key}" -H "Content-Type: application/json")
+
+domain_id=$(echo "$response" | egrep -o  "{[^{]*\"name\":\"${domain}\"[^}]*"|grep -oP '\"id\":"\K[^"]+')
+
+response=$(curl --silent -X POST "https://api.cloudflare.com/client/v4/zones/${domain_id}/dns_records" \
+  -H "X-Auth-Email: ${email}" -H "X-Auth-Key: ${key}" -H "Content-Type: application/json" \
+  --data "{\"type\":\"TXT\",\"name\":\"${txtname}\",\"content\":\"$token\",\"ttl\":300}")
