@@ -68,10 +68,11 @@
 # 2016-06-13 test return status of DNS_ADD_COMMAND and error_exit if a problem (hadleyrich) (1.02)
 # 2016-06-13 bugfix of issue 45, problem with SERVER_TYPE when it's just a port number (1.03)
 # 2016-06-13 bugfix issue 47 - DNS_DEL_COMMAND cleanup was run when not required. (1.04)
+# 2016-06-15 add error checking on RELOAD_CMD (1.05)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.04"
+VERSION="1.05"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -352,6 +353,9 @@ reload_service() {  # Runs a command to reload services ( via ssh if needed)
     else
       debug "running reload command $RELOAD_CMD"
       $RELOAD_CMD
+      if [ $? -gt 0 ]; then
+        error_exit "error running $RELOAD_CMD"
+      fi
     fi
   fi
 }
