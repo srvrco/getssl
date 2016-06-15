@@ -66,7 +66,7 @@ AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 # Set an email address associated with your account - generally set at account level rather than domain.
 ACCOUNT_EMAIL="me@example.com"
 ACCOUNT_KEY_LENGTH=4096
-ACCOUNT_KEY="/home/me/.getssl/account.key"
+ACCOUNT_KEY="/home/user/.getssl/account.key"
 PRIVATE_KEY_ALG="rsa"
 
 # The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
@@ -90,7 +90,7 @@ then, within the **working directory** there will be a folder for each certifica
 # Set an email address associated with your account - generally set at account level rather than domain.
 #ACCOUNT_EMAIL="me@example.com"
 #ACCOUNT_KEY_LENGTH=4096
-#ACCOUNT_KEY="/home/andy/.getssl/account.key"
+#ACCOUNT_KEY="/home/user/.getssl/account.key"
 PRIVATE_KEY_ALG="rsa"
 
 # Additional domains - this could be multiple domains / subdomains in a comma separated list
@@ -172,7 +172,7 @@ Verifing www.yourdomain.com
 Verified www.yourdomain.com
 Verification completed, obtaining certificate.
 Certificate saved in /home/user/.getssl/yourdomain.com/yourdomain.com.crt
-The intermediate CA cert is in /home/andy/.getssl/yourdomain.com/chain.crt
+The intermediate CA cert is in /home/user/.getssl/yourdomain.com/chain.crt
 copying domain certificate to ssh:server5:/home/yourdomain/ssl/domain.crt
 copying private key to ssh:server5:/home/yourdomain/ssl/domain.key
 copying CA certificate to ssh:server5:/home/yourdomain/ssl/chain.crt
