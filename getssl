@@ -69,10 +69,11 @@
 # 2016-06-13 bugfix of issue 45, problem with SERVER_TYPE when it's just a port number (1.03)
 # 2016-06-13 bugfix issue 47 - DNS_DEL_COMMAND cleanup was run when not required. (1.04)
 # 2016-06-15 add error checking on RELOAD_CMD (1.05)
+# 2016-06-20 updated sed and date functions to run on MAC OS X (1.06)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.05"
+VERSION="1.06"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -105,9 +106,9 @@ ORIGCMD="$0 $*"
 cert_archive() {  # Archive certificate file by copying with dates at end.
   certfile=$1
   enddate=$(openssl x509 -in "$certfile" -noout -enddate 2>/dev/null| cut -d= -f 2-)
-  formatted_enddate=$(date -d "${enddate}" +%F)
+  formatted_enddate=$(os_date -d "${enddate}" +%F)
   startdate=$(openssl x509 -in "$certfile" -noout -startdate 2>/dev/null| cut -d= -f 2-)
-  formatted_startdate=$(date -d "${startdate}" +%F)
+  formatted_startdate=$(os_date -d "${startdate}" +%F)
   mv "${certfile}" "${certfile}_${formatted_startdate}_${formatted_enddate}"
   info "archiving old certificate file to ${certfile}_${formatted_startdate}_${formatted_enddate}"
 }
@@ -295,6 +296,19 @@ getcr() { # get curl response
   return $ret
 }
 
+get_os() { # function to get the current Operating System
+  if [[ $(uname) == "Linux" ]]; then
+    os="linux"
+  elif [[ $(uname) == "FreeBSD" ]]; then
+    os="bsd"
+  elif [[ $(uname) == "Darwin" ]]; then
+    os="mac"
+  else
+    os="unknown"
+  fi
+  debug "detected os type = $os"
+}
+
 graceful_exit() { # normal exit function.
   clean_up
   exit
@@ -321,7 +335,7 @@ help_message() { # print out the help message
 }
 
 hex2bin() { # Remove spaces, add leading zero, escape as hex string and parse with printf
-  printf -- "$(cat | os_sed -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
+  printf -- "$(cat | os_sed_e -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
 }
 
 info() { # write out info as long as the quiet flag has not been set. 
@@ -330,11 +344,29 @@ info() { # write out info as long as the quiet flag has not been set.
   fi
 }
 
-os_sed() { # Use different sed version for different os types...
-  if [[ "$OSTYPE" == "linux-gnu" ]]; then
-    sed -r "${@}"
+os_date() { # use different date version for different os types
+  if [[ "$os" == "mac" ]]; then
+    gdate "${@}"
   else
+    date "${@}"
+  fi
+}
+
+os_sed() { # Use different sed version for different os types...
+  if [[ "$os" == "mac" ]]; then # MAC so use gsed
+    gsed "${@}"
+  else
+    sed "${@}"
+  fi
+}
+
+os_sed_e() { # Use different sed version for different os types (extended regex)
+  if [[ "$os" == "bsd" ]]; then # BSD required -E flag for extended regex
     sed -E "${@}"
+  elif [[ "$os" == "mac" ]]; then # MAC so use gsed
+    gsed -r "${@}"
+  else
+    sed -r "${@}"
   fi
 }
 
@@ -389,7 +421,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
 
   # get nonce from ACME server
   nonceurl="$CA/directory"
-  nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | sed s/\\r//|sed s/\\n//| cut -d ' ' -f 2)
+  nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | os_sed s/\\r//|os_sed s/\\n//| cut -d ' ' -f 2)
 
   debug nonce "$nonce"
 
@@ -414,7 +446,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     response=$($CURL -X POST --data "$body" "$url")
   fi
 
-  responseHeaders=$(sed 's/\r//g' "$CURL_HEADER")
+  responseHeaders=$(os_sed 's/\r//g' "$CURL_HEADER")
   debug responseHeaders "$responseHeaders"
   debug response  "$response"
   code=$(grep ^HTTP "$CURL_HEADER" | tail -1 | cut -d " " -f 2)
@@ -434,7 +466,7 @@ signal_exit() { # Handle trapped signals
 }
 
 urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
-  openssl base64 -e | tr -d '\n\r' | os_sed -e 's:=*$::g' -e 'y:+/:-_:'
+  openssl base64 -e | tr -d '\n\r' | os_sed_e -e 's:=*$::g' -e 'y:+/:-_:'
 }
 
 usage() { # program usage
@@ -582,15 +614,24 @@ done
 
 # Main logic
 
+# Get the current OS, so the correct functions can ve used for that OS. (sets the variable os) 
+get_os
+
 #check if required applications are included
 
 requires openssl
 requires curl
 requires nslookup
-requires sed
 requires grep
 requires awk
 requires tr
+if [[ "$os" == "mac" ]]; then # mac so use gsed
+  requires gsed
+  requires gdate
+else
+  requires sed
+  requires date
+fi
 
 # Check if upgrades are available
 check_getssl_upgrade
@@ -681,7 +722,7 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
         echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
       fi
       EX_SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
-                | grep -Eo "DNS:[a-zA-Z 0-9.-]*" | sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
+                | grep -Eo "DNS:[a-zA-Z 0-9.-]*" | os_sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
       EX_SANS=${EX_SANS//$'\n'/','}
     fi
     write_domain_template "$DOMAIN_DIR/getssl.cfg"
@@ -738,12 +779,12 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
         debug "certificate on server is same as the local cert"
       else
         # check if the certificate is for the right domain
-        EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -noout -subject | sed s/.*CN=//)
+        EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -noout -subject | os_sed s/.*CN=//)
         if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]; then
           # check renew-date on ex_cert and compare to local ( if local exists)
           enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
           enddate_lc=$(openssl x509 -noout -enddate < "$CERT_FILE" 2>/dev/null| cut -d= -f 2-)
-          if [ "$(date -d "$enddate_ex" +%s)" -gt "$(date -d "$enddate_lc" +%s)" ]; then
+          if [ "$(os_date -d "$enddate_ex" +%s)" -gt "$(os_date -d "$enddate_lc" +%s)" ]; then
             # remote has longer to expiry date than local copy.
             # archive local copy and save remote to local
             cert_archive "$CERT_FILE"
@@ -786,7 +827,7 @@ if [ -f "$CERT_FILE" ]; then
   enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
   debug "enddate is $enddate"
   if [[ "$enddate" != "-" ]]; then
-    if [[ $(date -d "${RENEW_ALLOW} days" +%s) -lt $(date -d "$enddate" +%s) ]]; then
+    if [[ $(os_date -d "${RENEW_ALLOW} days" +%s) -lt $(os_date -d "$enddate" +%s) ]]; then
       info "certificate for $DOMAIN is still valid for more than $RENEW_ALLOW days (until $enddate)"
       # everything is OK, so exit.
       graceful_exit
@@ -832,7 +873,7 @@ fi
 debug "created SAN list = $SANLIST"
 
 # check nslookup for domains
-alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
+alldomains=$(echo "$DOMAIN,$SANS" | os_sed "s/,/ /g")
 if [[ $VALIDATE_VIA_DNS != "true" ]]; then
     for d in $alldomains; do
       debug "checking nslookup for ${d}"
@@ -907,7 +948,7 @@ fi
 info "Verify each domain"
 
 # loop through domains for cert ( from SANS list)
-alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
+alldomains=$(echo "$DOMAIN,$SANS" | os_sed "s/,/ /g")
 dn=0
 for d in $alldomains; do
   # $d is domain in current loop, which is number $dn for ACL
@@ -944,17 +985,17 @@ for d in $alldomains; do
     debug dns01 "$dns01"
 
     # get the token from the dns component
-    token=$(echo "$dns01" | sed 's/,/\n'/g| grep '"token":'| cut -d '"' -f 4)
+    token=$(echo "$dns01" | os_sed 's/,/\n'/g| grep '"token":'| cut -d '"' -f 4)
     debug token "$token"
 
-    uri=$(echo "$dns01" | sed 's/,/\n'/g| grep '"uri":'| cut -d '"' -f 4)
+    uri=$(echo "$dns01" | os_sed 's/,/\n'/g| grep '"uri":'| cut -d '"' -f 4)
     debug uri "$uri"
 
     keyauthorization="$token.$thumbprint"
     debug keyauthorization "$keyauthorization"
 
     #create signed authorization key from token.
-    auth_key=$(printf '%s' "$keyauthorization" | openssl sha -sha256 -binary | openssl base64 -e | tr -d '\n\r' | sed -e 's:=*$::g' -e 'y:+/:-_:')
+    auth_key=$(printf '%s' "$keyauthorization" | openssl sha -sha256 -binary | openssl base64 -e | tr -d '\n\r' | os_sed -e 's:=*$::g' -e 'y:+/:-_:')
     debug auth_key "$auth_key"
 
     debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
@@ -996,10 +1037,10 @@ for d in $alldomains; do
     debug http01 "$http01"
 
     # get the token from the http component
-    token=$(echo "$http01" | sed 's/,/\n'/g| grep '"token":'| cut -d '"' -f 4)
+    token=$(echo "$http01" | os_sed 's/,/\n'/g| grep '"token":'| cut -d '"' -f 4)
     debug token "$token"
 
-    uri=$(echo "$http01" | sed 's/,/\n'/g| grep '"uri":'| cut -d '"' -f 4)
+    uri=$(echo "$http01" | os_sed 's/,/\n'/g| grep '"uri":'| cut -d '"' -f 4)
     debug uri "$uri"
 
     #create signed authorization key from token.
@@ -1110,7 +1151,7 @@ debug "der $der"
 send_signed_request "$CA/acme/new-cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
 
 # convert certificate information into correct format and save to file.
-CertData=$(grep -i -o '^Location.*' "$CURL_HEADER" |sed 's/\r//g'| cut -d " " -f 2)
+CertData=$(grep -i -o '^Location.*' "$CURL_HEADER" |os_sed 's/\r//g'| cut -d " " -f 2)
 if [ "$CertData" ] ; then
   echo -----BEGIN CERTIFICATE----- > "$CERT_FILE"
   curl --silent "$CertData" | openssl base64 -e  >> "$CERT_FILE"
@@ -1126,7 +1167,7 @@ if [ -z "$CertData" ] ; then
 fi
 
 # get a copy of the CA certificate.
-IssuerData=$(grep -i '^Link' "$CURL_HEADER" | cut -d " " -f 2| cut -d ';' -f 1 | sed 's/<//g' | sed 's/>//g')
+IssuerData=$(grep -i '^Link' "$CURL_HEADER" | cut -d " " -f 2| cut -d ';' -f 1 | os_sed 's/<//g' | os_sed 's/>//g')
 if [ "$IssuerData" ] ; then
   echo -----BEGIN CERTIFICATE----- > "$CA_CERT"
   curl --silent "$IssuerData" | openssl base64 -e  >> "$CA_CERT"
