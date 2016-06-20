@@ -70,10 +70,11 @@
 # 2016-06-13 bugfix issue 47 - DNS_DEL_COMMAND cleanup was run when not required. (1.04)
 # 2016-06-15 add error checking on RELOAD_CMD (1.05)
 # 2016-06-20 updated sed and date functions to run on MAC OS X (1.06)
+# 2016-06-20 added CHALLENGE_CHECK_TYPE variable to allow checks direct on https rather than http (1.07)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.06"
+VERSION="1.07"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -92,6 +93,7 @@ CHECK_REMOTE="true"
 DNS_WAIT=10
 DNS_EXTRA_WAIT=""
 PUBLIC_DNS_SERVER=""
+CHALLENGE_CHECK_TYPE="http"
 ORIG_UMASK=$(umask)
 _USE_DEBUG=0
 _CREATE_CONFIG=0
@@ -1055,7 +1057,7 @@ for d in $alldomains; do
     debug "copying file from $TEMP_DIR/$token to ${ACL[$dn]}"
     copy_file_to_location "challenge token" "$TEMP_DIR/$token" "${ACL[$dn]}/$token"
 
-    wellknown_url="http://$d/.well-known/acme-challenge/$token"
+    wellknown_url="${CHALLENGE_CHECK_TYPE}://$d/.well-known/acme-challenge/$token"
     debug wellknown_url "$wellknown_url"
 
     # check that we can reach the challenge ourselves, if not, then error
