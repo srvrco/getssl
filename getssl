@@ -71,10 +71,11 @@
 # 2016-06-15 add error checking on RELOAD_CMD (1.05)
 # 2016-06-20 updated sed and date functions to run on MAC OS X (1.06)
 # 2016-06-20 added CHALLENGE_CHECK_TYPE variable to allow checks direct on https rather than http (1.07)
+# 2016-06-21 updated grep functions to run on MAC OS X (1.08)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.07"
+VERSION="1.08"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -137,7 +138,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
     fi
 
     # shellcheck disable=SC2086
-    status=$(echo $response | grep -Po '"status":[ ]*"[^"]+"' | cut -d '"' -f 4)
+    status=$(echo $response | os_grep -Po '"status":[ ]*"[^"]+"' | cut -d '"' -f 4)
 
     # If ACME respose is valid, then break out of loop
     if [ "$status" == "valid" ] ; then
@@ -147,7 +148,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 
     # if ACME response is that their check gave an invalid response, error exit
     if [ "$status" == "invalid" ] ; then
-      error=$(echo "$response" | grep -Po '"error":[ ]*{[^}]*}' | grep -o '"detail":"[^"]*"' | cut -d '"' -f 4)
+      error=$(echo "$response" | os_grep -Po '"error":[ ]*{[^}]*}' | os_grep -o '"detail":"[^"]*"' | cut -d '"' -f 4)
       error_exit "$domain:Verify error:$error"
     fi
 
@@ -164,7 +165,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 
 check_getssl_upgrade() { # check if a more recent version of code is available available
   latestcode=$(curl --silent "$CODE_LOCATION")
-  latestversion=$(echo "$latestcode" | grep VERSION= | head -1| awk -F'"' '{print $2}')
+  latestversion=$(echo "$latestcode" | os_grep VERSION= | head -1| awk -F'"' '{print $2}')
   latestvdec=$(echo "$latestversion"| tr -d '.')
   localvdec=$(echo "$VERSION"| tr -d '.' )
   debug "current code is version ${VERSION}"
@@ -292,7 +293,7 @@ getcr() { # get curl response
   ret=$?
   debug response  "$response"
   # shellcheck disable=SC2086
-  code=$(echo $response | grep -Eo '"status":[ ]*[0-9]*' | cut -d : -f 2)
+  code=$(echo $response | os_grep -Eo '"status":[ ]*[0-9]*' | cut -d : -f 2)
   debug code "$code"
   debug getcr return code $ret
   return $ret
@@ -351,6 +352,14 @@ os_date() { # use different date version for different os types
     gdate "${@}"
   else
     date "${@}"
+  fi
+}
+
+os_grep() { # use different grep version for different os types
+  if [[ "$os" == "mac" ]]; then
+    ggrep "${@}"
+  else
+    grep "${@}"
   fi
 }
 
@@ -423,7 +432,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
 
   # get nonce from ACME server
   nonceurl="$CA/directory"
-  nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | os_sed s/\\r//|os_sed s/\\n//| cut -d ' ' -f 2)
+  nonce=$($CURL -I $nonceurl | os_grep "^Replay-Nonce:" | os_sed s/\\r//|os_sed s/\\n//| cut -d ' ' -f 2)
 
   debug nonce "$nonce"
 
@@ -451,7 +460,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   responseHeaders=$(os_sed 's/\r//g' "$CURL_HEADER")
   debug responseHeaders "$responseHeaders"
   debug response  "$response"
-  code=$(grep ^HTTP "$CURL_HEADER" | tail -1 | cut -d " " -f 2)
+  code=$(os_grep ^HTTP "$CURL_HEADER" | tail -1 | cut -d " " -f 2)
   debug code "$code"
 }
 
@@ -624,15 +633,16 @@ get_os
 requires openssl
 requires curl
 requires nslookup
-requires grep
 requires awk
 requires tr
 if [[ "$os" == "mac" ]]; then # mac so use gsed
   requires gsed
   requires gdate
+  requires ggrep
 else
   requires sed
   requires date
+  requires grep
 fi
 
 # Check if upgrades are available
@@ -723,8 +733,8 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
       if [ ! -f "$DOMAIN_DIR/${DOMAIN}.crt" ]; then
         echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
       fi
-      EX_SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
-                | grep -Eo "DNS:[a-zA-Z 0-9.-]*" | os_sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
+      EX_SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| os_grep "Subject Alternative Name" -A2 \
+                | os_grep -Eo "DNS:[a-zA-Z 0-9.-]*" | os_sed "s@DNS:$DOMAIN@@g" | os_grep -v '^$' | cut -c 5-)
       EX_SANS=${EX_SANS//$'\n'/','}
     fi
     write_domain_template "$DOMAIN_DIR/getssl.cfg"
@@ -893,10 +903,10 @@ if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
   debug "domain csr exists at - $DOMAIN_DIR/${DOMAIN}.csr"
   # check all domains in config are in csr
   alldomains=$(echo "$DOMAIN,$SANS" | tr -d " " |tr , '\n')
-  domains_in_csr=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr" |grep "DNS:.*" |tr -d "DNS:" |tr -d " " |tr , '\n')
+  domains_in_csr=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr" |os_grep "DNS:.*" |tr -d "DNS:" |tr -d " " |tr , '\n')
   for d in $alldomains; do
-    if [ "$(echo "${domains_in_csr}"| grep "^${d}$")" != "${d}" ]; then
-      info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not contain ${d} - re-create-csr .... $(echo "${domains_in_csr}"| grep "^${d}$")"
+    if [ "$(echo "${domains_in_csr}"| os_grep "^${d}$")" != "${d}" ]; then
+      info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not contain ${d} - re-create-csr .... $(echo "${domains_in_csr}"| os_grep "^${d}$")"
       _RECREATE_CSR=1
     fi
   done
@@ -917,7 +927,7 @@ fi
 # use account key to register with CA
 # currrently the code registeres every time, and gets an "already registered" back if it has been.
 # public component and modulus of key in base64
-pub_exp64=$(openssl rsa -in "${ACCOUNT_KEY}" -noout -text | grep publicExponent | grep -oE "0x[a-f0-9]+" | cut -d'x' -f2 | hex2bin | urlbase64)
+pub_exp64=$(openssl rsa -in "${ACCOUNT_KEY}" -noout -text | os_grep publicExponent | os_grep -oE "0x[a-f0-9]+" | cut -d'x' -f2 | hex2bin | urlbase64)
 pub_mod64=$(openssl rsa -in "${ACCOUNT_KEY}" -noout -modulus | cut -d'=' -f2 | hex2bin | urlbase64)
 
 thumbprint="$(printf '{"e":"%s","kty":"RSA","n":"%s"}' "${pub_exp64}" "${pub_mod64}" | openssl sha -sha256 -binary | urlbase64)"
@@ -983,14 +993,14 @@ for d in $alldomains; do
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then # set up the correct DNS token for verification
     # get the dns component of the ACME response
     # shellcheck disable=SC2086
-    dns01=$(echo $response | grep -Po  '{[^{]*"type":[ ]*"dns-01"[^}]*')
+    dns01=$(echo $response | os_grep -Po  '{[^{]*"type":[ ]*"dns-01"[^}]*')
     debug dns01 "$dns01"
 
     # get the token from the dns component
-    token=$(echo "$dns01" | os_sed 's/,/\n'/g| grep '"token":'| cut -d '"' -f 4)
+    token=$(echo "$dns01" | os_sed 's/,/\n'/g| os_grep '"token":'| cut -d '"' -f 4)
     debug token "$token"
 
-    uri=$(echo "$dns01" | os_sed 's/,/\n'/g| grep '"uri":'| cut -d '"' -f 4)
+    uri=$(echo "$dns01" | os_sed 's/,/\n'/g| os_grep '"uri":'| cut -d '"' -f 4)
     debug uri "$uri"
 
     keyauthorization="$token.$thumbprint"
@@ -1008,9 +1018,9 @@ for d in $alldomains; do
 
     # find a primary / authoritative DNS server for the domain
     if [ -z "$AUTH_DNS_SERVER" ]; then
-      primary_ns=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} | grep origin | awk '{print $3}')
+      primary_ns=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} | os_grep origin | awk '{print $3}')
       if [ -z "$primary_ns" ]; then
-        primary_ns=$(nslookup -type=soa "${d}" -debug=1 ${PUBLIC_DNS_SERVER} | grep origin | awk '{print $3}')
+        primary_ns=$(nslookup -type=soa "${d}" -debug=1 ${PUBLIC_DNS_SERVER} | os_grep origin | awk '{print $3}')
       fi
     else
       primary_ns="$AUTH_DNS_SERVER"
@@ -1035,14 +1045,14 @@ for d in $alldomains; do
   else      # set up the correct http token for verification
     # get the http component of the ACME response
     # shellcheck disable=SC2086
-    http01=$(echo $response | grep -Po '{[ ]*"type":[ ]*"http-01"[^}]*')
+    http01=$(echo $response | os_grep -Po '{[ ]*"type":[ ]*"http-01"[^}]*')
     debug http01 "$http01"
 
     # get the token from the http component
-    token=$(echo "$http01" | os_sed 's/,/\n'/g| grep '"token":'| cut -d '"' -f 4)
+    token=$(echo "$http01" | os_sed 's/,/\n'/g| os_grep '"token":'| cut -d '"' -f 4)
     debug token "$token"
 
-    uri=$(echo "$http01" | os_sed 's/,/\n'/g| grep '"uri":'| cut -d '"' -f 4)
+    uri=$(echo "$http01" | os_sed 's/,/\n'/g| os_grep '"uri":'| cut -d '"' -f 4)
     debug uri "$uri"
 
     #create signed authorization key from token.
@@ -1108,7 +1118,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
     ntries=0
     check_dns="fail"
     while [ "$check_dns" == "fail" ]; do
-      check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | grep ^_acme|awk -F'"' '{ print $2}')
+      check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | os_grep ^_acme|awk -F'"' '{ print $2}')
       debug result "$check_result"
 
       if [[ "$check_result" == "$auth_key" ]]; then
@@ -1153,7 +1163,7 @@ debug "der $der"
 send_signed_request "$CA/acme/new-cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
 
 # convert certificate information into correct format and save to file.
-CertData=$(grep -i -o '^Location.*' "$CURL_HEADER" |os_sed 's/\r//g'| cut -d " " -f 2)
+CertData=$(os_grep -i -o '^Location.*' "$CURL_HEADER" |os_sed 's/\r//g'| cut -d " " -f 2)
 if [ "$CertData" ] ; then
   echo -----BEGIN CERTIFICATE----- > "$CERT_FILE"
   curl --silent "$CertData" | openssl base64 -e  >> "$CERT_FILE"
@@ -1165,11 +1175,11 @@ fi
 if [ -z "$CertData" ] ; then
   response2=$(echo "$response" | openssl base64 -e)
   debug "respose was $response"
-  error_exit "Sign failed: $(echo "$response2" | grep -o  '"detail":"[^"]*"')"
+  error_exit "Sign failed: $(echo "$response2" | os_grep -o  '"detail":"[^"]*"')"
 fi
 
 # get a copy of the CA certificate.
-IssuerData=$(grep -i '^Link' "$CURL_HEADER" | cut -d " " -f 2| cut -d ';' -f 1 | os_sed 's/<//g' | os_sed 's/>//g')
+IssuerData=$(os_grep -i '^Link' "$CURL_HEADER" | cut -d " " -f 2| cut -d ';' -f 1 | os_sed 's/<//g' | os_sed 's/>//g')
 if [ "$IssuerData" ] ; then
   echo -----BEGIN CERTIFICATE----- > "$CA_CERT"
   curl --silent "$IssuerData" | openssl base64 -e  >> "$CA_CERT"
