@@ -72,10 +72,11 @@
 # 2016-06-20 updated sed and date functions to run on MAC OS X (1.06)
 # 2016-06-20 added CHALLENGE_CHECK_TYPE variable to allow checks direct on https rather than http (1.07)
 # 2016-06-21 updated grep functions to run on MAC OS X (1.08)
+# 2016-06-11 updated to enable running on windows with cygwin (1.09)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.08"
+VERSION="1.09"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -192,11 +193,8 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
 
 clean_up() { # Perform pre-exit housekeeping
   umask "$ORIG_UMASK"
-  if [ ! -z "$DOMAIN_DIR" ]; then
-    rm -rf "${TEMP_DIR:?}"
-  fi
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then
-    # Tidy up DNS entries if things failed part way though. 
+    # Tidy up DNS entries if things failed part way though.
     shopt -s nullglob
     for dnsfile in $TEMP_DIR/dns_verify/*; do
       . "$dnsfile"
@@ -204,6 +202,9 @@ clean_up() { # Perform pre-exit housekeeping
       $DNS_DEL_COMMAND "$d"
     done
     shopt -u nullglob
+  fi
+  if [ ! -z "$DOMAIN_DIR" ]; then
+    rm -rf "${TEMP_DIR:?}"
   fi
 }
 
@@ -300,12 +301,15 @@ getcr() { # get curl response
 }
 
 get_os() { # function to get the current Operating System
-  if [[ $(uname) == "Linux" ]]; then
+  uname_res=$(uname -s)
+  if [[ ${uname_res} == "Linux" ]]; then
     os="linux"
-  elif [[ $(uname) == "FreeBSD" ]]; then
+  elif [[ ${uname_res} == "FreeBSD" ]]; then
     os="bsd"
-  elif [[ $(uname) == "Darwin" ]]; then
+  elif [[ ${uname_res} == "Darwin" ]]; then
     os="mac"
+  elif [[ ${uname_res:0:6} == "CYGWIN" ]]; then
+    os="cygwin"
   else
     os="unknown"
   fi
@@ -625,7 +629,7 @@ done
 
 # Main logic
 
-# Get the current OS, so the correct functions can ve used for that OS. (sets the variable os) 
+# Get the current OS, so the correct functions can ve used for that OS. (sets the variable os)
 get_os
 
 #check if required applications are included
@@ -917,7 +921,7 @@ if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
   fi
 fi # end of ... check if domain csr exists - if not then create it
 
-# if CSR does not exist, or flag set to recreate, then create csr 
+# if CSR does not exist, or flag set to recreate, then create csr
 if [ ! -f "$DOMAIN_DIR/${DOMAIN}.csr" ] || [ "$_RECREATE_CSR" == "1" ]; then
   debug "creating domain csr - $DOMAIN_DIR/${DOMAIN}.csr"
   openssl req -new -sha256 -key "$DOMAIN_DIR/${DOMAIN}.key" -subj "/" -reqexts SAN -config \
@@ -1018,7 +1022,14 @@ for d in $alldomains; do
 
     # find a primary / authoritative DNS server for the domain
     if [ -z "$AUTH_DNS_SERVER" ]; then
-      primary_ns=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} | os_grep origin | awk '{print $3}')
+      if [[ "$os" == "cygwin" ]]; then
+        primary_ns=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} 2>/dev/null| os_grep "primary name server" | awk '{print $NF}')
+        if [ -z "$primary_ns" ]; then
+          error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
+        fi
+      else
+        primary_ns=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} | os_grep origin | awk '{print $3}')
+      fi
       if [ -z "$primary_ns" ]; then
         primary_ns=$(nslookup -type=soa "${d}" -debug=1 ${PUBLIC_DNS_SERVER} | os_grep origin | awk '{print $3}')
       fi
@@ -1118,8 +1129,13 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
     ntries=0
     check_dns="fail"
     while [ "$check_dns" == "fail" ]; do
-      check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | os_grep ^_acme|awk -F'"' '{ print $2}')
-      debug result "$check_result"
+      if [[ "$os" == "cygwin" ]]; then
+        check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | os_grep ^_acme -A2| os_grep '"'|awk -F'"' '{ print $2}')
+      else
+        check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | os_grep ^_acme|awk -F'"' '{ print $2}')
+      fi
+      debug "expecting  $auth_key"
+      debug " got ....  $check_result"
 
       if [[ "$check_result" == "$auth_key" ]]; then
         check_dns="success"
