@@ -14,7 +14,7 @@ Obtain SSL certificates from the letsencrypt.org ACME server.  Suitable for auto
 * **Detailed debug info** - Whilst it shouldn't be needed, detailed debug information is available.
 * **Reload services** - After a new certificate is obtained then the relevant services (e.g. apache/nginx/postfix) can be reloaded.
 
-## Instalation
+## Installation
 Since the script is only one file, you can use the command
 ```
 curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl > getssl ; chmod 700 getssl
