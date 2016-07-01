@@ -47,6 +47,61 @@ Options:
   -w working_dir  Working directory
 ```
 
+## Getting started
+
+Once you have obtained the script (see Installation above), the next step is to use
+
+```./getssl -c yourdomain.com```
+
+where yourdomain.com is the primary domain name that you want to create a certificate for.   This will create the following folders and files.
+
+```
+~/.getssl
+~/.getssl/getssl.cfg
+~/.getssl/yourdomain.com
+~/.getssl/yourdomain.com/getssl.cfg
+```
+
+You can then edit ~/.getssl/getssl.cfg to set the values you want as the default for the majority of your certificates.
+
+Then edit ~/.getssl/yourdomain.com/getssl.cfg to have the values you want for this specific domain.
+
+You can then just run;
+
+```getssl yourdomain.com ```
+
+and it should run, providing output like;
+```
+Registering account
+Verify each domain
+Verifing yourdomain.com
+Verified yourdomain.com
+Verifing www.yourdomain.com
+Verified www.yourdomain.com
+Verification completed, obtaining certificate.
+Certificate saved in /home/user/.getssl/yourdomain.com/yourdomain.com.crt
+The intermediate CA cert is in /home/user/.getssl/yourdomain.com/chain.crt
+copying domain certificate to ssh:server5:/home/yourdomain/ssl/domain.crt
+copying private key to ssh:server5:/home/yourdomain/ssl/domain.key
+copying CA certificate to ssh:server5:/home/yourdomain/ssl/chain.crt
+reloading SSL services
+```
+This will (by default) use the staging server, so should give you a certificate that isn't trusted ( Fake Let's Encrypt).
+Change the server in your config file to get a fully valid certificate.
+
+**Note:**   Verification is done via port 80(http), port 443(https) or dns.  The certificate can be used ( and checked with getssl) on alternate ports.
+ 
+## Automating updates
+
+I use the following cron
+```
+23  5 * * * /root/scripts/getssl -u -a -q
+```
+The cron will automatically update getssl and  renew any certificates, only giving output if there are issues / errors.
+
+* The -u flag updates getssl if there is a more recent version available.
+* The -a flag automatically renews any certificates that are due for renewal.
+* The -q flag is "quiet" so that it only outputs and emails me if there was an error / issue.
 
 ## Structure
 
@@ -139,61 +194,6 @@ Note:  FTP can be used for copying tokens only and can **not** be used for uploa
 
 ssh can also be used for the reload command if using on remote servers.
 
-## Getting started
-
-Once you have obtained the script (see Installation above), the next step is to use
-
-```./getssl -c yourdomain.com```
-
-where yourdomain.com is the primary domain name that you want to create a certificate for.   This will create the following folders and files.
-
-```
-~/.getssl
-~/.getssl/getssl.cfg
-~/.getssl/yourdomain.com
-~/.getssl/yourdomain.com/getssl.cfg
-```
-
-You can then edit ~/.getssl/getssl.cfg to set the values you want as the default for the majority of your certificates.
-
-Then edit ~/.getssl/yourdomain.com/getssl.cfg to have the values you want for this specific domain.
-
-You can then just run;
-
-```getssl yourdomain.com ```
-
-and it should run, providing output like;
-```
-Registering account
-Verify each domain
-Verifing yourdomain.com
-Verified yourdomain.com
-Verifing www.yourdomain.com
-Verified www.yourdomain.com
-Verification completed, obtaining certificate.
-Certificate saved in /home/user/.getssl/yourdomain.com/yourdomain.com.crt
-The intermediate CA cert is in /home/user/.getssl/yourdomain.com/chain.crt
-copying domain certificate to ssh:server5:/home/yourdomain/ssl/domain.crt
-copying private key to ssh:server5:/home/yourdomain/ssl/domain.key
-copying CA certificate to ssh:server5:/home/yourdomain/ssl/chain.crt
-reloading SSL services
-```
-This will (by default) use the staging server, so should give you a certificate that isn't trusted ( Fake Let's Encrypt).
-Change the server in your config file to get a fully valid certificate. 
-
-Note:   Using DNS validation is now working successfully for issuing certificates. (examples provided on the wiki pages - https://github.com/srvrco/getssl/wiki/DNS-Challenge-example ) 
- 
-## Automating updates
-
-I use the following cron
-```
-23  5 * * * /root/scripts/getssl -u -a -q
-```
-The cron will automatically update getssl and  renew any certificates, only giving output if there are issues / errors.
-
-* The -u flag updates getssl if there is a more recent version available.
-* The -a flag automatically renews any certificates that are due for renewal.
-* The -q flag is "quiet" so that it only outputs and emails me if there was an error / issue.
 
 ## Issues / problems / help
 If you have any issues, please log them at https://github.com/srvrco/getssl/issues 
