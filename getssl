@@ -74,10 +74,11 @@
 # 2016-06-21 updated grep functions to run on MAC OS X (1.08)
 # 2016-06-11 updated to enable running on windows with cygwin (1.09)
 # 2016-07-02 Corrections to work with older slackware issue #56 (1.10)
+# 2016-07-02 Updating help info re ACL in config file (1.11)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.10"
+VERSION="1.11"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -206,7 +207,7 @@ clean_up() { # Perform pre-exit housekeeping
     for dnsfile in $TEMP_DIR/dns_verify/*; do
       . "$dnsfile"
       debug "attempting to clean up DNS entry for $d"
-      eval $DNS_DEL_COMMAND "$d"
+      eval "$DNS_DEL_COMMAND" "$d"
     done
     shopt -u nullglob
   fi
@@ -352,7 +353,7 @@ hex2bin() { # Remove spaces, add leading zero, escape as hex string and parse wi
   printf -- "$(cat | os_sed_e -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
 }
 
-info() { # write out info as long as the quiet flag has not been set. 
+info() { # write out info as long as the quiet flag has not been set.
   if [ ${_QUIET} -eq 0 ]; then
     echo "$@"
   fi
@@ -406,7 +407,7 @@ reload_service() {  # Runs a command to reload services ( via ssh if needed)
       sleep 2
     else
       debug "running reload command $RELOAD_CMD"
-      eval $RELOAD_CMD
+      eval "$RELOAD_CMD"
       if [ $? -gt 0 ]; then
         error_exit "error running $RELOAD_CMD"
       fi
@@ -498,6 +499,8 @@ usage() { # program usage
 write_domain_template() { # write out a template file for a domain.
   cat > "$1" <<- _EOF_domain_
 	# Uncomment and modify any variables you need
+	# see https://github.com/srvrco/getssl/wiki/Config-variables for details
+	#
 	# The staging server is best for testing
 	#CA="https://acme-staging.api.letsencrypt.org"
 	# This server issues full certificates, however has rate limits
@@ -518,6 +521,8 @@ write_domain_template() { # write out a template file for a domain.
 	# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
 	# An ssh key will be needed to provide you with access to the remote server.
 	# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
+	# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
+	# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
 	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
@@ -1022,7 +1027,7 @@ for d in $alldomains; do
     debug auth_key "$auth_key"
 
     debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
-    eval $DNS_ADD_COMMAND "$d" "$auth_key"
+    eval "$DNS_ADD_COMMAND" "$d" "$auth_key"
     if [ $? -gt 0 ]; then
       error_exit "DNS_ADD_COMMAND failed for domain $d"
     fi
@@ -1173,7 +1178,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
     check_challenge_completion "$uri" "$d" "$keyauthorization"
 
     debug "remove DNS entry"
-    eval $DNS_DEL_COMMAND "$d"
+    eval "$DNS_DEL_COMMAND" "$d"
     # remove $dnsfile after each loop.
     rm -f "$dnsfile"
   done
