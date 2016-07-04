@@ -75,10 +75,11 @@
 # 2016-06-11 updated to enable running on windows with cygwin (1.09)
 # 2016-07-02 Corrections to work with older slackware issue #56 (1.10)
 # 2016-07-02 Updating help info re ACL in config file (1.11)
+# 2016-07-04 adding DOMAIN_STORAGE as a variable to solve for issue #59 (1.12)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.11"
+VERSION="1.12"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -559,6 +560,8 @@ write_domain_template() { # write out a template file for a domain.
 write_getssl_template() { # write out the main template file
   cat > "$1" <<- _EOF_getssl_
 	# Uncomment and modify any variables you need
+	# see https://github.com/srvrco/getssl/wiki/Config-variables for details
+	#
 	# The staging server is best for testing (hence set as default)
 	CA="https://acme-staging.api.letsencrypt.org"
 	# This server issues full certificates, however has rate limits
@@ -712,20 +715,24 @@ if [ ! -d "$WORKING_DIR" ]; then
   mkdir -p "$WORKING_DIR"
 fi
 
-# Define default file locations.
-ACCOUNT_KEY="$WORKING_DIR/account.key"
-DOMAIN_DIR="$WORKING_DIR/$DOMAIN"
+# read any variables from config in working directory
+if [ -f "$WORKING_DIR/getssl.cfg" ]; then
+  debug "reading config from $WORKING_DIR/getssl.cfg"
+  . "$WORKING_DIR/getssl.cfg"
+fi
+
+# Define defaults for variables unset in the main config.
+ACCOUNT_KEY="${ACCOUNT_KEY:=$WORKING_DIR/account.key}"
+DOMAIN_STORAGE="${DOMAIN_STORAGE:=$WORKING_DIR}"
+DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
 
 # if "-c|--create" option used, then create config files.
 if [ ${_CREATE_CONFIG} -eq 1 ]; then
-  # If main config file exists, read it, if not then create it.
-  if [ -f "$WORKING_DIR/getssl.cfg" ]; then
-    info "reading main config from existing $WORKING_DIR/getssl.cfg"
-    . "$WORKING_DIR/getssl.cfg"
-  else
+  # If main config file does not exists then create it.
+  if [ ! -f "$WORKING_DIR/getssl.cfg" ]; then
     info "creating main config file $WORKING_DIR/getssl.cfg"
     if [[ ! -f "$SSLCONF" ]]; then
       SSLCONF="$WORKING_DIR/openssl.cnf"
@@ -759,12 +766,6 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
   # end of "-c|--create" option, so exit
   graceful_exit
 fi # end of "-c|--create" option to create config file.
-
-# read any variables from config in working directory
-if [ -f "$WORKING_DIR/getssl.cfg" ]; then
-  debug "reading config from $WORKING_DIR/getssl.cfg"
-  . "$WORKING_DIR/getssl.cfg"
-fi
 
 # if domain directory doesn't exist, then create it.
 if [ ! -d "$DOMAIN_DIR" ]; then
