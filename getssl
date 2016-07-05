@@ -76,10 +76,11 @@
 # 2016-07-02 Corrections to work with older slackware issue #56 (1.10)
 # 2016-07-02 Updating help info re ACL in config file (1.11)
 # 2016-07-04 adding DOMAIN_STORAGE as a variable to solve for issue #59 (1.12)
+# 2016-07-05 updated order to better handle non-standard DOMAIN_STORAGE location (1.13)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.12"
+VERSION="1.13"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -667,44 +668,8 @@ fi
 # Check if upgrades are available
 check_getssl_upgrade
 
-# if "-a" option then check other parameters and create run for each domain.
-if [ ${_CHECK_ALL} -eq 1 ]; then
-  info "Check all certificates"
-
-  if [ ${_CREATE_CONFIG} -eq 1 ]; then
-    error_exit "cannot combine -c|--create with -a|--all"
-  fi
-
-  if [ ${_FORCE_RENEW} -eq 1 ]; then
-    error_exit "cannot combine -f|--force with -a|--all because of rate limits"
-  fi
-
-  if [ ! -d "$WORKING_DIR" ]; then
-    error_exit "working dir not found or not set - $WORKING_DIR"
-  fi
-
-  for dir in ${WORKING_DIR}/*; do
-    if [ -d "$dir" ]; then
-      debug "Checking $dir"
-      cmd="$0 -w '$WORKING_DIR'"
-      if [ ${_USE_DEBUG} -eq 1 ]; then
-        cmd="$cmd -d"
-      fi
-      if [ ${_QUIET} -eq 1 ]; then
-        cmd="$cmd -q"
-      fi
-      cmd="$cmd $(basename "$dir")"
-
-      debug "CMD: $cmd"
-      eval "$cmd"
-    fi
-  done
-
-  graceful_exit
-fi  # end of "-a" option.
-
 # if nothing in command line, print help and exit.
-if [ -z "$DOMAIN" ]; then
+if [ -z "$DOMAIN" ] && [ ${_CHECK_ALL} -ne 1 ]; then
   help_message
   graceful_exit
 fi
@@ -728,6 +693,42 @@ DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
+
+# if "-a" option then check other parameters and create run for each domain.
+if [ ${_CHECK_ALL} -eq 1 ]; then
+  info "Check all certificates"
+
+  if [ ${_CREATE_CONFIG} -eq 1 ]; then
+    error_exit "cannot combine -c|--create with -a|--all"
+  fi
+
+  if [ ${_FORCE_RENEW} -eq 1 ]; then
+    error_exit "cannot combine -f|--force with -a|--all because of rate limits"
+  fi
+
+  if [ ! -d "$DOMAIN_STORAGE" ]; then
+    error_exit "DOMAIN_STORAGE not found  - $DOMAIN_STORAGE"
+  fi
+
+  for dir in ${DOMAIN_STORAGE}/*; do
+    if [ -d "$dir" ]; then
+      debug "Checking $dir"
+      cmd="$0"
+      if [ ${_USE_DEBUG} -eq 1 ]; then
+        cmd="$cmd -d"
+      fi
+      if [ ${_QUIET} -eq 1 ]; then
+        cmd="$cmd -q"
+      fi
+      cmd="$cmd $(basename "$dir")"
+
+      debug "CMD: $cmd"
+      eval "$cmd"
+    fi
+  done
+
+  graceful_exit
+fi  # end of "-a" option.
 
 # if "-c|--create" option used, then create config files.
 if [ ${_CREATE_CONFIG} -eq 1 ]; then
