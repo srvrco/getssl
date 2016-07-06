@@ -77,10 +77,11 @@
 # 2016-07-02 Updating help info re ACL in config file (1.11)
 # 2016-07-04 adding DOMAIN_STORAGE as a variable to solve for issue #59 (1.12)
 # 2016-07-05 updated order to better handle non-standard DOMAIN_STORAGE location (1.13)
+# 2016-07-06 added additional comments about SANS in example template (1.14)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.13"
+VERSION="1.14"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -517,6 +518,7 @@ write_domain_template() { # write out a template file for a domain.
 	PRIVATE_KEY_ALG="rsa"
 
 	# Additional domains - this could be multiple domains / subdomains in a comma separated list
+	# Note: this is Additional domains - so should not include the primary domain.
 	SANS=${EX_SANS}
 
 	# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
