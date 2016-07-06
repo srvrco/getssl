@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# You must either have a suitable ~/.my.cnf containing a user / pass
+# for your mysql / mariadb database, OR you must uncomment the next line
+# (which is a security risk; don't do it!) and adjust accordingly.
+
+#CREDENTIALS="-uUSERNAME -pPASSWORD"
+
+FQDN=$1
+TOKEN=$2
+
+# If your database name is not powerdns, change it here.
+DB="powerdns"
+
+mysql -ss ${CREDENTIALS} -e "DELETE FROM ${DB}.records WHERE \
+ name = '${FQDN}' AND content = '${TOKEN}';"
+
+echo "DELETE FROM ${DB}.records WHERE name = '${FQDN}' AND content = '${TOKEN}';"

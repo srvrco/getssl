@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# You must either have a suitable ~/.my.cnf containing a user / pass
+# for your mysql / mariadb database, OR you must uncomment the next line
+# (which is a security risk; don't do it!) and adjust accordingly.
+
+#CREDENTIALS="-uUSERNAME -pPASSWORD"
+
+FQDN=$1
+TOKEN=$2
+
+# If your database name is not powerdns, change it here.
+DB="powerdns"
+
+DOMAIN=${FQDN}
+
+# Iterate over the database, checking for a match. Keep stripping
+# subdomains off 1 by 1 until we find one, or exit with an error.
+while [ -z ${DOMAIN_ID} ]; do
+	DOMAIN_ID=`mysql -ss ${CREDENTIALS} -e "SELECT id FROM ${DB}.domains WHERE name='${DOMAIN}'"`
+	if [ -z ${DOMAIN_ID} ]; then
+		DOMAIN=`echo ${DOMAIN}|cut -d. -f1 --complement`
+	fi
+	if [[ ${DOMAIN} != *"."* ]]; then
+		echo "Cannot find matching domain record! ABORT!"
+		exit 1
+	fi
+done
+
+echo "Domain ID: ${DOMAIN_ID} | FQDN: ${FQDN} | Domain: ${DOMAIN}"
+
+mysql -ss ${CREDENTIALS} -e "INSERT INTO ${DB}.records \
+ (domain_id, name, content, type,ttl,prio) VALUES \
+ (${DOMAIN_ID},'_acme-challenge.${FQDN}','${TOKEN}','TXT',120,NULL);"
