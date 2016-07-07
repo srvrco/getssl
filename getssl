@@ -78,10 +78,11 @@
 # 2016-07-04 adding DOMAIN_STORAGE as a variable to solve for issue #59 (1.12)
 # 2016-07-05 updated order to better handle non-standard DOMAIN_STORAGE location (1.13)
 # 2016-07-06 added additional comments about SANS in example template (1.14)
+# 2016-07-07 check for duplicate domains in domain / SANS (1.15)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.14"
+VERSION="1.15"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -190,7 +191,7 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
       install "$0" "${0}.v${VERSION}"
       install "$temp_upgrade" "$0"
       rm -f "$temp_upgrade"
-      info "Updated getssl from v${VERSION} to v${latestversion}"
+      echo "Updated getssl from v${VERSION} to v${latestversion}"
       eval "$ORIGCMD"
       graceful_exit
     else
@@ -904,19 +905,25 @@ else
 fi
 debug "created SAN list = $SANLIST"
 
-# check nslookup for domains
+# list of main domain and all domains in SAN
 alldomains=$(echo "$DOMAIN,$SANS" | os_sed "s/,/ /g")
-if [[ $VALIDATE_VIA_DNS != "true" ]]; then
-    for d in $alldomains; do
-      debug "checking nslookup for ${d}"
-      # shellcheck disable=SC2034
-      exists=$(nslookup "${d}")
-      if [ "$?" != "0" ]; then
-        error_exit "DNS lookup failed for $d"
-      fi
-    done
-fi
 
+# check domain and san list for duplicates
+declare -A dlist
+for d in $alldomains; do
+  if [ "${dlist[$d]}" = "exists" ]; then
+    error_exit "$d appears to be duplicated in domain, SAN list"
+  else
+    dlist[$d]="exists"
+  fi
+  # check nslookup for domains (ignore if using DNS check, as site may not be published yet)
+  if [[ $VALIDATE_VIA_DNS != "true" ]]; then
+    debug "checking nslookup for ${d}"
+    if [ "$(nslookup "${d}"| grep -c ^Name)" -lt 1 ]; then
+      error_exit "DNS lookup failed for $d"
+    fi
+  fi
+done
 
 # check if domain csr exists - if not then create it
 if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
@@ -1244,7 +1251,7 @@ if [[ ${CHECK_REMOTE} == "true" ]]; then
   fi
 fi
 
-# To have reached here, a certificate should have been successfully obtained.  Ese echo rather than info so that 'quiet' is ignored.
+# To have reached here, a certificate should have been successfully obtained.  Use echo rather than info so that 'quiet' is ignored.
 echo "certificate obtained for ${DOMAIN}"
 
 graceful_exit
