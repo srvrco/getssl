@@ -42,7 +42,7 @@ Options:
   -c, --create    Create default config files
   -f, --force     Force renewal of cert (overrides expiry checks)
   -a, --all       Check all certificates
-  -q, --quiet     Quiet mode (only outputs on error)
+  -q, --quiet     Quiet mode (only outputs on error, or succcess of new cert)
   -u, --upgrade   Upgrade getssl if more recent version available
   -w working_dir  Working directory
 ```
