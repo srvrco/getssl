@@ -346,7 +346,7 @@ help_message() { # print out the help message
 	  -c, --create    Create default config files
 	  -f, --force     Force renewal of cert (overrides expiry checks)
 	  -a, --all       Check all certificates
-	  -q, --quiet     Quiet mode (only outputs on error)
+	  -q, --quiet     Quiet mode (only outputs on error, or succcess of new cert)
 	  -u, --upgrade   Upgrade getssl if a more recent version is available
 	  -w working_dir  Working directory
 
