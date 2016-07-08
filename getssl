@@ -79,10 +79,11 @@
 # 2016-07-05 updated order to better handle non-standard DOMAIN_STORAGE location (1.13)
 # 2016-07-06 added additional comments about SANS in example template (1.14)
 # 2016-07-07 check for duplicate domains in domain / SANS (1.15)
+# 2016-07-08 modified to be used on older bash for issue #64 (1.16)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.15"
+VERSION="1.16"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -909,12 +910,12 @@ debug "created SAN list = $SANLIST"
 alldomains=$(echo "$DOMAIN,$SANS" | os_sed "s/,/ /g")
 
 # check domain and san list for duplicates
-declare -A dlist
+echo "" > "$TEMP_DIR/sanlist"
 for d in $alldomains; do
-  if [ "${dlist[$d]}" = "exists" ]; then
+  if [ "$(grep "^${d}$" "$TEMP_DIR/sanlist")" = "$d" ]; then
     error_exit "$d appears to be duplicated in domain, SAN list"
   else
-    dlist[$d]="exists"
+    echo "$d" >> "$TEMP_DIR/sanlist"
   fi
   # check nslookup for domains (ignore if using DNS check, as site may not be published yet)
   if [[ $VALIDATE_VIA_DNS != "true" ]]; then
