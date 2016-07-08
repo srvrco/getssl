@@ -13,6 +13,6 @@ TOKEN=$2
 DB="powerdns"
 
 mysql -ss ${CREDENTIALS} -e "DELETE FROM ${DB}.records WHERE \
- name = '${FQDN}' AND content = '${TOKEN}';"
+ name = '_acme-challenge.${FQDN}' AND content = '${TOKEN}';"
 
-echo "DELETE FROM ${DB}.records WHERE name = '${FQDN}' AND content = '${TOKEN}';"
+echo "DELETE FROM ${DB}.records WHERE name = '_acme-challenge.${FQDN}' AND content = '${TOKEN}';"
