@@ -717,14 +717,14 @@ if [ ${_CHECK_ALL} -eq 1 ]; then
   for dir in ${DOMAIN_STORAGE}/*; do
     if [ -d "$dir" ]; then
       debug "Checking $dir"
-      cmd="$0 -w $WORKING_DIR"
+      cmd="$0"
       if [ ${_USE_DEBUG} -eq 1 ]; then
         cmd="$cmd -d"
       fi
       if [ ${_QUIET} -eq 1 ]; then
         cmd="$cmd -q"
       fi
-      cmd="$cmd $(basename "$dir")"
+      cmd="$cmd -w $WORKING_DIR $(basename "$dir")"
 
       debug "CMD: $cmd"
       eval "$cmd"
