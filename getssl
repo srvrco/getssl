@@ -80,10 +80,11 @@
 # 2016-07-06 added additional comments about SANS in example template (1.14)
 # 2016-07-07 check for duplicate domains in domain / SANS (1.15)
 # 2016-07-08 modified to be used on older bash for issue #64 (1.16)
+# 2016-07-11 added -w to -a option and comments in domain template (1.17)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.16"
+VERSION="1.17"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
