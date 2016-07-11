@@ -724,7 +724,7 @@ if [ ${_CHECK_ALL} -eq 1 ]; then
       if [ ${_QUIET} -eq 1 ]; then
         cmd="$cmd -q"
       fi
-      cmd="$cmd $(basename "$dir")"
+      cmd="$cmd -w $WORKING_DIR $(basename "$dir")"
 
       debug "CMD: $cmd"
       eval "$cmd"
