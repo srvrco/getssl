@@ -537,8 +537,8 @@ write_domain_template() { # write out a template file for a domain.
 	#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
 	#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
 	#CA_CERT_LOCATION="/etc/ssl/chain.crt"
-	#DOMAIN_CHAIN_LOCATION="" this is the domain cert and CA cert
-	#DOMAIN_PEM_LOCATION="" this is the domain_key. domain cert and CA cert
+	#DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
+	#DOMAIN_PEM_LOCATION="" # this is the domain_key. domain cert and CA cert
 
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
