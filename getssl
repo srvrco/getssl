@@ -81,10 +81,11 @@
 # 2016-07-07 check for duplicate domains in domain / SANS (1.15)
 # 2016-07-08 modified to be used on older bash for issue #64 (1.16)
 # 2016-07-11 added -w to -a option and comments in domain template (1.17)
+# 2016-07-18 remove / regenerate csr when generating new private domain key (1.18)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.17"
+VERSION="1.18"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -897,6 +898,8 @@ else
     error_exit "unknown private key algorithm type ${PRIVATE_KEY_ALG}"
   fi
   umask "$ORIG_UMASK"
+  # remove csr on generation of new domain key
+  rm -f "$DOMAIN_DIR/${DOMAIN}.csr"
 fi
 
 #create SAN
@@ -948,7 +951,7 @@ fi # end of ... check if domain csr exists - if not then create it
 
 # if CSR does not exist, or flag set to recreate, then create csr
 if [ ! -f "$DOMAIN_DIR/${DOMAIN}.csr" ] || [ "$_RECREATE_CSR" == "1" ]; then
-  debug "creating domain csr - $DOMAIN_DIR/${DOMAIN}.csr"
+  info "creating domain csr - $DOMAIN_DIR/${DOMAIN}.csr"
   openssl req -new -sha256 -key "$DOMAIN_DIR/${DOMAIN}.key" -subj "/" -reqexts SAN -config \
   <(cat "$SSLCONF" <(printf "[SAN]\n%s" "$SANLIST")) > "$DOMAIN_DIR/${DOMAIN}.csr"
 fi
