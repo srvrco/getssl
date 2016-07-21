@@ -83,10 +83,11 @@
 # 2016-07-11 added -w to -a option and comments in domain template (1.17)
 # 2016-07-18 remove / regenerate csr when generating new private domain key (1.18)
 # 2016-07-21 add output of combined private key and domain cert (1.19)
+# 2016-07-21 updated typo (1.20)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.19"
+VERSION="1.20"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -1243,7 +1244,7 @@ copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
 cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
 copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$DOMAIN_CHAIN_LOCATION"
 cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
-copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_k_C.pem"  "$DOMAIN_KEY_CERT_LOCATION"
+copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem"  "$DOMAIN_KEY_CERT_LOCATION"
 cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
 copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
 
