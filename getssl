@@ -82,10 +82,11 @@
 # 2016-07-08 modified to be used on older bash for issue #64 (1.16)
 # 2016-07-11 added -w to -a option and comments in domain template (1.17)
 # 2016-07-18 remove / regenerate csr when generating new private domain key (1.18)
+# 2016-07-21 add output of combined private key and domain cert (1.19)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.18"
+VERSION="1.19"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -540,6 +541,7 @@ write_domain_template() { # write out a template file for a domain.
 	#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
 	#CA_CERT_LOCATION="/etc/ssl/chain.crt"
 	#DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
+	#DOMAIN_KEY_CERT_LOCATION="" # this is the domain_key and domain cert
 	#DOMAIN_PEM_LOCATION="" # this is the domain_key. domain cert and CA cert
 
 	# The command needed to reload apache / nginx or whatever you use
@@ -835,6 +837,8 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
             copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
             cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
             copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$DOMAIN_CHAIN_LOCATION"
+            cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
+            copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_k_C.pem"  "$DOMAIN_KEY_CERT_LOCATION"
             cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
             copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
             reload_service
@@ -1238,6 +1242,8 @@ copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOC
 copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
 cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
 copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$DOMAIN_CHAIN_LOCATION"
+cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
+copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_k_C.pem"  "$DOMAIN_KEY_CERT_LOCATION"
 cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
 copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
 
