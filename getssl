@@ -84,10 +84,11 @@
 # 2016-07-18 remove / regenerate csr when generating new private domain key (1.18)
 # 2016-07-21 add output of combined private key and domain cert (1.19)
 # 2016-07-21 updated typo (1.20)
+# 2016-07-22 corrected issue in nslookup debug option - issue #74 (1.21)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.20"
+VERSION="1.21"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -1064,7 +1065,7 @@ for d in $alldomains; do
         primary_ns=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} | os_grep origin | awk '{print $3}')
       fi
       if [ -z "$primary_ns" ]; then
-        primary_ns=$(nslookup -type=soa "${d}" -debug=1 ${PUBLIC_DNS_SERVER} | os_grep origin | awk '{print $3}')
+        primary_ns=$(nslookup -type=soa "${d}" -debug=1 ${PUBLIC_DNS_SERVER} | os_grep origin | awk '{print $3}'|sort|uniq)
       fi
     else
       primary_ns="$AUTH_DNS_SERVER"
