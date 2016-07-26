@@ -85,10 +85,11 @@
 # 2016-07-21 add output of combined private key and domain cert (1.19)
 # 2016-07-21 updated typo (1.20)
 # 2016-07-22 corrected issue in nslookup debug option - issue #74 (1.21)
+# 2016-07-26 add more server-types based on openssl s_client (1.22)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.21"
+VERSION="1.22"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -102,7 +103,7 @@ VALIDATE_VIA_DNS=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
 PRIVATE_KEY_ALG="rsa"
-SERVER_TYPE="webserver"
+SERVER_TYPE="https"
 CHECK_REMOTE="true"
 DNS_WAIT=10
 DNS_EXTRA_WAIT=""
@@ -552,10 +553,11 @@ write_domain_template() { # write out a template file for a domain.
 	#  this prevents hitting some of the rate limits.
 	RENEW_ALLOW="30"
 
-	# Define the server type.  This can either be a webserver, ldaps or a port number which
+	# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
+	# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
 	# will be checked for certificate expiry and also will be checked after
 	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
-	#SERVER_TYPE="webserver"
+	#SERVER_TYPE="https"
 	#CHECK_REMOTE="true"
 
 	# Use the following 3 variables if you want to validate via DNS
@@ -592,10 +594,11 @@ write_getssl_template() { # write out the main template file
 	#  this prevents hitting some of the rate limits.
 	RENEW_ALLOW="30"
 
-	# Define the server type.  This can either be a webserver, ldaps or a port number which
+	# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
+	# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
 	# will be checked for certificate expiry and also will be checked after
 	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
-	SERVER_TYPE="webserver"
+	SERVER_TYPE="https"
 	CHECK_REMOTE="true"
 
 	# openssl config file.  The default should work in most cases.
@@ -797,8 +800,36 @@ if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
   . "$DOMAIN_DIR/getssl.cfg"
 fi
 
-if [[ ${SERVER_TYPE} == "webserver" ]]; then
+if [[ ${SERVER_TYPE} == "https" ]] || [[ ${SERVER_TYPE} == "webserver" ]]; then
   REMOTE_PORT=443
+elif [[ ${SERVER_TYPE} == "ftp" ]]; then
+  REMOTE_PORT=21
+  REMOTE_EXTRA="-starttls ftp"
+elif [[ ${SERVER_TYPE} == "ftpi" ]]; then
+  REMOTE_PORT=990
+elif [[ ${SERVER_TYPE} == "imap" ]]; then
+  REMOTE_PORT=143
+  REMOTE_EXTRA="-starttls imap"
+elif [[ ${SERVER_TYPE} == "imaps" ]]; then
+  REMOTE_PORT=993
+elif [[ ${SERVER_TYPE} == "pop3" ]]; then
+  REMOTE_PORT=110
+  REMOTE_EXTRA="-starttls pop3"
+elif [[ ${SERVER_TYPE} == "pop3s" ]]; then
+  REMOTE_PORT=995
+elif [[ ${SERVER_TYPE} == "smtp" ]]; then
+  REMOTE_PORT=25
+  REMOTE_EXTRA="-starttls smtp"
+elif [[ ${SERVER_TYPE} == "smtps_deprecated" ]]; then
+  REMOTE_PORT=465
+elif [[ ${SERVER_TYPE} == "smtps" ]] || [[ ${SERVER_TYPE} == "smtp_submission" ]]; then
+  REMOTE_PORT=587
+  REMOTE_EXTRA="-starttls smtp"
+elif [[ ${SERVER_TYPE} == "xmpp" ]]; then
+  REMOTE_PORT=5222
+  REMOTE_EXTRA="-starttls xmpp"
+elif [[ ${SERVER_TYPE} == "xmpps" ]]; then
+  REMOTE_PORT=5269
 elif [[ ${SERVER_TYPE} == "ldaps" ]]; then
   REMOTE_PORT=636
 elif [[ ${SERVER_TYPE} =~ ^[0-9]+$ ]]; then
@@ -810,7 +841,8 @@ fi
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
   debug "getting certificate for $DOMAIN from remote server"
-  EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" 2>/dev/null | openssl x509 2>/dev/null)
+  # shellcheck disable=SC2086
+  EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null | openssl x509 2>/dev/null)
   if [ ! -z "$EX_CERT" ]; then # if obtained a cert
     if [ -f "$CERT_FILE" ]; then # if local exists
       CERT_REMOTE=$(echo "$EX_CERT" | openssl x509 -noout -fingerprint 2>/dev/null)
@@ -1255,7 +1287,8 @@ reload_service
 
 # Check if the certificate is installed correctly
 if [[ ${CHECK_REMOTE} == "true" ]]; then
-  CERT_REMOTE=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
+  # shellcheck disable=SC2086
+  CERT_REMOTE=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
   CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
   if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
     info "certificate installed OK on server"

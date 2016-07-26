@@ -6,7 +6,7 @@ Obtain SSL certificates from the letsencrypt.org ACME server.  Suitable for auto
 * **Get certificates for remote servers** - The tokens used to provide validation of domain ownership, and the certificates themselves can be automatically copied to remote servers (via ssh, sftp or ftp for tokens). The script doesn't need to run on the server itself. This can be useful if you don't have access to run such scripts on the server itself, as it's a shared server for example.
 * **Runs as a daily cron** - so certificates will be automatically renewed when required.
 * **Automatic certificate renewals**
-* **Checks certificates are correctly loaded**. After installation of a new certificate it will test the port specified ( typically https / 443) that the certificate is actually being used correctly. 
+* **Checks certificates are correctly loaded**. After installation of a new certificate it will test the port specified ( see [Server-Types](#server-types) for options ) that the certificate is actually being used correctly. 
 * **Automatically updates** - The script can automatically update itself with bug fixes etc if required.
 * **Extensively configurable** - With a simple configuration file for each certificate it is possible to configure it exactly for your needs, whether a simple single domain or multiple domains across multiple servers on the same certificate.
 * **Supports http and dns challenges** - Full ACME implementation
@@ -172,10 +172,11 @@ RELOAD_CMD="service apache2 reload"
 # The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 #RENEW_ALLOW="30"
 
-# Define the server type.  The can either webserver, ldaps or a port number which
+# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
+# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
 # will be checked for certificate expiry and also will be checked after
 # an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
-#SERVER_TYPE="webserver"
+#SERVER_TYPE="https"
 #CHECK_REMOTE="true"
 
 # Use the following 3 variables if you want to validate via DNS
@@ -193,6 +194,29 @@ If an ACL starts with ftp: or sftp: it as assumed that the line is in the format
 Note:  FTP can be used for copying tokens only and can **not** be used for uploading private key or certificates as it's not a secure method of transfer.
 
 ssh can also be used for the reload command if using on remote servers.
+
+
+## Server-Types
+OpenSSL has built-in support for getting the certificate from a number of SSL services
+these are available in getssl to check if the certificate is installed correctly
+
+| Server-Type      | Port | Extra        |
+|------------------|------|--------------|
+| https            | 443  |              |
+| ftp              | 21   | FTP Explicit |
+| ftpi             | 990  | FTP Implicit |
+| imap             | 143  | StartTLS     |
+| imaps            | 993  |              |
+| pop3             | 110  | StartTLS     |
+| pop3s            | 995  |              |
+| smtp             | 25   | StartTLS     |
+| smtps_deprecated | 465  |              |
+| smtps            | 587  | StartTLS     |
+| smtp_submission  | 587  | StartTLS     |
+| xmpp             | 5222 | StartTLS     |
+| xmpps            | 5269 |              |
+| ldaps            | 636  |              |
+| port number      |      |              |
 
 
 ## Issues / problems / help

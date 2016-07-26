@@ -36,7 +36,7 @@ VALIDATE_VIA_DNS="false"
 RELOAD_CMD=""
 RENEW_ALLOW="30"
 PRIVATE_KEY_ALG="rsa"
-SERVER_TYPE="webserver"
+SERVER_TYPE="https"
 CHECK_REMOTE="true"
 DNS_EXTRA_WAIT=0
 
@@ -135,10 +135,11 @@ write_getssl_template() { # write out the main template file
 	#  this prevents hitting some of the rate limits.
 	RENEW_ALLOW="30"
 
-	# Define the server type.  The can either webserver, ldaps or a port number which
+	# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
+	# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
 	# will be checked for certificate expiry and also will be checked after
 	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
-	SERVER_TYPE="webserver"
+	SERVER_TYPE="https"
 	CHECK_REMOTE="true"
 
 	# openssl config file.  The default should work in most cases.
@@ -194,7 +195,8 @@ write_domain_template() { # write out a template file for a domain.
 	#  this prevents hitting some of the rate limits.
 	RENEW_ALLOW="$RENEW_ALLOW"
 
-	# Define the server type.  The can either webserver, ldaps or a port number which
+	# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
+	# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
 	# will be checked for certificate expiry and also will be checked after
 	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
 	SERVER_TYPE="$SERVER_TYPE"
@@ -330,24 +332,54 @@ CHECK_REMOTE=$res
 
 if [[ "$CHECK_REMOTE" == "true" ]]; then
   get_user_input "server type" "$SERVER_TYPE" \
-    "This can be 'webserver', 'ldap', or a port number that getssl will use for certifcate checks"
+    "This can be 'https', 'ftp', 'ftpi', 'imap', 'imaps', 'pop3', 'pop3s', 'smtp', 'smtps_deprecated', 'smtps', 'smtp_submission', 'xmpp', 'xmpps', 'ldaps' or a port number that getssl will use for certifcate checks"
   SERVER_TYPE=$res
 else
   SERVER_TYPE=""
 fi
 
-if [[ ${SERVER_TYPE} == "webserver" ]]; then
+if [[ ${SERVER_TYPE} == "https" ]] || [[ ${SERVER_TYPE} == "webserver" ]]; then
   REMOTE_PORT=443
+elif [[ ${SERVER_TYPE} == "ftp" ]]; then
+  REMOTE_PORT=21
+  REMOTE_EXTRA="-starttls ftp"
+elif [[ ${SERVER_TYPE} == "ftpi" ]]; then
+  REMOTE_PORT=990
+elif [[ ${SERVER_TYPE} == "imap" ]]; then
+  REMOTE_PORT=143
+  REMOTE_EXTRA="-starttls imap"
+elif [[ ${SERVER_TYPE} == "imaps" ]]; then
+  REMOTE_PORT=993
+elif [[ ${SERVER_TYPE} == "pop3" ]]; then
+  REMOTE_PORT=110
+  REMOTE_EXTRA="-starttls pop3"
+elif [[ ${SERVER_TYPE} == "pop3s" ]]; then
+  REMOTE_PORT=995
+elif [[ ${SERVER_TYPE} == "smtp" ]]; then
+  REMOTE_PORT=25
+  REMOTE_EXTRA="-starttls smtp"
+elif [[ ${SERVER_TYPE} == "smtps_deprecated" ]]; then
+  REMOTE_PORT=465
+elif [[ ${SERVER_TYPE} == "smtps" ]] || [[ ${SERVER_TYPE} == "smtp_submission" ]]; then
+  REMOTE_PORT=587
+  REMOTE_EXTRA="-starttls smtp"
+elif [[ ${SERVER_TYPE} == "xmpp" ]]; then
+  REMOTE_PORT=5222
+  REMOTE_EXTRA="-starttls xmpp"
+elif [[ ${SERVER_TYPE} == "xmpps" ]]; then
+  REMOTE_PORT=5269
 elif [[ ${SERVER_TYPE} == "ldaps" ]]; then
   REMOTE_PORT=636
 elif [[ ${SERVER_TYPE} =~ ^[0-9]+$ ]]; then
-  REMOTE_PORT=SERVER_TYPE
+  REMOTE_PORT=${SERVER_TYPE}
+else
+  error_exit "unknown server type"
 fi
 
 SANS="www.${DOMAIN}"
 if [[ ! -z ${REMOTE_PORT} ]]; then
   # Additional domains - this could be multiple domains / subdomains in a comma separated list
-  EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" 2>/dev/null | openssl x509 2>/dev/null)
+  EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null | openssl x509 2>/dev/null)
   if [ ! -z "${EX_CERT}" ]; then
     SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
               | grep -Eo "DNS:[a-zA-Z 0-9.-]*" | sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
