@@ -85,10 +85,11 @@
 # 2016-07-21 add output of combined private key and domain cert (1.19)
 # 2016-07-21 updated typo (1.20)
 # 2016-07-22 corrected issue in nslookup debug option - issue #74 (1.21)
+# 2016-07-26 add more server-types based on openssl s_client (1.22)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.21"
+VERSION="1.22"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -840,6 +841,7 @@ fi
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
   debug "getting certificate for $DOMAIN from remote server"
+  # shellcheck disable=SC2086
   EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null | openssl x509 2>/dev/null)
   if [ ! -z "$EX_CERT" ]; then # if obtained a cert
     if [ -f "$CERT_FILE" ]; then # if local exists
@@ -1285,6 +1287,7 @@ reload_service
 
 # Check if the certificate is installed correctly
 if [[ ${CHECK_REMOTE} == "true" ]]; then
+  # shellcheck disable=SC2086
   CERT_REMOTE=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
   CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
   if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
