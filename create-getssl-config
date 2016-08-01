@@ -20,14 +20,15 @@
 # 2016-02-05 Updated to include more variables. Still not full operational. (v0.2) 
 # 2016-05-04 Corrected typo on DNS_DEL_COMMAND (v0.3)
 # 2016-05-23 Added option to provide a blank response, for things like SANS. (0.4)
+# 2016-08-01 updated agreement for letsencrypt (0.5)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="0.4"
+VERSION="0.5"
 
 # defaults
 CA="https://acme-staging.api.letsencrypt.org"
-AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.1.1-August-1-2016.pdf"
 ACCOUNT_KEY_LENGTH=4096
 WORKING_DIR=~/.getssl
 DOMAIN_KEY_LENGTH=4096
