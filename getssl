@@ -518,7 +518,7 @@ write_domain_template() { # write out a template file for a domain.
 	# This server issues full certificates, however has rate limits
 	#CA="https://acme-v01.api.letsencrypt.org"
 
-	#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+	#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.1.1-August-1-2016.pdf"
 
 	# Set an email address associated with your account - generally set at account level rather than domain.
 	#ACCOUNT_EMAIL="me@example.com"
@@ -581,7 +581,7 @@ write_getssl_template() { # write out the main template file
 	# This server issues full certificates, however has rate limits
 	#CA="https://acme-v01.api.letsencrypt.org"
 
-	AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+	AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.1.1-August-1-2016.pdf"
 
 	# Set an email address associated with your account - generally set at account level rather than domain.
 	#ACCOUNT_EMAIL="me@example.com"
