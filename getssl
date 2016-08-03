@@ -89,16 +89,15 @@
 # 2016-08-01 updated agreement for letsencrypt (1.23)
 # 2016-08-02 updated agreement for letsencrypt to update automatically (1.24)
 # 2016-08-03 improve messages on test of certificate installation (1.25)
+# 2016-08-04 remove carriage return from agreement - issue #80 (1.26)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.25"
+VERSION="1.26"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
 CA="https://acme-staging.api.letsencrypt.org"
-AGREEMENT=$(curl -I https://acme-v01.api.letsencrypt.org/terms 2>/dev/null | grep "Location:" | awk '{print $2}')
-AGREEMENT=${AGREEMENT:=https://letsencrypt.org/documents/LE-SA-v1.1.1-August-1-2016.pdf}
 ACCOUNT_KEY_LENGTH=4096
 WORKING_DIR=~/.getssl
 DOMAIN_KEY_LENGTH=4096
@@ -684,6 +683,9 @@ fi
 
 # Check if upgrades are available
 check_getssl_upgrade
+
+# get latest agreement for LetsEncrypt (as default)
+AGREEMENT=$(curl -I https://acme-v01.api.letsencrypt.org/terms 2>/dev/null | grep "Location:" | awk '{print $2}'|os_sed 's/\r//')
 
 # if nothing in command line, print help and exit.
 if [ -z "$DOMAIN" ] && [ ${_CHECK_ALL} -ne 1 ]; then
