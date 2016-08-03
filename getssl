@@ -88,10 +88,11 @@
 # 2016-07-26 add more server-types based on openssl s_client (1.22)
 # 2016-08-01 updated agreement for letsencrypt (1.23)
 # 2016-08-02 updated agreement for letsencrypt to update automatically (1.24)
+# 2016-08-03 improve messages on test of certificate installation (1.25)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.24"
+VERSION="1.25"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -101,7 +102,7 @@ AGREEMENT=${AGREEMENT:=https://letsencrypt.org/documents/LE-SA-v1.1.1-August-1-2
 ACCOUNT_KEY_LENGTH=4096
 WORKING_DIR=~/.getssl
 DOMAIN_KEY_LENGTH=4096
-SSLCONF="$(openssl version -d | cut -d\" -f2)/openssl.cnf"
+SSLCONF="$(openssl version -d 2>/dev/null| cut -d\" -f2)/openssl.cnf"
 VALIDATE_VIA_DNS=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
@@ -1294,9 +1295,9 @@ if [[ ${CHECK_REMOTE} == "true" ]]; then
   CERT_REMOTE=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
   CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
   if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
-    info "certificate installed OK on server"
+    info "${DOMAIN} - certificate installed OK on server"
   else
-    error_exit "certificate on server is different from local certificate"
+    error_exit "${DOMAIN} - certificate obtained but certificate on server is different from the new certificate"
   fi
 fi
 
