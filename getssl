@@ -90,10 +90,11 @@
 # 2016-08-02 updated agreement for letsencrypt to update automatically (1.24)
 # 2016-08-03 improve messages on test of certificate installation (1.25)
 # 2016-08-04 remove carriage return from agreement - issue #80 (1.26)
+# 2016-08-04 set permissions for token folders - issue #81 (1.27)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.26"
+VERSION="1.27"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -288,7 +289,7 @@ copy_file_to_location() { # copies a file, using scp if required.
       if [ $? -gt 0 ]; then
         error_exit "cannot create ACL directory $(basename "$to")"
       fi
-      cp "$from" "$to"
+      cp -p "$from" "$to"
       if [ $? -ne 0 ]; then
         error_exit "cannot copy $from to $to"
       fi
@@ -1144,11 +1145,13 @@ for d in $alldomains; do
 
     # save variable into temporary file
     echo -n "$keyauthorization" > "$TEMP_DIR/$token"
-    chmod 755 "$TEMP_DIR/$token"
+    chmod 644 "$TEMP_DIR/$token"
 
     # copy to token to acme challenge location
+    umask 0022
     debug "copying file from $TEMP_DIR/$token to ${ACL[$dn]}"
     copy_file_to_location "challenge token" "$TEMP_DIR/$token" "${ACL[$dn]}/$token"
+    umask "$ORIG_UMASK"
 
     wellknown_url="${CHALLENGE_CHECK_TYPE}://$d/.well-known/acme-challenge/$token"
     debug wellknown_url "$wellknown_url"
