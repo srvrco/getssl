@@ -91,10 +91,11 @@
 # 2016-08-03 improve messages on test of certificate installation (1.25)
 # 2016-08-04 remove carriage return from agreement - issue #80 (1.26)
 # 2016-08-04 set permissions for token folders - issue #81 (1.27)
+# 2016-08-07 allow default chained file creation - issue #85 (1.28)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.27"
+VERSION="1.28"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -1283,12 +1284,36 @@ fi
 copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
 copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
 copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
-cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
-copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$DOMAIN_CHAIN_LOCATION"
-cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
-copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem"  "$DOMAIN_KEY_CERT_LOCATION"
-cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
-copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
+# if DOMAIN_CHAIN_LOCATION is not blank, then create and copy file.
+if [ ! -z "$DOMAIN_CHAIN_LOCATION" ]; then
+  if [[ "$(dirname "$DOMAIN_CHAIN_LOCATION")" == "." ]]; then
+    to_location="${DOMAIN_DIR}/${DOMAIN_CHAIN_LOCATION}"
+  else
+    to_location="${DOMAIN_CHAIN_LOCATION}"
+  fi
+  cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
+  copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$to_location"
+fi
+# if DOMAIN_KEY_CERT_LOCATION is not blank, then create and copy file.
+if [ ! -z "$DOMAIN_KEY_CERT_LOCATION" ]; then
+  if [[ "$(dirname "$DOMAIN_KEY_CERT_LOCATION")" == "." ]]; then
+    to_location="${DOMAIN_DIR}/${DOMAIN_KEY_CERT_LOCATION}"
+  else
+    to_location="${DOMAIN_KEY_CERT_LOCATION}"
+  fi
+  cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
+  copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem"  "$to_location"
+fi
+# if DOMAIN_PEM_LOCATION is not blank, then create and copy file.
+if [ ! -z "$DOMAIN_PEM_LOCATION" ]; then
+  if [[ "$(dirname "$DOMAIN_PEM_LOCATION")" == "." ]]; then
+    to_location="${DOMAIN_DIR}/${DOMAIN_PEM_LOCATION}"
+  else
+    to_location="${DOMAIN_PEM_LOCATION}"
+  fi
+  cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
+  copy_file_to_location "full key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
+fi
 
 # Run reload command to restart apache / nginx or whatever system
 
