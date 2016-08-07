@@ -92,10 +92,11 @@
 # 2016-08-04 remove carriage return from agreement - issue #80 (1.26)
 # 2016-08-04 set permissions for token folders - issue #81 (1.27)
 # 2016-08-07 allow default chained file creation - issue #85 (1.28)
+# 2016-08-07 use copy rather than move when archiving certs - issue #86 (1.29)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.28"
+VERSION="1.29"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -131,7 +132,7 @@ cert_archive() {  # Archive certificate file by copying with dates at end.
   formatted_enddate=$(os_date -d "${enddate}" +%F)
   startdate=$(openssl x509 -in "$certfile" -noout -startdate 2>/dev/null| cut -d= -f 2-)
   formatted_startdate=$(os_date -d "${startdate}" +%F)
-  mv "${certfile}" "${certfile}_${formatted_startdate}_${formatted_enddate}"
+  cp "${certfile}" "${certfile}_${formatted_startdate}_${formatted_enddate}"
   info "archiving old certificate file to ${certfile}_${formatted_startdate}_${formatted_enddate}"
 }
 
