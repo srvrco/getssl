@@ -1166,7 +1166,7 @@ for d in $alldomains; do
     debug wellknown_url "$wellknown_url"
 
     # check that we can reach the challenge ourselves, if not, then error
-    if [ ! "$(curl --silent --location "$wellknown_url")" == "$keyauthorization" ]; then
+    if [ ! "$(curl -k --silent --location "$wellknown_url")" == "$keyauthorization" ]; then
       error_exit "for some reason could not reach $wellknown_url - please check it manually"
     fi
 
