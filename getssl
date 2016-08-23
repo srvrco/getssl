@@ -726,6 +726,9 @@ CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
 
+# Set the OPENSSL_CONF environment variable so openssl knows which config to use
+export OPENSSL_CONF=$SSLCONF
+
 # if "-a" option then check other parameters and create run for each domain.
 if [ ${_CHECK_ALL} -eq 1 ]; then
   info "Check all certificates"
