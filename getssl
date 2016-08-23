@@ -94,10 +94,11 @@
 # 2016-08-07 allow default chained file creation - issue #85 (1.28)
 # 2016-08-07 use copy rather than move when archiving certs - issue #86 (1.29)
 # 2016-08-07 enable use of a single ACL for all checks (if USE_SINGLE_ACL="true" (1.30)
+# 2016-08-23 check for already validated domains (issue #93) - (1.31)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.30"
+VERSION="1.31"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -493,6 +494,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   debug response  "$response"
   code=$(os_grep ^HTTP "$CURL_HEADER" | tail -1 | cut -d " " -f 2)
   debug code "$code"
+  response_status=$(echo "$response"| os_grep status | head -1 | awk -F'"' '{print $4}')
 }
 
 signal_exit() { # Handle trapped signals
@@ -1075,131 +1077,136 @@ for d in $alldomains; do
   if [ ! -z "$code" ] && [ ! "$code" == '201' ] ; then
     error_exit "new-authz error: $response"
   fi
+  
+  if [[ $response_status == "valid" ]]; then
+    debug "$d is already validated"
+  else
 
-  if [[ $VALIDATE_VIA_DNS == "true" ]]; then # set up the correct DNS token for verification
-    # get the dns component of the ACME response
-    # shellcheck disable=SC2086
-    dns01=$(echo $response | os_grep -Po  '{[^{]*"type":[ ]*"dns-01"[^}]*')
-    debug dns01 "$dns01"
+    if [[ $VALIDATE_VIA_DNS == "true" ]]; then # set up the correct DNS token for verification
+      # get the dns component of the ACME response
+      # shellcheck disable=SC2086
+      dns01=$(echo $response | os_grep -Po  '{[^{]*"type":[ ]*"dns-01"[^}]*')
+      debug dns01 "$dns01"
 
-    # get the token from the dns component
-    token=$(echo "$dns01" | os_sed 's/,/\n'/g| os_grep '"token":'| cut -d '"' -f 4)
-    debug token "$token"
+      # get the token from the dns component
+      token=$(echo "$dns01" | os_sed 's/,/\n'/g| os_grep '"token":'| cut -d '"' -f 4)
+      debug token "$token"
 
-    uri=$(echo "$dns01" | os_sed 's/,/\n'/g| os_grep '"uri":'| cut -d '"' -f 4)
-    debug uri "$uri"
+      uri=$(echo "$dns01" | os_sed 's/,/\n'/g| os_grep '"uri":'| cut -d '"' -f 4)
+      debug uri "$uri"
 
-    keyauthorization="$token.$thumbprint"
-    debug keyauthorization "$keyauthorization"
+      keyauthorization="$token.$thumbprint"
+      debug keyauthorization "$keyauthorization"
 
-    #create signed authorization key from token.
-    auth_key=$(printf '%s' "$keyauthorization" | openssl sha -sha256 -binary | openssl base64 -e | tr -d '\n\r' | os_sed -e 's:=*$::g' -e 'y:+/:-_:')
-    debug auth_key "$auth_key"
+      #create signed authorization key from token.
+      auth_key=$(printf '%s' "$keyauthorization" | openssl sha -sha256 -binary | openssl base64 -e | tr -d '\n\r' | os_sed -e 's:=*$::g' -e 'y:+/:-_:')
+      debug auth_key "$auth_key"
 
-    debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
-    eval "$DNS_ADD_COMMAND" "$d" "$auth_key"
-    if [ $? -gt 0 ]; then
-      error_exit "DNS_ADD_COMMAND failed for domain $d"
-    fi
+      debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
+      eval "$DNS_ADD_COMMAND" "$d" "$auth_key"
+      if [ $? -gt 0 ]; then
+        error_exit "DNS_ADD_COMMAND failed for domain $d"
+      fi
 
-    # find a primary / authoritative DNS server for the domain
-    if [ -z "$AUTH_DNS_SERVER" ]; then
-      if [[ "$os" == "cygwin" ]]; then
-        primary_ns=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} 2>/dev/null| os_grep "primary name server" | awk '{print $NF}')
+      # find a primary / authoritative DNS server for the domain
+      if [ -z "$AUTH_DNS_SERVER" ]; then
+        if [[ "$os" == "cygwin" ]]; then
+          primary_ns=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} 2>/dev/null| os_grep "primary name server" | awk '{print $NF}')
+          if [ -z "$primary_ns" ]; then
+            error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
+          fi
+        else
+          primary_ns=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} | os_grep origin | awk '{print $3}')
+        fi
         if [ -z "$primary_ns" ]; then
-          error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
+          primary_ns=$(nslookup -type=soa "${d}" -debug=1 ${PUBLIC_DNS_SERVER} | os_grep origin | awk '{print $3}'|sort|uniq)
         fi
       else
-        primary_ns=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} | os_grep origin | awk '{print $3}')
+        primary_ns="$AUTH_DNS_SERVER"
       fi
-      if [ -z "$primary_ns" ]; then
-        primary_ns=$(nslookup -type=soa "${d}" -debug=1 ${PUBLIC_DNS_SERVER} | os_grep origin | awk '{print $3}'|sort|uniq)
+      debug primary_ns "$primary_ns"
+
+      # make a directory to hold pending dns-challenges
+      if [ ! -d "$TEMP_DIR/dns_verify" ]; then
+        mkdir "$TEMP_DIR/dns_verify"
       fi
-    else
-      primary_ns="$AUTH_DNS_SERVER"
+
+      # generate a file with the current variables for the dns-challenge
+      cat > "$TEMP_DIR/dns_verify/$d" <<- _EOF_
+			token="${token}"
+			uri="${uri}"
+			keyauthorization="${keyauthorization}"
+			d="${d}"
+			primary_ns="${primary_ns}"
+			auth_key="${auth_key}"
+			_EOF_
+
+    else      # set up the correct http token for verification
+      # get the http component of the ACME response
+      # shellcheck disable=SC2086
+      http01=$(echo $response | os_grep -Po '{[ ]*"type":[ ]*"http-01"[^}]*')
+      debug http01 "$http01"
+
+      # get the token from the http component
+      token=$(echo "$http01" | os_sed 's/,/\n'/g| os_grep '"token":'| cut -d '"' -f 4)
+      debug token "$token"
+
+      uri=$(echo "$http01" | os_sed 's/,/\n'/g| os_grep '"uri":'| cut -d '"' -f 4)
+      debug uri "$uri"
+
+      #create signed authorization key from token.
+      keyauthorization="$token.$thumbprint"
+      debug keyauthorization "$keyauthorization"
+
+      # save variable into temporary file
+      echo -n "$keyauthorization" > "$TEMP_DIR/$token"
+      chmod 644 "$TEMP_DIR/$token"
+
+      # copy to token to acme challenge location
+      umask 0022
+      debug "copying file from $TEMP_DIR/$token to ${DOMAIN_ACL}"
+      copy_file_to_location "challenge token" "$TEMP_DIR/$token" "${DOMAIN_ACL}/$token"
+      umask "$ORIG_UMASK"
+
+      wellknown_url="${CHALLENGE_CHECK_TYPE}://$d/.well-known/acme-challenge/$token"
+      debug wellknown_url "$wellknown_url"
+
+      # check that we can reach the challenge ourselves, if not, then error
+      if [ ! "$(curl --silent --location "$wellknown_url")" == "$keyauthorization" ]; then
+        error_exit "for some reason could not reach $wellknown_url - please check it manually"
+      fi
+
+      check_challenge_completion "$uri" "$d" "$keyauthorization"
+
+      debug "remove token from ${DOMAIN_ACL}"
+      if [[ "${DOMAIN_ACL:0:4}" == "ssh:" ]] ; then
+        sshhost=$(echo "${DOMAIN_ACL}"| awk -F: '{print $2}')
+        command="rm -f ${DOMAIN_ACL:(( ${#sshhost} + 5))}/${token:?}"
+        debug "running following comand to remove token"
+        debug "ssh $sshhost ${command}"
+        # shellcheck disable=SC2029
+        ssh "$sshhost" "${command}" 1>/dev/null 2>&1
+        rm -f "${TEMP_DIR:?}/${token:?}"
+      elif [[ "${DOMAIN_ACL:0:4}" == "ftp:" ]] ; then
+        debug "using ftp to remove token file"
+        ftpuser=$(echo "${DOMAIN_ACL}"| awk -F: '{print $2}')
+        ftppass=$(echo "${DOMAIN_ACL}"| awk -F: '{print $3}')
+        ftphost=$(echo "${DOMAIN_ACL}"| awk -F: '{print $4}')
+        ftplocn=$(echo "${DOMAIN_ACL}"| awk -F: '{print $5}')
+        debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost loction=$ftplocn"
+        ftp -n <<- EOF
+				open $ftphost
+				user $ftpuser $ftppass
+				cd $ftplocn 
+				delete ${token:?}
+				EOF
+      else
+        rm -f "${DOMAIN_ACL:?}/${token:?}"
+      fi
     fi
-    debug primary_ns "$primary_ns"
-
-    # make a directory to hold pending dns-challenges
-    if [ ! -d "$TEMP_DIR/dns_verify" ]; then
-      mkdir "$TEMP_DIR/dns_verify"
-    fi
-
-    # generate a file with the current variables for the dns-challenge
-    cat > "$TEMP_DIR/dns_verify/$d" <<- _EOF_
-		token="${token}"
-		uri="${uri}"
-		keyauthorization="${keyauthorization}"
-		d="${d}"
-		primary_ns="${primary_ns}"
-		auth_key="${auth_key}"
-		_EOF_
-
-  else      # set up the correct http token for verification
-    # get the http component of the ACME response
-    # shellcheck disable=SC2086
-    http01=$(echo $response | os_grep -Po '{[ ]*"type":[ ]*"http-01"[^}]*')
-    debug http01 "$http01"
-
-    # get the token from the http component
-    token=$(echo "$http01" | os_sed 's/,/\n'/g| os_grep '"token":'| cut -d '"' -f 4)
-    debug token "$token"
-
-    uri=$(echo "$http01" | os_sed 's/,/\n'/g| os_grep '"uri":'| cut -d '"' -f 4)
-    debug uri "$uri"
-
-    #create signed authorization key from token.
-    keyauthorization="$token.$thumbprint"
-    debug keyauthorization "$keyauthorization"
-
-    # save variable into temporary file
-    echo -n "$keyauthorization" > "$TEMP_DIR/$token"
-    chmod 644 "$TEMP_DIR/$token"
-
-    # copy to token to acme challenge location
-    umask 0022
-    debug "copying file from $TEMP_DIR/$token to ${DOMAIN_ACL}"
-    copy_file_to_location "challenge token" "$TEMP_DIR/$token" "${DOMAIN_ACL}/$token"
-    umask "$ORIG_UMASK"
-
-    wellknown_url="${CHALLENGE_CHECK_TYPE}://$d/.well-known/acme-challenge/$token"
-    debug wellknown_url "$wellknown_url"
-
-    # check that we can reach the challenge ourselves, if not, then error
-    if [ ! "$(curl --silent --location "$wellknown_url")" == "$keyauthorization" ]; then
-      error_exit "for some reason could not reach $wellknown_url - please check it manually"
-    fi
-
-    check_challenge_completion "$uri" "$d" "$keyauthorization"
-
-    debug "remove token from ${DOMAIN_ACL}"
-    if [[ "${DOMAIN_ACL:0:4}" == "ssh:" ]] ; then
-      sshhost=$(echo "${DOMAIN_ACL}"| awk -F: '{print $2}')
-      command="rm -f ${DOMAIN_ACL:(( ${#sshhost} + 5))}/${token:?}"
-      debug "running following comand to remove token"
-      debug "ssh $sshhost ${command}"
-      # shellcheck disable=SC2029
-      ssh "$sshhost" "${command}" 1>/dev/null 2>&1
-      rm -f "${TEMP_DIR:?}/${token:?}"
-    elif [[ "${DOMAIN_ACL:0:4}" == "ftp:" ]] ; then
-      debug "using ftp to remove token file"
-      ftpuser=$(echo "${DOMAIN_ACL}"| awk -F: '{print $2}')
-      ftppass=$(echo "${DOMAIN_ACL}"| awk -F: '{print $3}')
-      ftphost=$(echo "${DOMAIN_ACL}"| awk -F: '{print $4}')
-      ftplocn=$(echo "${DOMAIN_ACL}"| awk -F: '{print $5}')
-      debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost loction=$ftplocn"
-      ftp -n <<- EOF
-			open $ftphost
-			user $ftpuser $ftppass
-			cd $ftplocn 
-			delete ${token:?}
-			EOF
-    else
-      rm -f "${DOMAIN_ACL:?}/${token:?}"
-    fi
+    # increment domain-counter
+    let dn=dn+1;
   fi
-  # increment domain-counter
-  let dn=dn+1;
 done # end of ... loop through domains for cert ( from SANS list)
 
 # perform validation if via DNS challenge
