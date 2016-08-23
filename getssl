@@ -907,18 +907,13 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
   fi # end of .... if obtained a cert
 fi # end of .... check_remote is true then connect and obtain the current certificate
 
-# if force renew is set, set the date validity checks to 365 days
-if [ $_FORCE_RENEW -eq 1 ]; then
-  RENEW_ALLOW=365
-fi
-
 # if there is an existsing certificate file, check details.
 if [ -f "$CERT_FILE" ]; then
   debug "certificate $CERT_FILE exists"
   enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
   debug "enddate is $enddate"
   if [[ "$enddate" != "-" ]]; then
-    if [[ $(os_date -d "${RENEW_ALLOW} days" +%s) -lt $(os_date -d "$enddate" +%s) ]]; then
+    if [[ $(os_date -d "${RENEW_ALLOW} days" +%s) -lt $(os_date -d "$enddate" +%s) ]] && [ $_FORCE_RENEW -ne 1 ]; then
       info "certificate for $DOMAIN is still valid for more than $RENEW_ALLOW days (until $enddate)"
       # everything is OK, so exit.
       graceful_exit
