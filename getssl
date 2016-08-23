@@ -95,10 +95,11 @@
 # 2016-08-07 use copy rather than move when archiving certs - issue #86 (1.29)
 # 2016-08-07 enable use of a single ACL for all checks (if USE_SINGLE_ACL="true" (1.30)
 # 2016-08-23 check for already validated domains (issue #93) - (1.31)
+# 2016-08-23 updated already validated domains (1.32)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.31"
+VERSION="1.32"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -1213,35 +1214,37 @@ done # end of ... loop through domains for cert ( from SANS list)
 if [[ $VALIDATE_VIA_DNS == "true" ]]; then
   # loop through dns-variable files to check if dns has been changed
   for dnsfile in $TEMP_DIR/dns_verify/*; do
-    debug "loading DNSfile: $dnsfile"
-    . "$dnsfile"
+    if [ -e $dnsfile ]; then
+      debug "loading DNSfile: $dnsfile"
+      . "$dnsfile"
 
-    # check for token at public dns server, waiting for a valid response.
-    ntries=0
-    check_dns="fail"
-    while [ "$check_dns" == "fail" ]; do
-      if [[ "$os" == "cygwin" ]]; then
-        check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | os_grep ^_acme -A2| os_grep '"'|awk -F'"' '{ print $2}')
-      else
-        check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | os_grep ^_acme|awk -F'"' '{ print $2}')
-      fi
-      debug "expecting  $auth_key"
-      debug " got ....  $check_result"
-
-      if [[ "$check_result" == "$auth_key" ]]; then
-        check_dns="success"
-        debug "checking DNS ... _acme-challenge.$d gave $check_result"
-      else
-        if [[ $ntries -lt 100 ]]; then
-          ntries=$(( ntries + 1 ))
-          info "checking DNS for ${d}. Attempt $ntries/100 gave wrong result, waiting $DNS_WAIT secs before checking again"
-          sleep $DNS_WAIT
+      # check for token at public dns server, waiting for a valid response.
+      ntries=0
+      check_dns="fail"
+      while [ "$check_dns" == "fail" ]; do
+        if [[ "$os" == "cygwin" ]]; then
+          check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | os_grep ^_acme -A2| os_grep '"'|awk -F'"' '{ print $2}')
         else
-          debug "dns check failed - removing existing value"
-          error_exit "checking _acme-challenge.$DOMAIN gave $check_result not $auth_key"
+          check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | os_grep ^_acme|awk -F'"' '{ print $2}')
         fi
-      fi
-    done
+        debug "expecting  $auth_key"
+        debug " got ....  $check_result"
+
+        if [[ "$check_result" == "$auth_key" ]]; then
+          check_dns="success"
+          debug "checking DNS ... _acme-challenge.$d gave $check_result"
+        else
+          if [[ $ntries -lt 100 ]]; then
+            ntries=$(( ntries + 1 ))
+            info "checking DNS for ${d}. Attempt $ntries/100 gave wrong result, waiting $DNS_WAIT secs before checking again"
+            sleep $DNS_WAIT
+          else
+            debug "dns check failed - removing existing value"
+            error_exit "checking _acme-challenge.$DOMAIN gave $check_result not $auth_key"
+          fi
+        fi
+      done
+    fi
   done
 
   if [ "$DNS_EXTRA_WAIT" != "" ]; then
@@ -1251,15 +1254,17 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
 
   # loop through dns-variable files to let the ACME server check the challenges
   for dnsfile in $TEMP_DIR/dns_verify/*; do
-    debug "loading DNSfile: $dnsfile"
-    . "$dnsfile"
+    if [ -e $dnsfile ]; then
+      debug "loading DNSfile: $dnsfile"
+      . "$dnsfile"
 
-    check_challenge_completion "$uri" "$d" "$keyauthorization"
+      check_challenge_completion "$uri" "$d" "$keyauthorization"
 
-    debug "remove DNS entry"
-    eval "$DNS_DEL_COMMAND" "$d"
-    # remove $dnsfile after each loop.
-    rm -f "$dnsfile"
+      debug "remove DNS entry"
+      eval "$DNS_DEL_COMMAND" "$d"
+      # remove $dnsfile after each loop.
+      rm -f "$dnsfile"
+    fi
   done
 fi # end of ... perform validation if via DNS challenge
 
