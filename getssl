@@ -97,10 +97,11 @@
 # 2016-08-23 check for already validated domains (issue #93) - (1.31)
 # 2016-08-23 updated already validated domains (1.32)
 # 2016-08-23 included better force_renew and template for USE_SINGLE_ACL (1.33)
+# 2016-08-23 enable insecure certiticate on https token check #94 (1.34)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.33"
+VERSION="1.34"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -1172,7 +1173,7 @@ for d in $alldomains; do
       debug wellknown_url "$wellknown_url"
 
       # check that we can reach the challenge ourselves, if not, then error
-      if [ ! "$(curl --silent --location "$wellknown_url")" == "$keyauthorization" ]; then
+      if [ ! "$(curl -k --silent --location "$wellknown_url")" == "$keyauthorization" ]; then
         error_exit "for some reason could not reach $wellknown_url - please check it manually"
       fi
 
