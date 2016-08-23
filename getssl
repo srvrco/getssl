@@ -98,10 +98,11 @@
 # 2016-08-23 updated already validated domains (1.32)
 # 2016-08-23 included better force_renew and template for USE_SINGLE_ACL (1.33)
 # 2016-08-23 enable insecure certiticate on https token check #94 (1.34)
+# 2016-08-23 export OPENSSL_CONF so it's used by all openssl commands (1.35)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.34"
+VERSION="1.35"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
