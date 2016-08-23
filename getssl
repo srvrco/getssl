@@ -96,10 +96,11 @@
 # 2016-08-07 enable use of a single ACL for all checks (if USE_SINGLE_ACL="true" (1.30)
 # 2016-08-23 check for already validated domains (issue #93) - (1.31)
 # 2016-08-23 updated already validated domains (1.32)
+# 2016-08-23 included better force_renew and template for USE_SINGLE_ACL (1.33)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.32"
+VERSION="1.33"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -1212,7 +1213,7 @@ done # end of ... loop through domains for cert ( from SANS list)
 if [[ $VALIDATE_VIA_DNS == "true" ]]; then
   # loop through dns-variable files to check if dns has been changed
   for dnsfile in $TEMP_DIR/dns_verify/*; do
-    if [ -e $dnsfile ]; then
+    if [ -e "$dnsfile" ]; then
       debug "loading DNSfile: $dnsfile"
       . "$dnsfile"
 
@@ -1252,7 +1253,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
 
   # loop through dns-variable files to let the ACME server check the challenges
   for dnsfile in $TEMP_DIR/dns_verify/*; do
-    if [ -e $dnsfile ]; then
+    if [ -e "$dnsfile" ]; then
       debug "loading DNSfile: $dnsfile"
       . "$dnsfile"
 
