@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# need to add your email address and key to cloudflare below
+key=""
+
+fulldomain="$1"
+
+NumParts=$(echo "$fulldomain" | awk -F"." '{print NF}')
+if [[ $NumParts -gt 2 ]]; then
+  domain=$(echo "$fulldomain" | awk -F\. '{print $(NF-1) FS $NF}')
+  txtname="_acme-challenge$(echo $fulldomain | awk -F\. '{for (i=1; i<NF-1; i++) printf "." $i}')"
+else
+  domain=$fulldomain
+  txtname="_acme-challenge"
+fi
+
+response=$(curl --silent -X POST "https://dnsapi.cn/Domain.List" \
+  -H "Accept: application/json" -H "User-Agent: getssl/0.1" -H "application/x-www-form-urlencoded" \
+  -d "login_token=${key}&format=json" )
+
+domain_id=$(echo "$response" | egrep -o  "[^{]*\"name\":\"${domain}\"[^}]*"|grep -oP '\"id\":\K[^,]+')
+
+response=$(curl --silent -X POST "https://dnsapi.cn/Record.List" \
+  -H "Accept: application/json" -H "User-Agent: getssl/0.1" -H "application/x-www-form-urlencoded" \
+  -d "login_token=${key}&format=json&domain_id=${domain_id}" )
+
+zone_ids=$(echo "$response" | egrep -o  "[^{]*\"type\":\"TXT\"[^}]*" | grep -oP '\"id\":"\K[^"]+')
+
+ids=( $zone_ids )
+
+# loop though all IDs ( if more than one )
+for id in "${ids[@]}"; do
+  response=$(curl --silent -X POST "https://dnsapi.cn/Record.Remove" \
+    -H "Accept: application/json" -H "User-Agent: getssl/0.1" -H "application/x-www-form-urlencoded" \
+    -d "login_token=${key}&format=json&domain_id=${domain_id}&record_id=${id}")
+done
+
