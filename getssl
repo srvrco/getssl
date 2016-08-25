@@ -99,10 +99,11 @@
 # 2016-08-23 included better force_renew and template for USE_SINGLE_ACL (1.33)
 # 2016-08-23 enable insecure certiticate on https token check #94 (1.34)
 # 2016-08-23 export OPENSSL_CONF so it's used by all openssl commands (1.35)
+# 2016-08-25 updated defaults for ACME agreement (1.36)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.35"
+VERSION="1.36"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -597,7 +598,7 @@ write_getssl_template() { # write out the main template file
 	# This server issues full certificates, however has rate limits
 	#CA="https://acme-v01.api.letsencrypt.org"
 
-	AGREEMENT="$AGREEMENT"
+	#AGREEMENT="$AGREEMENT"
 
 	# Set an email address associated with your account - generally set at account level rather than domain.
 	#ACCOUNT_EMAIL="me@example.com"
@@ -698,8 +699,8 @@ fi
 # Check if upgrades are available
 check_getssl_upgrade
 
-# get latest agreement for LetsEncrypt (as default)
-AGREEMENT=$(curl -I https://acme-v01.api.letsencrypt.org/terms 2>/dev/null | grep "Location:" | awk '{print $2}'|os_sed 's/\r//')
+# get latest agreement from CA (as default)
+AGREEMENT=$(curl -I ${CA}/terms 2>/dev/null | grep "Location:" | awk '{print $2}'|os_sed 's/\r//')
 
 # if nothing in command line, print help and exit.
 if [ -z "$DOMAIN" ] && [ ${_CHECK_ALL} -ne 1 ]; then
@@ -1084,7 +1085,7 @@ for d in $alldomains; do
   fi
   
   if [[ $response_status == "valid" ]]; then
-    debug "$d is already validated"
+    info "$d is already validated"
   else
 
     if [[ $VALIDATE_VIA_DNS == "true" ]]; then # set up the correct DNS token for verification
