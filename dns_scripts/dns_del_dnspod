@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# need to add your email address and key to cloudflare below
-key=""
+# need to add your email address and key to dnspod below
+key=${DNSPOD_API_KEY:-}
 
 fulldomain="$1"
 
