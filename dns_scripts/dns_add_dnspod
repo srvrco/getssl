@@ -23,5 +23,5 @@ domain_id=$(echo "$response" | egrep -o  "[^{]*\"name\":\"${domain}\"[^}]*"|grep
 
 response=$(curl --silent -X POST "https://dnsapi.cn/Record.Create" \
   -H "Accept: application/json" -H "User-Agent: getssl/0.1" -H "application/x-www-form-urlencoded" \
-  -d "login_token=${key}&format=json&domain_id=${domain_id}&record_type=TXT&name=${txtname}&value=$token&ttl=600&record_line=默认")
+  -d "login_token=${key}&format=json&domain_id=${domain_id}&record_type=TXT&sub_domain=${txtname}&value=$token&ttl=600&record_line=默认")
 
