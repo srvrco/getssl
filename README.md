@@ -86,7 +86,7 @@ copying private key to ssh:server5:/home/yourdomain/ssl/domain.key
 copying CA certificate to ssh:server5:/home/yourdomain/ssl/chain.crt
 reloading SSL services
 ```
-This will (by default) use the staging server, so should give you a certificate that isn't trusted ( Fake Let's Encrypt).
+**This will (by default) use the staging server, so should give you a certificate that isn't trusted ( Fake Let's Encrypt).**
 Change the server in your config file to get a fully valid certificate.
 
 **Note:**   Verification is done via port 80(http), port 443(https) or dns.  The certificate can be used ( and checked with getssl) on alternate ports.
