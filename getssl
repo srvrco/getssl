@@ -101,10 +101,11 @@
 # 2016-08-23 export OPENSSL_CONF so it's used by all openssl commands (1.35)
 # 2016-08-25 updated defaults for ACME agreement (1.36)
 # 2016-09-04 correct issue #101 when some domains already validated (1.37)
+# 2016-09-12 Checks if which is installed (1.38)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.37"
+VERSION="1.38"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -682,6 +683,7 @@ get_os
 
 #check if required applications are included
 
+requires which
 requires openssl
 requires curl
 requires nslookup
