@@ -196,7 +196,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 }
 
 check_getssl_upgrade() { # check if a more recent version of code is available available
-  [[ $_NO_UPGRADE_CHECK -eq 0 ]] && return
+  [[ $_NO_UPGRADE_CHECK -eq 1 ]] && return
 
   latestcode=$(curl --silent "$CODE_LOCATION")
   errcode=$?
