@@ -133,7 +133,7 @@ _CHECK_ALL=0
 _FORCE_RENEW=0
 _QUIET=0
 _UPGRADE=0
-_NO_UPGRADE_CHECK=0
+_UPGRADE_CHECK=1
 
 # store copy of original command in case of upgrading script and re-running
 ORIGCMD="$0 $*"
@@ -196,8 +196,6 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 }
 
 check_getssl_upgrade() { # check if a more recent version of code is available available
-  [[ $_NO_UPGRADE_CHECK -eq 0 ]] && return
-
   latestcode=$(curl --silent "$CODE_LOCATION")
   errcode=$?
   if [ $errcode -eq 60 ]; then
@@ -375,7 +373,7 @@ help_message() { # print out the help message
 	  -a, --all       Check all certificates
 	  -q, --quiet     Quiet mode (only outputs on error, or succcess of new cert)
 	  -u, --upgrade   Upgrade getssl if a more recent version is available
-    -U, --nocheck   Do not check if a more recent version is available
+	  -U, --nocheck   Do not check if a more recent version is available
 	  -w working_dir  Working directory
 
 	_EOF_
@@ -671,9 +669,7 @@ while [[ -n $1 ]]; do
     -u | --upgrade)
      _UPGRADE=1 ;;
     -U | --nocheck)
-      _NO_UPGRADE_CHECK=1 ;;
-    -C | --check)
-      _ONLY_UPGRADE_CHECK=1 ;;
+      _UPGRADE_CHECK=0 ;;
     -w)
       shift; WORKING_DIR="$1" ;;
     -* | --*)
@@ -708,8 +704,10 @@ else
   requires grep
 fi
 
-# Check if upgrades are available
-check_getssl_upgrade
+# Check if upgrades are available (unless they have specified -U to ignore Upgrade checks)
+if [[ $_UPGRADE_CHECK -eq 1 ]]; then 
+  check_getssl_upgrade
+fi
 
 # get latest agreement from CA (as default)
 AGREEMENT=$(curl -I ${CA}/terms 2>/dev/null | grep "Location:" | awk '{print $2}'|os_sed 's/\r//')
