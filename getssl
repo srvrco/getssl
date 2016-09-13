@@ -102,10 +102,11 @@
 # 2016-08-25 updated defaults for ACME agreement (1.36)
 # 2016-09-04 correct issue #101 when some domains already validated (1.37)
 # 2016-09-12 Checks if which is installed (1.38)
+# 2016-09-13 Don't check for updates, if -U parameter has been given (1.39)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.38"
+VERSION="1.39"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -132,6 +133,7 @@ _CHECK_ALL=0
 _FORCE_RENEW=0
 _QUIET=0
 _UPGRADE=0
+_UPGRADE_CHECK=1
 
 # store copy of original command in case of upgrading script and re-running
 ORIGCMD="$0 $*"
@@ -371,6 +373,7 @@ help_message() { # print out the help message
 	  -a, --all       Check all certificates
 	  -q, --quiet     Quiet mode (only outputs on error, or succcess of new cert)
 	  -u, --upgrade   Upgrade getssl if a more recent version is available
+	  -U, --nocheck   Do not check if a more recent version is available
 	  -w working_dir  Working directory
 
 	_EOF_
@@ -521,7 +524,7 @@ urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and 
 }
 
 usage() { # program usage
-  echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-u|--upgrade] [-w working_dir] domain"
+  echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-u|--upgrade] [-U|--nocheck] [-w working_dir] domain"
 }
 
 write_domain_template() { # write out a template file for a domain.
@@ -665,6 +668,8 @@ while [[ -n $1 ]]; do
      _QUIET=1 ;;
     -u | --upgrade)
      _UPGRADE=1 ;;
+    -U | --nocheck)
+      _UPGRADE_CHECK=0 ;;
     -w)
       shift; WORKING_DIR="$1" ;;
     -* | --*)
@@ -699,8 +704,10 @@ else
   requires grep
 fi
 
-# Check if upgrades are available
-check_getssl_upgrade
+# Check if upgrades are available (unless they have specified -U to ignore Upgrade checks)
+if [[ $_UPGRADE_CHECK -eq 1 ]]; then 
+  check_getssl_upgrade
+fi
 
 # get latest agreement from CA (as default)
 AGREEMENT=$(curl -I ${CA}/terms 2>/dev/null | grep "Location:" | awk '{print $2}'|os_sed 's/\r//')
