@@ -103,10 +103,11 @@
 # 2016-09-04 correct issue #101 when some domains already validated (1.37)
 # 2016-09-12 Checks if which is installed (1.38)
 # 2016-09-13 Don't check for updates, if -U parameter has been given (1.39)
+# 2016-09-17 Improved error messages from invalid certs (1.40)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.39"
+VERSION="1.40"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -1302,9 +1303,9 @@ fi
 
 # If certificate wasn't a valid certificate, error exit.
 if [ -z "$CertData" ] ; then
-  response2=$(echo "$response" | openssl base64 -e)
+  response2=$(echo "$response" | openssl base64 -d)
   debug "respose was $response"
-  error_exit "Sign failed: $(echo "$response2" | os_grep -o  '"detail":"[^"]*"')"
+  error_exit "Sign failed: $(echo "$response2" | os_grep -o '"detail":[ ]*"[^"]*"')"
 fi
 
 # get a copy of the CA certificate.
