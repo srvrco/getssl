@@ -762,6 +762,7 @@ if [ ${_CHECK_ALL} -eq 1 ]; then
     if [ -d "$dir" ]; then
       debug "Checking $dir"
       cmd="$0"
+      cmd="$cmd -U"  # No update checks: calling recursively
       if [ ${_USE_DEBUG} -eq 1 ]; then
         cmd="$cmd -d"
       fi
