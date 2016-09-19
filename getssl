@@ -104,10 +104,11 @@
 # 2016-09-12 Checks if which is installed (1.38)
 # 2016-09-13 Don't check for updates, if -U parameter has been given (1.39)
 # 2016-09-17 Improved error messages from invalid certs (1.40)
+# 2016-09-19 remove update check on recursive calls when using -a (1.41)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.40"
+VERSION="1.41"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -181,7 +182,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 
     # if ACME response is that their check gave an invalid response, error exit
     if [ "$status" == "invalid" ] ; then
-      error=$(echo "$response" | os_grep -Po '"error":[ ]*{[^}]*}' | os_grep -o '"detail":"[^"]*"' | cut -d '"' -f 4)
+      error=$(echo "$response" | os_grep -Po '"error":[ ]*{[^}]*}' | os_grep -o '"detail":[ ]*"[^"]*"' | cut -d '"' -f 4)
       error_exit "$domain:Verify error:$error"
     fi
 
@@ -761,7 +762,7 @@ if [ ${_CHECK_ALL} -eq 1 ]; then
   for dir in ${DOMAIN_STORAGE}/*; do
     if [ -d "$dir" ]; then
       debug "Checking $dir"
-      cmd="$0"
+      cmd="$0 -U" # No update checks when calling recursively
       if [ ${_USE_DEBUG} -eq 1 ]; then
         cmd="$cmd -d"
       fi
