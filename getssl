@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # getssl - Obtain SSL certificates from the letsencrypt.org ACME server
 
