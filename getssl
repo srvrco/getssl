@@ -106,10 +106,11 @@
 # 2016-09-17 Improved error messages from invalid certs (1.40)
 # 2016-09-19 remove update check on recursive calls when using -a (1.41)
 # 2016-09-21 changed shebang for portability (1.42)
+# 2016-09-21 Included option to Deactivate an Authorization (1.43)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.42"
+VERSION="1.43"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -129,6 +130,7 @@ DNS_WAIT=10
 DNS_EXTRA_WAIT=""
 PUBLIC_DNS_SERVER=""
 CHALLENGE_CHECK_TYPE="http"
+DEACTIVATE_AUTH="false"
 ORIG_UMASK=$(umask)
 _USE_DEBUG=0
 _CREATE_CONFIG=0
@@ -196,6 +198,12 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
     debug "sleep 5 secs before testing verify again"
     sleep 5
   done
+
+  if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
+    deactivate_url=$(echo "$responseHeaders" | os_grep "^Link" | cut -d " " -f 2| cut -d ';' -f 1 | os_sed 's/<//g' | os_sed 's/>//g')
+    deactivate_url_list="$deactivate_url_list $deactivate_url"
+    debug "adding url to deactivate list - $deactivate_url"
+  fi
 }
 
 check_getssl_upgrade() { # check if a more recent version of code is available available
@@ -1099,6 +1107,11 @@ for d in $alldomains; do
   
   if [[ $response_status == "valid" ]]; then
     info "$d is already validated"
+    if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
+      deactivate_url=$(echo "$responseHeaders" | os_grep "^Location" | cut -d " " -f 2)
+      deactivate_url_list="$deactivate_url_list $deactivate_url"
+      debug "url added to deactivate list $deactivate_url"
+    fi
     # increment domain-counter
     let dn=dn+1;
   else
@@ -1358,6 +1371,21 @@ fi
 # Run reload command to restart apache / nginx or whatever system
 
 reload_service
+
+# deactivate authorizations
+if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
+  debug " in deactivate list should be $deactivate_url_list "
+  for deactivate_url in $deactivate_url_list; do
+    debug "deactivating  $deactivate_url"
+    send_signed_request "$deactivate_url" "{\"resource\": \"authz\", \"status\": \"deactivated\"}"
+    # check respose
+    if [ "$code" == "200" ]; then
+      debug "Authorization deactivated"
+    else
+      error_exit "$domain: Deactivation error: $code"
+    fi
+  done
+fi
 
 # Check if the certificate is installed correctly
 if [[ ${CHECK_REMOTE} == "true" ]]; then
