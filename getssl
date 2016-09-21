@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # getssl - Obtain SSL certificates from the letsencrypt.org ACME server
 
@@ -105,10 +105,11 @@
 # 2016-09-13 Don't check for updates, if -U parameter has been given (1.39)
 # 2016-09-17 Improved error messages from invalid certs (1.40)
 # 2016-09-19 remove update check on recursive calls when using -a (1.41)
+# 2016-09-21 changed shebang for portability (1.42)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.41"
+VERSION="1.42"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
