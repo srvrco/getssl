@@ -107,10 +107,11 @@
 # 2016-09-19 remove update check on recursive calls when using -a (1.41)
 # 2016-09-21 changed shebang for portability (1.42)
 # 2016-09-21 Included option to Deactivate an Authorization (1.43)
+# 2016-09-21 retry on 500 error from ACME server (1.44)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.43"
+VERSION="1.44"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -504,18 +505,24 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   body='{"header": '"${header}"', "protected": "'"${protected64}"'", "payload": "'"${payload64}"'", "signature": "'"${signed64}"'"}'
   debug "data for account registration = $body"
 
-  if [ "$needbase64" ] ; then
-    response=$($CURL -X POST --data "$body" "$url" | urlbase64)
-  else
-    response=$($CURL -X POST --data "$body" "$url")
-  fi
+  code=500
+  while [ $code -eq 500 ]; do
+    if [ "$needbase64" ] ; then
+      response=$($CURL -X POST --data "$body" "$url" | urlbase64)
+    else
+      response=$($CURL -X POST --data "$body" "$url")
+    fi
 
-  responseHeaders=$(os_sed 's/\r//g' "$CURL_HEADER")
-  debug responseHeaders "$responseHeaders"
-  debug response  "$response"
-  code=$(os_grep ^HTTP "$CURL_HEADER" | tail -1 | cut -d " " -f 2)
-  debug code "$code"
-  response_status=$(echo "$response"| os_grep status | head -1 | awk -F'"' '{print $4}')
+    responseHeaders=$(os_sed 's/\r//g' "$CURL_HEADER")
+    debug responseHeaders "$responseHeaders"
+    debug response  "$response"
+    code=$(os_grep ^HTTP "$CURL_HEADER" | tail -1 | cut -d " " -f 2)
+    debug code "$code"
+    response_status=$(echo "$response"| os_grep status | head -1 | awk -F'"' '{print $4}')
+    if [ $code -eq 500 ]; then
+      info "error on acme server - trying again"
+    fi
+  done
 }
 
 signal_exit() { # Handle trapped signals
