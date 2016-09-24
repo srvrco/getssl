@@ -109,10 +109,11 @@
 # 2016-09-21 Included option to Deactivate an Authorization (1.43)
 # 2016-09-22 retry on 500 error from ACME server (1.44)
 # 2016-09-22 added additional checks and retry on 500 error from ACME server (1.45)
+# 2016-09-24 merged in IPv6 support (1.46)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.45"
+VERSION="1.46"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
