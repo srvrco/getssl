@@ -111,10 +111,11 @@
 # 2016-09-22 added additional checks and retry on 500 error from ACME server (1.45)
 # 2016-09-24 merged in IPv6 support (1.46)
 # 2016-09-27 added additional debug info issue #119 (1.47)
+# 2016-09-27 removed IPv6 switch in favour of checking both IPv4 and IPv6 (1.48)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.47"
+VERSION="1.48"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -143,7 +144,6 @@ _FORCE_RENEW=0
 _QUIET=0
 _UPGRADE=0
 _UPGRADE_CHECK=1
-IPV6=false
 
 # store copy of original command in case of upgrading script and re-running
 ORIGCMD="$0 $*"
@@ -1020,14 +1020,12 @@ for d in $alldomains; do
   # check nslookup for domains (ignore if using DNS check, as site may not be published yet)
   if [[ $VALIDATE_VIA_DNS != "true" ]]; then
     debug "checking nslookup for ${d}"
-    if [[ "$IPV6" == "true" ]]; then
-      if [ "$(nslookup -query=AAAA "${d}"|grep -c ^""${d}".*has AAAA address")" -lt 1 ]; then
-        error_exit "DNS lookup IPV6 failed for $d"
-      fi
+    if [ "$(nslookup -query=AAAA "${d}"|grep -c ^""${d}".*has AAAA address")" -ge 1 ]; then
+        debug "found IPv6 record for ${d}"
+    elif [ "$(nslookup "${d}"| grep -c ^Name)" -ge 1 ]; then
+        debug "found IPv4 record for ${d}"
     else
-      if [ "$(nslookup "${d}"| grep -c ^Name)" -lt 1 ]; then
         error_exit "DNS lookup failed for $d"
-      fi
     fi
   fi
 done
