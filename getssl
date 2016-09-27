@@ -110,10 +110,11 @@
 # 2016-09-22 retry on 500 error from ACME server (1.44)
 # 2016-09-22 added additional checks and retry on 500 error from ACME server (1.45)
 # 2016-09-24 merged in IPv6 support (1.46)
+# 2016-09-27 added additional debug info issue #119 (1.47)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.46"
+VERSION="1.47"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -329,6 +330,7 @@ copy_file_to_location() { # copies a file, using scp if required.
 
 debug() { # write out debug info if the debug flag has been set
   if [ ${_USE_DEBUG} -eq 1 ]; then
+    echo " "
     echo "$@"
   fi
 }
@@ -444,7 +446,7 @@ reload_service() {  # Runs a command to reload services ( via ssh if needed)
     if [[ "${RELOAD_CMD:0:4}" == "ssh:" ]] ; then
       sshhost=$(echo "$RELOAD_CMD"| awk -F: '{print $2}')
       command=${RELOAD_CMD:(( ${#sshhost} + 5))}
-      debug "running following comand to reload cert"
+      debug "running following command to reload cert"
       debug "ssh $sshhost ${command}"
       # shellcheck disable=SC2029
       ssh "$sshhost" "${command}" 1>/dev/null 2>&1
@@ -1238,7 +1240,7 @@ for d in $alldomains; do
       if [[ "${DOMAIN_ACL:0:4}" == "ssh:" ]] ; then
         sshhost=$(echo "${DOMAIN_ACL}"| awk -F: '{print $2}')
         command="rm -f ${DOMAIN_ACL:(( ${#sshhost} + 5))}/${token:?}"
-        debug "running following comand to remove token"
+        debug "running following command to remove token"
         debug "ssh $sshhost ${command}"
         # shellcheck disable=SC2029
         ssh "$sshhost" "${command}" 1>/dev/null 2>&1
@@ -1353,6 +1355,8 @@ if [ "$IssuerData" ] ; then
   echo -----END CERTIFICATE-----  >> "$CA_CERT"
   info "The intermediate CA cert is in $CA_CERT"
 fi
+
+debug "Certificates obtained and stored locally, will now copy to specified locations"
 
 # copy certs to the correct location (creating concatenated files as required)
 
