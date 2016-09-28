@@ -112,10 +112,11 @@
 # 2016-09-24 merged in IPv6 support (1.46)
 # 2016-09-27 added additional debug info issue #119 (1.47)
 # 2016-09-27 removed IPv6 switch in favour of checking both IPv4 and IPv6 (1.48)
+# 2016-09-28 Add -Q, or --mute, switch to mute notifications about successfully upgrading getssl (1.49)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.48"
+VERSION="1.49"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
