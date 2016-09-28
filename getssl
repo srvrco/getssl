@@ -142,6 +142,7 @@ _CREATE_CONFIG=0
 _CHECK_ALL=0
 _FORCE_RENEW=0
 _QUIET=0
+_MUTE=0
 _UPGRADE=0
 _UPGRADE_CHECK=1
 
@@ -232,7 +233,9 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
       install "$0" "${0}.v${VERSION}"
       install "$temp_upgrade" "$0"
       rm -f "$temp_upgrade"
-      echo "Updated getssl from v${VERSION} to v${latestversion}"
+      if [ ${_MUTE} -eq 0 ]; then
+        echo "Updated getssl from v${VERSION} to v${latestversion}"
+      fi
       eval "$ORIGCMD"
       graceful_exit
     else
@@ -388,7 +391,8 @@ help_message() { # print out the help message
 	  -c, --create    Create default config files
 	  -f, --force     Force renewal of cert (overrides expiry checks)
 	  -a, --all       Check all certificates
-	  -q, --quiet     Quiet mode (only outputs on error, or succcess of new cert)
+	  -q, --quiet     Quiet mode (only outputs on error, succcess of new cert, or getssl was upgraded)
+	  -Q, --mute      Like -q, but mutes notification about successfull upgrade
 	  -u, --upgrade   Upgrade getssl if a more recent version is available
 	  -U, --nocheck   Do not check if a more recent version is available
 	  -w working_dir  Working directory
@@ -553,7 +557,7 @@ urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and 
 }
 
 usage() { # program usage
-  echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-u|--upgrade] [-U|--nocheck] [-w working_dir] domain"
+  echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-U|--nocheck] [-w working_dir] domain"
 }
 
 write_domain_template() { # write out a template file for a domain.
@@ -695,6 +699,9 @@ while [[ -n $1 ]]; do
      _CHECK_ALL=1 ;;
     -q | --quiet)
      _QUIET=1 ;;
+    -Q | --mute)
+     _QUIET=1
+     _MUTE=1 ;;
     -u | --upgrade)
      _UPGRADE=1 ;;
     -U | --nocheck)
