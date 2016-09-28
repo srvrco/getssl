@@ -31,10 +31,10 @@ git clone https://github.com/srvrco/getssl.git
 GetSSL was written in standard bash ( so can be run on a server,  a desktop computer, or even a virtualbox) and add the checks, and certificates to a remote server ( providing you have a ssh with key, sftp or ftp access to the remote server).
 
 ```
-getssl ver. 1.00
+getssl ver. 1.49
 Obtain SSL certificates from the letsencrypt.org ACME server
 
-Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-u|--upgrade] [-w working_dir] domain
+Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-U|--nocheck] [-w working_dir] domain
 
 Options:
   -h, --help      Display this help message and exit
@@ -42,8 +42,10 @@ Options:
   -c, --create    Create default config files
   -f, --force     Force renewal of cert (overrides expiry checks)
   -a, --all       Check all certificates
-  -q, --quiet     Quiet mode (only outputs on error, or succcess of new cert)
-  -u, --upgrade   Upgrade getssl if more recent version available
+  -q, --quiet     Quiet mode (only outputs on error, succcess of new cert, or getssl was upgraded)
+  -Q, --mute      Like -q, but mutes notification about successfull upgrade
+  -u, --upgrade   Upgrade getssl if a more recent version is available
+  -U, --nocheck   Do not check if a more recent version is available
   -w working_dir  Working directory
 ```
 
