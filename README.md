@@ -31,7 +31,7 @@ git clone https://github.com/srvrco/getssl.git
 GetSSL was written in standard bash ( so can be run on a server,  a desktop computer, or even a virtualbox) and add the checks, and certificates to a remote server ( providing you have a ssh with key, sftp or ftp access to the remote server).
 
 ```
-getssl ver. 1.48
+getssl ver. 1.49
 Obtain SSL certificates from the letsencrypt.org ACME server
 
 Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-U|--nocheck] [-w working_dir] domain
