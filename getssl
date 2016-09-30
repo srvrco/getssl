@@ -114,10 +114,11 @@
 # 2016-09-27 removed IPv6 switch in favour of checking both IPv4 and IPv6 (1.48)
 # 2016-09-28 Add -Q, or --mute, switch to mute notifications about successfully upgrading getssl (1.49)
 # 2016-09-30 improved portability to work natively on FreeBSD, Slackware and OSX (1.50)
+# 2016-09-30 comment out PRIVATE_KEY_ALG from the domain template Issue #125 (1.51)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.50"
+VERSION="1.51"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -616,7 +617,7 @@ write_domain_template() { # write out a template file for a domain.
 	#ACCOUNT_EMAIL="me@example.com"
 	#ACCOUNT_KEY_LENGTH=4096
 	#ACCOUNT_KEY="$WORKING_DIR/account.key"
-	PRIVATE_KEY_ALG="rsa"
+	#PRIVATE_KEY_ALG="rsa"
 
 	# Additional domains - this could be multiple domains / subdomains in a comma separated list
 	# Note: this is Additional domains - so should not include the primary domain.
