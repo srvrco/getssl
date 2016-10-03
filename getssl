@@ -115,10 +115,11 @@
 # 2016-09-28 Add -Q, or --mute, switch to mute notifications about successfully upgrading getssl (1.49)
 # 2016-09-30 improved portability to work natively on FreeBSD, Slackware and OSX (1.50)
 # 2016-09-30 comment out PRIVATE_KEY_ALG from the domain template Issue #125 (1.51)
+# 2016-10-03 check remote certificate for right domain before saving to local (1.52)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.51"
+VERSION="1.52"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -950,50 +951,55 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
   EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null | openssl x509 2>/dev/null)
   if [ ! -z "$EX_CERT" ]; then # if obtained a cert
     if [ -f "$CERT_FILE" ]; then # if local exists
-      CERT_REMOTE=$(echo "$EX_CERT" | openssl x509 -noout -fingerprint 2>/dev/null)
       CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
-      if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
-        debug "certificate on server is same as the local cert"
-      else
-        # check if the certificate is for the right domain
-        EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -noout -subject | sed s/.*CN=//)
-        if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]; then
-          # check renew-date on ex_cert and compare to local ( if local exists)
-          enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
-          enddate_lc=$(openssl x509 -noout -enddate < "$CERT_FILE" 2>/dev/null| cut -d= -f 2-)
-          enddate_ex_s=$(date_epoc "$enddate_ex")
-          enddate_lc_s=$(date_epoc "$enddate_lc")
-          debug "external cert has enddate $enddate_ex ( $enddate_ex_s ) "
-          debug "local    cert has enddate $enddate_lc ( $enddate_lc_s ) "
-          if [ "$enddate_ex_s" -gt "$enddate_lc_s" ]; then
-            # remote has longer to expiry date than local copy.
-            # archive local copy and save remote to local
-            cert_archive "$CERT_FILE"
-            debug "copying remote certificate to local"
-            echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
-          else
-            info "remote expires sooner than local ..... will attempt to upload from local"
-            echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt.remote"
-            cert_archive "$DOMAIN_DIR/${DOMAIN}.crt.remote"
-            copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
-            copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
-            copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
-            cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
-            copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$DOMAIN_CHAIN_LOCATION"
-            cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
-            copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_k_C.pem"  "$DOMAIN_KEY_CERT_LOCATION"
-            cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
-            copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
-            reload_service
-          fi
-        else
-          info "Certificate on remote domain does not match domain, ignoring remote certificate"
+    else # since local doesn't exist leave empty so that the domain validation will happen
+      CERT_LOCAL=""
+    fi
+    CERT_REMOTE=$(echo "$EX_CERT" | openssl x509 -noout -fingerprint 2>/dev/null)
+    if [ "$CERT_LOCAL" == "$CERT_REMOTE" ]; then
+      debug "certificate on server is same as the local cert"
+    else
+      # check if the certificate is for the right domain
+      EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -text | grep "DNS:.*" | tr -d "DNS:" | tr -d " " | tr , '\n' | grep "^$DOMAIN\$")
+      if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]; then
+        if [ ! -f "$CERT_FILE" ]; then # domain in remote certificate is OK, save local
+          debug "local certificate doesn't exist, saving a copy from remote"
+          echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
         fi
+        # check renew-date on ex_cert and compare to local ( if local exists)
+        enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
+        enddate_lc=$(openssl x509 -noout -enddate < "$CERT_FILE" 2>/dev/null| cut -d= -f 2-)
+        enddate_ex_s=$(date_epoc "$enddate_ex")
+        enddate_lc_s=$(date_epoc "$enddate_lc")
+        debug "external cert has enddate $enddate_ex ( $enddate_ex_s ) "
+        debug "local    cert has enddate $enddate_lc ( $enddate_lc_s ) "
+        if [ "$enddate_ex_s" -eq "$enddate_lc_s" ]; then
+          debug "certificates expire at the same time"
+        elif [ "$enddate_ex_s" -gt "$enddate_lc_s" ]; then
+          # remote has longer to expiry date than local copy.
+          # archive local copy and save remote to local
+          cert_archive "$CERT_FILE"
+          debug "copying remote certificate to local"
+          echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
+        else
+          info "remote expires sooner than local ..... will attempt to upload from local"
+          echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt.remote"
+          cert_archive "$DOMAIN_DIR/${DOMAIN}.crt.remote"
+          copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
+          copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
+          copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
+          cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
+          copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$DOMAIN_CHAIN_LOCATION"
+          cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
+          copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_k_C.pem"  "$DOMAIN_KEY_CERT_LOCATION"
+          cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
+          copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
+          reload_service
+        fi
+      else
+        info "Certificate on remote domain does not match domain, ignoring remote certificate"
       fi
-    else # local cert doesn't exist"
-      debug "local certificate doesn't exist, saving a copy from remote"
-      echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
-    fi # end of .... if local exists
+    fi
   else
     info "no certificate obtained from host"
   fi # end of .... if obtained a cert
