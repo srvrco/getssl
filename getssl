@@ -117,10 +117,11 @@
 # 2016-09-30 comment out PRIVATE_KEY_ALG from the domain template Issue #125 (1.51)
 # 2016-10-03 check remote certificate for right domain before saving to local (1.52)
 # 2016-10-04 allow existing CSR with domain name in subject (1.53)
+# 2016-10-05 improved the check for CSR with domain in subject (1.54)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.53"
+VERSION="1.54"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -777,6 +778,7 @@ requires tr
 requires date
 requires grep
 requires sed
+requires sort
 
 # Check if upgrades are available (unless they have specified -U to ignore Upgrade checks)
 if [[ $_UPGRADE_CHECK -eq 1 ]]; then
@@ -962,7 +964,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
       debug "certificate on server is same as the local cert"
     else
       # check if the certificate is for the right domain
-      EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -text | grep "DNS:.*" | tr -d "DNS:" | tr -d " " | tr , '\n' | grep "^$DOMAIN\$")
+      EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -text | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' | sort -u | grep "^$DOMAIN\$")
       if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]; then
         if [ ! -f "$CERT_FILE" ]; then # domain in remote certificate is OK, save local
           debug "local certificate doesn't exist, saving a copy from remote"
@@ -1089,15 +1091,8 @@ done
 if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
   debug "domain csr exists at - $DOMAIN_DIR/${DOMAIN}.csr"
   # check all domains in config are in csr
-  alldomains=$(echo "$DOMAIN,$SANS" | tr -d " " |tr , '\n')
-  # check domain name in CN
-  domain_in_cn=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr" |grep -o "CN=.*" | tr -d "CN=" | awk -F"/" '{print $1}')
-  # check domain names in SAN
-  domains_in_san=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr" |grep "DNS:.*" |tr -d "DNS:" |tr -d " " |tr , '\n')
-  #combing SN and SAN names
-  domains_total=$(echo "$domain_in_cn"; echo "${domains_in_san}")
-  # remove blank lines (if only CN or SAN were used ) 
-  domains_in_csr=$(echo "$domains_total" | grep -v "^$")
+  alldomains=$(echo "$DOMAIN,$SANS" | sed -e 's/ //g; y/,/\n/' | sort -u)
+  domains_in_csr=$(openssl req -text -noout -in "$DOMAIN_DIR/${DOMAIN}.csr" | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' | sort -u)
   for d in $alldomains; do
     if [ "$(echo "${domains_in_csr}"| grep "^${d}$")" != "${d}" ]; then
       info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not contain ${d} - re-create-csr .... $(echo "${domains_in_csr}"| grep "^${d}$")"
