@@ -116,10 +116,11 @@
 # 2016-09-30 improved portability to work natively on FreeBSD, Slackware and OSX (1.50)
 # 2016-09-30 comment out PRIVATE_KEY_ALG from the domain template Issue #125 (1.51)
 # 2016-10-03 check remote certificate for right domain before saving to local (1.52)
+# 2016-10-04 allow existing CSR with domain name in subject (1.53)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.52"
+VERSION="1.53"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -240,6 +241,7 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
       rm -f "$temp_upgrade"
       if [ ${_MUTE} -eq 0 ]; then
         echo "Updated getssl from v${VERSION} to v${latestversion}"
+        echo "these update notification can be turned off using the -Q option"
       fi
       eval "$ORIGCMD"
       graceful_exit
@@ -1088,7 +1090,14 @@ if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
   debug "domain csr exists at - $DOMAIN_DIR/${DOMAIN}.csr"
   # check all domains in config are in csr
   alldomains=$(echo "$DOMAIN,$SANS" | tr -d " " |tr , '\n')
-  domains_in_csr=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr" |grep "DNS:.*" |tr -d "DNS:" |tr -d " " |tr , '\n')
+  # check domain name in CN
+  domain_in_cn=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr" |grep -o "CN=.*" | tr -d "CN=" | awk -F"/" '{print $1}')
+  # check domain names in SAN
+  domains_in_san=$(openssl req -noout -text -in "$DOMAIN_DIR/${DOMAIN}.csr" |grep "DNS:.*" |tr -d "DNS:" |tr -d " " |tr , '\n')
+  #combing SN and SAN names
+  domains_total=$(echo "$domain_in_cn"; echo "${domains_in_san}")
+  # remove blank lines (if only CN or SAN were used ) 
+  domains_in_csr=$(echo "$domains_total" | grep -v "^$")
   for d in $alldomains; do
     if [ "$(echo "${domains_in_csr}"| grep "^${d}$")" != "${d}" ]; then
       info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not contain ${d} - re-create-csr .... $(echo "${domains_in_csr}"| grep "^${d}$")"
