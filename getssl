@@ -119,10 +119,11 @@
 # 2016-10-04 allow existing CSR with domain name in subject (1.53)
 # 2016-10-05 improved the check for CSR with domain in subject (1.54)
 # 2016-10-06 prints update info on what was included in latest updates (1.55)
+# 2016-10-06 when using -a flag, ignore folders in working directory which aren't domains (1.56)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.55"
+VERSION="1.56"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -247,7 +248,7 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
         echo "these update notification can be turned off using the -Q option"
         echo ""
         echo "Updates are;"
-        echo "$latestcode" | awk "/\(${pf}\)$/ {s=1} s; /\(${pt}\)$/ {s=0}" | awk '{if(NR>1)print}'
+        echo "$latestcode" | awk "/\(${VERSION}\)$/ {s=1} s; /\(${latestversion}\)$/ {s=0}" | awk '{if(NR>1)print}'
         echo ""
       fi
       eval "$ORIGCMD"
@@ -849,10 +850,12 @@ if [ ${_CHECK_ALL} -eq 1 ]; then
       if [ ${_QUIET} -eq 1 ]; then
         cmd="$cmd -q"
       fi
-      cmd="$cmd -w $WORKING_DIR $(basename "$dir")"
-
-      debug "CMD: $cmd"
-      eval "$cmd"
+      # check if $dir looks like a domain name (contains a period)
+      if [[ $(basename "$dir") == *.* ]]; then
+        cmd="$cmd -w $WORKING_DIR $(basename "$dir")"
+        debug "CMD: $cmd"
+        eval "$cmd"
+      fi
     fi
   done
 
