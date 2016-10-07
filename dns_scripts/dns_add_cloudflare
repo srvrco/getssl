@@ -1,25 +1,40 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# need to add your email address and key to cloudflare below
 email=""
 key=""
-
 fulldomain="$1"
 token="$2"
 
+all_domains=$(curl --silent -X GET "https://api.cloudflare.com/client/v4/zones?match=all" \
+  -H "X-Auth-Email: ${email}" -H "X-Auth-Key: ${key}" -H "Content-Type: application/json" \
+  | grep -o "\"name\":\"[^\"]*\"" | awk -F'"' '{print $4}')
+
 NumParts=$(echo "$fulldomain" | awk -F"." '{print NF}')
-if [[ $NumParts -gt 2 ]]; then
-  domain=$(echo "$fulldomain" | awk -F\. '{print $(NF-1) FS $NF}')
-  txtname="_acme-challenge$(echo $fulldomain | awk -F\. '{for (i=1; i<NF-1; i++) printf "." $i}')"
-else
-  domain=$fulldomain
-  txtname="_acme-challenge"
+
+i=1
+while [ $i -lt "$NumParts" ]; do
+  let parts=NumParts-i
+  testpart=$(echo  "$fulldomain" |awk -v n=$parts -F\. '{for (i=n; i<NF; i++) printf $i "."; printf $NF}')
+  res=$(echo "$all_domains" | grep -c "$testpart")
+  if [[ "$res" == "1" ]]; then
+    domain=$(echo "$all_domains" | grep "$testpart")
+    let i=NumParts
+  fi
+  let i=i+1
+done
+
+if [ -z "$domain" ]; then
+  echo "domain name can't be found on your cloudflare account"
+  exit 1
 fi
+
+txtname=$( echo "_acme-challenge.${fulldomain}" | sed "s/.${domain}//")
 
 response=$(curl --silent -X GET "https://api.cloudflare.com/client/v4/zones?name=${domain}&match=all" \
   -H "X-Auth-Email: ${email}" -H "X-Auth-Key: ${key}" -H "Content-Type: application/json")
 
-domain_id=$(echo "$response" | egrep -o  "{[^{]*\"name\":\"${domain}\"[^}]*"|grep -oP '\"id\":"\K[^"]+')
+domain_section=$(echo "$response" | awk -F"[}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${domain}"'\"/){print $i}}}')
+domain_id=$(echo "$domain_section" | awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\"'"id"'\"/){print $(i+1)}}}'| awk -F'"' '{print $2}')
 
 response=$(curl --silent -X POST "https://api.cloudflare.com/client/v4/zones/${domain_id}/dns_records" \
   -H "X-Auth-Email: ${email}" -H "X-Auth-Key: ${key}" -H "Content-Type: application/json" \
