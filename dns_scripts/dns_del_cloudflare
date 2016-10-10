@@ -6,6 +6,8 @@ key=""
 
 fulldomain="$1"
 
+# get a list of all domain names from cloudflare.  If you have a lot, you may need
+# "status=active&page=1&per_page=1000&match=all" instead of just "match=all"
 all_domains=$(curl --silent -X GET "https://api.cloudflare.com/client/v4/zones?match=all" \
   -H "X-Auth-Email: ${email}" -H "X-Auth-Key: ${key}" -H "Content-Type: application/json" \
   | grep -o "\"name\":\"[^\"]*\"" | awk -F'"' '{print $4}')
