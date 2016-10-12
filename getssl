@@ -120,10 +120,11 @@
 # 2016-10-05 improved the check for CSR with domain in subject (1.54)
 # 2016-10-06 prints update info on what was included in latest updates (1.55)
 # 2016-10-06 when using -a flag, ignore folders in working directory which aren't domains (1.56)
+# 2016-10-12 alllow multiple tokens in DNS challenge (1.57)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.56"
+VERSION="1.57"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -578,7 +579,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     debug response  "$response"
     code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
     debug code "$code"
-    response_status=$(json_get "$response" status | head -1)
+    response_status=$(json_get "$response" status | head -1| awk -F'"' '{print $2}')
     debug "response status = $response_status"
 
     if [ "$code" -eq 500 ]; then
@@ -1342,7 +1343,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
         debug "expecting  $auth_key"
         debug " got ....  $check_result"
 
-        if [[ "$check_result" == "$auth_key" ]]; then
+        if [[ "$check_result" == *"$auth_key"* ]]; then
           check_dns="success"
           debug "checking DNS ... _acme-challenge.$d gave $check_result"
         else
@@ -1456,7 +1457,7 @@ reload_service
 
 # deactivate authorizations
 if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
-  debug " in deactivate list should be $deactivate_url_list "
+  debug "in deactivate list should be $deactivate_url_list"
   for deactivate_url in $deactivate_url_list; do
     debug "deactivating  $deactivate_url"
     send_signed_request "$deactivate_url" "{\"resource\": \"authz\", \"status\": \"deactivated\"}"
