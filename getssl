@@ -122,10 +122,11 @@
 # 2016-10-06 when using -a flag, ignore folders in working directory which aren't domains (1.56)
 # 2016-10-12 alllow multiple tokens in DNS challenge (1.57)
 # 2016-10-14 added CHECK_ALL_AUTH_DNS option to check all DNS servres, not just one primary server (1.58)
-# ---------------------------------------------------------------------------
+# 2016-10-14 added archive of chain and private key for each cert, and purge old archives (1.59)
+# ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.58"
+VERSION="1.59"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -546,6 +547,31 @@ os_esed() { # Use different sed version for different os types (extended regex)
   fi
 }
 
+purge_archive() { # purge archive of old, invalid, certificates
+  arcdir="$1/archive"
+  debug "purging archives in ${arcdir}/"
+  for padir in $arcdir/????_??_??_??_??; do
+    # check each directory
+    if [ -d "$padir" ]; then
+      tstamp=$(basename "$padir"| awk -F"_" '{print $1"-"$2"-"$3" "$4":"$5}')
+      if [[ "$os" == "bsd" ]]; then
+        direpoc=$(date -j -f "%F %H:%M" "$tstamp" +%s)
+      elif [[ "$os" == "mac" ]]; then
+        direpoc=$(date -j -f "%F %H:%M" "$tstamp" +%s)
+      else
+        direpoc=$(date -d "$tstamp" +%s)
+      fi
+      current_epoc=$(date "+%s")
+      # as certs currently valid for 90 days, purge anything older than 100
+      purgedate=$((current_epoc - 60*60*24*100))
+      if [ "$direpoc" -lt "$purgedate" ]; then
+        echo "purge $padir"
+        rm -rf "${padir:?}"
+      fi
+    fi
+  done
+}
+
 reload_service() {  # Runs a command to reload services ( via ssh if needed)
   if [ ! -z "$RELOAD_CMD" ]; then
     info "reloading SSL services"
@@ -938,9 +964,9 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
     EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null | openssl x509 2>/dev/null)
     EX_SANS="www.${DOMAIN}"
     if [ ! -z "${EX_CERT}" ]; then
-      if [ ! -f "$DOMAIN_DIR/${DOMAIN}.crt" ]; then
-        echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
-      fi
+#      if [ ! -f "$DOMAIN_DIR/${DOMAIN}.crt" ]; then
+#        echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
+#      fi
       EX_SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
                 | grep -Eo "DNS:[a-zA-Z 0-9.-]*" | sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
       EX_SANS=${EX_SANS//$'\n'/','}
@@ -1027,10 +1053,10 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
       # check if the certificate is for the right domain
       EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -text | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' | sort -u | grep "^$DOMAIN\$")
       if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]; then
-        if [ ! -f "$CERT_FILE" ]; then # domain in remote certificate is OK, save local
-          debug "local certificate doesn't exist, saving a copy from remote"
-          echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
-        fi
+#        if [ ! -f "$CERT_FILE" ]; then # domain in remote certificate is OK, save local
+#          debug "local certificate doesn't exist, saving a copy from remote"
+#          echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
+#        fi
         # check renew-date on ex_cert and compare to local ( if local exists)
         enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
         enddate_lc=$(openssl x509 -noout -enddate < "$CERT_FILE" 2>/dev/null| cut -d= -f 2-)
@@ -1043,9 +1069,10 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
         elif [ "$enddate_ex_s" -gt "$enddate_lc_s" ]; then
           # remote has longer to expiry date than local copy.
           # archive local copy and save remote to local
-          cert_archive "$CERT_FILE"
-          debug "copying remote certificate to local"
-          echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
+          debug "remote cert has longer to run than local cert - ignoring"
+#          cert_archive "$CERT_FILE"
+#          debug "copying remote certificate to local"
+#          echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
         else
           info "remote expires sooner than local ..... will attempt to upload from local"
           echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt.remote"
@@ -1456,7 +1483,17 @@ if [ "$IssuerData" ] ; then
   info "The intermediate CA cert is in $CA_CERT"
 fi
 
-debug "Certificates obtained and stored locally, will now copy to specified locations"
+debug "creating an achive copy of current new certs"
+date_time=$(date +%Y_%m_%d_%H_%M)
+mkdir -p "${DOMAIN_DIR}/archive/${date_time}"
+cp "$CERT_FILE" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.crt"
+cp "$DOMAIN_DIR/${DOMAIN}.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.key"
+cp "$CA_CERT" "${DOMAIN_DIR}/archive/${date_time}/chain.crt"
+debug "purging old GetSSL archives"
+purge_archive "$DOMAIN_DIR"
+
+
+debug "Certificates obtained and archived locally, will now copy to specified locations"
 
 # copy certs to the correct location (creating concatenated files as required)
 
