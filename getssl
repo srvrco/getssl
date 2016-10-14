@@ -121,10 +121,11 @@
 # 2016-10-06 prints update info on what was included in latest updates (1.55)
 # 2016-10-06 when using -a flag, ignore folders in working directory which aren't domains (1.56)
 # 2016-10-12 alllow multiple tokens in DNS challenge (1.57)
+# 2016-10-14 added CHECK_ALL_AUTH_DNS option to check all DNS servres, not just one primary server (1.58)
 # ---------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.57"
+VERSION="1.58"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -140,6 +141,7 @@ PRIVATE_KEY_ALG="rsa"
 SERVER_TYPE="https"
 CHECK_REMOTE="true"
 USE_SINGLE_ACL="false"
+CHECK_ALL_AUTH_DNS="false"
 DNS_WAIT=10
 DNS_EXTRA_WAIT=""
 PUBLIC_DNS_SERVER=""
@@ -405,6 +407,55 @@ getcr() { # get curl response
   debug code "$code"
   debug getcr return code $ret
   return $ret
+}
+
+get_auth_dns() { # get the authoritative dns server for a domain
+  gad_d="$1" # domain name
+  gad_s="$PUBLIC_DNS_SERVER" # start with PUBLIC_DNS_SERVER
+
+  if [[ "$os" == "cygwin" ]]; then
+    all_auth_dns_servers=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} 2>/dev/null| grep "primary name server" | awk '{print $NF}')
+    if [ -z "$all_auth_dns_servers" ]; then
+      error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
+    fi
+    echo "$all_auth_dns_servers"
+    return
+  fi
+
+  res=$(nslookup -debug=1 -type=soa -type=ns "$1" ${gad_s})
+
+  if [ "$(echo "$res" | grep -c "Non-authoritative")" -gt 0 ]; then
+    # this is a Non-authoritative server, need to check for an authoritative one.
+    gad_s=$(echo "$res" | awk '$2 ~ "nameserver" {print $4; exit }' |sed 's/\.$//g')
+    if [ "$(echo "$res" | grep -c "an't find")" -gt 0 ]; then
+      # if domain name doesn't exist, then find auth servers for next level up
+      gad_s=$(echo "$res" | awk '$1 ~ "origin" {print $3; exit }')
+      gad_d=$(echo "$res" | awk '$1 ~ "->" {print $2; exit}')
+    fi
+  fi
+
+  if [ -z "$gad_s" ]; then
+    res=$(nslookup -debug=1 -type=soa -type=ns "$gad_d")
+  else
+    res=$(nslookup -debug=1 -type=soa -type=ns "$gad_d" "${gad_s}")
+  fi
+
+  if [ "$(echo "$res" | grep -c "canonical name")" -gt 0 ]; then
+    gad_d=$(echo "$res" | awk ' $2 ~ "canonical" {print $5; exit }' |sed 's/\.$//g')
+  elif [ "$(echo "$res" | grep -c "an't find")" -gt 0 ]; then
+    gad_s=$(echo "$res" | awk ' $1 ~ "origin" {print $3; exit }')
+    gad_d=$(echo "$res"| awk '$1 ~ "->" {print $2; exit}')
+  fi
+
+  all_auth_dns_servers=$(nslookup -type=soa -type=ns "$gad_d" "$gad_s" \
+                        | awk ' $2 ~ "nameserver" {print $4}' \
+                        | sed 's/\.$//g'| tr '\n' ' ')
+
+  if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
+    echo "$all_auth_dns_servers"
+  else
+    echo "$all_auth_dns_servers" | awk '{print $1}'
+  fi
 }
 
 get_os() { # function to get the current Operating System
@@ -1229,17 +1280,7 @@ for d in $alldomains; do
 
       # find a primary / authoritative DNS server for the domain
       if [ -z "$AUTH_DNS_SERVER" ]; then
-        if [[ "$os" == "cygwin" ]]; then
-          primary_ns=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} 2>/dev/null| grep "primary name server" | awk '{print $NF}')
-          if [ -z "$primary_ns" ]; then
-            error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
-          fi
-        else
-          primary_ns=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} | grep origin | awk '{print $3}')
-        fi
-        if [ -z "$primary_ns" ]; then
-          primary_ns=$(nslookup -type=soa "${d}" -debug=1 ${PUBLIC_DNS_SERVER} | grep origin | awk '{print $3}'|sort|uniq)
-        fi
+        primary_ns=$(get_auth_dns "$d")
       else
         primary_ns="$AUTH_DNS_SERVER"
       fi
@@ -1332,30 +1373,32 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
       . "$dnsfile"
 
       # check for token at public dns server, waiting for a valid response.
-      ntries=0
-      check_dns="fail"
-      while [ "$check_dns" == "fail" ]; do
-        if [[ "$os" == "cygwin" ]]; then
-          check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | grep ^_acme -A2| grep '"'|awk -F'"' '{ print $2}')
-        else
-          check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${primary_ns}" | grep ^_acme|awk -F'"' '{ print $2}')
-        fi
-        debug "expecting  $auth_key"
-        debug " got ....  $check_result"
-
-        if [[ "$check_result" == *"$auth_key"* ]]; then
-          check_dns="success"
-          debug "checking DNS ... _acme-challenge.$d gave $check_result"
-        else
-          if [[ $ntries -lt 100 ]]; then
-            ntries=$(( ntries + 1 ))
-            info "checking DNS for ${d}. Attempt $ntries/100 gave wrong result, waiting $DNS_WAIT secs before checking again"
-            sleep $DNS_WAIT
+      for ns in $primary_ns; do
+        debug "checking dns at $ns"
+        ntries=0
+        check_dns="fail"
+        while [ "$check_dns" == "fail" ]; do
+          if [[ "$os" == "cygwin" ]]; then
+            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" | grep ^_acme -A2| grep '"'|awk -F'"' '{ print $2}')
           else
-            debug "dns check failed - removing existing value"
-            error_exit "checking _acme-challenge.$DOMAIN gave $check_result not $auth_key"
+            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" | grep ^_acme|awk -F'"' '{ print $2}')
           fi
-        fi
+          debug "expecting  $auth_key"
+          debug "${ns} gave ... $check_result"
+
+          if [[ "$check_result" == *"$auth_key"* ]]; then
+            check_dns="success"
+          else
+            if [[ $ntries -lt 100 ]]; then
+              ntries=$(( ntries + 1 ))
+              info "checking DNS at ${ns} for ${d}. Attempt $ntries/100 gave wrong result, waiting $DNS_WAIT secs before checking again"
+              sleep $DNS_WAIT
+            else
+              debug "dns check failed - removing existing value"
+              error_exit "checking _acme-challenge.$DOMAIN gave $check_result not $auth_key"
+            fi
+          fi
+        done
       done
     fi
   done
