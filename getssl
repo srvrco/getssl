@@ -124,10 +124,11 @@
 # 2016-10-14 added CHECK_ALL_AUTH_DNS option to check all DNS servres, not just one primary server (1.58)
 # 2016-10-14 added archive of chain and private key for each cert, and purge old archives (1.59)
 # 2016-10-17 updated info comment on failed cert due to rate limits. (1.60)
+# 2016-10-17 fix error messages when using 1.0.1e-fips  (1.61)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.60"
+VERSION="1.61"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -1470,7 +1471,7 @@ fi
 
 # If certificate wasn't a valid certificate, error exit.
 if [ -z "$CertData" ] ; then
-  response2=$(echo "$response" | openssl base64 -d)
+  response2=$(echo "$response" | fold -w64 |openssl base64 -d)
   debug "response was $response"
   error_exit "Sign failed: $(echo "$response2" | grep "detail")"
 fi
