@@ -127,10 +127,11 @@
 # 2016-10-17 fix error messages when using 1.0.1e-fips  (1.61)
 # 2016-10-20 set secure permissions when generating account key (1.62)
 # 2016-10-20 set permsissions to 700 for getssl script during upgrade (1.63)
+# 2016-10-20 add option to revoke a certificate (1.64)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.63"
+VERSION="1.64"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -162,6 +163,7 @@ _MUTE=0
 _UPGRADE=0
 _UPGRADE_CHECK=1
 _RECREATE_CSR=0
+_REVOKE=0
 
 # store copy of original command in case of upgrading script and re-running
 ORIGCMD="$0 $*"
@@ -492,13 +494,14 @@ help_message() { # print out the help message
 	$(usage)
 
 	Options:
-	  -h, --help      Display this help message and exit
+	  -a, --all       Check all certificates
 	  -d, --debug     Outputs debug information
 	  -c, --create    Create default config files
 	  -f, --force     Force renewal of cert (overrides expiry checks)
-	  -a, --all       Check all certificates
+	  -h, --help      Display this help message and exit
 	  -q, --quiet     Quiet mode (only outputs on error, success of new cert, or getssl was upgraded)
 	  -Q, --mute      Like -q, but mutes notification about successful upgrade
+	  -r, --revoke cert key  Revoke a certificate ( the cert and key are required)
 	  -u, --upgrade   Upgrade getssl if a more recent version is available
 	  -U, --nocheck   Do not check if a more recent version is available
 	  -w working_dir  Working directory
@@ -598,6 +601,23 @@ reload_service() {  # Runs a command to reload services ( via ssh if needed)
   fi
 }
 
+revoke_certificate() { #revoke a certificate
+  debug "revoking cert $REVOKE_CERT"
+  debug "using key $REVOKE_KEY"
+  ACCOUNT_KEY="$REVOKE_KEY"
+  pub_exp64=$(openssl rsa -in "${REVOKE_KEY}" -noout -text | grep publicExponent | grep -oE "0x[a-f0-9]+" | cut -d'x' -f2 | hex2bin | urlbase64)
+  pub_mod64=$(openssl rsa -in "${REVOKE_KEY}" -noout -modulus | cut -d'=' -f2 | hex2bin | urlbase64)
+  TEMP_DIR=$(mktemp -d)
+  debug "revoking $certfile"
+  rcertdata=$(openssl x509 -in "$REVOKE_CERT" -inform PEM -outform DER | urlbase64)
+  send_signed_request "$CA/acme/revoke-cert" "{\"resource\": \"revoke-cert\", \"certificate\": \"$rcertdata\"}"
+  if [[ $code -eq "200" ]]; then
+    info "certificate revoked"
+  else
+    error_exit "Revocation failed: $(echo "$response" | grep "detail")"
+  fi
+}
+
 requires() { # check if required function is available
   result=$(which "$1" 2>/dev/null)
   debug "checking for required $1 ... $result"
@@ -691,7 +711,7 @@ urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and 
 }
 
 usage() { # program usage
-  echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-U|--nocheck] [-w working_dir] domain"
+  echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] domain"
 }
 
 write_domain_template() { # write out a template file for a domain.
@@ -836,6 +856,12 @@ while [[ -n $1 ]]; do
     -Q | --mute)
      _QUIET=1
      _MUTE=1 ;;
+    -r | --revoke)
+     _REVOKE=1
+     shift
+     REVOKE_CERT="$1"
+     shift
+     REVOKE_KEY="$1" ;;
     -u | --upgrade)
      _UPGRADE=1 ;;
     -U | --nocheck)
@@ -872,6 +898,12 @@ requires sort
 # Check if upgrades are available (unless they have specified -U to ignore Upgrade checks)
 if [[ $_UPGRADE_CHECK -eq 1 ]]; then
   check_getssl_upgrade
+fi
+
+# Revoke a certificate
+if [[ $_REVOKE -eq 1 ]]; then
+  revoke_certificate
+  graceful_exit
 fi
 
 # get latest agreement from CA (as default)
