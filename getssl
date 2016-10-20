@@ -125,10 +125,11 @@
 # 2016-10-14 added archive of chain and private key for each cert, and purge old archives (1.59)
 # 2016-10-17 updated info comment on failed cert due to rate limits. (1.60)
 # 2016-10-17 fix error messages when using 1.0.1e-fips  (1.61)
+# 2016-10-20 set secure permissions when generating account key (1.62)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.61"
+VERSION="1.62"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -1123,7 +1124,9 @@ if [ -f "$ACCOUNT_KEY" ]; then
   debug "Account key exists at $ACCOUNT_KEY skipping generation"
 else
   info "creating account key $ACCOUNT_KEY"
+  umask 077
   openssl genrsa $ACCOUNT_KEY_LENGTH > "$ACCOUNT_KEY"
+  umask "$ORIG_UMASK"
 fi
 
 # check if domain key exists, if not then create it.
