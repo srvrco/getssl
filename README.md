@@ -2,7 +2,7 @@
 Obtain SSL certificates from the letsencrypt.org ACME server.  Suitable for automating the process on remote servers.
 
 ## Features
-* **Bash** - It runs on virtually all linux machines, including BSD, Slackware, MAC OSX.
+* **Bash** - It runs on virtually all unix machines, including BSD, most Linux distributions, MAC OSX.
 * **Get certificates for remote servers** - The tokens used to provide validation of domain ownership, and the certificates themselves can be automatically copied to remote servers (via ssh, sftp or ftp for tokens). The script doesn't need to run on the server itself. This can be useful if you don't have access to run such scripts on the server itself, as it's a shared server for example.
 * **Runs as a daily cron** - so certificates will be automatically renewed when required.
 * **Automatic certificate renewals**
@@ -28,7 +28,7 @@ git clone https://github.com/srvrco/getssl.git
 
 ## Overview
 
-GetSSL was written in standard bash ( so can be run on a server,  a desktop computer, or even a virtualbox) and add the checks, and certificates to a remote server ( providing you have a ssh with key, sftp or ftp access to the remote server).
+GetSSL was written in standard bash ( so it can be run on a server,  a desktop computer, or even a virtualbox) and add the checks, and certificates to a remote server ( providing you have a ssh with key, sftp or ftp access to the remote server).
 
 ```
 getssl ver. 1.64
