@@ -228,7 +228,7 @@ In general revoking a certificate is not required.
 
 usage: getssl -r path/to/cert path/to/key
 
-You need to specify both the certificate you want to revoke, and the account key which was used to sign / obtain the original key.
+You need to specify both the certificate you want to revoke, and the account or private domain key which was used to sign / obtain the original key.  Note: the key used need to be an RSA key currently ( EC keys are not supported for revoking a certificate yet)
 
 
 ## Issues / problems / help
