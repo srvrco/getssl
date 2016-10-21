@@ -129,10 +129,11 @@
 # 2016-10-20 set permsissions to 700 for getssl script during upgrade (1.63)
 # 2016-10-20 add option to revoke a certificate (1.64)
 # 2016-10-21 set revocation server default to acme-v01.api.letsencrypt.org (1.65)
+# 2016-10-21 bug fix for revocation on different servers. (1.66)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.65"
+VERSION="1.66"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -610,9 +611,9 @@ revoke_certificate() { #revoke a certificate
   pub_exp64=$(openssl rsa -in "${REVOKE_KEY}" -noout -text | grep publicExponent | grep -oE "0x[a-f0-9]+" | cut -d'x' -f2 | hex2bin | urlbase64)
   pub_mod64=$(openssl rsa -in "${REVOKE_KEY}" -noout -modulus | cut -d'=' -f2 | hex2bin | urlbase64)
   TEMP_DIR=$(mktemp -d)
-  debug "revoking from $REVOKE_CA"
+  debug "revoking from $CA"
   rcertdata=$(openssl x509 -in "$REVOKE_CERT" -inform PEM -outform DER | urlbase64)
-  send_signed_request "$REVOKE_CA/acme/revoke-cert" "{\"resource\": \"revoke-cert\", \"certificate\": \"$rcertdata\"}"
+  send_signed_request "$CA/acme/revoke-cert" "{\"resource\": \"revoke-cert\", \"certificate\": \"$rcertdata\"}"
   if [[ $code -eq "200" ]]; then
     info "certificate revoked"
   else
@@ -907,10 +908,12 @@ fi
 # Revoke a certificate
 if [[ $_REVOKE -eq 1 ]]; then
   if [[ -z $REVOKE_CA ]]; then
-    REVOKE_CA=$DEFAULT_REVOKE_CA
+    CA=$DEFAULT_REVOKE_CA
   elif [[ "$REVOKE_CA" == "-d" ]]; then
     _USE_DEBUG=1
-    REVOKE_CA=$DEFAULT_REVOKE_CA
+    CA=$DEFAULT_REVOKE_CA
+  else
+    CA=$REVOKE_CA
   fi
   revoke_certificate
   graceful_exit
