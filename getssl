@@ -130,10 +130,14 @@
 # 2016-10-20 add option to revoke a certificate (1.64)
 # 2016-10-21 set revocation server default to acme-v01.api.letsencrypt.org (1.65)
 # 2016-10-21 bug fix for revocation on different servers. (1.66)
+# 2016-10-22 Tidy up archive code for certificates and reduce permissions for security
+# 2016-10-22 Add EC signing for secp384r1 and secp521r1 (the latter not yet supported by Let's  Encrypt
+# 2016-10-22 Add option to create a new private key for every cert (REUSE_PRIVATE_KEY="true" by default)
+# 2016-10-22 Combine EC signing, Private key reuse and archive permissions (1.67)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.66"
+VERSION="1.67"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -146,6 +150,7 @@ SSLCONF="$(openssl version -d 2>/dev/null| cut -d\" -f2)/openssl.cnf"
 VALIDATE_VIA_DNS=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
+REUSE_PRIVATE_KEY="true"
 PRIVATE_KEY_ALG="rsa"
 SERVER_TYPE="https"
 CHECK_REMOTE="true"
@@ -172,15 +177,16 @@ _REVOKE=0
 ORIGCMD="$0 $*"
 
 cert_archive() {  # Archive certificate file by copying with dates at end.
-  certfile=$1
-  enddate=$(openssl x509 -in "$certfile" -noout -enddate 2>/dev/null| cut -d= -f 2-)
-  enddate_s=$(date_epoc "$enddate")
-  formatted_enddate=$(date_fmt "${enddate_s}")
-  startdate=$(openssl x509 -in "$certfile" -noout -startdate 2>/dev/null| cut -d= -f 2-)
-  startdate_s=$(date_epoc "$startdate")
-  formatted_startdate=$(date_fmt "${startdate_s}")
-  cp "${certfile}" "${certfile}_${formatted_startdate}_${formatted_enddate}"
-  info "archiving old certificate file to ${certfile}_${formatted_startdate}_${formatted_enddate}"
+  debug "creating an achive copy of current new certs"
+  date_time=$(date +%Y_%m_%d_%H_%M)
+  mkdir -p "${DOMAIN_DIR}/archive/${date_time}"
+  umask 077
+  cp "$CERT_FILE" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.crt"
+  cp "$DOMAIN_DIR/${DOMAIN}.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.key"
+  cp "$CA_CERT" "${DOMAIN_DIR}/archive/${date_time}/chain.crt"
+  umask "$ORIG_UMASK"
+  debug "purging old GetSSL archives"
+  purge_archive "$DOMAIN_DIR"
 }
 
 check_challenge_completion() { # checks with the ACME server if our challenge is OK
@@ -800,6 +806,7 @@ write_getssl_template() { # write out the main template file
 	ACCOUNT_KEY_LENGTH=4096
 	ACCOUNT_KEY="$WORKING_DIR/account.key"
 	PRIVATE_KEY_ALG="rsa"
+	#REUSE_PRIVATE_KEY="true"
 
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
@@ -1117,15 +1124,9 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
           debug "certificates expire at the same time"
         elif [ "$enddate_ex_s" -gt "$enddate_lc_s" ]; then
           # remote has longer to expiry date than local copy.
-          # archive local copy and save remote to local
           debug "remote cert has longer to run than local cert - ignoring"
-#          cert_archive "$CERT_FILE"
-#          debug "copying remote certificate to local"
-#          echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
         else
           info "remote expires sooner than local ..... will attempt to upload from local"
-          echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt.remote"
-          cert_archive "$DOMAIN_DIR/${DOMAIN}.crt.remote"
           copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
           copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
           copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
@@ -1158,9 +1159,7 @@ if [ -f "$CERT_FILE" ]; then
       # everything is OK, so exit.
       graceful_exit
     else
-      # certificate needs renewal, archive current cert and continue.
       debug "certificate  for $DOMAIN needs renewal"
-      cert_archive "${CERT_FILE}"
     fi
   fi
 fi # end of .... if there is an existing certificate file, check details.
@@ -1175,6 +1174,12 @@ else
   umask "$ORIG_UMASK"
 fi
 
+if [ "$REUSE_PRIVATE_KEY" != "true" ]; then
+  if [ -f "$DOMAIN_DIR/${DOMAIN}.key" ]; then
+   rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+  fi
+fi
+
 # check if domain key exists, if not then create it.
 if [ -f "$DOMAIN_DIR/${DOMAIN}.key" ]; then
   debug "domain key exists at $DOMAIN_DIR/${DOMAIN}.key - skipping generation"
@@ -1182,13 +1187,14 @@ if [ -f "$DOMAIN_DIR/${DOMAIN}.key" ]; then
 else
   umask 077
   info "creating domain key - $DOMAIN_DIR/${DOMAIN}.key"
-  if [[ "${PRIVATE_KEY_ALG}" == "rsa" ]]; then
-    openssl genrsa "$DOMAIN_KEY_LENGTH" > "$DOMAIN_DIR/${DOMAIN}.key"
-  elif [[ "${PRIVATE_KEY_ALG}" == "prime256v1" ]]; then
-    openssl ecparam -genkey -name prime256v1 > "$DOMAIN_DIR/${DOMAIN}.key"
-  else
-    error_exit "unknown private key algorithm type ${PRIVATE_KEY_ALG}"
-  fi
+  case "${PRIVATE_KEY_ALG}" in
+    rsa)
+      openssl genrsa "$DOMAIN_KEY_LENGTH" > "$DOMAIN_DIR/${DOMAIN}.key";;
+    prime256v1|secp384r1|secp521r1)
+      openssl ecparam -genkey -name "${PRIVATE_KEY_ALG}" > "$DOMAIN_DIR/${DOMAIN}.key";;
+    *)
+      error_exit "unknown private key algorithm type ${PRIVATE_KEY_ALG}";;
+  esac
   umask "$ORIG_UMASK"
   # remove csr on generation of new domain key
   rm -f "$DOMAIN_DIR/${DOMAIN}.csr"
@@ -1534,15 +1540,8 @@ if [ "$IssuerData" ] ; then
   info "The intermediate CA cert is in $CA_CERT"
 fi
 
-debug "creating an achive copy of current new certs"
-date_time=$(date +%Y_%m_%d_%H_%M)
-mkdir -p "${DOMAIN_DIR}/archive/${date_time}"
-cp "$CERT_FILE" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.crt"
-cp "$DOMAIN_DIR/${DOMAIN}.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.key"
-cp "$CA_CERT" "${DOMAIN_DIR}/archive/${date_time}/chain.crt"
-debug "purging old GetSSL archives"
-purge_archive "$DOMAIN_DIR"
-
+# create Archive of new certs
+cert_archive
 
 debug "Certificates obtained and archived locally, will now copy to specified locations"
 
