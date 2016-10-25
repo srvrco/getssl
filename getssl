@@ -1206,30 +1206,32 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
 #          debug "local certificate doesn't exist, saving a copy from remote"
 #          echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
 #        fi
-        # check renew-date on ex_cert and compare to local ( if local exists)
-        enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
-        enddate_lc=$(openssl x509 -noout -enddate < "$CERT_FILE" 2>/dev/null| cut -d= -f 2-)
-        enddate_ex_s=$(date_epoc "$enddate_ex")
-        enddate_lc_s=$(date_epoc "$enddate_lc")
-        debug "external cert has enddate $enddate_ex ( $enddate_ex_s ) "
-        debug "local    cert has enddate $enddate_lc ( $enddate_lc_s ) "
-        if [ "$enddate_ex_s" -eq "$enddate_lc_s" ]; then
-          debug "certificates expire at the same time"
-        elif [ "$enddate_ex_s" -gt "$enddate_lc_s" ]; then
-          # remote has longer to expiry date than local copy.
-          debug "remote cert has longer to run than local cert - ignoring"
-        else
-          info "remote expires sooner than local ..... will attempt to upload from local"
-          copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
-          copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
-          copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
-          cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
-          copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$DOMAIN_CHAIN_LOCATION"
-          cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
-          copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_k_C.pem"  "$DOMAIN_KEY_CERT_LOCATION"
-          cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
-          copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
-          reload_service
+        if [ -f "$CERT_FILE" ]; then
+          # check renew-date on ex_cert and compare to local ( if local exists)
+          enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
+          enddate_lc=$(openssl x509 -noout -enddate < "$CERT_FILE" 2>/dev/null| cut -d= -f 2-)
+          enddate_ex_s=$(date_epoc "$enddate_ex")
+          enddate_lc_s=$(date_epoc "$enddate_lc")
+          debug "external cert has enddate $enddate_ex ( $enddate_ex_s ) "
+          debug "local    cert has enddate $enddate_lc ( $enddate_lc_s ) "
+          if [ "$enddate_ex_s" -eq "$enddate_lc_s" ]; then
+            debug "certificates expire at the same time"
+          elif [ "$enddate_ex_s" -gt "$enddate_lc_s" ]; then
+            # remote has longer to expiry date than local copy.
+            debug "remote cert has longer to run than local cert - ignoring"
+          else
+            info "remote expires sooner than local ..... will attempt to upload from local"
+            copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
+            copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
+            copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
+            cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
+            copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$DOMAIN_CHAIN_LOCATION"
+            cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
+            copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_k_C.pem"  "$DOMAIN_KEY_CERT_LOCATION"
+            cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
+            copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
+            reload_service
+          fi
         fi
       else
         info "Certificate on remote domain does not match domain, ignoring remote certificate"
