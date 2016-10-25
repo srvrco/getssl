@@ -230,9 +230,6 @@ usage: getssl -r path/to/cert path/to/key
 
 You need to specify both the certificate you want to revoke, and the account or private domain key which was used to sign / obtain the original key.
 
-Note: the key used needs to be an RSA key currently ( EC keys are not supported for revoking a certificate yet), so you will need to use the RSA account key to revoke a cert signed with an EC domain key.
-
-
 ## Issues / problems / help
 If you have any issues, please log them at https://github.com/srvrco/getssl/issues
 
