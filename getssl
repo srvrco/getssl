@@ -136,10 +136,11 @@
 # 2016-10-22 Combine EC signing, Private key reuse and archive permissions (1.67)
 # 2016-10-25 added CHECK_REMOTE_WAIT option ( to pause before final remote check)
 # 2016-10-25 Added EC account key support ( prime256v1, secp384r1 ) (1.68)
+# 2016-10-25 Ignore DNS_EXTRA_WAIT if all domains already validated (issue #146) (1.69)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.68"
+VERSION="1.69"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -164,6 +165,7 @@ CHECK_REMOTE_WAIT=0
 PUBLIC_DNS_SERVER=""
 CHALLENGE_CHECK_TYPE="http"
 DEACTIVATE_AUTH="false"
+PREVIOUSLY_VALIDATED="true"
 ORIG_UMASK=$(umask)
 _USE_DEBUG=0
 _CREATE_CONFIG=0
@@ -1431,7 +1433,7 @@ for d in $alldomains; do
     # increment domain-counter
     let dn=dn+1;
   else
-
+    PREVIOUSLY_VALIDATED="false"
     if [[ $VALIDATE_VIA_DNS == "true" ]]; then # set up the correct DNS token for verification
       # get the dns component of the ACME response
       # get the token from the dns component
@@ -1579,7 +1581,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
     fi
   done
 
-  if [ "$DNS_EXTRA_WAIT" != "" ]; then
+  if [[ "$DNS_EXTRA_WAIT" -gt 0 && "$PREVIOUSLY_VALIDATED" != "true" ]]; then
     info "sleeping $DNS_EXTRA_WAIT seconds before asking the ACME-server to check the dns"
     sleep "$DNS_EXTRA_WAIT"
   fi
