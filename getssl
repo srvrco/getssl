@@ -138,10 +138,11 @@
 # 2016-10-25 Added EC account key support ( prime256v1, secp384r1 ) (1.68)
 # 2016-10-25 Ignore DNS_EXTRA_WAIT if all domains already validated (issue #146) (1.69)
 # 2016-10-25 Add option for dual ESA / EDSA certs (1.70)
+# 2016-10-25 bug fix Issue #141 challenge error 400 (1.71)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.70"
+VERSION="1.71"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -599,7 +600,8 @@ get_signing_params() { # get signing parameters from key
   if [ "$(grep -c "RSA PRIVATE KEY" "$skey")" -gt 0 ]; then # RSA key
     pub_exp64=$(openssl rsa -in "${skey}" -noout -text | grep publicExponent | grep -oE "0x[a-f0-9]+" | cut -d'x' -f2 | hex2bin | urlbase64)
     pub_mod64=$(openssl rsa -in "${skey}" -noout -modulus | cut -d'=' -f2 | hex2bin | urlbase64)
-    jwk='{"e": "'"${pub_exp64}"'", "kty": "RSA", "n": "'"${pub_mod64}"'"}'
+
+    jwk='{"e":"'"${pub_exp64}"'","kty":"RSA","n":"'"${pub_mod64}"'"}'
     jwkalg="RS256"
     signalg="sha256"
   elif [ "$(grep -c "EC PRIVATE KEY" "$skey")" -gt 0 ]; then # Elliptic curve key.
@@ -807,8 +809,6 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   debug protected "$protected"
 
   # Sign header with nonce and our payload with our private key and encode signature as urlbase64
-#  signed64="$(printf '%s' "${protected64}.${payload64}" | openssl dgst -"$signalg" -sign "${ACCOUNT_KEY}" | urlbase64)"
-#  signed64="$(sign_string "$(printf '%s' "${protected64}.${payload64}")"  "${ACCOUNT_KEY}" "$signalg")"
   sign_string "$(printf '%s' "${protected64}.${payload64}")"  "${ACCOUNT_KEY}" "$signalg"
 
   # Send header + extended header + payload + signature to the acme-server
@@ -850,7 +850,7 @@ sign_string() { #sign a string with a given key and algorithm and return urlbase
   signalg=$3
 
   if [ "$(grep -c "RSA PRIVATE KEY" "$key")" -gt 0 ]; then # RSA key
-    signed64="$(printf '%s' "${str}" | openssl dgst -"$signalg" -sign "${ACCOUNT_KEY}" | urlbase64)"
+    signed64="$(printf '%s' "${str}" | openssl dgst -"$signalg" -sign "$key" | urlbase64)"
   elif [ "$(grep -c "EC PRIVATE KEY" "$key")" -gt 0 ]; then # Elliptic curve key.
     signed=$(printf '%s' "${str}" | openssl dgst -"$signalg" -sign "$key" -hex | awk '{print $2}')
     debug "EC signature $signed"
