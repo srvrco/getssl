@@ -134,10 +134,12 @@
 # 2016-10-22 Add EC signing for secp384r1 and secp521r1 (the latter not yet supported by Let's  Encrypt
 # 2016-10-22 Add option to create a new private key for every cert (REUSE_PRIVATE_KEY="true" by default)
 # 2016-10-22 Combine EC signing, Private key reuse and archive permissions (1.67)
+# 2016-10-25 added CHECK_REMOTE_WAIT option ( to pause before final remote check)
+# 2016-10-25 Added EC account key support ( prime256v1, secp384r1 ) (1.68)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.67"
+VERSION="1.68"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -158,6 +160,7 @@ USE_SINGLE_ACL="false"
 CHECK_ALL_AUTH_DNS="false"
 DNS_WAIT=10
 DNS_EXTRA_WAIT=""
+CHECK_REMOTE_WAIT=0
 PUBLIC_DNS_SERVER=""
 CHALLENGE_CHECK_TYPE="http"
 DEACTIVATE_AUTH="false"
@@ -490,6 +493,40 @@ get_os() { # function to get the current Operating System
   debug "detected os type = $os"
 }
 
+get_signing_params() { # get signing parameters from key
+  skey=$1
+  if [ "$(grep -c "RSA PRIVATE KEY" "$skey")" -gt 0 ]; then # RSA key
+    pub_exp64=$(openssl rsa -in "${skey}" -noout -text | grep publicExponent | grep -oE "0x[a-f0-9]+" | cut -d'x' -f2 | hex2bin | urlbase64)
+    pub_mod64=$(openssl rsa -in "${skey}" -noout -modulus | cut -d'=' -f2 | hex2bin | urlbase64)
+    jwk='{"e": "'"${pub_exp64}"'", "kty": "RSA", "n": "'"${pub_mod64}"'"}'
+    jwkalg="RS256"
+    signalg="sha256"
+  elif [ "$(grep -c "EC PRIVATE KEY" "$skey")" -gt 0 ]; then # Elliptic curve key.
+    crv="$(openssl ec -in  "$skey" -noout -text 2>/dev/null | awk '$2 ~ "CURVE:" {print $3}')"
+    case "$crv" in
+      P-256) jwkalg="ES256" ; signalg="sha256" ;;
+      P-384) jwkalg="ES384" ; signalg="sha384" ;;
+      P-521) jwkalg="ES512" ; signalg="sha512" ;;
+      *) error_exit "invalid curve algorithm type $crv";;
+    esac
+    pubtext="$(openssl ec  -in "$skey"  -noout -text 2>/dev/null | awk '/^pub:/{p=1;next}/^ASN1 OID:/{p=0}p' | tr -d ": \n\r")"
+    mid=$(( (${#pubtext} -2) / 2 + 2 ))
+    debug "pubtext = $pubtext"
+    echo "$pubtext" | cut -b 3-$mid
+    echo "$pubtext" | cut -b $((mid+1))-${#pubtext}
+    x64=$(echo "$pubtext" | cut -b 3-$mid | hex2bin | urlbase64)
+    y64=$(echo "$pubtext" | cut -b $((mid+1))-${#pubtext} | hex2bin | urlbase64)
+    jwk='{"crv":"'"$crv"'","kty":"EC","x":"'"$x64"'","y":"'"$y64"'"}'
+    debug "jwk $jwk"
+  else
+    error_exit "Invlid key file"
+  fi
+  thumbprint="$(printf "%s" "$jwk" | openssl sha -sha256 -binary | urlbase64)"
+  debug "jwk alg = $jwkalg"
+  debug "jwk = $jwk"
+  debug "thumbprint $thumbprint"
+}
+
 graceful_exit() { # normal exit function.
   clean_up
   exit
@@ -614,8 +651,8 @@ revoke_certificate() { #revoke a certificate
   debug "revoking cert $REVOKE_CERT"
   debug "using key $REVOKE_KEY"
   ACCOUNT_KEY="$REVOKE_KEY"
-  pub_exp64=$(openssl rsa -in "${REVOKE_KEY}" -noout -text | grep publicExponent | grep -oE "0x[a-f0-9]+" | cut -d'x' -f2 | hex2bin | urlbase64)
-  pub_mod64=$(openssl rsa -in "${REVOKE_KEY}" -noout -modulus | cut -d'=' -f2 | hex2bin | urlbase64)
+  # need to set the revoke key as "account_key" since it's used in send_signed_request.
+  get_signing_params "$REVOKE_KEY"
   TEMP_DIR=$(mktemp -d)
   debug "revoking from $CA"
   rcertdata=$(openssl x509 -in "$REVOKE_CERT" -inform PEM -outform DER | urlbase64)
@@ -661,15 +698,17 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   debug nonce "$nonce"
 
   # Build header with just our public key and algorithm information
-  header='{"alg": "RS256", "jwk": {"e": "'"${pub_exp64}"'", "kty": "RSA", "n": "'"${pub_mod64}"'"}}'
+  header='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"'}'
 
   # Build another header which also contains the previously received nonce and encode it as urlbase64
-  protected='{"alg": "RS256", "jwk": {"e": "'"${pub_exp64}"'", "kty": "RSA", "n": "'"${pub_mod64}"'"}, "nonce": "'"${nonce}"'"}'
+  protected='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "nonce": "'"${nonce}"'", "url": "'"${url}"'"}'
   protected64="$(printf '%s' "${protected}" | urlbase64)"
   debug protected "$protected"
 
   # Sign header with nonce and our payload with our private key and encode signature as urlbase64
-  signed64="$(printf '%s' "${protected64}.${payload64}" | openssl dgst -sha256 -sign "${ACCOUNT_KEY}" | urlbase64)"
+#  signed64="$(printf '%s' "${protected64}.${payload64}" | openssl dgst -"$signalg" -sign "${ACCOUNT_KEY}" | urlbase64)"
+#  signed64="$(sign_string "$(printf '%s' "${protected64}.${payload64}")"  "${ACCOUNT_KEY}" "$signalg")"
+  sign_string "$(printf '%s' "${protected64}.${payload64}")"  "${ACCOUNT_KEY}" "$signalg"
 
   # Send header + extended header + payload + signature to the acme-server
   body='{"header": '"${header}"', "protected": "'"${protected64}"'", "payload": "'"${payload64}"'", "signature": "'"${signed64}"'"}'
@@ -701,6 +740,63 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       fi
     fi
   done
+}
+
+sign_string() { #sign a string with a given key and algorithm and return urlbase64
+                # sets the result in variable signed64
+  str=$1
+  key=$2
+  signalg=$3
+
+  if [ "$(grep -c "RSA PRIVATE KEY" "$key")" -gt 0 ]; then # RSA key
+    signed64="$(printf '%s' "${str}" | openssl dgst -"$signalg" -sign "${ACCOUNT_KEY}" | urlbase64)"
+  elif [ "$(grep -c "EC PRIVATE KEY" "$key")" -gt 0 ]; then # Elliptic curve key.
+    signed=$(printf '%s' "${str}" | openssl dgst -"$signalg" -sign "$key" -hex | awk '{print $2}')
+    debug "EC signature $signed"
+    if [ "${signed:4:4}" == "0220" ]; then #sha256
+      R=$(echo "$signed" | cut -c 9-72)
+      part2=$(echo "$signed" | cut -c 73-)
+    elif [ "${signed:4:4}" == "0221" ]; then #sha256
+      R=$(echo "$signed" | cut -c 11-74)
+      part2=$(echo "$signed" | cut -c 75-)
+    elif [ "${signed:4:4}" == "0230" ]; then #sha384
+      R=$(echo "$signed" | cut -c 9-104)
+      part2=$(echo "$signed" | cut -c 105-)
+    elif [ "${signed:4:4}" == "0231" ]; then #sha384
+      R=$(echo "$signed" | cut -c 11-106)
+      part2=$(echo "$signed" | cut -c 107-)
+    elif [ "${signed:6:4}" == "0241" ]; then #sha512
+      R=$(echo "$signed" | cut -c 11-140)
+      part2=$(echo "$signed" | cut -c 141-)
+    elif [ "${signed:6:4}" == "0242" ]; then #sha512
+      R=$(echo "$signed" | cut -c 11-142)
+      part2=$(echo "$signed" | cut -c 143-)
+    else
+      error_exit "error in EC signing couldn't get R from $signed"
+    fi
+    debug "R $R"
+
+    if [ "${part2:0:4}" == "0220" ]; then #sha256
+      S=$(echo "$part2" | cut -c 5-68)
+    elif [ "${part2:0:4}" == "0221" ]; then #sha256
+      S=$(echo "$part2" | cut -c 7-70)
+    elif [ "${part2:0:4}" == "0230" ]; then #sha384
+      S=$(echo "$part2" | cut -c 5-100)
+    elif [ "${part2:0:4}" == "0231" ]; then #sha384
+      S=$(echo "$part2" | cut -c 7-102)
+    elif [ "${part2:0:4}" == "0241" ]; then #sha512
+      S=$(echo "$part2" | cut -c 5-136)
+    elif [ "${part2:0:4}" == "0242" ]; then #sha512
+      S=$(echo "$part2" | cut -c 5-136)
+    else
+      error_exit "error in EC signing couldn't get S from $signed"
+    fi
+
+    debug "S $S"
+    signed64=$(printf '%s' "${R}${S}" | hex2bin | urlbase64 )
+    debug "encoded RS $signed64"
+    result=$(which "$1" 2>/dev/null)
+  fi
 }
 
 signal_exit() { # Handle trapped signals
@@ -927,7 +1023,7 @@ if [[ $_REVOKE -eq 1 ]]; then
 fi
 
 # get latest agreement from CA (as default)
-AGREEMENT=$(curl -I ${CA}/terms 2>/dev/null | awk '$1 ~ "Location:" {print $2}'|tr -d '\r')
+AGREEMENT=$(curl -I "${CA}/terms" 2>/dev/null | awk '$1 ~ "Location:" {print $2}'|tr -d '\r')
 
 # if nothing in command line, print help and exit.
 if [ -z "$DOMAIN" ] && [ ${_CHECK_ALL} -ne 1 ]; then
@@ -1260,11 +1356,7 @@ fi
 
 # use account key to register with CA
 # currently the code registers every time, and gets an "already registered" back if it has been.
-# public component and modulus of key in base64
-pub_exp64=$(openssl rsa -in "${ACCOUNT_KEY}" -noout -text | grep publicExponent | grep -oE "0x[a-f0-9]+" | cut -d'x' -f2 | hex2bin | urlbase64)
-pub_mod64=$(openssl rsa -in "${ACCOUNT_KEY}" -noout -modulus | cut -d'=' -f2 | hex2bin | urlbase64)
-
-thumbprint="$(printf '{"e":"%s","kty":"RSA","n":"%s"}' "${pub_exp64}" "${pub_mod64}" | openssl sha -sha256 -binary | urlbase64)"
+get_signing_params "$ACCOUNT_KEY"
 
 if [ "$ACCOUNT_EMAIL" ] ; then
   regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
@@ -1602,6 +1694,7 @@ fi
 
 # Check if the certificate is installed correctly
 if [[ ${CHECK_REMOTE} == "true" ]]; then
+  sleep "$CHECK_REMOTE_WAIT"
   # shellcheck disable=SC2086
   CERT_REMOTE=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null | openssl x509 -noout -fingerprint 2>/dev/null)
   CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
