@@ -370,21 +370,26 @@ copy_file_to_location() { # copies a file, using scp if required.
   fi
 }
 
-date_epoc() { # convert the date into epoch time
-  if [[ "$os" == "bsd" ]]; then
-    date -j -f "%b %d %T %Y %Z" "$1" +%s
-  elif [[ "$os" == "mac" ]]; then
-    date -j -f "%b %d %T %Y %Z" "$1" +%s
+date_direpoc() { # convert the dir date into epoch time
+  if [[ "$os" == "bsd" || "$os" == "mac" ]]; then
+    date -j -f "%F %H:%M" "$1" +%s
   else
     date -d "$1" +%s
   fi
+}
 
+date_epoc() { # convert the date into epoch time
+  if [[ "$os" == "bsd" || "$os" == "mac" ]]; then # uses older style date function.
+    date -j -f "%b %d %T %Y %Z" "$1" +%s
+  elif date --version |& grep -iqw busybox; then # BB needs explicit format
+    date -D "%b %d %T %Y %Z" -d "$1" +%s
+  else
+    date -d "$1" +%s
+  fi
 }
 
 date_fmt() { # format date from epoc time to YYYY-MM-DD
-  if [[ "$os" == "bsd" ]]; then #uses older style date function.
-    date -j -f "%s" "$1" +%F
-  elif [[ "$os" == "mac" ]]; then # MAC OSX uses older BSD style date.
+  if [[ "$os" == "bsd" || "$os" == "mac" ]]; then # uses older style date function.
     date -j -f "%s" "$1" +%F
   else
     date -d "@$1" +%F
@@ -392,13 +397,9 @@ date_fmt() { # format date from epoc time to YYYY-MM-DD
 }
 
 date_renew() { # calculates the renewal time in epoch and formatted
-  if [[ "$os" == "bsd" ]]; then
+  if [[ "$os" == "bsd" || "$os" == "mac" ]] || date --version |& grep -iqw busybox; then
     date_now=$(date "+%b %d %T %Y %Z")
-    date_now_s=$( date_epoc "$date_now" )
-    echo "$((date_now_s + RENEW_ALLOW*24*60*60))"
-  elif [[ "$os" == "mac" ]]; then
-    date_now=$(date "+%b %d %T %Y %Z")
-    date_now_s=$( date_epoc "$date_now" )
+    date_now_s=$(date_epoc "$date_now")
     echo "$((date_now_s + RENEW_ALLOW*24*60*60))"
   else
     date -d "${RENEW_ALLOW} days" +%s
@@ -609,13 +610,7 @@ purge_archive() { # purge archive of old, invalid, certificates
     # check each directory
     if [ -d "$padir" ]; then
       tstamp=$(basename "$padir"| awk -F"_" '{print $1"-"$2"-"$3" "$4":"$5}')
-      if [[ "$os" == "bsd" ]]; then
-        direpoc=$(date -j -f "%F %H:%M" "$tstamp" +%s)
-      elif [[ "$os" == "mac" ]]; then
-        direpoc=$(date -j -f "%F %H:%M" "$tstamp" +%s)
-      else
-        direpoc=$(date -d "$tstamp" +%s)
-      fi
+      direpoc=$(date_direpoc "$tstamp")
       current_epoc=$(date "+%s")
       # as certs currently valid for 90 days, purge anything older than 100
       purgedate=$((current_epoc - 60*60*24*100))
