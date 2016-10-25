@@ -137,10 +137,11 @@
 # 2016-10-25 added CHECK_REMOTE_WAIT option ( to pause before final remote check)
 # 2016-10-25 Added EC account key support ( prime256v1, secp384r1 ) (1.68)
 # 2016-10-25 Ignore DNS_EXTRA_WAIT if all domains already validated (issue #146) (1.69)
+# 2016-10-25 Add option for dual ESA / EDSA certs (1.70)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.69"
+VERSION="1.70"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -166,6 +167,7 @@ PUBLIC_DNS_SERVER=""
 CHALLENGE_CHECK_TYPE="http"
 DEACTIVATE_AUTH="false"
 PREVIOUSLY_VALIDATED="true"
+DUAL_RSA_ECDSA="false"
 ORIG_UMASK=$(umask)
 _USE_DEBUG=0
 _CREATE_CONFIG=0
@@ -187,8 +189,15 @@ cert_archive() {  # Archive certificate file by copying with dates at end.
   mkdir -p "${DOMAIN_DIR}/archive/${date_time}"
   umask 077
   cp "$CERT_FILE" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.crt"
+  cp "$CERT_FILE" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.csr"
   cp "$DOMAIN_DIR/${DOMAIN}.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.key"
   cp "$CA_CERT" "${DOMAIN_DIR}/archive/${date_time}/chain.crt"
+  if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+    cp "$CERT_FILE" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.crt"
+    cp "$CERT_FILE" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.csr"
+    cp "$DOMAIN_DIR/${DOMAIN}.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.key"
+    cp "$CA_CERT" "${DOMAIN_DIR}/archive/${date_time}/chain.ec.crt"
+  fi
   umask "$ORIG_UMASK"
   debug "purging old GetSSL archives"
   purge_archive "$DOMAIN_DIR"
@@ -370,6 +379,60 @@ copy_file_to_location() { # copies a file, using scp if required.
   fi
 }
 
+create_csr() { # create a csr using a given key (if it doesn't already exist)
+  csr_file=$1
+  csr_key=$2
+  # check if domain csr exists - if not then create it
+  if [ -f "$csr_file" ]; then
+    debug "domain csr exists at - $csr_file"
+    # check all domains in config are in csr
+    alldomains=$(echo "$DOMAIN,$SANS" | sed -e 's/ //g; y/,/\n/' | sort -u)
+    domains_in_csr=$(openssl req -text -noout -in "$csr_file" | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' | sort -u)
+    for d in $alldomains; do
+      if [ "$(echo "${domains_in_csr}"| grep "^${d}$")" != "${d}" ]; then
+        info "existing csr at $csr_file does not contain ${d} - re-create-csr .... $(echo "${domains_in_csr}"| grep "^${d}$")"
+        _RECREATE_CSR=1
+      fi
+    done
+    # check all domains in csr are in config
+    if [ "$alldomains" != "$domains_in_csr" ]; then
+      info "existing csr at $csr_file does not have the same domains as the config - re-create-csr"
+      _RECREATE_CSR=1
+    fi
+  fi # end of ... check if domain csr exists - if not then create it
+
+  # if CSR does not exist, or flag set to recreate, then create csr
+  if [ ! -f "$csr_file" ] || [ "$_RECREATE_CSR" == "1" ]; then
+    info "creating domain csr - $csr_file"
+    openssl req -new -sha256 -key "$csr_key" -subj "/" -reqexts SAN -config \
+    <(cat "$SSLCONF" <(printf "[SAN]\n%s" "$SANLIST")) > "$csr_file"
+  fi
+}
+
+create_domain_key() { # create a domain key (if it doesn't already exist)
+  key_type=$1 # domain key type
+  key_loc=$2  # domain key location
+  # check if domain key exists, if not then create it.
+  if [ -f "$key_loc" ]; then
+    debug "domain key exists at $key_loc - skipping generation"
+    # ideally need to check validity of domain key
+  else
+    umask 077
+    info "creating domain key - $key_loc"
+    case "$key_type" in
+      rsa)
+        openssl genrsa "$DOMAIN_KEY_LENGTH" > "$key_loc";;
+      prime256v1|secp384r1|secp521r1)
+        openssl ecparam -genkey -name "$key_type" > "$key_loc";;
+      *)
+        error_exit "unknown private key algorithm type $key_loc";;
+    esac
+    umask "$ORIG_UMASK"
+    # remove csr on generation of new domain key
+    rm -f "${key_loc::-4}.csr"
+  fi
+}
+
 date_epoc() { # convert the date into epoch time
   if [[ "$os" == "bsd" ]]; then
     date -j -f "%b %d %T %Y %Z" "$1" +%s
@@ -476,6 +539,42 @@ get_auth_dns() { # get the authoritative dns server for a domain
     echo "$all_auth_dns_servers"
   else
     echo "$all_auth_dns_servers" | awk '{print $1}'
+  fi
+}
+
+get_certificate() { # get certificate for csr, if all domains validated.
+  gc_csr=$1         # the csr file
+  gc_certfile=$2    # The filename for the certificate
+  gc_cafile=$3      # The filename for the CA certificate
+
+  der=$(openssl req -in "$gc_csr" -outform DER | urlbase64)
+  debug "der $der"
+  send_signed_request "$CA/acme/new-cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
+
+  # convert certificate information into correct format and save to file.
+  CertData=$(awk ' $1 ~ "^Location" {print $2}' "$CURL_HEADER" |tr -d '\r')
+  debug "certdata location = $CertData"
+  if [ "$CertData" ] ; then
+    echo -----BEGIN CERTIFICATE----- > "$gc_certfile"
+    curl --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
+    echo -----END CERTIFICATE-----  >> "$gc_certfile"
+    info "Certificate saved in $CERT_FILE"
+  fi
+
+  # If certificate wasn't a valid certificate, error exit.
+  if [ -z "$CertData" ] ; then
+    response2=$(echo "$response" | fold -w64 |openssl base64 -d)
+    debug "response was $response"
+    error_exit "Sign failed: $(echo "$response2" | grep "detail")"
+  fi
+
+  # get a copy of the CA certificate.
+  IssuerData=$(grep -i '^Link' "$CURL_HEADER" | cut -d " " -f 2| cut -d ';' -f 1 | sed 's/<//g' | sed 's/>//g')
+  if [ "$IssuerData" ] ; then
+    echo -----BEGIN CERTIFICATE----- > "$gc_cafile"
+    curl --silent "$IssuerData" | openssl base64 -e  >> "$gc_cafile"
+    echo -----END CERTIFICATE-----  >> "$gc_cafile"
+    info "The intermediate CA cert is in $gc_cafile"
   fi
 }
 
@@ -797,7 +896,6 @@ sign_string() { #sign a string with a given key and algorithm and return urlbase
     debug "S $S"
     signed64=$(printf '%s' "${R}${S}" | hex2bin | urlbase64 )
     debug "encoded RS $signed64"
-    result=$(which "$1" 2>/dev/null)
   fi
 }
 
@@ -1276,26 +1374,16 @@ if [ "$REUSE_PRIVATE_KEY" != "true" ]; then
   if [ -f "$DOMAIN_DIR/${DOMAIN}.key" ]; then
    rm -f "$DOMAIN_DIR/${DOMAIN}.key"
   fi
+  if [ -f "$DOMAIN_DIR/${DOMAIN}.ec.key" ]; then
+   rm -f "$DOMAIN_DIR/${DOMAIN}.ecs.key"
+  fi
 fi
 
-# check if domain key exists, if not then create it.
-if [ -f "$DOMAIN_DIR/${DOMAIN}.key" ]; then
-  debug "domain key exists at $DOMAIN_DIR/${DOMAIN}.key - skipping generation"
-  # ideally need to check validity of domain key
+if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
+  create_domain_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.key"
 else
-  umask 077
-  info "creating domain key - $DOMAIN_DIR/${DOMAIN}.key"
-  case "${PRIVATE_KEY_ALG}" in
-    rsa)
-      openssl genrsa "$DOMAIN_KEY_LENGTH" > "$DOMAIN_DIR/${DOMAIN}.key";;
-    prime256v1|secp384r1|secp521r1)
-      openssl ecparam -genkey -name "${PRIVATE_KEY_ALG}" > "$DOMAIN_DIR/${DOMAIN}.key";;
-    *)
-      error_exit "unknown private key algorithm type ${PRIVATE_KEY_ALG}";;
-  esac
-  umask "$ORIG_UMASK"
-  # remove csr on generation of new domain key
-  rm -f "$DOMAIN_DIR/${DOMAIN}.csr"
+  create_domain_key "rsa" "$DOMAIN_DIR/${DOMAIN}.key"
+  create_domain_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.ec.key"
 fi
 
 #create SAN
@@ -1330,30 +1418,11 @@ for d in $alldomains; do
   fi
 done
 
-# check if domain csr exists - if not then create it
-if [ -f "$DOMAIN_DIR/${DOMAIN}.csr" ]; then
-  debug "domain csr exists at - $DOMAIN_DIR/${DOMAIN}.csr"
-  # check all domains in config are in csr
-  alldomains=$(echo "$DOMAIN,$SANS" | sed -e 's/ //g; y/,/\n/' | sort -u)
-  domains_in_csr=$(openssl req -text -noout -in "$DOMAIN_DIR/${DOMAIN}.csr" | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' | sort -u)
-  for d in $alldomains; do
-    if [ "$(echo "${domains_in_csr}"| grep "^${d}$")" != "${d}" ]; then
-      info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not contain ${d} - re-create-csr .... $(echo "${domains_in_csr}"| grep "^${d}$")"
-      _RECREATE_CSR=1
-    fi
-  done
-  # check all domains in csr are in config
-  if [ "$alldomains" != "$domains_in_csr" ]; then
-    info "existing csr at $DOMAIN_DIR/${DOMAIN}.csr does not have the same domains as the config - re-create-csr"
-    _RECREATE_CSR=1
-  fi
-fi # end of ... check if domain csr exists - if not then create it
-
-# if CSR does not exist, or flag set to recreate, then create csr
-if [ ! -f "$DOMAIN_DIR/${DOMAIN}.csr" ] || [ "$_RECREATE_CSR" == "1" ]; then
-  info "creating domain csr - $DOMAIN_DIR/${DOMAIN}.csr"
-  openssl req -new -sha256 -key "$DOMAIN_DIR/${DOMAIN}.key" -subj "/" -reqexts SAN -config \
-  <(cat "$SSLCONF" <(printf "[SAN]\n%s" "$SANLIST")) > "$DOMAIN_DIR/${DOMAIN}.csr"
+if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
+  create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
+else
+  create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
+  create_csr "$DOMAIN_DIR/${DOMAIN}.ec.csr" "$DOMAIN_DIR/${DOMAIN}.ec.key"
 fi
 
 # use account key to register with CA
@@ -1604,34 +1673,10 @@ fi # end of ... perform validation if via DNS challenge
 
 # Verification has been completed for all SANS, so  request certificate.
 info "Verification completed, obtaining certificate."
-der=$(openssl req  -in "$DOMAIN_DIR/${DOMAIN}.csr" -outform DER | urlbase64)
-debug "der $der"
-send_signed_request "$CA/acme/new-cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
 
-# convert certificate information into correct format and save to file.
-CertData=$(awk ' $1 ~ "^Location" {print $2}' "$CURL_HEADER" |tr -d '\r')
-debug "certdata location = $CertData"
-if [ "$CertData" ] ; then
-  echo -----BEGIN CERTIFICATE----- > "$CERT_FILE"
-  curl --silent "$CertData" | openssl base64 -e  >> "$CERT_FILE"
-  echo -----END CERTIFICATE-----  >> "$CERT_FILE"
-  info "Certificate saved in $CERT_FILE"
-fi
-
-# If certificate wasn't a valid certificate, error exit.
-if [ -z "$CertData" ] ; then
-  response2=$(echo "$response" | fold -w64 |openssl base64 -d)
-  debug "response was $response"
-  error_exit "Sign failed: $(echo "$response2" | grep "detail")"
-fi
-
-# get a copy of the CA certificate.
-IssuerData=$(grep -i '^Link' "$CURL_HEADER" | cut -d " " -f 2| cut -d ';' -f 1 | sed 's/<//g' | sed 's/>//g')
-if [ "$IssuerData" ] ; then
-  echo -----BEGIN CERTIFICATE----- > "$CA_CERT"
-  curl --silent "$IssuerData" | openssl base64 -e  >> "$CA_CERT"
-  echo -----END CERTIFICATE-----  >> "$CA_CERT"
-  info "The intermediate CA cert is in $CA_CERT"
+get_certificate "$DOMAIN_DIR/${DOMAIN}.csr" "$CERT_FILE" "$CA_CERT"
+if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+  get_certificate "$DOMAIN_DIR/${DOMAIN}.ec.csr" "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt"
 fi
 
 # create Archive of new certs
@@ -1644,6 +1689,18 @@ debug "Certificates obtained and archived locally, will now copy to specified lo
 copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
 copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
 copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
+if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+  if [ ! -z "$DOMAIN_CERT_LOCATION" ]; then
+    copy_file_to_location "ec domain certificate" "${CERT_FILE::-4}.ec.crt" "${DOMAIN_CERT_LOCATION::-4}.ec.crt"
+  fi
+  if [ ! -z "$DOMAIN_KEY_LOCATION" ]; then
+  copy_file_to_location "ec private key" "$DOMAIN_DIR/${DOMAIN}.ec.key" "${DOMAIN_KEY_LOCATION::-4}.ec.key"
+  fi
+  if [ ! -z "$CA_CERT_LOCATION" ]; then
+  copy_file_to_location "ec CA certificate" "${CA_CERT::-4}.ec.crt" "${CA_CERT_LOCATION::-4}.ec.crt"
+  fi
+fi
+
 # if DOMAIN_CHAIN_LOCATION is not blank, then create and copy file.
 if [ ! -z "$DOMAIN_CHAIN_LOCATION" ]; then
   if [[ "$(dirname "$DOMAIN_CHAIN_LOCATION")" == "." ]]; then
