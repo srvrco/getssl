@@ -230,9 +230,13 @@ usage: getssl -r path/to/cert path/to/key
 
 You need to specify both the certificate you want to revoke, and the account or private domain key which was used to sign / obtain the original key.
 
+##Elliptic curve keys
+You can use Elliptic curve keys for both the account key and the domain key (different of course, don't use the same key for both). prime256v1 (NIST P-256) and secp384r1 (NIST P-384) are both fully supported.  secp521r1 (NIST P-521) is included in the code, but not currently supported by Let's Encrypt).
+
+
 ## Issues / problems / help
 If you have any issues, please log them at https://github.com/srvrco/getssl/issues
 
-There are additional help pages on the wiki - https://github.com/srvrco/getssl/wiki
+There are additional help pages on the [wiki](https://github.com/srvrco/getssl/wiki)
 
 If you have any suggestions for improvements then pull requests are welcomed, or raise an issue.
