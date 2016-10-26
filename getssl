@@ -139,10 +139,12 @@
 # 2016-10-25 Ignore DNS_EXTRA_WAIT if all domains already validated (issue #146) (1.69)
 # 2016-10-25 Add option for dual ESA / EDSA certs (1.70)
 # 2016-10-25 bug fix Issue #141 challenge error 400 (1.71)
+# 2016-10-26 check content of key files, not just recreate if missing.
+# 2016-10-26 Improvements on portability (1.72)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.71"
+VERSION="1.72"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -384,7 +386,7 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
   csr_file=$1
   csr_key=$2
   # check if domain csr exists - if not then create it
-  if [ -f "$csr_file" ]; then
+  if [ -s "$csr_file" ]; then
     debug "domain csr exists at - $csr_file"
     # check all domains in config are in csr
     alldomains=$(echo "$DOMAIN,$SANS" | sed -e 's/ //g; y/,/\n/' | sort -u)
@@ -403,10 +405,14 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
   fi # end of ... check if domain csr exists - if not then create it
 
   # if CSR does not exist, or flag set to recreate, then create csr
-  if [ ! -f "$csr_file" ] || [ "$_RECREATE_CSR" == "1" ]; then
+  if [ ! -s "$csr_file" ] || [ "$_RECREATE_CSR" == "1" ]; then
     info "creating domain csr - $csr_file"
-    openssl req -new -sha256 -key "$csr_key" -subj "/" -reqexts SAN -config \
-    <(cat "$SSLCONF" <(printf "[SAN]\n%s" "$SANLIST")) > "$csr_file"
+    # create a temporary config file, for portability.
+    tmp_conf=$(mktemp)
+    cat "$SSLCONF" > "$tmp_conf"
+    printf "[SAN]\n%s" "$SANLIST" >> "$tmp_conf"
+    openssl req -new -sha256 -key "$csr_key" -subj "/" -reqexts SAN -config "$tmp_conf" > "$csr_file"
+    rm -f "$tmp_conf"
   fi
 }
 
@@ -414,7 +420,7 @@ create_domain_key() { # create a domain key (if it doesn't already exist)
   key_type=$1 # domain key type
   key_loc=$2  # domain key location
   # check if domain key exists, if not then create it.
-  if [ -f "$key_loc" ]; then
+  if [ -s "$key_loc" ]; then
     debug "domain key exists at $key_loc - skipping generation"
     # ideally need to check validity of domain key
   else
@@ -615,8 +621,6 @@ get_signing_params() { # get signing parameters from key
     pubtext="$(openssl ec  -in "$skey"  -noout -text 2>/dev/null | awk '/^pub:/{p=1;next}/^ASN1 OID:/{p=0}p' | tr -d ": \n\r")"
     mid=$(( (${#pubtext} -2) / 2 + 2 ))
     debug "pubtext = $pubtext"
-    echo "$pubtext" | cut -b 3-$mid
-    echo "$pubtext" | cut -b $((mid+1))-${#pubtext}
     x64=$(echo "$pubtext" | cut -b 3-$mid | hex2bin | urlbase64)
     y64=$(echo "$pubtext" | cut -b $((mid+1))-${#pubtext} | hex2bin | urlbase64)
     jwk='{"crv":"'"$crv"'","kty":"EC","x":"'"$x64"'","y":"'"$y64"'"}'
@@ -1138,7 +1142,7 @@ if [ ! -d "$WORKING_DIR" ]; then
 fi
 
 # read any variables from config in working directory
-if [ -f "$WORKING_DIR/getssl.cfg" ]; then
+if [ -s "$WORKING_DIR/getssl.cfg" ]; then
   debug "reading config from $WORKING_DIR/getssl.cfg"
   . "$WORKING_DIR/getssl.cfg"
 fi
@@ -1195,9 +1199,9 @@ fi  # end of "-a" option.
 # if "-c|--create" option used, then create config files.
 if [ ${_CREATE_CONFIG} -eq 1 ]; then
   # If main config file does not exists then create it.
-  if [ ! -f "$WORKING_DIR/getssl.cfg" ]; then
+  if [ ! -s "$WORKING_DIR/getssl.cfg" ]; then
     info "creating main config file $WORKING_DIR/getssl.cfg"
-    if [[ ! -f "$SSLCONF" ]]; then
+    if [[ ! -s "$SSLCONF" ]]; then
       SSLCONF="$WORKING_DIR/openssl.cnf"
       write_openssl_conf "$SSLCONF"
     fi
@@ -1208,7 +1212,7 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
     info "Making domain directory - $DOMAIN_DIR"
     mkdir -p "$DOMAIN_DIR"
   fi
-  if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
+  if [ -s "$DOMAIN_DIR/getssl.cfg" ]; then
     info "domain config already exists $DOMAIN_DIR/getssl.cfg"
   else
     info "creating domain config file in $DOMAIN_DIR/getssl.cfg"
@@ -1216,9 +1220,6 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
     EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null | openssl x509 2>/dev/null)
     EX_SANS="www.${DOMAIN}"
     if [ ! -z "${EX_CERT}" ]; then
-#      if [ ! -f "$DOMAIN_DIR/${DOMAIN}.crt" ]; then
-#        echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
-#      fi
       EX_SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
                 | grep -Eo "DNS:[a-zA-Z 0-9.-]*" | sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
       EX_SANS=${EX_SANS//$'\n'/','}
@@ -1244,7 +1245,7 @@ if [ ! -d "${TEMP_DIR}" ]; then
 fi
 
 # read any variables from config in domain directory
-if [ -f "$DOMAIN_DIR/getssl.cfg" ]; then
+if [ -s "$DOMAIN_DIR/getssl.cfg" ]; then
   debug "reading config from $DOMAIN_DIR/getssl.cfg"
   . "$DOMAIN_DIR/getssl.cfg"
 fi
@@ -1293,7 +1294,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
   # shellcheck disable=SC2086
   EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null | openssl x509 2>/dev/null)
   if [ ! -z "$EX_CERT" ]; then # if obtained a cert
-    if [ -f "$CERT_FILE" ]; then # if local exists
+    if [ -s "$CERT_FILE" ]; then # if local exists
       CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
     else # since local doesn't exist leave empty so that the domain validation will happen
       CERT_LOCAL=""
@@ -1305,10 +1306,6 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
       # check if the certificate is for the right domain
       EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -text | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' | sort -u | grep "^$DOMAIN\$")
       if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]; then
-#        if [ ! -f "$CERT_FILE" ]; then # domain in remote certificate is OK, save local
-#          debug "local certificate doesn't exist, saving a copy from remote"
-#          echo "$EX_CERT" > "$DOMAIN_DIR/${DOMAIN}.crt"
-#        fi
         # check renew-date on ex_cert and compare to local ( if local exists)
         enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
         enddate_lc=$(openssl x509 -noout -enddate < "$CERT_FILE" 2>/dev/null| cut -d= -f 2-)
@@ -1344,7 +1341,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
 fi # end of .... check_remote is true then connect and obtain the current certificate
 
 # if there is an existing certificate file, check details.
-if [ -f "$CERT_FILE" ]; then
+if [ -s "$CERT_FILE" ]; then
   debug "certificate $CERT_FILE exists"
   enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
   debug "local cert is valid until $enddate"
@@ -1361,20 +1358,23 @@ if [ -f "$CERT_FILE" ]; then
 fi # end of .... if there is an existing certificate file, check details.
 
 # create account key if it doesn't exist.
-if [ -f "$ACCOUNT_KEY" ]; then
+if [ -s "$ACCOUNT_KEY" ]; then
   debug "Account key exists at $ACCOUNT_KEY skipping generation"
 else
   info "creating account key $ACCOUNT_KEY"
   umask 077
   openssl genrsa $ACCOUNT_KEY_LENGTH > "$ACCOUNT_KEY"
   umask "$ORIG_UMASK"
+  if [ ! -s "$ACCOUNT_KEY" ]; then
+    error_exit "Problem creating account key"
+  fi
 fi
 
 if [ "$REUSE_PRIVATE_KEY" != "true" ]; then
-  if [ -f "$DOMAIN_DIR/${DOMAIN}.key" ]; then
+  if [ -s "$DOMAIN_DIR/${DOMAIN}.key" ]; then
    rm -f "$DOMAIN_DIR/${DOMAIN}.key"
   fi
-  if [ -f "$DOMAIN_DIR/${DOMAIN}.ec.key" ]; then
+  if [ -s "$DOMAIN_DIR/${DOMAIN}.ec.key" ]; then
    rm -f "$DOMAIN_DIR/${DOMAIN}.ecs.key"
   fi
 fi
