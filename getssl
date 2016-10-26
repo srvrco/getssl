@@ -405,8 +405,7 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
   # if CSR does not exist, or flag set to recreate, then create csr
   if [ ! -f "$csr_file" ] || [ "$_RECREATE_CSR" == "1" ]; then
     info "creating domain csr - $csr_file"
-    openssl req -new -sha256 -key "$csr_key" -subj "/" -reqexts SAN -config \
-    <(cat "$SSLCONF" <(printf "[SAN]\n%s" "$SANLIST")) > "$csr_file"
+    echo -ne "[SAN]\n$SANLIST" | cat "$SSLCONF" - | openssl req -new -sha256 -key "$csr_key" -subj "/" -reqexts SAN -config >"$csr_file"
   fi
 }
 
