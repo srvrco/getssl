@@ -141,10 +141,11 @@
 # 2016-10-25 bug fix Issue #141 challenge error 400 (1.71)
 # 2016-10-26 check content of key files, not just recreate if missing.
 # 2016-10-26 Improvements on portability (1.72)
+# 2016-10-26 Date formatting for busybox (1.73)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.72"
+VERSION="1.73"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -445,6 +446,8 @@ date_epoc() { # convert the date into epoch time
     date -j -f "%b %d %T %Y %Z" "$1" +%s
   elif [[ "$os" == "mac" ]]; then
     date -j -f "%b %d %T %Y %Z" "$1" +%s
+  elif [[ "$os" == "busybox" ]]; then
+    date -D "%b %d %T %Y %Z" -d "$1" +%s
   else
     date -d "$1" +%s
   fi
@@ -595,6 +598,8 @@ get_os() { # function to get the current Operating System
     os="mac"
   elif [[ ${uname_res:0:6} == "CYGWIN" ]]; then
     os="cygwin"
+  elif [[ $(date --version| grep -ic busybox) -gt 0 ]]; then
+    os="busybox"
   else
     os="unknown"
   fi
