@@ -142,10 +142,11 @@
 # 2016-10-26 check content of key files, not just recreate if missing.
 # 2016-10-26 Improvements on portability (1.72)
 # 2016-10-26 Date formatting for busybox (1.73)
+# 2016-10-27 bug fix - issue #157 not recognising EC keys on some versions of openssl (1.74)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.73"
+VERSION="1.74"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -403,7 +404,8 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
       info "existing csr at $csr_file does not have the same domains as the config - re-create-csr"
       _RECREATE_CSR=1
     fi
-  fi # end of ... check if domain csr exists - if not then create it
+  fi
+  # end of ... check if domain csr exists - if not then create it
 
   # if CSR does not exist, or flag set to recreate, then create csr
   if [ ! -s "$csr_file" ] || [ "$_RECREATE_CSR" == "1" ]; then
@@ -617,7 +619,16 @@ get_signing_params() { # get signing parameters from key
     signalg="sha256"
   elif [ "$(grep -c "EC PRIVATE KEY" "$skey")" -gt 0 ]; then # Elliptic curve key.
     crv="$(openssl ec -in  "$skey" -noout -text 2>/dev/null | awk '$2 ~ "CURVE:" {print $3}')"
-    case "$crv" in
+    if [ -z "$crv" ]; then
+      gsp_keytype="$(openssl ec -in  "$skey" -noout -text 2>/dev/null | grep "^ASN1 OID:" | awk '{print $3}')"
+      case "$gsp_keytype" in
+        prime256v1) crv="P-256" ;;
+        secp384r1) crv="P-384" ;;
+        secp521r1) crv="P-521" ;;
+        *) error_exit "invalid curve algorithm type $gsp_keytype";;
+      esac
+    fi
+    case "$crv" in  
       P-256) jwkalg="ES256" ; signalg="sha256" ;;
       P-384) jwkalg="ES384" ; signalg="sha384" ;;
       P-521) jwkalg="ES512" ; signalg="sha512" ;;
@@ -1095,8 +1106,9 @@ while [[ -n $1 ]]; do
 done
 
 # Main logic
+############
 
-# Get the current OS, so the correct functions can ve used for that OS. (sets the variable os)
+# Get the current OS, so the correct functions can be used for that OS. (sets the variable os)
 get_os
 
 #check if required applications are included
@@ -1199,7 +1211,8 @@ if [ ${_CHECK_ALL} -eq 1 ]; then
   done
 
   graceful_exit
-fi  # end of "-a" option.
+fi
+# end of "-a" option (looping through all domains)
 
 # if "-c|--create" option used, then create config files.
 if [ ${_CREATE_CONFIG} -eq 1 ]; then
@@ -1234,7 +1247,8 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
   TEMP_DIR="$DOMAIN_DIR/tmp"
   # end of "-c|--create" option, so exit
   graceful_exit
-fi # end of "-c|--create" option to create config file.
+fi
+# end of "-c|--create" option to create config file.
 
 # if domain directory doesn't exist, then create it.
 if [ ! -d "$DOMAIN_DIR" ]; then
@@ -1255,6 +1269,7 @@ if [ -s "$DOMAIN_DIR/getssl.cfg" ]; then
   . "$DOMAIN_DIR/getssl.cfg"
 fi
 
+# from SERVER_TYPE convert names to port numbers and additional data.
 if [[ ${SERVER_TYPE} == "https" ]] || [[ ${SERVER_TYPE} == "webserver" ]]; then
   REMOTE_PORT=443
 elif [[ ${SERVER_TYPE} == "ftp" ]]; then
@@ -1292,6 +1307,9 @@ elif [[ ${SERVER_TYPE} =~ ^[0-9]+$ ]]; then
 else
   error_exit "unknown server type"
 fi
+# end of converting SERVER_TYPE names to port numbers and additional data.
+
+
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
@@ -1342,8 +1360,12 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
     fi
   else
     info "no certificate obtained from host"
-  fi # end of .... if obtained a cert
-fi # end of .... check_remote is true then connect and obtain the current certificate
+  fi
+  # end of .... if obtained a cert
+fi
+# end of .... check_remote is true then connect and obtain the current certificate
+
+
 
 # if there is an existing certificate file, check details.
 if [ -s "$CERT_FILE" ]; then
@@ -1360,7 +1382,10 @@ if [ -s "$CERT_FILE" ]; then
       debug "certificate  for $DOMAIN needs renewal"
     fi
   fi
-fi # end of .... if there is an existing certificate file, check details.
+fi
+# end of .... if there is an existing certificate file, check details.
+
+
 
 # create account key if it doesn't exist.
 if [ -s "$ACCOUNT_KEY" ]; then
@@ -1375,6 +1400,8 @@ else
   fi
 fi
 
+
+# if not reusing priavte key, then remove the old keys
 if [ "$REUSE_PRIVATE_KEY" != "true" ]; then
   if [ -s "$DOMAIN_DIR/${DOMAIN}.key" ]; then
    rm -f "$DOMAIN_DIR/${DOMAIN}.key"
@@ -1383,13 +1410,16 @@ if [ "$REUSE_PRIVATE_KEY" != "true" ]; then
    rm -f "$DOMAIN_DIR/${DOMAIN}.ecs.key"
   fi
 fi
-
+# create new domain keys if they don't already exist
 if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
   create_domain_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.key"
 else
   create_domain_key "rsa" "$DOMAIN_DIR/${DOMAIN}.key"
   create_domain_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.ec.key"
 fi
+# End of creating domain keys.
+
+
 
 #create SAN
 if [ -z "$SANS" ]; then
@@ -1422,13 +1452,19 @@ for d in $alldomains; do
     fi
   fi
 done
+# End of setting up SANS.
 
+
+
+
+#create CSR's
 if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
   create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
 else
   create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
   create_csr "$DOMAIN_DIR/${DOMAIN}.ec.csr" "$DOMAIN_DIR/${DOMAIN}.ec.key"
 fi
+
 
 # use account key to register with CA
 # currently the code registers every time, and gets an "already registered" back if it has been.
@@ -1454,9 +1490,12 @@ if [ "$code" == "" ] || [ "$code" == '201' ] ; then
 elif [ "$code" == '409' ] ; then
   debug "Already registered"
 else
-  error_exit "Error registering account"
+  error_exit "Error registering account ... $(json_get "$response" detail)"
 fi
 # end of registering account with CA
+
+
+
 
 # verify each domain
 info "Verify each domain"
@@ -1674,20 +1713,29 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
       rm -f "$dnsfile"
     fi
   done
-fi # end of ... perform validation if via DNS challenge
+fi
+# end of ... perform validation if via DNS challenge
+#end of varify each domain.
+
+
+
 
 # Verification has been completed for all SANS, so  request certificate.
 info "Verification completed, obtaining certificate."
 
+#obtain the certificate.
 get_certificate "$DOMAIN_DIR/${DOMAIN}.csr" "$CERT_FILE" "$CA_CERT"
 if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
   get_certificate "$DOMAIN_DIR/${DOMAIN}.ec.csr" "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt"
 fi
 
-# create Archive of new certs
+# create Archive of new certs and keys.
 cert_archive
 
 debug "Certificates obtained and archived locally, will now copy to specified locations"
+
+
+
 
 # copy certs to the correct location (creating concatenated files as required)
 
@@ -1736,10 +1784,16 @@ if [ ! -z "$DOMAIN_PEM_LOCATION" ]; then
   cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
   copy_file_to_location "full key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
 fi
+# end of copying certs.
+
+
+
 
 # Run reload command to restart apache / nginx or whatever system
-
 reload_service
+
+
+
 
 # deactivate authorizations
 if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
@@ -1755,6 +1809,10 @@ if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
     fi
   done
 fi
+# end of deactivating authorizations
+
+
+
 
 # Check if the certificate is installed correctly
 if [[ ${CHECK_REMOTE} == "true" ]]; then
@@ -1768,8 +1826,14 @@ if [[ ${CHECK_REMOTE} == "true" ]]; then
     error_exit "${DOMAIN} - certificate obtained but certificate on server is different from the new certificate"
   fi
 fi
+# end of Check if the certificate is installed correctly
 
-# To have reached here, a certificate should have been successfully obtained.  Use echo rather than info so that 'quiet' is ignored.
+
+
+# To have reached here, a certificate should have been successfully obtained.
+# Use echo rather than info so that 'quiet' is ignored.
 echo "certificate obtained for ${DOMAIN}"
 
+
+# gracefully exit ( tidying up temporary files etc).
 graceful_exit
