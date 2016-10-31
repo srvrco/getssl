@@ -1,53 +1,50 @@
 #!/usr/bin/env bash
+# need to add your email address and API key to cloudflare below or set as env variables
+email=${CF_EMAIL:-''}
+key=${CF_KEY:-''}
 
-# need to add your email address and key to cloudflare below
-email=""
-key=""
+fulldomain="${1:?Need full domain name as first parameter}"
+token="$2" # If not set try to remove all tokens for fulldomain
+API='https://api.cloudflare.com/client/v4/zones'
+PARAMS=( -H "X-Auth-Email: $email" -H "X-Auth-Key: $key" -H 'Content-Type: application/json' )
 
-fulldomain="$1"
+# get a list of all domain names from cloudflare
+# If you have a lot, you may need add "&page=1&per_page=1000" and/or "&status=active"
+resp=$(curl --silent "${PARAMS[@]}" -X GET "$API")
+re='"result":\[(([^][]*\[[^][]*])*[^][]*)]' # find result section
+[[ "${resp// }" =~ $re ]] && resp="${BASH_REMATCH[1]}"
+while [[ "$resp" ]]; do # iterate through domains returned
+  re='[^}{]*\{(([^}{]*\{[^}{]*})*[^}{]*)}(.*)'
+  [[ "$resp" =~ $re ]]; first="${BASH_REMATCH[1]}"; resp="${BASH_REMATCH[3]}"
 
-# get a list of all domain names from cloudflare.  If you have a lot, you may need
-# "status=active&page=1&per_page=1000&match=all" instead of just "match=all"
-all_domains=$(curl --silent -X GET "https://api.cloudflare.com/client/v4/zones?match=all" \
-  -H "X-Auth-Email: ${email}" -H "X-Auth-Key: ${key}" -H "Content-Type: application/json" \
-  | grep -o "\"name\":\"[^\"]*\"" | awk -F'"' '{print $4}')
-
-NumParts=$(echo "$fulldomain" | awk -F"." '{print NF}')
-
-i=1
-while [ $i -lt "$NumParts" ]; do
-  let parts=NumParts-i
-  testpart=$(echo  "$fulldomain" |awk -v n=$parts -F\. '{for (i=n; i<NF; i++) printf $i "."; printf $NF}')
-  res=$(echo "$all_domains" | grep -c "$testpart")
-  if [[ "$res" == "1" ]]; then
-    domain=$(echo "$all_domains" | grep "$testpart")
-    let i=NumParts
-  fi
-  let i=i+1
+  # remove subsections - leave only domain level
+  while [[ "$first" =~ (.*)[\[\{][^]\{\}[]*[\]\}](.*) ]]; do first="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
+  re='"name":"([^"]*)"'; [[ "$first" =~ $re ]] && domains=( "${domains[@]}" "${BASH_REMATCH[1]}" )
+  re='"id":"([^"]*)"'; [[ "$first" =~ $re ]] && ids=( "${ids[@]}" "${BASH_REMATCH[1]}" )
 done
 
-if [ -z "$domain" ]; then
-  echo "domain name can't be found on your cloudflare account"
-  exit 1
-fi
+# select right cloudflare domain (longest one)
+domain=$fulldomain.
+# shellcheck disable=SC2076
+while [[ "$domain" && ! "${domains[@]/#/@}" == *"@${domain%?}"* ]]; do domain=${domain#*.}; done
+domain=${domain%?}
+[ -z "$domain" ] && { echo 'domain name not found on your cloudflare account'; exit 1; }
 
-txtname=$( echo "_acme-challenge.${fulldomain}" | sed "s/.${domain}//")
+for i in "${!domains[@]}"; do [[ ${domains[i]} == "$domain" ]] && break; done
+domain_id=${ids[i]}
 
-response=$(curl --silent -X GET "https://api.cloudflare.com/client/v4/zones?name=${domain}&match=all" \
-  -H "X-Auth-Email: ${email}" -H "X-Auth-Key: ${key}" -H "Content-Type: application/json")
+resp=$(curl --silent "${PARAMS[@]}" -X GET "$API/$domain_id/dns_records?type=TXT&name=_acme-challenge.$fulldomain${token:+&content=$token}")
+re='"result":\[(([^][]*\[[^][]*])*[^][]*)]' # find result section
+[[ "${resp// }" =~ $re ]] && resp="${BASH_REMATCH[1]}"
+[ -z "$resp" ] && { echo 'challenge TXT record not found on your cloudflare account'; exit 2; }
 
-domain_section=$(echo "$response" | awk -F"[}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${domain}"'\"/){print $i}}}')
-domain_id=$(echo "$domain_section" | awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\"'"id"'\"/){print $(i+1)}}}'| awk -F'"' '{print $2}')
-
-response=$(curl --silent -X GET "https://api.cloudflare.com/client/v4/zones/${domain_id}/dns_records?type=TXT&name=${txtname}.${domain}" \
--H "X-Auth-Email: ${email}" -H "X-Auth-Key: ${key}" -H "Content-Type: application/json")
-
-zone_ids=$(echo "$response" | awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\"'"id"'\"/){print $(i+1)}}}'| awk -F'"' '{print $2}')
-
-ids=( $zone_ids )
-
-# loop though all IDs ( if more than one )
-for id in "${ids[@]}"; do
-  response=$(curl --silent -X DELETE "https://api.cloudflare.com/client/v4/zones/${domain_id}/dns_records/${id}" \
-  -H "X-Auth-Email: ${email}" -H "X-Auth-Key: ${key}" -H "Content-Type: application/json")
+while [[ "$resp" ]]; do # iterate through records returned
+  re='[^}{]*\{(([^}{]*\{[^}{]*})+[^}{]*)}(.*)'
+  [[ "$resp" =~ $re ]]; first="${BASH_REMATCH[1]}"; resp="${BASH_REMATCH[3]}"
+  re='"id":"([^"]*)"'; [[ "$first" =~ $re ]] && id="${BASH_REMATCH[1]}"
+  respd=$(curl --silent "${PARAMS[@]}" -X DELETE "$API/$domain_id/dns_records/$id")
+  if [[ "${respd// }" == *'"success":false'* ]]; then
+    re='"message":"([^"]+)"'; [[ "$respd" =~ $re ]]
+    echo "Error: DNS challenge not deleted: ${BASH_REMATCH[1]:-unknown error}"; exit 3
+  fi
 done

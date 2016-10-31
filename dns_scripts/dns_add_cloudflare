@@ -10,17 +10,15 @@ PARAMS=( -H "X-Auth-Email: $email" -H "X-Auth-Key: $key" -H 'Content-Type: appli
 
 # get a list of all domain names from cloudflare
 # If you have a lot, you may need add "&page=1&per_page=1000" and/or "&status=active"
-resp=$(curl --silent "${PARAMS[@]}" -X GET "$API?match=all")
-
-re='"result":\[(([^][]*\[[^][]*])+[^][]*)]' # find result section
+resp=$(curl --silent "${PARAMS[@]}" -X GET "$API")
+re='"result":\[(([^][]*\[[^][]*])*[^][]*)]' # find result section
 [[ "${resp// }" =~ $re ]] && resp="${BASH_REMATCH[1]}"
 while [[ "$resp" ]]; do # iterate through domains returned
-  re='[^}{]*\{(([^}{]*\{[^}{]*})+[^}{]*)}(.*)'
+  re='[^}{]*\{(([^}{]*\{[^}{]*})*[^}{]*)}(.*)'
   [[ "$resp" =~ $re ]]; first="${BASH_REMATCH[1]}"; resp="${BASH_REMATCH[3]}"
 
   # remove subsections - leave only domain level
   while [[ "$first" =~ (.*)[\[\{][^]\{\}[]*[\]\}](.*) ]]; do first="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
-
   re='"name":"([^"]*)"'; [[ "$first" =~ $re ]] && domains=( "${domains[@]}" "${BASH_REMATCH[1]}" )
   re='"id":"([^"]*)"'; [[ "$first" =~ $re ]] && ids=( "${ids[@]}" "${BASH_REMATCH[1]}" )
 done
