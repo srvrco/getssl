@@ -143,15 +143,18 @@
 # 2016-10-26 Improvements on portability (1.72)
 # 2016-10-26 Date formatting for busybox (1.73)
 # 2016-10-27 bug fix - issue #157 not recognising EC keys on some versions of openssl (1.74)
+# 2016-10-31 generate EC account keys and tidy code.
+# 2016-10-31 fix warning message if cert doesn't exist (1.75)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.74"
+VERSION="1.75"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
 CA="https://acme-staging.api.letsencrypt.org"
 DEFAULT_REVOKE_CA="https://acme-v01.api.letsencrypt.org"
+ACCOUNT_KEY_TYPE="rsa"
 ACCOUNT_KEY_LENGTH=4096
 WORKING_DIR=~/.getssl
 DOMAIN_KEY_LENGTH=4096
@@ -419,9 +422,10 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
   fi
 }
 
-create_domain_key() { # create a domain key (if it doesn't already exist)
+create_key() { # create a domain key (if it doesn't already exist)
   key_type=$1 # domain key type
   key_loc=$2  # domain key location
+  key_len=$3  # domain key length - for rsa keys.
   # check if domain key exists, if not then create it.
   if [ -s "$key_loc" ]; then
     debug "domain key exists at $key_loc - skipping generation"
@@ -431,7 +435,7 @@ create_domain_key() { # create a domain key (if it doesn't already exist)
     info "creating domain key - $key_loc"
     case "$key_type" in
       rsa)
-        openssl genrsa "$DOMAIN_KEY_LENGTH" > "$key_loc";;
+        openssl genrsa "$key_len" > "$key_loc";;
       prime256v1|secp384r1|secp521r1)
         openssl ecparam -genkey -name "$key_type" > "$key_loc";;
       *)
@@ -449,7 +453,8 @@ date_epoc() { # convert the date into epoch time
   elif [[ "$os" == "mac" ]]; then
     date -j -f "%b %d %T %Y %Z" "$1" +%s
   elif [[ "$os" == "busybox" ]]; then
-    date -D "%b %d %T %Y %Z" -d "$1" +%s
+    de_ld=$(echo "$1" | awk '{print $1 $2 $3 $4}')
+    date -D "%b %d %T %Y" -d "$de_ld" +%s
   else
     date -d "$1" +%s
   fi
@@ -466,18 +471,9 @@ date_fmt() { # format date from epoc time to YYYY-MM-DD
   fi
 }
 
-date_renew() { # calculates the renewal time in epoch and formatted
-  if [[ "$os" == "bsd" ]]; then
-    date_now=$(date "+%b %d %T %Y %Z")
-    date_now_s=$( date_epoc "$date_now" )
-    echo "$((date_now_s + RENEW_ALLOW*24*60*60))"
-  elif [[ "$os" == "mac" ]]; then
-    date_now=$(date "+%b %d %T %Y %Z")
-    date_now_s=$( date_epoc "$date_now" )
-    echo "$((date_now_s + RENEW_ALLOW*24*60*60))"
-  else
-    date -d "${RENEW_ALLOW} days" +%s
-  fi
+date_renew() { # calculates the renewal time in epoch
+  date_now_s=$( date +%s )
+  echo "$((date_now_s + RENEW_ALLOW*24*60*60))"
 }
 
 debug() { # write out debug info if the debug flag has been set
@@ -505,7 +501,7 @@ getcr() { # get curl response
   return $ret
 }
 
-get_auth_dns() { # get the authoritative dns server for a domain
+get_auth_dns() { # get the authoritative dns server for a domain (sets primary_ns )
   gad_d="$1" # domain name
   gad_s="$PUBLIC_DNS_SERVER" # start with PUBLIC_DNS_SERVER
 
@@ -514,7 +510,7 @@ get_auth_dns() { # get the authoritative dns server for a domain
     if [ -z "$all_auth_dns_servers" ]; then
       error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
     fi
-    echo "$all_auth_dns_servers"
+    primary_ns="$all_auth_dns_servers"
     return
   fi
 
@@ -548,9 +544,9 @@ get_auth_dns() { # get the authoritative dns server for a domain
                         | sed 's/\.$//g'| tr '\n' ' ')
 
   if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
-    echo "$all_auth_dns_servers"
+    primary_ns="$all_auth_dns_servers"
   else
-    echo "$all_auth_dns_servers" | awk '{print $1}'
+    primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
   fi
 }
 
@@ -592,7 +588,9 @@ get_certificate() { # get certificate for csr, if all domains validated.
 
 get_os() { # function to get the current Operating System
   uname_res=$(uname -s)
-  if [[ ${uname_res} == "Linux" ]]; then
+  if [[ $(date -h 2>&1 | grep -ic busybox) -gt 0 ]]; then
+    os="busybox"
+  elif [[ ${uname_res} == "Linux" ]]; then
     os="linux"
   elif [[ ${uname_res} == "FreeBSD" ]]; then
     os="bsd"
@@ -600,8 +598,6 @@ get_os() { # function to get the current Operating System
     os="mac"
   elif [[ ${uname_res:0:6} == "CYGWIN" ]]; then
     os="cygwin"
-  elif [[ $(date --version| grep -ic busybox) -gt 0 ]]; then
-    os="busybox"
   else
     os="unknown"
   fi
@@ -1331,11 +1327,16 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
       if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]; then
         # check renew-date on ex_cert and compare to local ( if local exists)
         enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
-        enddate_lc=$(cat "$CERT_FILE" 2>/dev/null| openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
         enddate_ex_s=$(date_epoc "$enddate_ex")
-        enddate_lc_s=$(date_epoc "$enddate_lc")
         debug "external cert has enddate $enddate_ex ( $enddate_ex_s ) "
-        debug "local    cert has enddate $enddate_lc ( $enddate_lc_s ) "
+        if [ -s "$CERT_FILE" ]; then # if local exists
+          enddate_lc=$(openssl x509 -noout -enddate < "$CERT_FILE" 2>/dev/null| cut -d= -f 2-)
+          enddate_lc_s=$(date_epoc "$enddate_lc")
+          debug "local cert has enddate $enddate_lc ( $enddate_lc_s ) "
+        else
+          enddate_lc_s=0
+          debug "local cert doesn't exist"
+        fi
         if [ "$enddate_ex_s" -eq "$enddate_lc_s" ]; then
           debug "certificates expire at the same time"
         elif [ "$enddate_ex_s" -gt "$enddate_lc_s" ]; then
@@ -1392,12 +1393,7 @@ if [ -s "$ACCOUNT_KEY" ]; then
   debug "Account key exists at $ACCOUNT_KEY skipping generation"
 else
   info "creating account key $ACCOUNT_KEY"
-  umask 077
-  openssl genrsa $ACCOUNT_KEY_LENGTH > "$ACCOUNT_KEY"
-  umask "$ORIG_UMASK"
-  if [ ! -s "$ACCOUNT_KEY" ]; then
-    error_exit "Problem creating account key"
-  fi
+  create_key "$ACCOUNT_KEY_TYPE" "$ACCOUNT_KEY" "$ACCOUNT_KEY_LENGTH"
 fi
 
 
@@ -1412,10 +1408,10 @@ if [ "$REUSE_PRIVATE_KEY" != "true" ]; then
 fi
 # create new domain keys if they don't already exist
 if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
-  create_domain_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.key"
+  create_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LENGTH"
 else
-  create_domain_key "rsa" "$DOMAIN_DIR/${DOMAIN}.key"
-  create_domain_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.ec.key"
+  create_key "rsa" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LENGTH"
+  create_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.ec.key" "$DOMAIN_KEY_LENGTH"
 fi
 # End of creating domain keys.
 
@@ -1571,7 +1567,7 @@ for d in $alldomains; do
 
       # find a primary / authoritative DNS server for the domain
       if [ -z "$AUTH_DNS_SERVER" ]; then
-        primary_ns=$(get_auth_dns "$d")
+        get_auth_dns "$d"
       else
         primary_ns="$AUTH_DNS_SERVER"
       fi
