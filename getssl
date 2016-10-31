@@ -1331,7 +1331,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
       if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]; then
         # check renew-date on ex_cert and compare to local ( if local exists)
         enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
-        enddate_lc=$(openssl x509 -noout -enddate < "$CERT_FILE" 2>/dev/null| cut -d= -f 2-)
+        enddate_lc=$(cat "$CERT_FILE" 2>/dev/null| openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
         enddate_ex_s=$(date_epoc "$enddate_ex")
         enddate_lc_s=$(date_epoc "$enddate_lc")
         debug "external cert has enddate $enddate_ex ( $enddate_ex_s ) "
