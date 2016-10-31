@@ -145,10 +145,11 @@
 # 2016-10-27 bug fix - issue #157 not recognising EC keys on some versions of openssl (1.74)
 # 2016-10-31 generate EC account keys and tidy code.
 # 2016-10-31 fix warning message if cert doesn't exist (1.75)
+# 2016-10-31 remove only specified DNS token #161 (1.76)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.75"
+VERSION="1.76"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -191,6 +192,8 @@ _REVOKE=0
 # store copy of original command in case of upgrading script and re-running
 ORIGCMD="$0 $*"
 
+# Define all functions (in alphabetical order)
+
 cert_archive() {  # Archive certificate file by copying with dates at end.
   debug "creating an achive copy of current new certs"
   date_time=$(date +%Y_%m_%d_%H_%M)
@@ -228,7 +231,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
   # shellcheck disable=SC2078
   while [ "1" ] ; do
     debug "checking"
-    if ! getcr "$uri" ; then
+    if ! get_cr "$uri" ; then
       error_exit "$domain:Verify error:$code"
     fi
 
@@ -311,7 +314,7 @@ clean_up() { # Perform pre-exit housekeeping
     for dnsfile in $TEMP_DIR/dns_verify/*; do
       . "$dnsfile"
       debug "attempting to clean up DNS entry for $d"
-      eval "$DNS_DEL_COMMAND" "$d"
+      eval "$DNS_DEL_COMMAND" "$d" "$auth_key"
     done
     shopt -u nullglob
   fi
@@ -489,18 +492,6 @@ error_exit() { # give error message on error exit
   exit 1
 }
 
-getcr() { # get curl response
-  url="$1"
-  debug url "$url"
-  response=$(curl --silent "$url")
-  ret=$?
-  debug response  "$response"
-  code=$(json_get "$response" status)
-  debug code "$code"
-  debug getcr return code $ret
-  return $ret
-}
-
 get_auth_dns() { # get the authoritative dns server for a domain (sets primary_ns )
   gad_d="$1" # domain name
   gad_s="$PUBLIC_DNS_SERVER" # start with PUBLIC_DNS_SERVER
@@ -584,6 +575,18 @@ get_certificate() { # get certificate for csr, if all domains validated.
     echo -----END CERTIFICATE-----  >> "$gc_cafile"
     info "The intermediate CA cert is in $gc_cafile"
   fi
+}
+
+get_cr() { # get curl response
+  url="$1"
+  debug url "$url"
+  response=$(curl --silent "$url")
+  ret=$?
+  debug response  "$response"
+  code=$(json_get "$response" status)
+  debug code "$code"
+  debug "get_cr return code $ret"
+  return $ret
 }
 
 get_os() { # function to get the current Operating System
@@ -1704,7 +1707,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
       check_challenge_completion "$uri" "$d" "$keyauthorization"
 
       debug "remove DNS entry"
-      eval "$DNS_DEL_COMMAND" "$d"
+      eval "$DNS_DEL_COMMAND" "$d" "$auth_key"
       # remove $dnsfile after each loop.
       rm -f "$dnsfile"
     fi
