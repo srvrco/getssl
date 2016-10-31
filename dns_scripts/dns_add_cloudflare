@@ -1,43 +1,42 @@
 #!/usr/bin/env bash
+# need to add your email address and API key to cloudflare below or set as env variables
+email=${CF_EMAIL:-''}
+key=${CF_KEY:-''}
 
-email=""
-key=""
-fulldomain="$1"
-token="$2"
+fulldomain="${1:?Need full domain name as first parameter}"
+token="${2:?Need Let’s Encrypt challenge token as second parameter}"
+API='https://api.cloudflare.com/client/v4/zones'
+PARAMS=( -H "X-Auth-Email: $email" -H "X-Auth-Key: $key" -H 'Content-Type: application/json' )
 
-# get a list of all domain names from cloudflare.  If you have a lot, you may need
-# "status=active&page=1&per_page=1000&match=all" instead of just "match=all"
-all_domains=$(curl --silent -X GET "https://api.cloudflare.com/client/v4/zones?match=all" \
-  -H "X-Auth-Email: ${email}" -H "X-Auth-Key: ${key}" -H "Content-Type: application/json" \
-  | grep -o "\"name\":\"[^\"]*\"" | awk -F'"' '{print $4}')
+# get a list of all domain names from cloudflare
+# If you have a lot, you may need add "&page=1&per_page=1000" and/or "&status=active"
+resp=$(curl --silent "${PARAMS[@]}" -X GET "$API")
+re='"result":\[(([^][]*\[[^][]*])*[^][]*)]' # find result section
+[[ "${resp// }" =~ $re ]] && resp="${BASH_REMATCH[1]}"
+while [[ "$resp" ]]; do # iterate through domains returned
+  re='[^}{]*\{(([^}{]*\{[^}{]*})*[^}{]*)}(.*)'
+  [[ "$resp" =~ $re ]]; first="${BASH_REMATCH[1]}"; resp="${BASH_REMATCH[3]}"
 
-NumParts=$(echo "$fulldomain" | awk -F"." '{print NF}')
-
-i=1
-while [ $i -lt "$NumParts" ]; do
-  let parts=NumParts-i
-  testpart=$(echo  "$fulldomain" |awk -v n=$parts -F\. '{for (i=n; i<NF; i++) printf $i "."; printf $NF}')
-  res=$(echo "$all_domains" | grep -c "$testpart")
-  if [[ "$res" == "1" ]]; then
-    domain=$(echo "$all_domains" | grep "$testpart")
-    let i=NumParts
-  fi
-  let i=i+1
+  # remove subsections - leave only domain level
+  while [[ "$first" =~ (.*)[\[\{][^]\{\}[]*[\]\}](.*) ]]; do first="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
+  re='"name":"([^"]*)"'; [[ "$first" =~ $re ]] && domains=( "${domains[@]}" "${BASH_REMATCH[1]}" )
+  re='"id":"([^"]*)"'; [[ "$first" =~ $re ]] && ids=( "${ids[@]}" "${BASH_REMATCH[1]}" )
 done
 
-if [ -z "$domain" ]; then
-  echo "domain name can't be found on your cloudflare account"
-  exit 1
+# select right cloudflare domain (longest one)
+domain=$fulldomain.
+# shellcheck disable=SC2076
+while [[ "$domain" && ! "${domains[@]/#/@}" == *"@${domain%?}"* ]]; do domain=${domain#*.}; done
+domain=${domain%?}
+[ -z "$domain" ] && { echo 'domain name not found on your cloudflare account'; exit 1; }
+
+for i in "${!domains[@]}"; do [[ ${domains[i]} == "$domain" ]] && break; done
+domain_id=${ids[i]}
+
+resp=$(curl --silent "${PARAMS[@]}" -X POST "$API/$domain_id/dns_records" \
+  --data "{\"type\":\"TXT\",\"name\":\"_acme-challenge.${fulldomain%.$domain}\",\"content\":\"$token\",\"ttl\":300}")
+# code 81057 = The record already exists.
+if [[ "${resp// }" == *'"success":false'* && ! "${resp// }" == *'"code":81057[^0-9]'* ]]; then
+  re='"message":"([^"]+)"'; [[ "$resp" =~ $re ]]
+  echo "Error: DNS challenge not added: ${BASH_REMATCH[1]:-unknown error}"; exit 2
 fi
-
-txtname=$( echo "_acme-challenge.${fulldomain}" | sed "s/.${domain}//")
-
-response=$(curl --silent -X GET "https://api.cloudflare.com/client/v4/zones?name=${domain}&match=all" \
-  -H "X-Auth-Email: ${email}" -H "X-Auth-Key: ${key}" -H "Content-Type: application/json")
-
-domain_section=$(echo "$response" | awk -F"[}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${domain}"'\"/){print $i}}}')
-domain_id=$(echo "$domain_section" | awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\"'"id"'\"/){print $(i+1)}}}'| awk -F'"' '{print $2}')
-
-response=$(curl --silent -X POST "https://api.cloudflare.com/client/v4/zones/${domain_id}/dns_records" \
-  -H "X-Auth-Email: ${email}" -H "X-Auth-Key: ${key}" -H "Content-Type: application/json" \
-  --data "{\"type\":\"TXT\",\"name\":\"${txtname}\",\"content\":\"$token\",\"ttl\":300}")
