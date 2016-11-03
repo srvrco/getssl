@@ -146,10 +146,11 @@
 # 2016-10-31 generate EC account keys and tidy code.
 # 2016-10-31 fix warning message if cert doesn't exist (1.75)
 # 2016-10-31 remove only specified DNS token #161 (1.76)
+# 2016-11-03 Reduce long lines, and remove echo from update (1.77)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.76"
+VERSION="1.77"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -267,14 +268,16 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 }
 
 check_getssl_upgrade() { # check if a more recent version of code is available available
-  latestcode=$(curl --silent "$CODE_LOCATION")
+  temp_upgrade="$(mktemp)"
+#  latestcode=$(curl --silent "$CODE_LOCATION")
+  curl --silent "$CODE_LOCATION" --output "$temp_upgrade"
   errcode=$?
   if [ $errcode -eq 60 ]; then
     error_exit "your version of curl needs updating, as it does not support SNI (multiple SSL domains on a single IP)"
   elif [ $errcode -gt 0 ]; then
     error_exit "curl error : $errcode"
   fi
-  latestversion=$(echo "$latestcode" | awk -F '"' '$1 == "VERSION=" {print $2}')
+  latestversion=$(awk -F '"' '$1 == "VERSION=" {print $2}' "$temp_upgrade")
   latestvdec=$(echo "$latestversion"| tr -d '.')
   localvdec=$(echo "$VERSION"| tr -d '.' )
   debug "current code is version ${VERSION}"
@@ -282,17 +285,14 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
   # use a default of 0 for cases where the latest code has not been obtained.
   if [ "${latestvdec:-0}" -gt "$localvdec" ]; then
     if [ ${_UPGRADE} -eq 1 ]; then
-      temp_upgrade="$(mktemp)"
-      echo "$latestcode" > "$temp_upgrade"
       install "$0" "${0}.v${VERSION}"
       install -m 700 "$temp_upgrade" "$0"
-      rm -f "$temp_upgrade"
       if [ ${_MUTE} -eq 0 ]; then
         echo "Updated getssl from v${VERSION} to v${latestversion}"
         echo "these update notification can be turned off using the -Q option"
         echo ""
         echo "Updates are;"
-        echo "$latestcode" | awk "/\(${VERSION}\)$/ {s=1} s; /\(${latestversion}\)$/ {s=0}" | awk '{if(NR>1)print}'
+        awk "/\(${VERSION}\)$/ {s=1} s; /\(${latestversion}\)$/ {s=0}" "$temp_upgrade" | awk '{if(NR>1)print}'
         echo ""
       fi
       eval "$ORIGCMD"
@@ -304,6 +304,7 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
       info ""
     fi
   fi
+  rm -f "$temp_upgrade"
 }
 
 clean_up() { # Perform pre-exit housekeeping
@@ -398,10 +399,13 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
     debug "domain csr exists at - $csr_file"
     # check all domains in config are in csr
     alldomains=$(echo "$DOMAIN,$SANS" | sed -e 's/ //g; y/,/\n/' | sort -u)
-    domains_in_csr=$(openssl req -text -noout -in "$csr_file" | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' | sort -u)
+    domains_in_csr=$(openssl req -text -noout -in "$csr_file" \
+        | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' \
+        | sort -u)
     for d in $alldomains; do
       if [ "$(echo "${domains_in_csr}"| grep "^${d}$")" != "${d}" ]; then
-        info "existing csr at $csr_file does not contain ${d} - re-create-csr .... $(echo "${domains_in_csr}"| grep "^${d}$")"
+        info "existing csr at $csr_file does not contain ${d} - re-create-csr"\
+             ".... $(echo "${domains_in_csr}"| grep "^${d}$")"
         _RECREATE_CSR=1
       fi
     done
@@ -497,7 +501,9 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
   gad_s="$PUBLIC_DNS_SERVER" # start with PUBLIC_DNS_SERVER
 
   if [[ "$os" == "cygwin" ]]; then
-    all_auth_dns_servers=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} 2>/dev/null| grep "primary name server" | awk '{print $NF}')
+    all_auth_dns_servers=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} 2>/dev/null \
+                          | grep "primary name server" \
+                          | awk '{print $NF}')
     if [ -z "$all_auth_dns_servers" ]; then
       error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
     fi
@@ -568,7 +574,11 @@ get_certificate() { # get certificate for csr, if all domains validated.
   fi
 
   # get a copy of the CA certificate.
-  IssuerData=$(grep -i '^Link' "$CURL_HEADER" | cut -d " " -f 2| cut -d ';' -f 1 | sed 's/<//g' | sed 's/>//g')
+  IssuerData=$(grep -i '^Link' "$CURL_HEADER" \
+               | cut -d " " -f 2\
+               | cut -d ';' -f 1 \
+               | sed 's/<//g' \
+               | sed 's/>//g')
   if [ "$IssuerData" ] ; then
     echo -----BEGIN CERTIFICATE----- > "$gc_cafile"
     curl --silent "$IssuerData" | openssl base64 -e  >> "$gc_cafile"
@@ -610,8 +620,16 @@ get_os() { # function to get the current Operating System
 get_signing_params() { # get signing parameters from key
   skey=$1
   if [ "$(grep -c "RSA PRIVATE KEY" "$skey")" -gt 0 ]; then # RSA key
-    pub_exp64=$(openssl rsa -in "${skey}" -noout -text | grep publicExponent | grep -oE "0x[a-f0-9]+" | cut -d'x' -f2 | hex2bin | urlbase64)
-    pub_mod64=$(openssl rsa -in "${skey}" -noout -modulus | cut -d'=' -f2 | hex2bin | urlbase64)
+    pub_exp64=$(openssl rsa -in "${skey}" -noout -text \
+                | grep publicExponent \
+                | grep -oE "0x[a-f0-9]+" \
+                | cut -d'x' -f2 \
+                | hex2bin \
+                | urlbase64)
+    pub_mod64=$(openssl rsa -in "${skey}" -noout -modulus \
+                | cut -d'=' -f2 \
+                | hex2bin \
+                | urlbase64)
 
     jwk='{"e":"'"${pub_exp64}"'","kty":"RSA","n":"'"${pub_mod64}"'"}'
     jwkalg="RS256"
@@ -619,7 +637,9 @@ get_signing_params() { # get signing parameters from key
   elif [ "$(grep -c "EC PRIVATE KEY" "$skey")" -gt 0 ]; then # Elliptic curve key.
     crv="$(openssl ec -in  "$skey" -noout -text 2>/dev/null | awk '$2 ~ "CURVE:" {print $3}')"
     if [ -z "$crv" ]; then
-      gsp_keytype="$(openssl ec -in  "$skey" -noout -text 2>/dev/null | grep "^ASN1 OID:" | awk '{print $3}')"
+      gsp_keytype="$(openssl ec -in  "$skey" -noout -text 2>/dev/null \
+                     | grep "^ASN1 OID:" \
+                     | awk '{print $3}')"
       case "$gsp_keytype" in
         prime256v1) crv="P-256" ;;
         secp384r1) crv="P-384" ;;
@@ -633,7 +653,9 @@ get_signing_params() { # get signing parameters from key
       P-521) jwkalg="ES512" ; signalg="sha512" ;;
       *) error_exit "invalid curve algorithm type $crv";;
     esac
-    pubtext="$(openssl ec  -in "$skey"  -noout -text 2>/dev/null | awk '/^pub:/{p=1;next}/^ASN1 OID:/{p=0}p' | tr -d ": \n\r")"
+    pubtext="$(openssl ec  -in "$skey"  -noout -text 2>/dev/null \
+               | awk '/^pub:/{p=1;next}/^ASN1 OID:/{p=0}p' \
+               | tr -d ": \n\r")"
     mid=$(( (${#pubtext} -2) / 2 + 2 ))
     debug "pubtext = $pubtext"
     x64=$(echo "$pubtext" | cut -b 3-$mid | hex2bin | urlbase64)
@@ -669,7 +691,7 @@ help_message() { # print out the help message
 	  -h, --help      Display this help message and exit
 	  -q, --quiet     Quiet mode (only outputs on error, success of new cert, or getssl was upgraded)
 	  -Q, --mute      Like -q, but mutes notification about successful upgrade
-	  -r, --revoke cert key  [CA_server] Revoke a certificate ( the cert and key are required)
+	  -r, --revoke cert key  [CA_server] Revoke a certificate (the cert and key are required)
 	  -u, --upgrade   Upgrade getssl if a more recent version is available
 	  -U, --nocheck   Do not check if a more recent version is available
 	  -w working_dir  Working directory
@@ -831,12 +853,15 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   sign_string "$(printf '%s' "${protected64}.${payload64}")"  "${ACCOUNT_KEY}" "$signalg"
 
   # Send header + extended header + payload + signature to the acme-server
-  body='{"header": '"${header}"', "protected": "'"${protected64}"'", "payload": "'"${payload64}"'", "signature": "'"${signed64}"'"}'
-  debug "data for account registration = $body"
+  body="{\"header\": ${header},"
+  body+="\"protected\": \"${protected64}\","
+  body+="\"payload\": \"${payload64}\","
+  body+="\"signature\": \"${signed64}\"}"
+  debug "header, payload and signature = $body"
 
   code="500"
   loop_limit=5
-  while [ $code -eq 500 ]; do
+  while [[ "$code" -eq 500 ]]; do
     if [ "$needbase64" ] ; then
       response=$($CURL -X POST --data "$body" "$url" | urlbase64)
     else
@@ -848,10 +873,11 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     debug response  "$response"
     code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
     debug code "$code"
-    response_status=$(json_get "$response" status | head -1| awk -F'"' '{print $2}')
+    response_status=$(json_get "$response" status \
+                      | head -1| awk -F'"' '{print $2}')
     debug "response status = $response_status"
 
-    if [ "$code" -eq 500 ]; then
+    if [[ "$code" -eq 500 ]]; then
       info "error on acme server - trying again ...."
       sleep 2
       loop_limit=$((loop_limit - 1))
@@ -935,7 +961,8 @@ urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and 
 }
 
 usage() { # program usage
-  echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] domain"
+  echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet]"\
+       "[-Q|--mute] [-u|--upgrade] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] domain"
 }
 
 write_domain_template() { # write out a template file for a domain.
@@ -1234,7 +1261,8 @@ if [ ${_CREATE_CONFIG} -eq 1 ]; then
   else
     info "creating domain config file in $DOMAIN_DIR/getssl.cfg"
     # if domain has an existing cert, copy from domain and use to create defaults.
-    EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null | openssl x509 2>/dev/null)
+    EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null \
+                   | openssl x509 2>/dev/null)
     EX_SANS="www.${DOMAIN}"
     if [ ! -z "${EX_CERT}" ]; then
       EX_SANS=$(echo "$EX_CERT" | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
@@ -1314,7 +1342,8 @@ fi
 if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
   debug "getting certificate for $DOMAIN from remote server"
   # shellcheck disable=SC2086
-  EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null | openssl x509 2>/dev/null)
+  EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null \
+                 | openssl x509 2>/dev/null)
   if [ ! -z "$EX_CERT" ]; then # if obtained a cert
     if [ -s "$CERT_FILE" ]; then # if local exists
       CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
@@ -1326,7 +1355,9 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [ $_FORCE_RENEW -eq 0 ]; then
       debug "certificate on server is same as the local cert"
     else
       # check if the certificate is for the right domain
-      EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -text | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' | sort -u | grep "^$DOMAIN\$")
+      EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -text \
+        | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' \
+        | sort -u | grep "^$DOMAIN\$")
       if [ "$EX_CERT_DOMAIN" == "$DOMAIN" ]; then
         # check renew-date on ex_cert and compare to local ( if local exists)
         enddate_ex=$(echo "$EX_CERT" | openssl x509 -noout -enddate 2>/dev/null| cut -d= -f 2-)
@@ -1559,7 +1590,10 @@ for d in $alldomains; do
       debug keyauthorization "$keyauthorization"
 
       #create signed authorization key from token.
-      auth_key=$(printf '%s' "$keyauthorization" | openssl sha -sha256 -binary | openssl base64 -e | tr -d '\n\r' | sed -e 's:=*$::g' -e 'y:+/:-_:')
+      auth_key=$(printf '%s' "$keyauthorization" | openssl sha -sha256 -binary \
+                 | openssl base64 -e \
+                 | tr -d '\n\r' \
+                 | sed -e 's:=*$::g' -e 'y:+/:-_:')
       debug auth_key "$auth_key"
 
       debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
@@ -1669,9 +1703,12 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
         check_dns="fail"
         while [ "$check_dns" == "fail" ]; do
           if [[ "$os" == "cygwin" ]]; then
-            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" | grep ^_acme -A2| grep '"'|awk -F'"' '{ print $2}')
+            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
+                           | grep ^_acme -A2\
+                           | grep '"'|awk -F'"' '{ print $2}')
           else
-            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" | grep ^_acme|awk -F'"' '{ print $2}')
+            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
+                           | grep ^_acme|awk -F'"' '{ print $2}')
           fi
           debug "expecting  $auth_key"
           debug "${ns} gave ... $check_result"
