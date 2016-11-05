@@ -147,10 +147,12 @@
 # 2016-10-31 fix warning message if cert doesn't exist (1.75)
 # 2016-10-31 remove only specified DNS token #161 (1.76)
 # 2016-11-03 Reduce long lines, and remove echo from update (1.77)
+# 2016-11-05 added TOKEN_USER_ID (to set ownership of token files )
+# 2016-11-05 updated style to work with latest shellcheck (1.78)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.77"
+VERSION="1.78"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -229,8 +231,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
   fi
 
   # loop "forever" to keep checking for a response from the ACME server.
-  # shellcheck disable=SC2078
-  while [ "1" ] ; do
+  while true ; do
     debug "checking"
     if ! get_cr "$uri" ; then
       error_exit "$domain:Verify error:$code"
@@ -313,6 +314,7 @@ clean_up() { # Perform pre-exit housekeeping
     # Tidy up DNS entries if things failed part way though.
     shopt -s nullglob
     for dnsfile in $TEMP_DIR/dns_verify/*; do
+      # shellcheck source=/dev/null
       . "$dnsfile"
       debug "attempting to clean up DNS entry for $d"
       eval "$DNS_DEL_COMMAND" "$d" "$auth_key"
@@ -333,10 +335,18 @@ copy_file_to_location() { # copies a file, using scp if required.
     debug "copying from $from to $to"
     if [[ "${to:0:4}" == "ssh:" ]] ; then
       debug "using scp scp -q $from ${to:4}"
-      scp -q "$from" "${to:4}" >/dev/null 2>&1
-      if [ $? -gt 0 ]; then
+      if ! scp -q "$from" "${to:4}" >/dev/null 2>&1 ; then
         error_exit "problem copying file to the server using scp.
         scp $from ${to:4}"
+      fi
+      debug "userid $TOKEN_USER_ID"
+      if [[ ! -z "$TOKEN_USER_ID" ]]; then
+        servername=$(echo "$to" | awk -F":" '{print $2}')
+        tofile=$(echo "$to" | awk -F":" '{print $3}')
+        debug "servername $servername"
+        debug "file $tofile"
+        # shellcheck disable=SC2029
+        ssh "$servername" "chown $TOKEN_USER_ID $tofile"
       fi
     elif [[ "${to:0:4}" == "ftp:" ]] ; then
       if [[ "$cert" != "challenge token" ]] ; then
@@ -378,13 +388,14 @@ copy_file_to_location() { # copies a file, using scp if required.
 			put $fromfile
 			_EOF
     else
-      mkdir -p "$(dirname "$to")"
-      if [ $? -gt 0 ]; then
+      if ! mkdir -p "$(dirname "$to")" ; then
         error_exit "cannot create ACL directory $(basename "$to")"
       fi
-      cp -p "$from" "$to"
-      if [ $? -ne 0 ]; then
+      if ! cp -p "$from" "$to" ; then
         error_exit "cannot copy $from to $to"
+      fi
+      if [[ ! -z "$TOKEN_USER_ID" ]]; then
+        chown "$TOKEN_USER_ID" "$to"
       fi
     fi
     debug "copied $from to $to"
@@ -700,7 +711,8 @@ help_message() { # print out the help message
 }
 
 hex2bin() { # Remove spaces, add leading zero, escape as hex string and parse with printf
-  printf -- "$(cat | os_esed -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
+#  printf -- "$(cat | os_esed -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
+  echo -e -n "$(cat | os_esed -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
 }
 
 info() { # write out info as long as the quiet flag has not been set.
@@ -783,8 +795,7 @@ reload_service() {  # Runs a command to reload services ( via ssh if needed)
       sleep 2
     else
       debug "running reload command $RELOAD_CMD"
-      eval "$RELOAD_CMD"
-      if [ $? -gt 0 ]; then
+      if ! eval "$RELOAD_CMD" ; then
         error_exit "error running $RELOAD_CMD"
       fi
     fi
@@ -868,7 +879,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       response=$($CURL -X POST --data "$body" "$url")
     fi
 
-    responseHeaders=$(sed 's/\r//g' "$CURL_HEADER")
+    responseHeaders=$(cat "$CURL_HEADER")
     debug responseHeaders "$responseHeaders"
     debug response  "$response"
     code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
@@ -1187,6 +1198,7 @@ fi
 # read any variables from config in working directory
 if [ -s "$WORKING_DIR/getssl.cfg" ]; then
   debug "reading config from $WORKING_DIR/getssl.cfg"
+  # shellcheck source=/dev/null
   . "$WORKING_DIR/getssl.cfg"
 fi
 
@@ -1293,6 +1305,7 @@ fi
 # read any variables from config in domain directory
 if [ -s "$DOMAIN_DIR/getssl.cfg" ]; then
   debug "reading config from $DOMAIN_DIR/getssl.cfg"
+  # shellcheck source=/dev/null
   . "$DOMAIN_DIR/getssl.cfg"
 fi
 
@@ -1541,7 +1554,6 @@ for d in $alldomains; do
   else
     DOMAIN_ACL="${ACL[$dn]}"
   fi
-  debug "domain $d has location ${DOMAIN_ACL}"
 
   # check if we have the information needed to place the challenge
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then
@@ -1554,6 +1566,8 @@ for d in $alldomains; do
   else
     if [ -z "${DOMAIN_ACL}" ]; then
       error_exit "ACL location not specified for domain $d in $DOMAIN_DIR/getssl.cfg"
+    else
+      debug "domain $d has ACL = ${DOMAIN_ACL}"
     fi
   fi
 
@@ -1569,9 +1583,10 @@ for d in $alldomains; do
   if [[ $response_status == "valid" ]]; then
     info "$d is already validated"
     if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
-      deactivate_url=$(echo "$responseHeaders" | awk ' $1 ~ "^Location" {print $2}')
-      deactivate_url_list="$deactivate_url_list $deactivate_url"
-      debug "url added to deactivate list $deactivate_url"
+      deactivate_url="$(echo "$responseHeaders" | awk ' $1 ~ "^Location" {print $2}' | tr -d "\r")"
+      deactivate_url_list+=" $deactivate_url "
+      debug "url added to deactivate list ${deactivate_url}"
+      debug "deactivate list is now $deactivate_url_list"
     fi
     # increment domain-counter
     let dn=dn+1;
@@ -1597,8 +1612,7 @@ for d in $alldomains; do
       debug auth_key "$auth_key"
 
       debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
-      eval "$DNS_ADD_COMMAND" "$d" "$auth_key"
-      if [ $? -gt 0 ]; then
+      if ! eval "$DNS_ADD_COMMAND" "$d" "$auth_key" ; then
         error_exit "DNS_ADD_COMMAND failed for domain $d"
       fi
 
@@ -1694,6 +1708,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
   for dnsfile in $TEMP_DIR/dns_verify/*; do
     if [ -e "$dnsfile" ]; then
       debug "loading DNSfile: $dnsfile"
+      # shellcheck source=/dev/null
       . "$dnsfile"
 
       # check for token at public dns server, waiting for a valid response.
@@ -1739,6 +1754,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
   for dnsfile in $TEMP_DIR/dns_verify/*; do
     if [ -e "$dnsfile" ]; then
       debug "loading DNSfile: $dnsfile"
+      # shellcheck source=/dev/null
       . "$dnsfile"
 
       check_challenge_completion "$uri" "$d" "$keyauthorization"
@@ -1833,7 +1849,7 @@ reload_service
 
 # deactivate authorizations
 if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
-  debug "in deactivate list should be $deactivate_url_list"
+  debug "in deactivate list is $deactivate_url_list"
   for deactivate_url in $deactivate_url_list; do
     debug "deactivating  $deactivate_url"
     send_signed_request "$deactivate_url" "{\"resource\": \"authz\", \"status\": \"deactivated\"}"
