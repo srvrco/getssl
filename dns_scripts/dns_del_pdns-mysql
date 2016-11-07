@@ -11,7 +11,7 @@ FQDN=$1
 # If your database name is not powerdns, change it here.
 DB="powerdns"
 
-mysql -ss ${CREDENTIALS} -e "DELETE FROM ${DB}.records WHERE \
+mysql -ss "${CREDENTIALS}" -e "DELETE FROM ${DB}.records WHERE \
  name = '_acme-challenge.${FQDN}';"
 
 echo "DELETE FROM ${DB}.records WHERE name = '_acme-challenge.${FQDN}';"

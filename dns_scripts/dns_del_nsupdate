@@ -12,4 +12,4 @@ printf "update delete _acme-challenge.%s. 300 in TXT \"%s\"\n\n" "${fulldomain}"
 
 nsupdate -k "${dnskeyfile}" -v "${updatefile}"
 
-rm -f ${updatefile}
+rm -f "${updatefile}"

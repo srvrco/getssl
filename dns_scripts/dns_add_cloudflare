@@ -3,40 +3,111 @@
 email=${CF_EMAIL:-''}
 key=${CF_KEY:-''}
 
-fulldomain="${1:?Need full domain name as first parameter}"
-token="${2:?Need Let’s Encrypt challenge token as second parameter}"
+fulldomain="${1}"
+token="${2}"
 API='https://api.cloudflare.com/client/v4/zones'
-PARAMS=( -H "X-Auth-Email: $email" -H "X-Auth-Key: $key" -H 'Content-Type: application/json' )
+curl_params=( -H "X-Auth-Email: $email" -H "X-Auth-Key: $key" -H 'Content-Type: application/json' )
+
+# check initial parameters
+
+if [[ -z "$fulldomain" ]]; then
+  echo "DNS script requires full domain name as first parameter"
+  exit 1
+fi
+
+if [[ -z "$token" ]]; then
+  echo "DNS script requires challenge token as second parameter"
+  exit 1
+fi
+
+if [[ -z "$CF_EMAIL" ]]; then
+  echo "CF_EMAIL parameter not set"
+  exit 1
+fi
+
+if [[ -z "$CF_KEY" ]]; then
+  echo "CF_KEY parameter not set"
+  exit 1
+fi
+
 
 # get a list of all domain names from cloudflare
 # If you have a lot, you may need add "&page=1&per_page=1000" and/or "&status=active"
-resp=$(curl --silent "${PARAMS[@]}" -X GET "$API")
+resp=$(curl --silent "${curl_params[@]}" -X GET "$API")
 re='"result":\[(([^][]*\[[^][]*])*[^][]*)]' # find result section
-[[ "${resp// }" =~ $re ]] && resp="${BASH_REMATCH[1]}"
-while [[ "$resp" ]]; do # iterate through domains returned
-  re='[^}{]*\{(([^}{]*\{[^}{]*})*[^}{]*)}(.*)'
-  [[ "$resp" =~ $re ]]; first="${BASH_REMATCH[1]}"; resp="${BASH_REMATCH[3]}"
+if [[ "${resp// }" =~ $re ]]; then
+  resp="${BASH_REMATCH[1]}"
+fi
 
+# iterate through all sections to obtain a list of domains
+while [[ "$resp" ]]; do
+  re='[^}{]*\{(([^}{]*\{[^}{]*})*[^}{]*)}(.*)'
+  if [[ "$resp" =~ $re ]]; then
+    first="${BASH_REMATCH[1]}"
+    resp="${BASH_REMATCH[3]}"
+  fi
   # remove subsections - leave only domain level
-  while [[ "$first" =~ (.*)[\[\{][^]\{\}[]*[\]\}](.*) ]]; do first="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
-  re='"name":"([^"]*)"'; [[ "$first" =~ $re ]] && domains=( "${domains[@]}" "${BASH_REMATCH[1]}" )
-  re='"id":"([^"]*)"'; [[ "$first" =~ $re ]] && ids=( "${ids[@]}" "${BASH_REMATCH[1]}" )
+  while [[ "$first" =~ (.*)[\[\{][^]\{\}[]*[\]\}](.*) ]]; do
+    first="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+  done
+  re='"name":"([^"]*)"'
+  if [[ "$first" =~ $re ]]; then
+    domains=( "${domains[@]}" "${BASH_REMATCH[1]}" )
+  else
+    echo "Error getting domain name"
+    exit 1
+  fi
+  re='"id":"([^"]*)"'
+  if [[ "$first" =~ $re ]]; then
+    ids=( "${ids[@]}" "${BASH_REMATCH[1]}" )
+  else
+    echo "Error getting domain id"
+    exit 1
+  fi
 done
 
-# select right cloudflare domain (longest one)
-domain=$fulldomain.
-# shellcheck disable=SC2076
-while [[ "$domain" && ! "${domains[@]/#/@}" == *"@${domain%?}"* ]]; do domain=${domain#*.}; done
-domain=${domain%?}
-[ -z "$domain" ] && { echo 'domain name not found on your cloudflare account'; exit 1; }
+# split required domain name into an array
+dnarray=(${fulldomain//./ })
+# get number of parts in required domain name
+NumParts=${#dnarray[@]}
+# build a test domain name, starting with the largest, and reduce it
+# until a match is found, set domain = first ( longest) match.
+domain=""
+i=1
+while [ $i -lt "$NumParts" ]; do
+  testdomain="${dnarray[i-1]}"
+  for ((j=i; j<NumParts; j++)); do
+    testdomain+=".${dnarray[j]}"
+  done
+  # loop through domains at cloudflare
+  for k in "${!domains[@]}"; do
+    # if match found, then set domain and domain_id
+    if [[ "$testdomain" == "${domains[k]}" ]]; then
+      domain="$testdomain"
+      domain_id=${ids[k]}
+      i="$NumParts"
+    fi
+  done
+  ((i++))
+done
 
-for i in "${!domains[@]}"; do [[ ${domains[i]} == "$domain" ]] && break; done
-domain_id=${ids[i]}
+if [[ -z "$domain" ]]; then
+  echo 'domain name not found on your cloudflare account'
+  exit 1
+fi
 
-resp=$(curl --silent "${PARAMS[@]}" -X POST "$API/$domain_id/dns_records" \
-  --data "{\"type\":\"TXT\",\"name\":\"_acme-challenge.${fulldomain%.$domain}\",\"content\":\"$token\",\"ttl\":300}")
-# code 81057 = The record already exists.
-if [[ "${resp// }" == *'"success":false'* && ! "${resp// }" == *'"code":81057[^0-9]'* ]]; then
-  re='"message":"([^"]+)"'; [[ "$resp" =~ $re ]]
-  echo "Error: DNS challenge not added: ${BASH_REMATCH[1]:-unknown error}"; exit 2
+txt_record="_acme-challenge.${fulldomain%.$domain}"
+resp=$(curl --silent "${curl_params[@]}" -X POST "$API/$domain_id/dns_records" \
+  --data "{\"type\":\"TXT\",\"name\":\"${txt_record}\",\"content\":\"$token\",\"ttl\":300}")
+
+# if it failed (success:false) then give error message
+if [[ "${resp// }" == *'"success":false'* ]]; then
+  re='"message":"([^"]+)"'
+  if [[ "$resp" =~ $re ]]; then
+    echo "Error: DNS challenge not added: ${BASH_REMATCH[1]:-unknown error}"
+    exit 2
+  else
+    echo "Error: DNS challenge not added: unknown error - ${resp}"
+    exit 2
+  fi
 fi

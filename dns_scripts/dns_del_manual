@@ -3,4 +3,4 @@
 echo "In the DNS, the following DNS record should be deleted ;"
 echo "_acme-challenge.${1}"
 
-read -p "Press any key to obtain the certificate once the records have been updated..."
+read -r -p "Press any key to obtain the certificate once the records have been updated..."

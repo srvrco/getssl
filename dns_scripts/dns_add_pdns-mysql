@@ -16,10 +16,10 @@ DOMAIN=${FQDN}
 
 # Iterate over the database, checking for a match. Keep stripping
 # subdomains off 1 by 1 until we find one, or exit with an error.
-while [ -z ${DOMAIN_ID} ]; do
-	DOMAIN_ID=`mysql -ss ${CREDENTIALS} -e "SELECT id FROM ${DB}.domains WHERE name='${DOMAIN}'"`
-	if [ -z ${DOMAIN_ID} ]; then
-		DOMAIN=`echo ${DOMAIN}|cut -d. -f1 --complement`
+while [[ -z "${DOMAIN_ID}" ]]; do
+	DOMAIN_ID=$(mysql -ss "${CREDENTIALS}" -e "SELECT id FROM ${DB}.domains WHERE name='${DOMAIN}'")
+	if [[ -z "${DOMAIN_ID}" ]]; then
+		DOMAIN="$(echo "${DOMAIN}"|cut -d. -f1 --complement)"
 	fi
 	if [[ ${DOMAIN} != *"."* ]]; then
 		echo "Cannot find matching domain record! ABORT!"
@@ -29,6 +29,6 @@ done
 
 echo "Domain ID: ${DOMAIN_ID} | FQDN: ${FQDN} | Domain: ${DOMAIN}"
 
-mysql -ss ${CREDENTIALS} -e "INSERT INTO ${DB}.records \
+mysql -ss "${CREDENTIALS}" -e "INSERT INTO ${DB}.records \
  (domain_id, name, content, type,ttl,prio) VALUES \
  (${DOMAIN_ID},'_acme-challenge.${FQDN}','${TOKEN}','TXT',120,NULL);"

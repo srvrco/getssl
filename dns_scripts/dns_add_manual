@@ -5,4 +5,4 @@ echo "_acme-challenge.${1}"
 echo "containing the following value"
 echo "$2"
 
-read -p "Press any key to obtain the certificate once the records have been updated..."
+read -r -p "Press any key to obtain the certificate once the records have been updated..."

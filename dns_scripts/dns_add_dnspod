@@ -9,7 +9,7 @@ token="$2"
 NumParts=$(echo "$fulldomain" | awk -F"." '{print NF}')
 if [[ $NumParts -gt 2 ]]; then
   domain=$(echo "$fulldomain" | awk -F\. '{print $(NF-1) FS $NF}')
-  txtname="_acme-challenge$(echo $fulldomain | awk -F\. '{for (i=1; i<NF-1; i++) printf "." $i}')"
+  txtname="_acme-challenge$(echo "$fulldomain" | awk -F\. '{for (i=1; i<NF-1; i++) printf "." $i}')"
 else
   domain=$fulldomain
   txtname="_acme-challenge"
