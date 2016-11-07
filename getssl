@@ -676,7 +676,7 @@ get_signing_params() { # get signing parameters from key
   else
     error_exit "Invlid key file"
   fi
-  thumbprint="$(printf "%s" "$jwk" | openssl sha -sha256 -binary | urlbase64)"
+  thumbprint="$(printf "%s" "$jwk" | openssl dgst -sha256 -binary | urlbase64)"
   debug "jwk alg = $jwkalg"
   debug "jwk = $jwk"
   debug "thumbprint $thumbprint"
@@ -1605,7 +1605,7 @@ for d in $alldomains; do
       debug keyauthorization "$keyauthorization"
 
       #create signed authorization key from token.
-      auth_key=$(printf '%s' "$keyauthorization" | openssl sha -sha256 -binary \
+      auth_key=$(printf '%s' "$keyauthorization" | openssl dgst -sha256 -binary \
                  | openssl base64 -e \
                  | tr -d '\n\r' \
                  | sed -e 's:=*$::g' -e 'y:+/:-_:')
