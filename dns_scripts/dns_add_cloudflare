@@ -36,7 +36,7 @@ domain_id=${ids[i]}
 resp=$(curl --silent "${PARAMS[@]}" -X POST "$API/$domain_id/dns_records" \
   --data "{\"type\":\"TXT\",\"name\":\"_acme-challenge.${fulldomain%.$domain}\",\"content\":\"$token\",\"ttl\":300}")
 # code 81057 = The record already exists.
-if [[ "${resp// }" == *'"success":false'* && ! "${resp// }" == *'"code":81057[^0-9]'* ]]; then
+if [[ "${resp// }" == *'"success":false'* && ! "${resp// }" == *'"code":81057'[^0-9]* ]]; then
   re='"message":"([^"]+)"'; [[ "$resp" =~ $re ]]
   echo "Error: DNS challenge not added: ${BASH_REMATCH[1]:-unknown error}"; exit 2
 fi
