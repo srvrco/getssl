@@ -1548,7 +1548,7 @@ alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
 dn=0
 for d in $alldomains; do
   # $d is domain in current loop, which is number $dn for ACL
-  info "Verifing $d"
+  info "Verifying $d"
   if [[ "$USE_SINGLE_ACL" == "true" ]]; then
     DOMAIN_ACL="${ACL[0]}"
   else
