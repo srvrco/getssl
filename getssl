@@ -1000,11 +1000,14 @@ write_domain_template() { # write out a template file for a domain.
 
 	# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
 	# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
+	# You can specify a different userid for ssh/scp to use on the remote server before the @ sign. The sshuserid is optional.
+	# If left blank, the username on the local server will be used to authenticate against the remote server.
 	# An ssh key will be needed to provide you with access to the remote server.
 	# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
 	# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
 	# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
 	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
 
