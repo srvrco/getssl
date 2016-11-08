@@ -8,6 +8,8 @@ If you aren't happy writing in bash, please open an issue with as much detail as
 
 Please update the 'revision history' and version number at the top of the code (without this I can't easily do a merge)
 
+Please update just one issue per PR.   If there are multiple issues, please provide separate PR's one per issue. 
+
 ## Coding conventions
 
 Please see the guidelines at https://github.com/srvrco/getssl/wiki/Bash-Style-guide
