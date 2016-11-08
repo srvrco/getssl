@@ -179,7 +179,7 @@ write_domain_template() { # write out a template file for a domain.
 	# An ssh key will be needed to provide you with access to the remote server.
 	# If these start with ftp: or sftp: then the next variables are userid:password:servername:ACL_location
 	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+	#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
 	ACL=(${ACL[*]})
 
