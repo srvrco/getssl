@@ -151,10 +151,12 @@
 # 2016-11-05 added TOKEN_USER_ID (to set ownership of token files )
 # 2016-11-05 updated style to work with latest shellcheck (1.78)
 # 2016-11-07 style updates
+# 2016-11-07 bug fix DOMAIN_PEM_LOCATION starting with ./ #167
+# 2016-11-08 Fix for openssl 1.1.0  #166 (1.79)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.78"
+VERSION="1.79"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -677,7 +679,7 @@ get_signing_params() { # get signing parameters from key
   else
     error_exit "Invlid key file"
   fi
-  thumbprint="$(printf "%s" "$jwk" | openssl sha -sha256 -binary | urlbase64)"
+  thumbprint="$(printf "%s" "$jwk" | openssl dgst -sha256 -binary | urlbase64)"
   debug "jwk alg = $jwkalg"
   debug "jwk = $jwk"
   debug "thumbprint $thumbprint"
@@ -1608,7 +1610,7 @@ for d in $alldomains; do
       debug keyauthorization "$keyauthorization"
 
       #create signed authorization key from token.
-      auth_key=$(printf '%s' "$keyauthorization" | openssl sha -sha256 -binary \
+      auth_key=$(printf '%s' "$keyauthorization" | openssl dgst -sha256 -binary \
                  | openssl base64 -e \
                  | tr -d '\n\r' \
                  | sed -e 's:=*$::g' -e 'y:+/:-_:')
@@ -1838,7 +1840,7 @@ if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
     to_location="${DOMAIN_PEM_LOCATION}"
   fi
   cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
-  copy_file_to_location "full key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
+  copy_file_to_location "full key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem"  "$to_location"
 fi
 # end of copying certs.
 

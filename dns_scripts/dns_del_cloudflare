@@ -3,6 +3,15 @@
 email=${CF_EMAIL:-''}
 key=${CF_KEY:-''}
 
+# This script removes a token from cloudflare DNS for the ACME challenge
+# usage dns_del_cloudflare "domain name"  "token (optional)"
+# if token is not specified, then all tokens are removed.
+# return codes are;
+# 0 - success
+# 1 - error in input
+# 2 - error within internal processing
+# 3 - error in result ( domain not found in cloudflare etc)
+
 fulldomain="${1}"
 token="${2}"
 API='https://api.cloudflare.com/client/v4/zones'
@@ -50,14 +59,14 @@ while [[ "$resp" ]]; do
     domains=( "${domains[@]}" "${BASH_REMATCH[1]}" )
   else
     echo "Error getting domain name"
-    exit 1
+    exit 2
   fi
   re='"id":"([^"]*)"'
   if [[ "$first" =~ $re ]]; then
     ids=( "${ids[@]}" "${BASH_REMATCH[1]}" )
   else
     echo "Error getting domain id"
-    exit 1
+    exit 2
   fi
 done
 
@@ -88,7 +97,7 @@ done
 
 if [[ -z "$domain" ]]; then
   echo 'domain name not found on your cloudflare account'
-  exit 1
+  exit 3
 fi
 
 curl_request="$API/$domain_id/dns_records?type=TXT&name=_acme-challenge.$fulldomain"
@@ -102,11 +111,11 @@ if [[ "${resp// }" =~ $re ]]; then
   resp="${BASH_REMATCH[1]}"
   if [ -z "$resp" ]; then
     echo 'challenge TXT record not found on your cloudflare account'
-    exit 2
+    exit 3
   fi
 else # results section not found
   echo "error in results section response from cloudflare"
-  exit 1
+  exit 3
 fi
 
 while [[ "$resp" ]]; do # iterate through records returned
@@ -120,7 +129,7 @@ while [[ "$resp" ]]; do # iterate through records returned
     id="${BASH_REMATCH[1]}"
   else
     echo "Error: domain ID not found"
-    exit -1
+    exit 2
   fi
   respd=$(curl --silent "${curl_params[@]}" -X DELETE "$API/$domain_id/dns_records/$id")
   if [[ "${respd// }" == *'"success":false'* ]]; then

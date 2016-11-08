@@ -3,6 +3,14 @@
 email=${CF_EMAIL:-''}
 key=${CF_KEY:-''}
 
+# This script adds a token to cloudflare DNS for the ACME challenge
+# usage dns_add_cloudflare "domain name"  "token"
+# return codes are;
+# 0 - success
+# 1 - error in input
+# 2 - error within internal processing
+# 3 - error in result ( domain not found in cloudflare etc)
+
 fulldomain="${1}"
 token="${2}"
 API='https://api.cloudflare.com/client/v4/zones'
@@ -55,14 +63,14 @@ while [[ "$resp" ]]; do
     domains=( "${domains[@]}" "${BASH_REMATCH[1]}" )
   else
     echo "Error getting domain name"
-    exit 1
+    exit 2
   fi
   re='"id":"([^"]*)"'
   if [[ "$first" =~ $re ]]; then
     ids=( "${ids[@]}" "${BASH_REMATCH[1]}" )
   else
     echo "Error getting domain id"
-    exit 1
+    exit 2
   fi
 done
 
@@ -93,7 +101,7 @@ done
 
 if [[ -z "$domain" ]]; then
   echo 'domain name not found on your cloudflare account'
-  exit 1
+  exit 3
 fi
 
 txt_record="_acme-challenge.${fulldomain%.$domain}"
@@ -102,12 +110,16 @@ resp=$(curl --silent "${curl_params[@]}" -X POST "$API/$domain_id/dns_records" \
 
 # if it failed (success:false) then give error message
 if [[ "${resp// }" == *'"success":false'* ]]; then
+  if [[ "${resp// }" == *'"code":81057'[^0-9]* ]]; then
+    echo "DNS challenge token already exists"
+    exit
+  fi
   re='"message":"([^"]+)"'
   if [[ "$resp" =~ $re ]]; then
-    echo "Error: DNS challenge not added: ${BASH_REMATCH[1]:-unknown error}"
-    exit 2
+    echo "Error: DNS challenge not added: ${BASH_REMATCH[1]}"
+    exit 3
   else
     echo "Error: DNS challenge not added: unknown error - ${resp}"
-    exit 2
+    exit 3
   fi
 fi
