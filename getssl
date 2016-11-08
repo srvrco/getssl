@@ -1005,7 +1005,7 @@ write_domain_template() { # write out a template file for a domain.
 	# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
 	# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
 	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+	#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
 
 	#Enable use of a single ACL for all checks
