@@ -149,11 +149,11 @@
 # 2016-11-03 Reduce long lines, and remove echo from update (1.77)
 # 2016-11-05 added TOKEN_USER_ID (to set ownership of token files )
 # 2016-11-05 updated style to work with latest shellcheck (1.78)
-# 2016-11-08 Add and comment optional sshuserid for ssh ACL (1.79)
+# 2016-11-08 Add and comment optional sshuserid for ssh ACL (1.80)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.79"
+VERSION="1.80"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
