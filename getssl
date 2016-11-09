@@ -154,10 +154,11 @@
 # 2016-11-07 bug fix DOMAIN_PEM_LOCATION starting with ./ #167
 # 2016-11-08 Fix for openssl 1.1.0  #166 (1.79)
 # 2016-11-08 Add and comment optional sshuserid for ssh ACL (1.80)
+# 2016-11-09 Add SKIP_HTTP_TOKEN_CHECK option (Issue #170) (1.81)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.80"
+VERSION="1.81"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -185,6 +186,7 @@ CHALLENGE_CHECK_TYPE="http"
 DEACTIVATE_AUTH="false"
 PREVIOUSLY_VALIDATED="true"
 DUAL_RSA_ECDSA="false"
+SKIP_HTTP_TOKEN_CHECK="false"
 ORIG_UMASK=$(umask)
 _USE_DEBUG=0
 _CREATE_CONFIG=0
@@ -1364,8 +1366,9 @@ fi
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
   debug "getting certificate for $DOMAIN from remote server"
   # shellcheck disable=SC2086
-  EX_CERT=$(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null \
-                 | openssl x509 2>/dev/null)
+  EX_CERT=$(echo \
+    | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null \
+    | openssl x509 2>/dev/null)
   if [[ ! -z "$EX_CERT" ]]; then # if obtained a cert
     if [[ -s "$CERT_FILE" ]]; then # if local exists
       CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
@@ -1581,7 +1584,8 @@ for d in $alldomains; do
   fi
 
   # request a challenge token from ACME server
-  send_signed_request "$CA/acme/new-authz" "{\"resource\": \"new-authz\", \"identifier\": {\"type\": \"dns\", \"value\": \"$d\"}}"
+  request="{\"resource\":\"new-authz\",\"identifier\":{\"type\":\"dns\",\"value\":\"$d\"}}"
+  send_signed_request "$CA/acme/new-authz" "$request"
 
   debug "completed send_signed_request"
   # check if we got a valid response and token, if not then error exit
@@ -1673,9 +1677,13 @@ for d in $alldomains; do
       wellknown_url="${CHALLENGE_CHECK_TYPE}://$d/.well-known/acme-challenge/$token"
       debug wellknown_url "$wellknown_url"
 
-      # check that we can reach the challenge ourselves, if not, then error
-      if [[ ! "$(curl -k --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
-        error_exit "for some reason could not reach $wellknown_url - please check it manually"
+      if [[ "$SKIP_HTTP_TOKEN_CHECK" == "true" ]]; then
+        info "SKIP_HTTP_TOKEN_CHECK=true so not checking that token is working correctly"
+      else
+        # check that we can reach the challenge ourselves, if not, then error
+        if [[ ! "$(curl -k --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
+          error_exit "for some reason could not reach $wellknown_url - please check it manually"
+        fi
       fi
 
       check_challenge_completion "$uri" "$d" "$keyauthorization"
