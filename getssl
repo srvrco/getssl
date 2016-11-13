@@ -155,10 +155,11 @@
 # 2016-11-08 Fix for openssl 1.1.0  #166 (1.79)
 # 2016-11-08 Add and comment optional sshuserid for ssh ACL (1.80)
 # 2016-11-09 Add SKIP_HTTP_TOKEN_CHECK option (Issue #170) (1.81)
+# 2016-11-13 bug fix DOMAIN_KEY_CERT generation (1.82)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.81"
+VERSION="1.82"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -280,7 +281,7 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
   curl --silent "$CODE_LOCATION" --output "$temp_upgrade"
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
-    error_exit "your version of curl needs updating, it does not support SNI (multiple SSL domains on a single IP)"
+    error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
   elif [[ $errcode -gt 0 ]]; then
     error_exit "curl error : $errcode"
   fi
@@ -1020,7 +1021,8 @@ write_domain_template() { # write out a template file for a domain.
 	#Enable use of a single ACL for all checks
 	#USE_SINGLE_ACL="true"
 
-	# Location for all your certs, these can either be on the server (so full path name) or using ssh as for the ACL
+	# Location for all your certs, these can either be on the server (full path name)
+	# or using ssh /sftp as for the ACL
 	#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
 	#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
 	#CA_CERT_LOCATION="/etc/ssl/chain.crt"
@@ -1402,16 +1404,26 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
           # remote has longer to expiry date than local copy.
           debug "remote cert has longer to run than local cert - ignoring"
         else
-          info "remote expires sooner than local ..... will attempt to upload from local"
-          copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
-          copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
+          info "remote expires sooner than local, attempting to upload from local"
+          copy_file_to_location "domain certificate" \
+                                "$CERT_FILE" \
+                                "$DOMAIN_CERT_LOCATION"
+          copy_file_to_location "private key" \
+                                "$DOMAIN_DIR/${DOMAIN}.key" \
+                                "$DOMAIN_KEY_LOCATION"
           copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
           cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
-          copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$DOMAIN_CHAIN_LOCATION"
+          copy_file_to_location "full pem" \
+                                "$TEMP_DIR/${DOMAIN}_chain.pem" \
+                                "$DOMAIN_CHAIN_LOCATION"
           cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
-          copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_k_C.pem"  "$DOMAIN_KEY_CERT_LOCATION"
+          copy_file_to_location "private key and domain cert pem" \
+                                "$TEMP_DIR/${DOMAIN}_K_C.pem"  \
+                                "$DOMAIN_KEY_CERT_LOCATION"
           cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
-          copy_file_to_location "full pem" "$TEMP_DIR/${DOMAIN}.pem"  "$DOMAIN_PEM_LOCATION"
+          copy_file_to_location "full pem" \
+                                "$TEMP_DIR/${DOMAIN}.pem"  \
+                                "$DOMAIN_PEM_LOCATION"
           reload_service
         fi
       else
@@ -1671,7 +1683,9 @@ for d in $alldomains; do
       # copy to token to acme challenge location
       umask 0022
       debug "copying file from $TEMP_DIR/$token to ${DOMAIN_ACL}"
-      copy_file_to_location "challenge token" "$TEMP_DIR/$token" "${DOMAIN_ACL}/$token"
+      copy_file_to_location "challenge token" \
+                            "$TEMP_DIR/$token" \
+                            "${DOMAIN_ACL}/$token"
       umask "$ORIG_UMASK"
 
       wellknown_url="${CHALLENGE_CHECK_TYPE}://$d/.well-known/acme-challenge/$token"
@@ -1794,9 +1808,13 @@ fi
 info "Verification completed, obtaining certificate."
 
 #obtain the certificate.
-get_certificate "$DOMAIN_DIR/${DOMAIN}.csr" "$CERT_FILE" "$CA_CERT"
+get_certificate "$DOMAIN_DIR/${DOMAIN}.csr" \
+                "$CERT_FILE" \
+                "$CA_CERT"
 if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-  get_certificate "$DOMAIN_DIR/${DOMAIN}.ec.csr" "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt"
+  get_certificate "$DOMAIN_DIR/${DOMAIN}.ec.csr" \
+                  "${CERT_FILE::-4}.ec.crt" \
+                  "${CA_CERT::-4}.ec.crt"
 fi
 
 # create Archive of new certs and keys.
@@ -1814,13 +1832,19 @@ copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOC
 copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
 if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
   if [[ ! -z "$DOMAIN_CERT_LOCATION" ]]; then
-    copy_file_to_location "ec domain certificate" "${CERT_FILE::-4}.ec.crt" "${DOMAIN_CERT_LOCATION::-4}.ec.crt"
+    copy_file_to_location "ec domain certificate" \
+                          "${CERT_FILE::-4}.ec.crt" \
+                          "${DOMAIN_CERT_LOCATION::-4}.ec.crt"
   fi
   if [[ ! -z "$DOMAIN_KEY_LOCATION" ]]; then
-  copy_file_to_location "ec private key" "$DOMAIN_DIR/${DOMAIN}.ec.key" "${DOMAIN_KEY_LOCATION::-4}.ec.key"
+  copy_file_to_location "ec private key" \
+                        "$DOMAIN_DIR/${DOMAIN}.ec.key" \
+                        "${DOMAIN_KEY_LOCATION::-4}.ec.key"
   fi
   if [[ ! -z "$CA_CERT_LOCATION" ]]; then
-  copy_file_to_location "ec CA certificate" "${CA_CERT::-4}.ec.crt" "${CA_CERT_LOCATION::-4}.ec.crt"
+  copy_file_to_location "ec CA certificate" \
+                        "${CA_CERT::-4}.ec.crt" \
+                        "${CA_CERT_LOCATION::-4}.ec.crt"
   fi
 fi
 
