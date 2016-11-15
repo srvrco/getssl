@@ -31,7 +31,7 @@ git clone https://github.com/srvrco/getssl.git
 GetSSL was written in standard bash ( so it can be run on a server,  a desktop computer, or even a virtualbox) and add the checks, and certificates to a remote server ( providing you have a ssh with key, sftp or ftp access to the remote server).
 
 ```
-getssl ver. 1.64
+getssl ver. 1.81
 Obtain SSL certificates from the letsencrypt.org ACME server
 
 Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] domain
@@ -44,7 +44,7 @@ Options:
   -h, --help      Display this help message and exit
   -q, --quiet     Quiet mode (only outputs on error, success of new cert, or getssl was upgraded)
   -Q, --mute      Like -q, but mutes notification about successful upgrade
-  -r, --revoke cert key  Revoke a certificate ( the cert and key are required)
+  -r, --revoke cert key  [CA_server] Revoke a certificate (the cert and key are required)
   -u, --upgrade   Upgrade getssl if a more recent version is available
   -U, --nocheck   Do not check if a more recent version is available
   -w working_dir  Working directory
@@ -143,7 +143,7 @@ then, within the **working directory** there will be a folder for each certifica
 # This server issues full certificates, however has rate limits
 #CA="https://acme-v01.api.letsencrypt.org"
 
-#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+#AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.1.1-August-1-2016.pdf"
 
 # Set an email address associated with your account - generally set at account level rather than domain.
 #ACCOUNT_EMAIL="me@example.com"
