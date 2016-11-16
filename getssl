@@ -156,10 +156,11 @@
 # 2016-11-08 Add and comment optional sshuserid for ssh ACL (1.80)
 # 2016-11-09 Add SKIP_HTTP_TOKEN_CHECK option (Issue #170) (1.81)
 # 2016-11-13 bug fix DOMAIN_KEY_CERT generation (1.82)
+# 2016-11-16 Implement RENEW_ALLOW=false to disable auto-renewal (1.83)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.82"
+VERSION="1.83"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -1442,16 +1443,21 @@ fi
 # if there is an existing certificate file, check details.
 if [[ -s "$CERT_FILE" ]]; then
   debug "certificate $CERT_FILE exists"
-  enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
-  debug "local cert is valid until $enddate"
-  if [[ "$enddate" != "-" ]]; then
-    enddate_s=$(date_epoc "$enddate")
-    if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]]; then
-      info "certificate for $DOMAIN is still valid for more than $RENEW_ALLOW days (until $enddate)"
-      # everything is OK, so exit.
-      graceful_exit
-    else
-      debug "certificate  for $DOMAIN needs renewal"
+  if [[ "$RENEW_ALLOW" == "false" ]]; then
+    info "Auto-renewal disabled."
+    graceful_exit
+  else
+    enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
+    debug "local cert is valid until $enddate"
+    if [[ "$enddate" != "-" ]]; then
+      enddate_s=$(date_epoc "$enddate")
+      if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]]; then
+        info "certificate for $DOMAIN is still valid for more than $RENEW_ALLOW days (until $enddate)"
+        # everything is OK, so exit.
+        graceful_exit
+      else
+        debug "certificate  for $DOMAIN needs renewal"
+      fi
     fi
   fi
 fi
