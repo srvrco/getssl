@@ -1443,7 +1443,7 @@ fi
 # if there is an existing certificate file, check details.
 if [[ -s "$CERT_FILE" ]]; then
   debug "certificate $CERT_FILE exists"
-  if [[ "$RENEW_ALLOW" == "false" ]]; then
+  if [[ "$RENEW_ALLOW" == "false" ]] && [[ $_FORCE_RENEW -ne 1 ]]; then
     info "Auto-renewal disabled."
     graceful_exit
   else
