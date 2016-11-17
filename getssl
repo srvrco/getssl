@@ -666,7 +666,7 @@ get_signing_params() { # get signing parameters from key
         *) error_exit "invalid curve algorithm type $gsp_keytype";;
       esac
     fi
-    case "$crv" in  
+    case "$crv" in
       P-256) jwkalg="ES256" ; signalg="sha256" ;;
       P-384) jwkalg="ES384" ; signalg="sha384" ;;
       P-521) jwkalg="ES512" ; signalg="sha512" ;;
@@ -1443,22 +1443,26 @@ fi
 # if there is an existing certificate file, check details.
 if [[ -s "$CERT_FILE" ]]; then
   debug "certificate $CERT_FILE exists"
-  if [[ "$RENEW_ALLOW" == "false" ]] && [[ $_FORCE_RENEW -ne 1 ]]; then
-    info "Auto-renewal disabled."
-    graceful_exit
-  else
-    enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
-    debug "local cert is valid until $enddate"
-    if [[ "$enddate" != "-" ]]; then
-      enddate_s=$(date_epoc "$enddate")
-      if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]]; then
-        info "certificate for $DOMAIN is still valid for more than $RENEW_ALLOW days (until $enddate)"
-        # everything is OK, so exit.
-        graceful_exit
-      else
-        debug "certificate  for $DOMAIN needs renewal"
+  if [[ $_FORCE_RENEW -ne 1 ]]; then
+    if [[ "$RENEW_ALLOW" == "false" ]]; then
+      info "Auto-renewal for $DOMAIN disabled"
+      graceful_exit
+    else
+      enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
+      debug "local cert is valid until $enddate"
+      if [[ "$enddate" != "-" ]]; then
+        enddate_s=$(date_epoc "$enddate")
+        if [[ $(date_renew) -lt "$enddate_s" ]]; then
+          info "certificate for $DOMAIN is still valid for more than $RENEW_ALLOW days (until $enddate)"
+          # everything is OK, so exit.
+          graceful_exit
+        else
+          debug "certificate  for $DOMAIN needs renewal"
+        fi
       fi
     fi
+  else
+    debug "Renewal for $DOMAIN forced"
   fi
 fi
 # end of .... if there is an existing certificate file, check details.
@@ -1727,7 +1731,7 @@ for d in $alldomains; do
         ftp -n <<- EOF
 				open $ftphost
 				user $ftpuser $ftppass
-				cd $ftplocn 
+				cd $ftplocn
 				delete ${token:?}
 				EOF
       else
