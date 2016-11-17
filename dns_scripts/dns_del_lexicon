@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+# a simple wrapper for Lexicon - https://github.com/AnalogJ/lexicon - a python script which can
+# Manipulate DNS records on various DNS providers in a standardized way.
+# You need to define the following environmental variables
+# LEXICON_PROVIDER
+# Every DNS service and auth flag maps to an Environmental Variable as follows: LEXICON_{DNS Provider Name}_{Auth Type}
+# eg LEXICON_CLOUDFLARE_USERNAME and LEXICON_CLOUDFLARE_TOKEN or LEXICON_DIGITALOCEAN_TOKEN
+
+fulldomain="${1}"
+token="${2}"
+
+  lexicon "$LEXICON_PROVIDER" \
+          delete "$fulldomain" TXT \
+          --name="_acme-challenge.${fulldomain}." \
+          --content="$token"
+
+exit
