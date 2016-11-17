@@ -156,10 +156,11 @@
 # 2016-11-08 Add and comment optional sshuserid for ssh ACL (1.80)
 # 2016-11-09 Add SKIP_HTTP_TOKEN_CHECK option (Issue #170) (1.81)
 # 2016-11-13 bug fix DOMAIN_KEY_CERT generation (1.82)
+# 2016-11-17 add PREVENT_NON_INTERACTIVE_RENEWAL option (1.83)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.82"
+VERSION="1.83"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -557,7 +558,6 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
   all_auth_dns_servers=$(nslookup -type=soa -type=ns "$gad_d" "$gad_s" \
                         | awk ' $2 ~ "nameserver" {print $4}' \
                         | sed 's/\.$//g'| tr '\n' ' ')
-
   if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
     primary_ns="$all_auth_dns_servers"
   else
@@ -665,7 +665,7 @@ get_signing_params() { # get signing parameters from key
         *) error_exit "invalid curve algorithm type $gsp_keytype";;
       esac
     fi
-    case "$crv" in  
+    case "$crv" in
       P-256) jwkalg="ES256" ; signalg="sha256" ;;
       P-384) jwkalg="ES384" ; signalg="sha384" ;;
       P-521) jwkalg="ES512" ; signalg="sha512" ;;
@@ -1404,7 +1404,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
           # remote has longer to expiry date than local copy.
           debug "remote cert has longer to run than local cert - ignoring"
         else
-          info "remote expires sooner than local, attempting to upload from local"
+          info "remote expires sooner than local for $DOMAIN, attempting to upload from local"
           copy_file_to_location "domain certificate" \
                                 "$CERT_FILE" \
                                 "$DOMAIN_CERT_LOCATION"
@@ -1457,7 +1457,11 @@ if [[ -s "$CERT_FILE" ]]; then
 fi
 # end of .... if there is an existing certificate file, check details.
 
-
+if [[ ! -t 0 ]] && [[ "$PREVENT_NON_INTERACTIVE_RENEWAL" = "true" ]]; then
+  errmsg="$DOMAIN due for renewal, "
+  errmsg+="Did not not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
+  error_exit "$errmsg"
+fi
 
 # create account key if it doesn't exist.
 if [[ -s "$ACCOUNT_KEY" ]]; then
@@ -1544,10 +1548,6 @@ else
 fi
 
 info "Registering account"
-regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
-if [[ "$ACCOUNT_EMAIL" ]] ; then
-  regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
-fi
 # send the request to the ACME server.
 send_signed_request   "$CA/acme/new-reg"  "$regjson"
 
@@ -1721,7 +1721,7 @@ for d in $alldomains; do
         ftp -n <<- EOF
 				open $ftphost
 				user $ftpuser $ftppass
-				cd $ftplocn 
+				cd $ftplocn
 				delete ${token:?}
 				EOF
       else
@@ -1893,6 +1893,9 @@ reload_service
 if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
   debug "in deactivate list is $deactivate_url_list"
   for deactivate_url in $deactivate_url_list; do
+    resp=$(curl "$deactivate_url" 2>/dev/null)
+    d=$(json_get "$resp" "hostname")
+    info "deactivating domain $d"
     debug "deactivating  $deactivate_url"
     send_signed_request "$deactivate_url" "{\"resource\": \"authz\", \"status\": \"deactivated\"}"
     # check response
