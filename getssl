@@ -157,10 +157,11 @@
 # 2016-11-09 Add SKIP_HTTP_TOKEN_CHECK option (Issue #170) (1.81)
 # 2016-11-13 bug fix DOMAIN_KEY_CERT generation (1.82)
 # 2016-11-17 add PREVENT_NON_INTERACTIVE_RENEWAL option (1.83)
+# 2016-12-03 add HTTP_TOKEN_CHECK_WAIT option (1.84)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.83"
+VERSION="1.84"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -189,6 +190,7 @@ DEACTIVATE_AUTH="false"
 PREVIOUSLY_VALIDATED="true"
 DUAL_RSA_ECDSA="false"
 SKIP_HTTP_TOKEN_CHECK="false"
+HTTP_TOKEN_CHECK_WAIT=0
 ORIG_UMASK=$(umask)
 _USE_DEBUG=0
 _CREATE_CONFIG=0
@@ -1694,6 +1696,7 @@ for d in $alldomains; do
       if [[ "$SKIP_HTTP_TOKEN_CHECK" == "true" ]]; then
         info "SKIP_HTTP_TOKEN_CHECK=true so not checking that token is working correctly"
       else
+        sleep "$HTTP_TOKEN_CHECK_WAIT"
         # check that we can reach the challenge ourselves, if not, then error
         if [[ ! "$(curl -k --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
           error_exit "for some reason could not reach $wellknown_url - please check it manually"
