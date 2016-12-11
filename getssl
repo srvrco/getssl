@@ -158,10 +158,11 @@
 # 2016-11-13 bug fix DOMAIN_KEY_CERT generation (1.82)
 # 2016-11-17 add PREVENT_NON_INTERACTIVE_RENEWAL option (1.83)
 # 2016-12-03 add HTTP_TOKEN_CHECK_WAIT option (1.84)
+# 2016-12-03 bugfix CSR renewal when no SANS and when using MINGW (1.85)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.84"
+VERSION="1.85"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -419,7 +420,7 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
   if [[ -s "$csr_file" ]]; then
     debug "domain csr exists at - $csr_file"
     # check all domains in config are in csr
-    alldomains=$(echo "$DOMAIN,$SANS" | sed -e 's/ //g; y/,/\n/' | sort -u)
+    alldomains=$(echo "$DOMAIN,$SANS" | sed -e 's/ //g; s/,$//; y/,/\n/' | sort -u)
     domains_in_csr=$(openssl req -text -noout -in "$csr_file" \
         | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' \
         | sort -u)
@@ -445,7 +446,11 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
     tmp_conf=$(mktemp)
     cat "$SSLCONF" > "$tmp_conf"
     printf "[SAN]\n%s" "$SANLIST" >> "$tmp_conf"
-    openssl req -new -sha256 -key "$csr_key" -subj "/" -reqexts SAN -config "$tmp_conf" > "$csr_file"
+    if [[ "$os" == "mingw" ]]; then
+      openssl req -new -sha256 -key "$csr_key" -subj "//" -reqexts SAN -config "$tmp_conf" > "$csr_file"
+    else
+      openssl req -new -sha256 -key "$csr_key" -subj "/" -reqexts SAN -config "$tmp_conf" > "$csr_file"
+    fi
     rm -f "$tmp_conf"
   fi
 }
@@ -631,6 +636,8 @@ get_os() { # function to get the current Operating System
     os="mac"
   elif [[ ${uname_res:0:6} == "CYGWIN" ]]; then
     os="cygwin"
+  elif [[ ${uname_res:0:6} == "MINGW" ]]; then
+    os="mingw"
   else
     os="unknown"
   fi
