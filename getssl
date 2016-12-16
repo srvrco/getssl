@@ -159,10 +159,12 @@
 # 2016-11-17 add PREVENT_NON_INTERACTIVE_RENEWAL option (1.83)
 # 2016-12-03 add HTTP_TOKEN_CHECK_WAIT option (1.84)
 # 2016-12-03 bugfix CSR renewal when no SANS and when using MINGW (1.85)
+# 2016-12-16 create CSR_SUBJECT variable - Issue #193
+# 2016-12-16 added fullchain to archive (1.86)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.85"
+VERSION="1.86"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -191,6 +193,7 @@ DEACTIVATE_AUTH="false"
 PREVIOUSLY_VALIDATED="true"
 DUAL_RSA_ECDSA="false"
 SKIP_HTTP_TOKEN_CHECK="false"
+CSR_SUBJECT="/"
 HTTP_TOKEN_CHECK_WAIT=0
 ORIG_UMASK=$(umask)
 _USE_DEBUG=0
@@ -215,14 +218,16 @@ cert_archive() {  # Archive certificate file by copying with dates at end.
   mkdir -p "${DOMAIN_DIR}/archive/${date_time}"
   umask 077
   cp "$CERT_FILE" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.crt"
-  cp "$CERT_FILE" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.csr"
+  cp "$DOMAIN_DIR/${DOMAIN}.csr" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.csr"
   cp "$DOMAIN_DIR/${DOMAIN}.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.key"
   cp "$CA_CERT" "${DOMAIN_DIR}/archive/${date_time}/chain.crt"
+  cat "$CERT_FILE" "$CA_CERT" > "${DOMAIN_DIR}/archive/${date_time}/fullchain.crt"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    cp "$CERT_FILE" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.crt"
-    cp "$CERT_FILE" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.csr"
-    cp "$DOMAIN_DIR/${DOMAIN}.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.key"
-    cp "$CA_CERT" "${DOMAIN_DIR}/archive/${date_time}/chain.ec.crt"
+    cp "${CERT_FILE::-4}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.crt"
+    cp "$DOMAIN_DIR/${DOMAIN}.ec.csr" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.csr"
+    cp "$DOMAIN_DIR/${DOMAIN}.ec.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.key"
+    cp "${CA_CERT::-4}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/chain.ec.crt"
+    cat "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "${DOMAIN_DIR}/archive/${date_time}/fullchain.ec.crt"
   fi
   umask "$ORIG_UMASK"
   debug "purging old GetSSL archives"
@@ -446,11 +451,7 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
     tmp_conf=$(mktemp)
     cat "$SSLCONF" > "$tmp_conf"
     printf "[SAN]\n%s" "$SANLIST" >> "$tmp_conf"
-    if [[ "$os" == "mingw" ]]; then
-      openssl req -new -sha256 -key "$csr_key" -subj "//" -reqexts SAN -config "$tmp_conf" > "$csr_file"
-    else
-      openssl req -new -sha256 -key "$csr_key" -subj "/" -reqexts SAN -config "$tmp_conf" > "$csr_file"
-    fi
+    openssl req -new -sha256 -key "$csr_key" -subj "$CSR_SUBJECT" -reqexts SAN -config "$tmp_conf" > "$csr_file"
     rm -f "$tmp_conf"
   fi
 }
