@@ -161,10 +161,11 @@
 # 2016-12-03 bugfix CSR renewal when no SANS and when using MINGW (1.85)
 # 2016-12-16 create CSR_SUBJECT variable - Issue #193
 # 2016-12-16 added fullchain to archive (1.86)
+# 2016-12-16 updated DOMAIN_PEM_LOCATION when using DUAL_RSA_ECDSA (1.87)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.86"
+VERSION="1.87"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -356,7 +357,7 @@ copy_file_to_location() { # copies a file, using scp if required.
         scp $from ${to:4}"
       fi
       debug "userid $TOKEN_USER_ID"
-      if [[ ! -z "$TOKEN_USER_ID" ]]; then
+      if [[ "$cert" == "challenge token" ]] && [[ ! -z "$TOKEN_USER_ID" ]]; then
         servername=$(echo "$to" | awk -F":" '{print $2}')
         tofile=$(echo "$to" | awk -F":" '{print $3}')
         debug "servername $servername"
@@ -410,7 +411,7 @@ copy_file_to_location() { # copies a file, using scp if required.
       if ! cp -p "$from" "$to" ; then
         error_exit "cannot copy $from to $to"
       fi
-      if [[ ! -z "$TOKEN_USER_ID" ]]; then
+      if [[ "$cert" == "challenge token" ]] && [[ ! -z "$TOKEN_USER_ID" ]]; then
         chown "$TOKEN_USER_ID" "$to"
       fi
     fi
@@ -1868,6 +1869,10 @@ if [[ ! -z "$DOMAIN_CHAIN_LOCATION" ]]; then
   fi
   cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
   copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$to_location"
+  if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+    cat "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}_chain.pem.ec"
+    copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem.ec"  "${to_location}.ec"
+  fi
 fi
 # if DOMAIN_KEY_CERT_LOCATION is not blank, then create and copy file.
 if [[ ! -z "$DOMAIN_KEY_CERT_LOCATION" ]]; then
@@ -1878,6 +1883,10 @@ if [[ ! -z "$DOMAIN_KEY_CERT_LOCATION" ]]; then
   fi
   cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
   copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem"  "$to_location"
+  if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+  cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"
+  copy_file_to_location "private ec key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"  "${to_location}.ec"
+  fi
 fi
 # if DOMAIN_PEM_LOCATION is not blank, then create and copy file.
 if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
@@ -1888,6 +1897,10 @@ if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
   fi
   cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
   copy_file_to_location "full key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem"  "$to_location"
+  if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+    cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}.pem.ec"
+    copy_file_to_location "full ec key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem.ec"  "${to_location}.ec"
+  fi
 fi
 # end of copying certs.
 
