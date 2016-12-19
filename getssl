@@ -164,10 +164,11 @@
 # 2016-12-16 updated DOMAIN_PEM_LOCATION when using DUAL_RSA_ECDSA (1.87)
 # 2016-12-19 allow user to ignore permission preservation with nfsv3 shares (1.88)
 # 2016-12-19 bug fix for CA (1.89)
+# 2016-12-19 included IGNORE_DIRECTORY_DOMAIN option (1.90)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.89"
+VERSION="1.90"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -198,6 +199,7 @@ DUAL_RSA_ECDSA="false"
 SKIP_HTTP_TOKEN_CHECK="false"
 CSR_SUBJECT="/"
 GETSSL_IGNORE_CP_PRESERVE="false"
+IGNORE_DIRECTORY_DOMAIN="false"
 HTTP_TOKEN_CHECK_WAIT=0
 ORIG_UMASK=$(umask)
 _USE_DEBUG=0
@@ -435,7 +437,11 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
   if [[ -s "$csr_file" ]]; then
     debug "domain csr exists at - $csr_file"
     # check all domains in config are in csr
-    alldomains=$(echo "$DOMAIN,$SANS" | sed -e 's/ //g; s/,$//; y/,/\n/' | sort -u)
+    if [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
+      alldomains=$(echo "$SANS" | sed -e 's/ //g; s/,$//; y/,/\n/' | sort -u)
+    else
+      alldomains=$(echo "$DOMAIN,$SANS" | sed -e 's/ //g; s/,$//; y/,/\n/' | sort -u)
+    fi
     domains_in_csr=$(openssl req -text -noout -in "$csr_file" \
         | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' \
         | sort -u)
@@ -1522,13 +1528,19 @@ fi
 #create SAN
 if [[ -z "$SANS" ]]; then
   SANLIST="subjectAltName=DNS:${DOMAIN}"
+elif [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
+  SANLIST="subjectAltName=DNS:${SANS//,/,DNS:}"
 else
   SANLIST="subjectAltName=DNS:${DOMAIN},DNS:${SANS//,/,DNS:}"
 fi
 debug "created SAN list = $SANLIST"
 
 # list of main domain and all domains in SAN
-alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
+if [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
+  alldomains=${SANS//,/ }
+else
+  alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
+fi
 
 # check domain and san list for duplicates
 echo "" > "$TEMP_DIR/sanlist"
@@ -1595,7 +1607,11 @@ fi
 info "Verify each domain"
 
 # loop through domains for cert ( from SANS list)
-alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
+if [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
+    alldomains=${SANS//,/ }
+else
+  alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
+fi
 dn=0
 for d in $alldomains; do
   # $d is domain in current loop, which is number $dn for ACL
