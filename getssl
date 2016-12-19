@@ -163,10 +163,11 @@
 # 2016-12-16 added fullchain to archive (1.86)
 # 2016-12-16 updated DOMAIN_PEM_LOCATION when using DUAL_RSA_ECDSA (1.87)
 # 2016-12-19 allow user to ignore permission preservation with nfsv3 shares (1.88)
+# 2016-12-19 bug fix for CA (1.89)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.88"
+VERSION="1.89"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -1241,12 +1242,6 @@ CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
 
-# Obtain CA resource locations
-ca_all_loc=$(curl "${CA}/directory" 2>/dev/null)
-URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
-URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
-URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
-
 # Set the OPENSSL_CONF environment variable so openssl knows which config to use
 export OPENSSL_CONF=$SSLCONF
 
@@ -1347,6 +1342,12 @@ if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
   # shellcheck source=/dev/null
   . "$DOMAIN_DIR/getssl.cfg"
 fi
+
+# Obtain CA resource locations
+ca_all_loc=$(curl "${CA}/directory" 2>/dev/null)
+URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
+URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
+URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
 
 # from SERVER_TYPE convert names to port numbers and additional data.
 if [[ ${SERVER_TYPE} == "https" ]] || [[ ${SERVER_TYPE} == "webserver" ]]; then
