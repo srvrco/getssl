@@ -162,10 +162,11 @@
 # 2016-12-16 create CSR_SUBJECT variable - Issue #193
 # 2016-12-16 added fullchain to archive (1.86)
 # 2016-12-16 updated DOMAIN_PEM_LOCATION when using DUAL_RSA_ECDSA (1.87)
+# 2016-12-19 allow user to ignore permission preservation with nfsv3 shares (1.88)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.87"
+VERSION="1.88"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -195,6 +196,7 @@ PREVIOUSLY_VALIDATED="true"
 DUAL_RSA_ECDSA="false"
 SKIP_HTTP_TOKEN_CHECK="false"
 CSR_SUBJECT="/"
+GETSSL_IGNORE_CP_PRESERVE="false"
 HTTP_TOKEN_CHECK_WAIT=0
 ORIG_UMASK=$(umask)
 _USE_DEBUG=0
@@ -408,8 +410,14 @@ copy_file_to_location() { # copies a file, using scp if required.
       if ! mkdir -p "$(dirname "$to")" ; then
         error_exit "cannot create ACL directory $(basename "$to")"
       fi
-      if ! cp -p "$from" "$to" ; then
-        error_exit "cannot copy $from to $to"
+      if [[ "$GETSSL_IGNORE_CP_PRESERVE" == "true" ]]; then
+        if ! cp "$from" "$to" ; then
+          error_exit "cannot copy $from to $to"
+        fi
+      else
+        if ! cp -p "$from" "$to" ; then
+          error_exit "cannot copy $from to $to"
+        fi
       fi
       if [[ "$cert" == "challenge token" ]] && [[ ! -z "$TOKEN_USER_ID" ]]; then
         chown "$TOKEN_USER_ID" "$to"
@@ -581,7 +589,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
 
   der=$(openssl req -in "$gc_csr" -outform DER | urlbase64)
   debug "der $der"
-  send_signed_request "$CA/acme/new-cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
+  send_signed_request "$URL_new_cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
 
   # convert certificate information into correct format and save to file.
   CertData=$(awk ' $1 ~ "^Location" {print $2}' "$CURL_HEADER" |tr -d '\r')
@@ -829,7 +837,7 @@ revoke_certificate() { #revoke a certificate
   TEMP_DIR=$(mktemp -d)
   debug "revoking from $CA"
   rcertdata=$(openssl x509 -in "$REVOKE_CERT" -inform PEM -outform DER | urlbase64)
-  send_signed_request "$CA/acme/revoke-cert" "{\"resource\": \"revoke-cert\", \"certificate\": \"$rcertdata\"}"
+  send_signed_request "$URL_revoke" "{\"resource\": \"revoke-cert\", \"certificate\": \"$rcertdata\"}"
   if [[ $code -eq "200" ]]; then
     info "certificate revoked"
   else
@@ -1198,6 +1206,7 @@ if [[ $_REVOKE -eq 1 ]]; then
   else
     CA=$REVOKE_CA
   fi
+  URL_revoke=$(curl "${CA}/directory" 2>/dev/null | grep "revoke-cert" | awk -F'"' '{print $4}')
   revoke_certificate
   graceful_exit
 fi
@@ -1231,6 +1240,12 @@ DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
+
+# Obtain CA resource locations
+ca_all_loc=$(curl "${CA}/directory" 2>/dev/null)
+URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
+URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
+URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
 
 # Set the OPENSSL_CONF environment variable so openssl knows which config to use
 export OPENSSL_CONF=$SSLCONF
@@ -1560,7 +1575,7 @@ fi
 
 info "Registering account"
 # send the request to the ACME server.
-send_signed_request   "$CA/acme/new-reg"  "$regjson"
+send_signed_request   "$URL_new_reg"  "$regjson"
 
 if [[ "$code" == "" ]] || [[ "$code" == '201' ]] ; then
   info "Registered"
@@ -1608,7 +1623,7 @@ for d in $alldomains; do
 
   # request a challenge token from ACME server
   request="{\"resource\":\"new-authz\",\"identifier\":{\"type\":\"dns\",\"value\":\"$d\"}}"
-  send_signed_request "$CA/acme/new-authz" "$request"
+  send_signed_request "$URL_new_authz" "$request"
 
   debug "completed send_signed_request"
   # check if we got a valid response and token, if not then error exit
