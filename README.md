@@ -25,6 +25,7 @@ Alternative you can use git
 ```
 git clone https://github.com/srvrco/getssl.git
 ```
+If you use puppet, there is a [GetSSL Puppet module](https://github.com/dthielking/puppet_getssl) by dthielking
 
 ## Overview
 
@@ -93,7 +94,7 @@ reloading SSL services
 Change the server in your config file to get a fully valid certificate.
 
 **Note:**   Verification is done via port 80(http), port 443(https) or dns.  The certificate can be used ( and checked with getssl) on alternate ports.
- 
+
 ## Automating updates
 
 I use the following cron
@@ -110,7 +111,7 @@ The cron will automatically update getssl and  renew any certificates, only givi
 
 The design aim was to provide flexibility in running the code.  The default working directory is ~/.getssl ( which can be modified via the command line)
 
-Within the **working directory** is a config file, getssl.cfg which is a simple bash file containing variables, an example of which is 
+Within the **working directory** is a config file, getssl.cfg which is a simple bash file containing variables, an example of which is
 
 ```
 # Uncomment and modify any variables you need
@@ -190,7 +191,7 @@ RELOAD_CMD="service apache2 reload"
 #DNS_EXTRA_WAIT=60
 ```
 
-If a location for a file starts with ssh:  it is assumed the next part of the file is the hostname, followed by a colon, and then the path. 
+If a location for a file starts with ssh:  it is assumed the next part of the file is the hostname, followed by a colon, and then the path.
 Files will be securely copied using scp, and it assumes that you have a key on the server ( for passwordless access).  You can set the user, port etc for the server in your .ssh/config file
 
 If an ACL starts with ftp: or sftp: it as assumed that the line is in the format "ftp:UserID:Password:servername:/path/to/acme-challenge". sftp requires sshpass.
@@ -198,6 +199,7 @@ Note:  FTP can be used for copying tokens only and can **not** be used for uploa
 
 ssh can also be used for the reload command if using on remote servers.
 
+Multiple locations can be defined for a file by separating the locations with a semi-colon.
 
 ## Server-Types
 OpenSSL has built-in support for getting the certificate from a number of SSL services
