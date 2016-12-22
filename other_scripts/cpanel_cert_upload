@@ -1,0 +1,31 @@
+#!/bin/bash
+#
+# a simple script for use on shared cpanel server to automatically add the
+# the certificates to cpanel if the uapi function is available
+# use with RELOAD_CMD="${HOME}/cpanel_cert_upload domain.com"
+
+domain="$1"
+
+rawurlencode() {
+  local string
+  string=$(cat "${1}")
+  local strlen=${#string}
+  local encoded=""
+  local pos c o
+
+  for (( pos=0 ; pos<strlen ; pos++ )); do
+     c=${string:$pos:1}
+     case "$c" in
+        [-_.~a-zA-Z0-9] ) o="${c}" ;;
+        * )               printf -v o '%%%02x' "'$c"
+     esac
+     encoded+="${o}"
+  done
+  echo "${encoded}"
+}
+
+ecert=$( rawurlencode "${HOME}/.getssl/${domain}/${domain}.crt" )
+ekey=$( rawurlencode "${HOME}/.getssl/${domain}/${domain}.key" )
+echain=$( rawurlencode "${HOME}/.getssl/${domain}/chain.crt" )
+
+uapi SSL install_ssl domain="${domain}" cert="${ecert}" key="${ekey}" cabundle="${echain}"
