@@ -165,10 +165,11 @@
 # 2016-12-19 allow user to ignore permission preservation with nfsv3 shares (1.88)
 # 2016-12-19 bug fix for CA (1.89)
 # 2016-12-19 included IGNORE_DIRECTORY_DOMAIN option (1.90)
+# 2016-12-22 allow copying files to multiple locations (1.91)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.90"
+VERSION="1.91"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -352,7 +353,8 @@ copy_file_to_location() { # copies a file, using scp if required.
   cert=$1   # descriptive name, just used for display
   from=$2   # current file location
   to=$3     # location to move file to.
-  if [[ ! -z "$to" ]]; then
+  IFS=\; read -r -a copy_locations <<<"$3"
+  for to in "${copy_locations[@]}"; do
     info "copying $cert to $to"
     debug "copying from $from to $to"
     if [[ "${to:0:4}" == "ssh:" ]] ; then
@@ -427,7 +429,7 @@ copy_file_to_location() { # copies a file, using scp if required.
       fi
     fi
     debug "copied $from to $to"
-  fi
+  done
 }
 
 create_csr() { # create a csr using a given key (if it doesn't already exist)
@@ -1747,30 +1749,33 @@ for d in $alldomains; do
       check_challenge_completion "$uri" "$d" "$keyauthorization"
 
       debug "remove token from ${DOMAIN_ACL}"
-      if [[ "${DOMAIN_ACL:0:4}" == "ssh:" ]] ; then
-        sshhost=$(echo "${DOMAIN_ACL}"| awk -F: '{print $2}')
-        command="rm -f ${DOMAIN_ACL:(( ${#sshhost} + 5))}/${token:?}"
-        debug "running following command to remove token"
-        debug "ssh $sshhost ${command}"
-        # shellcheck disable=SC2029
-        ssh "$sshhost" "${command}" 1>/dev/null 2>&1
-        rm -f "${TEMP_DIR:?}/${token:?}"
-      elif [[ "${DOMAIN_ACL:0:4}" == "ftp:" ]] ; then
-        debug "using ftp to remove token file"
-        ftpuser=$(echo "${DOMAIN_ACL}"| awk -F: '{print $2}')
-        ftppass=$(echo "${DOMAIN_ACL}"| awk -F: '{print $3}')
-        ftphost=$(echo "${DOMAIN_ACL}"| awk -F: '{print $4}')
-        ftplocn=$(echo "${DOMAIN_ACL}"| awk -F: '{print $5}')
-        debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost location=$ftplocn"
-        ftp -n <<- EOF
-				open $ftphost
-				user $ftpuser $ftppass
-				cd $ftplocn
-				delete ${token:?}
-				EOF
-      else
-        rm -f "${DOMAIN_ACL:?}/${token:?}"
-      fi
+      IFS=\; read -r -a token_locations <<<"$DOMAIN_ACL"
+      for t_loc in "${token_locations[@]}"; do
+        if [[ "${t_loc:0:4}" == "ssh:" ]] ; then
+          sshhost=$(echo "${t_loc}"| awk -F: '{print $2}')
+          command="rm -f ${t_loc:(( ${#sshhost} + 5))}/${token:?}"
+          debug "running following command to remove token"
+          debug "ssh $sshhost ${command}"
+          # shellcheck disable=SC2029
+          ssh "$sshhost" "${command}" 1>/dev/null 2>&1
+          rm -f "${TEMP_DIR:?}/${token:?}"
+        elif [[ "${t_loc:0:4}" == "ftp:" ]] ; then
+          debug "using ftp to remove token file"
+          ftpuser=$(echo "${t_loc}"| awk -F: '{print $2}')
+          ftppass=$(echo "${t_loc}"| awk -F: '{print $3}')
+          ftphost=$(echo "${t_loc}"| awk -F: '{print $4}')
+          ftplocn=$(echo "${t_loc}"| awk -F: '{print $5}')
+          debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost location=$ftplocn"
+          ftp -n <<- EOF
+					open $ftphost
+					user $ftpuser $ftppass
+					cd $ftplocn
+					delete ${token:?}
+					EOF
+        else
+          rm -f "${t_loc:?}/${token:?}"
+        fi
+      done
     fi
     # increment domain-counter
     ((dn++))
