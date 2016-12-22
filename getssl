@@ -166,10 +166,11 @@
 # 2016-12-19 bug fix for CA (1.89)
 # 2016-12-19 included IGNORE_DIRECTORY_DOMAIN option (1.90)
 # 2016-12-22 allow copying files to multiple locations (1.91)
+# 2016-12-22 bug fix for copying tokens to multiple locations (1.92)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.91"
+VERSION="1.92"
 
 # defaults
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -1727,10 +1728,13 @@ for d in $alldomains; do
 
       # copy to token to acme challenge location
       umask 0022
-      debug "copying file from $TEMP_DIR/$token to ${DOMAIN_ACL}"
-      copy_file_to_location "challenge token" \
-                            "$TEMP_DIR/$token" \
-                            "${DOMAIN_ACL}/$token"
+      IFS=\; read -r -a token_locations <<<"$DOMAIN_ACL"
+      for t_loc in "${token_locations[@]}"; do
+        debug "copying file from $TEMP_DIR/$token to ${t_loc}"
+        copy_file_to_location "challenge token" \
+                              "$TEMP_DIR/$token" \
+                              "${t_loc}/$token"
+      done
       umask "$ORIG_UMASK"
 
       wellknown_url="${CHALLENGE_CHECK_TYPE}://$d/.well-known/acme-challenge/$token"
