@@ -666,7 +666,7 @@ get_os() { # function to get the current Operating System
 
 get_signing_params() { # get signing parameters from key
   skey=$1
-  if [[ "$(grep -c "RSA PRIVATE KEY" "$skey")" -gt 0 ]]; then # RSA key
+  if openssl rsa -in "${skey}" -noout 2>/dev/null ; then # RSA key
     pub_exp64=$(openssl rsa -in "${skey}" -noout -text \
                 | grep publicExponent \
                 | grep -oE "0x[a-f0-9]+" \
@@ -681,7 +681,7 @@ get_signing_params() { # get signing parameters from key
     jwk='{"e":"'"${pub_exp64}"'","kty":"RSA","n":"'"${pub_mod64}"'"}'
     jwkalg="RS256"
     signalg="sha256"
-  elif [[ "$(grep -c "EC PRIVATE KEY" "$skey")" -gt 0 ]]; then # Elliptic curve key.
+  elif openssl ec -in "${skey}" -noout 2>/dev/null ; then # Elliptic curve key.
     crv="$(openssl ec -in  "$skey" -noout -text 2>/dev/null | awk '$2 ~ "CURVE:" {print $3}')"
     if [[ -z "$crv" ]]; then
       gsp_keytype="$(openssl ec -in  "$skey" -noout -text 2>/dev/null \
@@ -941,9 +941,9 @@ sign_string() { #sign a string with a given key and algorithm and return urlbase
   key=$2
   signalg=$3
 
-  if [[ "$(grep -c "RSA PRIVATE KEY" "$key")" -gt 0 ]]; then # RSA key
+  if openssl rsa -in "${skey}" -noout 2>/dev/null ; then # RSA key
     signed64="$(printf '%s' "${str}" | openssl dgst -"$signalg" -sign "$key" | urlbase64)"
-  elif [[ "$(grep -c "EC PRIVATE KEY" "$key")" -gt 0 ]]; then # Elliptic curve key.
+  elif openssl ec -in "${skey}" -noout 2>/dev/null ; then # Elliptic curve key.
     signed=$(printf '%s' "${str}" | openssl dgst -"$signalg" -sign "$key" -hex | awk '{print $2}')
     debug "EC signature $signed"
     if [[ "${signed:4:4}" == "0220" ]]; then #sha256
