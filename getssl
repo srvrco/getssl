@@ -167,53 +167,58 @@
 # 2016-12-19 included IGNORE_DIRECTORY_DOMAIN option (1.90)
 # 2016-12-22 allow copying files to multiple locations (1.91)
 # 2016-12-22 bug fix for copying tokens to multiple locations (1.92)
+# 2016-12-23 tidy code - place default variables in alphabetical order.
+# 2016-12-27 update checks to work with openssl in FIPS mode (1.93)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.92"
+VERSION="1.93"
 
 # defaults
-CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
-CA="https://acme-staging.api.letsencrypt.org"
-DEFAULT_REVOKE_CA="https://acme-v01.api.letsencrypt.org"
-ACCOUNT_KEY_TYPE="rsa"
 ACCOUNT_KEY_LENGTH=4096
-WORKING_DIR=~/.getssl
+ACCOUNT_KEY_TYPE="rsa"
+CA="https://acme-staging.api.letsencrypt.org"
+CA_CERT_LOCATION=""
+CHALLENGE_CHECK_TYPE="http"
+CHECK_ALL_AUTH_DNS="false"
+CHECK_REMOTE="true"
+CHECK_REMOTE_WAIT=0
+CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
+CSR_SUBJECT="/"
+DEACTIVATE_AUTH="false"
+DEFAULT_REVOKE_CA="https://acme-v01.api.letsencrypt.org"
+DNS_EXTRA_WAIT=""
+DNS_WAIT=10
 DOMAIN_KEY_LENGTH=4096
-SSLCONF="$(openssl version -d 2>/dev/null| cut -d\" -f2)/openssl.cnf"
-VALIDATE_VIA_DNS=""
+DUAL_RSA_ECDSA="false"
+GETSSL_IGNORE_CP_PRESERVE="false"
+HTTP_TOKEN_CHECK_WAIT=0
+IGNORE_DIRECTORY_DOMAIN="false"
+ORIG_UMASK=$(umask)
+PREVIOUSLY_VALIDATED="true"
+PRIVATE_KEY_ALG="rsa"
+PUBLIC_DNS_SERVER=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
 REUSE_PRIVATE_KEY="true"
-PRIVATE_KEY_ALG="rsa"
 SERVER_TYPE="https"
-CHECK_REMOTE="true"
-USE_SINGLE_ACL="false"
-CHECK_ALL_AUTH_DNS="false"
-DNS_WAIT=10
-DNS_EXTRA_WAIT=""
-CHECK_REMOTE_WAIT=0
-PUBLIC_DNS_SERVER=""
-CHALLENGE_CHECK_TYPE="http"
-DEACTIVATE_AUTH="false"
-PREVIOUSLY_VALIDATED="true"
-DUAL_RSA_ECDSA="false"
 SKIP_HTTP_TOKEN_CHECK="false"
-CSR_SUBJECT="/"
-GETSSL_IGNORE_CP_PRESERVE="false"
-IGNORE_DIRECTORY_DOMAIN="false"
-HTTP_TOKEN_CHECK_WAIT=0
-ORIG_UMASK=$(umask)
-_USE_DEBUG=0
-_CREATE_CONFIG=0
+SSLCONF="$(openssl version -d 2>/dev/null| cut -d\" -f2)/openssl.cnf"
+TOKEN_USER_ID=""
+USE_SINGLE_ACL="false"
+VALIDATE_VIA_DNS=""
+WORKING_DIR=~/.getssl
 _CHECK_ALL=0
+_CREATE_CONFIG=0
 _FORCE_RENEW=0
-_QUIET=0
 _MUTE=0
-_UPGRADE=0
-_UPGRADE_CHECK=1
+_QUIET=0
 _RECREATE_CSR=0
 _REVOKE=0
+_UPGRADE=0
+_UPGRADE_CHECK=1
+_USE_DEBUG=0
+
 
 # store copy of original command in case of upgrading script and re-running
 ORIGCMD="$0 $*"
@@ -666,7 +671,7 @@ get_os() { # function to get the current Operating System
 
 get_signing_params() { # get signing parameters from key
   skey=$1
-  if [[ "$(grep -c "RSA PRIVATE KEY" "$skey")" -gt 0 ]]; then # RSA key
+  if openssl rsa -in "${skey}" -noout 2>/dev/null ; then # RSA key
     pub_exp64=$(openssl rsa -in "${skey}" -noout -text \
                 | grep publicExponent \
                 | grep -oE "0x[a-f0-9]+" \
@@ -681,7 +686,7 @@ get_signing_params() { # get signing parameters from key
     jwk='{"e":"'"${pub_exp64}"'","kty":"RSA","n":"'"${pub_mod64}"'"}'
     jwkalg="RS256"
     signalg="sha256"
-  elif [[ "$(grep -c "EC PRIVATE KEY" "$skey")" -gt 0 ]]; then # Elliptic curve key.
+  elif openssl ec -in "${skey}" -noout 2>/dev/null ; then # Elliptic curve key.
     crv="$(openssl ec -in  "$skey" -noout -text 2>/dev/null | awk '$2 ~ "CURVE:" {print $3}')"
     if [[ -z "$crv" ]]; then
       gsp_keytype="$(openssl ec -in  "$skey" -noout -text 2>/dev/null \
@@ -710,7 +715,7 @@ get_signing_params() { # get signing parameters from key
     jwk='{"crv":"'"$crv"'","kty":"EC","x":"'"$x64"'","y":"'"$y64"'"}'
     debug "jwk $jwk"
   else
-    error_exit "Invlid key file"
+    error_exit "Invalid key file"
   fi
   thumbprint="$(printf "%s" "$jwk" | openssl dgst -sha256 -binary | urlbase64)"
   debug "jwk alg = $jwkalg"
@@ -941,9 +946,9 @@ sign_string() { #sign a string with a given key and algorithm and return urlbase
   key=$2
   signalg=$3
 
-  if [[ "$(grep -c "RSA PRIVATE KEY" "$key")" -gt 0 ]]; then # RSA key
+  if openssl rsa -in "${skey}" -noout 2>/dev/null ; then # RSA key
     signed64="$(printf '%s' "${str}" | openssl dgst -"$signalg" -sign "$key" | urlbase64)"
-  elif [[ "$(grep -c "EC PRIVATE KEY" "$key")" -gt 0 ]]; then # Elliptic curve key.
+  elif openssl ec -in "${skey}" -noout 2>/dev/null ; then # Elliptic curve key.
     signed=$(printf '%s' "${str}" | openssl dgst -"$signalg" -sign "$key" -hex | awk '{print $2}')
     debug "EC signature $signed"
     if [[ "${signed:4:4}" == "0220" ]]; then #sha256
