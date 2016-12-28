@@ -169,10 +169,11 @@
 # 2016-12-22 bug fix for copying tokens to multiple locations (1.92)
 # 2016-12-23 tidy code - place default variables in alphabetical order.
 # 2016-12-27 update checks to work with openssl in FIPS mode (1.93)
+# 2016-12-28 fix leftover tmpfiles in upgrade routine (1.94)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.93"
+VERSION="1.94"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -303,8 +304,10 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
   curl --silent "$CODE_LOCATION" --output "$temp_upgrade"
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
+    rm -f "$temp_upgrade"
     error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
   elif [[ $errcode -gt 0 ]]; then
+    rm -f "$temp_upgrade"
     error_exit "curl error : $errcode"
   fi
   latestversion=$(awk -F '"' '$1 == "VERSION=" {print $2}' "$temp_upgrade")
@@ -325,6 +328,7 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
         awk "/\(${VERSION}\)$/ {s=1} s; /\(${latestversion}\)$/ {s=0}" "$temp_upgrade" | awk '{if(NR>1)print}'
         echo ""
       fi
+      rm -f "$temp_upgrade"
       eval "$ORIGCMD"
       graceful_exit
     else
