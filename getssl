@@ -171,10 +171,12 @@
 # 2016-12-27 update checks to work with openssl in FIPS mode (1.93)
 # 2016-12-28 fix leftover tmpfiles in upgrade routine (1.94)
 # 2016-12-28 tidied up upgrade tmpfile handling (1.95)
+# 2017-01-01 update comments
+# 2017-01-01 create stable release 2.0 (2.00)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="1.95"
+VERSION="2.00"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -228,7 +230,7 @@ ORIGCMD="$0 $*"
 
 # Define all functions (in alphabetical order)
 
-cert_archive() {  # Archive certificate file by copying with dates at end.
+cert_archive() {  # Archive certificate file by copying files to dated archive dir.
   debug "creating an achive copy of current new certs"
   date_time=$(date +%Y_%m_%d_%H_%M)
   mkdir -p "${DOMAIN_DIR}/archive/${date_time}"
@@ -360,7 +362,7 @@ clean_up() { # Perform pre-exit housekeeping
   fi
 }
 
-copy_file_to_location() { # copies a file, using scp if required.
+copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
   cert=$1   # descriptive name, just used for display
   from=$2   # current file location
   to=$3     # location to move file to.
@@ -756,7 +758,7 @@ help_message() { # print out the help message
 	_EOF_
 }
 
-hex2bin() { # Remove spaces, add leading zero, escape as hex string and parse with printf
+hex2bin() { # Remove spaces, add leading zero, escape as hex string ensuring no trailing new line char
 #  printf -- "$(cat | os_esed -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
   echo -e -n "$(cat | os_esed -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
 }
@@ -848,7 +850,7 @@ reload_service() {  # Runs a command to reload services ( via ssh if needed)
   fi
 }
 
-revoke_certificate() { #revoke a certificate
+revoke_certificate() { # revoke a certificate
   debug "revoking cert $REVOKE_CERT"
   debug "using key $REVOKE_KEY"
   ACCOUNT_KEY="$REVOKE_KEY"
@@ -945,7 +947,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   done
 }
 
-sign_string() { #sign a string with a given key and algorithm and return urlbase64
+sign_string() { # sign a string with a given key and algorithm and return urlbase64
                 # sets the result in variable signed64
   str=$1
   key=$2
@@ -1017,7 +1019,7 @@ urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and 
   openssl base64 -e | tr -d '\n\r' | os_esed -e 's:=*$::g' -e 'y:+/:-_:'
 }
 
-usage() { # program usage
+usage() { # echos out the program usage
   echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet]"\
        "[-Q|--mute] [-u|--upgrade] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] domain"
 }
@@ -1031,8 +1033,6 @@ write_domain_template() { # write out a template file for a domain.
 	#CA="https://acme-staging.api.letsencrypt.org"
 	# This server issues full certificates, however has rate limits
 	#CA="https://acme-v01.api.letsencrypt.org"
-
-	#AGREEMENT="$AGREEMENT"
 
 	# Set an email address associated with your account - generally set at account level rather than domain.
 	#ACCOUNT_EMAIL="me@example.com"
@@ -1073,7 +1073,7 @@ write_domain_template() { # write out a template file for a domain.
 	#RELOAD_CMD=""
 	# The time period within which you want to allow renewal of a certificate
 	#  this prevents hitting some of the rate limits.
-	RENEW_ALLOW="30"
+	#RENEW_ALLOW="30"
 
 	# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
 	# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
@@ -1216,7 +1216,7 @@ if [[ $_UPGRADE_CHECK -eq 1 ]]; then
   check_getssl_upgrade
 fi
 
-# Revoke a certificate
+# Revoke a certificate if requested
 if [[ $_REVOKE -eq 1 ]]; then
   if [[ -z $REVOKE_CA ]]; then
     CA=$DEFAULT_REVOKE_CA
@@ -1253,7 +1253,7 @@ if [[ -s "$WORKING_DIR/getssl.cfg" ]]; then
   . "$WORKING_DIR/getssl.cfg"
 fi
 
-# Define defaults for variables unset in the main config.
+# Define defaults for variables not set in the main config.
 ACCOUNT_KEY="${ACCOUNT_KEY:=$WORKING_DIR/account.key}"
 DOMAIN_STORAGE="${DOMAIN_STORAGE:=$WORKING_DIR}"
 DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
@@ -1555,7 +1555,7 @@ else
   alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
 fi
 
-# check domain and san list for duplicates
+# check domain and SAN list for duplicates
 echo "" > "$TEMP_DIR/sanlist"
 for d in $alldomains; do
   if [[ "$(grep "^${d}$" "$TEMP_DIR/sanlist")" = "$d" ]]; then
