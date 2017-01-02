@@ -173,10 +173,11 @@
 # 2016-12-28 tidied up upgrade tmpfile handling (1.95)
 # 2017-01-01 update comments
 # 2017-01-01 create stable release 2.0 (2.00)
+# 2017-01-03 Added option to limit amount of old versions to keep (2.01)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.00"
+VERSION="2.01"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -216,6 +217,7 @@ WORKING_DIR=~/.getssl
 _CHECK_ALL=0
 _CREATE_CONFIG=0
 _FORCE_RENEW=0
+_KEEP_VERSIONS=""
 _MUTE=0
 _QUIET=0
 _RECREATE_CSR=0
@@ -329,6 +331,21 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
         echo "Updates are;"
         awk "/\(${VERSION}\)$/ {s=1} s; /\(${latestversion}\)$/ {s=0}" "$TEMP_UPGRADE_FILE" | awk '{if(NR>1)print}'
         echo ""
+      fi
+      if [[ -n "$_KEEP_VERSIONS" ]] && [[ "$_KEEP_VERSIONS" =~ ^[0-9]+$ ]]; then
+        # Obtain all locally stored old versions in getssl_versions
+        declare -a getssl_versions
+        shopt -s nullglob
+        for getssl_version in $0.v*; do
+          getssl_versions+=($getssl_version)
+        done
+        shopt -u nullglob
+        # Remove entries until given amount of old versions to keep is reached
+        while [[ ${#getssl_versions[@]} -gt $_KEEP_VERSIONS ]]; do
+          debug "removing old version ${getssl_versions[0]}"
+          rm "${getssl_versions[0]}"
+          getssl_versions=("${getssl_versions[@]:1}")
+        done
       fi
       eval "$ORIGCMD"
       graceful_exit
@@ -752,6 +769,7 @@ help_message() { # print out the help message
 	  -Q, --mute      Like -q, but mutes notification about successful upgrade
 	  -r, --revoke cert key  [CA_server] Revoke a certificate (the cert and key are required)
 	  -u, --upgrade   Upgrade getssl if a more recent version is available
+	  -k, --keep #    Maximum amount of old getssl versions to keep when upgrading
 	  -U, --nocheck   Do not check if a more recent version is available
 	  -w working_dir  Working directory
 
@@ -1021,7 +1039,7 @@ urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and 
 
 usage() { # echos out the program usage
   echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet]"\
-       "[-Q|--mute] [-u|--upgrade] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] domain"
+       "[-Q|--mute] [-u|--upgrade] [-k|---keep #] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] domain"
 }
 
 write_domain_template() { # write out a template file for a domain.
@@ -1164,6 +1182,8 @@ while [[ -n $1 ]]; do
      _FORCE_RENEW=1 ;;
     -a | --all)
      _CHECK_ALL=1 ;;
+    -k | --keep)
+     shift; _KEEP_VERSIONS="$1";;
     -q | --quiet)
      _QUIET=1 ;;
     -Q | --mute)

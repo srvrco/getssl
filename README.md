@@ -32,10 +32,10 @@ If you use puppet, there is a [GetSSL Puppet module](https://github.com/dthielki
 GetSSL was written in standard bash ( so it can be run on a server,  a desktop computer, or even a virtualbox) and add the checks, and certificates to a remote server ( providing you have a ssh with key, sftp or ftp access to the remote server).
 
 ```
-getssl ver. 1.81
+getssl ver. 2.01
 Obtain SSL certificates from the letsencrypt.org ACME server
 
-Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] domain
+Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-k|--keep #] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] domain
 
 Options:
   -a, --all       Check all certificates
@@ -47,6 +47,7 @@ Options:
   -Q, --mute      Like -q, but mutes notification about successful upgrade
   -r, --revoke cert key  [CA_server] Revoke a certificate (the cert and key are required)
   -u, --upgrade   Upgrade getssl if a more recent version is available
+  -k, --keep <#>  Maximum amount of old getssl versions to keep when upgrading
   -U, --nocheck   Do not check if a more recent version is available
   -w working_dir  Working directory
 ```
