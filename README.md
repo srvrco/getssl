@@ -47,7 +47,7 @@ Options:
   -Q, --mute      Like -q, but mutes notification about successful upgrade
   -r, --revoke cert key  [CA_server] Revoke a certificate (the cert and key are required)
   -u, --upgrade   Upgrade getssl if a more recent version is available
-  -k, --keep <#>  Maximum amount of old getssl versions to keep when upgrading
+  -k, --keep #    Maximum amount of old getssl versions to keep when upgrading
   -U, --nocheck   Do not check if a more recent version is available
   -w working_dir  Working directory
 ```
