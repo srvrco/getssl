@@ -340,6 +340,10 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
           getssl_versions+=($getssl_version)
         done
         shopt -u nullglob
+        # Explicitly sort the getssl_versions array to make sure
+        shopt -s -o noglob
+        IFS=$'\n' getssl_versions=($(sort <<< "${getssl_versions[*]}"))
+        shopt -u -o noglob
         # Remove entries until given amount of old versions to keep is reached
         while [[ ${#getssl_versions[@]} -gt $_KEEP_VERSIONS ]]; do
           debug "removing old version ${getssl_versions[0]}"
