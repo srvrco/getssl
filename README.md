@@ -228,9 +228,10 @@ these are available in getssl to check if the certificate is installed correctly
 
 In general revoking a certificate is not required.
 
-usage: getssl -r path/to/cert path/to/key
+usage: getssl -r path/to/cert path/to/key [CA_server]
 
-You need to specify both the certificate you want to revoke, and the account or private domain key which was used to sign / obtain the original key.
+You need to specify both the certificate you want to revoke, and the account or private domain key which was used to sign / obtain the original certificate.  The CA_server is an optional parameter and defaults to Let's Encrypt ( "https://acme-v01.api.letsencrypt.org" ) as that is currently the only Certificate Authority using the ACME protocol.
+
 
 ##Elliptic curve keys
 You can use Elliptic curve keys for both the account key and the domain key (different of course, don't use the same key for both). prime256v1 (NIST P-256) and secp384r1 (NIST P-384) are both fully supported.  secp521r1 (NIST P-521) is included in the code, but not currently supported by Let's Encrypt).
