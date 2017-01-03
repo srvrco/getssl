@@ -308,6 +308,16 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 
 check_config() { # check the config files for all obvious errors
   debug "checking config"
+
+  if [[ ! "$ACCOUNT_KEY_TYPE" =~ ^(rsa|prime256v1|secp384r1|secp521r1)$ ]]; then
+    info "invalid ACCOUNT_KEY_TYPE"
+    config_errors=true
+  fi
+  if [[ ! "$PRIVATE_KEY_ALG" =~ ^(rsa|prime256v1|secp384r1|secp521r1)$ ]]; then
+    info "invalid PRIVATE_KEY_ALG"
+    config_errors=true
+  fi
+
   # get all domains
   if [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
     alldomains=${SANS//,/ }
