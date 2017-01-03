@@ -305,6 +305,67 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
   fi
 }
 
+check_config() { # check the config files for all obvious errors
+  debug "checking config"
+  # get all domains
+  if [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
+    alldomains=${SANS//,/ }
+  else
+    alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
+  fi
+
+  dn=0
+  tmplist=$(mktemp)
+  for d in $alldomains; do # loop over domains (dn is domain number)
+    if [[ "$(grep "^${d}$" "$tmplist")" = "$d" ]]; then
+      echo "$d appears to be duplicated in domain, SAN list"
+      config_errors=true
+    else
+      echo "$d" >> "$tmplist"
+    fi
+
+    if [[ "$USE_SINGLE_ACL" == "true" ]]; then
+      DOMAIN_ACL="${ACL[0]}"
+    else
+      DOMAIN_ACL="${ACL[$dn]}"
+    fi
+
+    if [[ $VALIDATE_VIA_DNS == "true" ]]; then # using dns-01 challenge
+      if [[ -z "$DNS_ADD_COMMAND" ]]; then
+        info "DNS_ADD_COMMAND not defined for $d"
+        config_errors=true
+      fi
+      if [[ -z "$DNS_DEL_COMMAND" ]]; then
+        info "DNS_DEL_COMMAND not defined for $d"
+        config_errors=true
+      fi
+    else # not using dns-01 challenge - using http-01 challenge
+      if [[ -z "${DOMAIN_ACL}" ]]; then
+        info "ACL location not specified for domain $d in $DOMAIN_DIR/getssl.cfg"
+        config_errors=true
+      fi
+      # check domain exist
+      if [[ "$(nslookup -query=AAAA "${d}"|grep -c "^${d}.*has AAAA address")" -ge 1 ]]; then
+        debug "found IPv6 record for ${d}"
+      elif [[ "$(nslookup "${d}"| grep -c ^Name)" -ge 1 ]]; then
+        debug "found IPv4 record for ${d}"
+      else
+        info "DNS lookup failed for $d"
+        config_errors=true
+      fi
+    fi # end of dns-01 http-01 check
+    ((dn++))
+  done
+
+  # tidy up
+  rm -f "$tmplist"
+
+  if [[ "$config_errors" == "true" ]]; then
+    error_exit "exiting due to config errors"
+  fi
+  debug "check_config completed  - all OK"
+}
+
 check_getssl_upgrade() { # check if a more recent version of code is available available
   TEMP_UPGRADE_FILE="$(mktemp)"
   curl --silent "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
@@ -1079,13 +1140,13 @@ write_domain_template() { # write out a template file for a domain.
 	#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
 
-	#Enable use of a single ACL for all checks
-	#USE_SINGLE_ACL="true"
+	#Set USE_SINGLE_ACL="true" to use a single ACL for all checks
+	#USE_SINGLE_ACL="false"
 
 	# Location for all your certs, these can either be on the server (full path name)
 	# or using ssh /sftp as for the ACL
-	#DOMAIN_CERT_LOCATION="ssh:server5:/etc/ssl/domain.crt"
-	#DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
+	#DOMAIN_CERT_LOCATION="/etc/ssl/domain.crt"
+	#DOMAIN_KEY_LOCATION="/etc/ssl/domain.key"
 	#CA_CERT_LOCATION="/etc/ssl/chain.crt"
 	#DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
 	#DOMAIN_KEY_CERT_LOCATION="" # this is the domain_key and domain cert
@@ -1108,9 +1169,6 @@ write_domain_template() { # write out a template file for a domain.
 	#VALIDATE_VIA_DNS="true"
 	#DNS_ADD_COMMAND=
 	#DNS_DEL_COMMAND=
-	#AUTH_DNS_SERVER=""
-	#DNS_WAIT=10
-	#DNS_EXTRA_WAIT=60
 	_EOF_domain_
 }
 
@@ -1174,10 +1232,11 @@ trap "signal_exit TERM" TERM HUP
 trap "signal_exit INT"  INT
 
 # Parse command-line
-while [[ -n $1 ]]; do
+while [[ -n ${1+defined} ]]; do
   case $1 in
     -h | --help)
-      help_message; graceful_exit ;;
+      help_message
+      graceful_exit ;;
     -d | --debug)
      _USE_DEBUG=1 ;;
     -c | --create)
@@ -1211,7 +1270,13 @@ while [[ -n $1 ]]; do
       usage
       error_exit "Unknown option $1" ;;
     *)
-      DOMAIN="$1" ;;
+      if [[ ! -z $DOMAIN ]]; then
+        error_exit "invalid command line $DOMAIN - it appears to contain more than one domain"
+      fi
+      DOMAIN="$1"
+      if [[ -z $DOMAIN ]]; then
+        error_exit "invalid command line - it appears to contain a null variable"
+      fi ;;
   esac
   shift
 done
@@ -1385,6 +1450,8 @@ if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
   # shellcheck source=/dev/null
   . "$DOMAIN_DIR/getssl.cfg"
 fi
+
+check_config
 
 # Obtain CA resource locations
 ca_all_loc=$(curl "${CA}/directory" 2>/dev/null)
@@ -1572,38 +1639,6 @@ else
 fi
 debug "created SAN list = $SANLIST"
 
-# list of main domain and all domains in SAN
-if [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
-  alldomains=${SANS//,/ }
-else
-  alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
-fi
-
-# check domain and SAN list for duplicates
-echo "" > "$TEMP_DIR/sanlist"
-for d in $alldomains; do
-  if [[ "$(grep "^${d}$" "$TEMP_DIR/sanlist")" = "$d" ]]; then
-    error_exit "$d appears to be duplicated in domain, SAN list"
-  else
-    echo "$d" >> "$TEMP_DIR/sanlist"
-  fi
-  # check nslookup for domains (ignore if using DNS check, as site may not be published yet)
-  if [[ $VALIDATE_VIA_DNS != "true" ]]; then
-    debug "checking nslookup for ${d}"
-    if [[ "$(nslookup -query=AAAA "${d}"|grep -c "^${d}.*has AAAA address")" -ge 1 ]]; then
-        debug "found IPv6 record for ${d}"
-    elif [[ "$(nslookup "${d}"| grep -c ^Name)" -ge 1 ]]; then
-        debug "found IPv4 record for ${d}"
-    else
-        error_exit "DNS lookup failed for $d"
-    fi
-  fi
-done
-# End of setting up SANS.
-
-
-
-
 #create CSR's
 if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
   create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
@@ -1657,22 +1692,6 @@ for d in $alldomains; do
     DOMAIN_ACL="${ACL[0]}"
   else
     DOMAIN_ACL="${ACL[$dn]}"
-  fi
-
-  # check if we have the information needed to place the challenge
-  if [[ $VALIDATE_VIA_DNS == "true" ]]; then
-    if [[ -z "$DNS_ADD_COMMAND" ]]; then
-      error_exit "DNS_ADD_COMMAND not defined for domain $d"
-    fi
-    if [[ -z "$DNS_DEL_COMMAND" ]]; then
-      error_exit "DNS_DEL_COMMAND not defined for domain $d"
-    fi
-  else
-    if [[ -z "${DOMAIN_ACL}" ]]; then
-      error_exit "ACL location not specified for domain $d in $DOMAIN_DIR/getssl.cfg"
-    else
-      debug "domain $d has ACL = ${DOMAIN_ACL}"
-    fi
   fi
 
   # request a challenge token from ACME server
@@ -1856,7 +1875,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
               sleep $DNS_WAIT
             else
               debug "dns check failed - removing existing value"
-              error_exit "checking _acme-challenge.$DOMAIN gave $check_result not $auth_key"
+              error_exit "checking _acme-challenge.${d} gave $check_result not $auth_key"
             fi
           fi
         done
