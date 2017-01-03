@@ -309,12 +309,17 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 check_config() { # check the config files for all obvious errors
   debug "checking config"
 
+  # check keys
   if [[ ! "$ACCOUNT_KEY_TYPE" =~ ^(rsa|prime256v1|secp384r1|secp521r1)$ ]]; then
-    info "invalid ACCOUNT_KEY_TYPE"
+    info "${DOMAIN}: invalid ACCOUNT_KEY_TYPE"
     config_errors=true
   fi
   if [[ ! "$PRIVATE_KEY_ALG" =~ ^(rsa|prime256v1|secp384r1|secp521r1)$ ]]; then
-    info "invalid PRIVATE_KEY_ALG"
+    info "${DOMAIN}: invalid PRIVATE_KEY_ALG"
+    config_errors=true
+  fi
+  if [[ "$DUAL_RSA_ECDSA" == "true" ]] && [[ "$PRIVATE_KEY_ALG" == "rsa" ]]; then
+    info "${DOMAIN}: PRIVATE_KEY_ALG not set to an EC type and DUAL_RSA_ECDSA=\"true\""
     config_errors=true
   fi
 
@@ -324,14 +329,18 @@ check_config() { # check the config files for all obvious errors
   else
     alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
   fi
+  if [[ -z "$alldomains" ]]; then
+    info "${DOMAIN}: no domains specified"
+    config_errors=true
+  fi
 
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then # using dns-01 challenge
     if [[ -z "$DNS_ADD_COMMAND" ]]; then
-      info "DNS_ADD_COMMAND not defined (whilst VALIDATE_VIA_DNS=true)"
+      info "${DOMAIN}: DNS_ADD_COMMAND not defined (whilst VALIDATE_VIA_DNS=\"true\")"
       config_errors=true
     fi
     if [[ -z "$DNS_DEL_COMMAND" ]]; then
-      info "DNS_DEL_COMMAND not defined (whilst VALIDATE_VIA_DNS=true)"
+      info "${DOMAIN}: DNS_DEL_COMMAND not defined (whilst VALIDATE_VIA_DNS=\"true\")"
       config_errors=true
     fi
   fi
@@ -339,8 +348,9 @@ check_config() { # check the config files for all obvious errors
   dn=0
   tmplist=$(mktemp)
   for d in $alldomains; do # loop over domains (dn is domain number)
+    debug "checking domain $d"
     if [[ "$(grep "^${d}$" "$tmplist")" = "$d" ]]; then
-      echo "$d appears to be duplicated in domain, SAN list"
+      info "${DOMAIN}: $d appears to be duplicated in domain, SAN list"
       config_errors=true
     else
       echo "$d" >> "$tmplist"
@@ -354,7 +364,7 @@ check_config() { # check the config files for all obvious errors
 
     if [[ $VALIDATE_VIA_DNS != "true" ]]; then # using http-01 challenge
       if [[ -z "${DOMAIN_ACL}" ]]; then
-        info "ACL location not specified for domain $d in $DOMAIN_DIR/getssl.cfg"
+        info "${DOMAIN}: ACL location not specified for domain $d in $DOMAIN_DIR/getssl.cfg"
         config_errors=true
       fi
       # check domain exist
@@ -363,7 +373,7 @@ check_config() { # check the config files for all obvious errors
       elif [[ "$(nslookup "${d}"| grep -c ^Name)" -ge 1 ]]; then
         debug "found IPv4 record for ${d}"
       else
-        info "DNS lookup failed for $d"
+        info "${DOMAIN}: DNS lookup failed for $d"
         config_errors=true
       fi
     fi # end http-01 check
@@ -374,9 +384,9 @@ check_config() { # check the config files for all obvious errors
   rm -f "$tmplist"
 
   if [[ "$config_errors" == "true" ]]; then
-    error_exit "exiting due to config errors"
+    error_exit "${DOMAIN}: exiting due to config errors"
   fi
-  debug "check_config completed  - all OK"
+  debug "${DOMAIN}: check_config completed  - all OK"
 }
 
 check_getssl_upgrade() { # check if a more recent version of code is available available
@@ -1158,12 +1168,12 @@ write_domain_template() { # write out a template file for a domain.
 
 	# Location for all your certs, these can either be on the server (full path name)
 	# or using ssh /sftp as for the ACL
-	#DOMAIN_CERT_LOCATION="/etc/ssl/domain.crt"
-	#DOMAIN_KEY_LOCATION="/etc/ssl/domain.key"
+	#DOMAIN_CERT_LOCATION="/etc/ssl/${DOMAIN}.crt"
+	#DOMAIN_KEY_LOCATION="/etc/ssl/${DOMAIN}.key"
 	#CA_CERT_LOCATION="/etc/ssl/chain.crt"
 	#DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
 	#DOMAIN_KEY_CERT_LOCATION="" # this is the domain_key and domain cert
-	#DOMAIN_PEM_LOCATION="" # this is the domain_key. domain cert and CA cert
+	#DOMAIN_PEM_LOCATION="" # this is the domain_key, domain cert and CA cert
 
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
@@ -1463,7 +1473,7 @@ if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
   . "$DOMAIN_DIR/getssl.cfg"
 fi
 
-# check config files for typical errors.
+# check config for typical errors.
 check_config
 
 # Obtain CA resource locations
