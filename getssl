@@ -173,7 +173,8 @@
 # 2016-12-28 tidied up upgrade tmpfile handling (1.95)
 # 2017-01-01 update comments
 # 2017-01-01 create stable release 2.0 (2.00)
-# 2017-01-03 Added option to limit amount of old versions to keep (2.01)
+# 2017-01-02 Added option to limit amount of old versions to keep (2.01)
+# 2017-01-03 Created check_config function to list any obvious config issues
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
