@@ -1248,8 +1248,7 @@ trap "signal_exit INT"  INT
 while [[ -n ${1+defined} ]]; do
   case $1 in
     -h | --help)
-      help_message
-      graceful_exit ;;
+      help_message; graceful_exit ;;
     -d | --debug)
      _USE_DEBUG=1 ;;
     -c | --create)
@@ -1464,6 +1463,7 @@ if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
   . "$DOMAIN_DIR/getssl.cfg"
 fi
 
+# check config files for typical errors.
 check_config
 
 # Obtain CA resource locations
@@ -1511,8 +1511,6 @@ else
   error_exit "unknown server type"
 fi
 # end of converting SERVER_TYPE names to port numbers and additional data.
-
-
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
@@ -1587,8 +1585,6 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
 fi
 # end of .... check_remote is true then connect and obtain the current certificate
 
-
-
 # if there is an existing certificate file, check details.
 if [[ -s "$CERT_FILE" ]]; then
   debug "certificate $CERT_FILE exists"
@@ -1597,9 +1593,14 @@ if [[ -s "$CERT_FILE" ]]; then
   if [[ "$enddate" != "-" ]]; then
     enddate_s=$(date_epoc "$enddate")
     if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]]; then
-      info "certificate for $DOMAIN is still valid for more than $RENEW_ALLOW days (until $enddate)"
-      # everything is OK, so exit.
-      graceful_exit
+      issuer=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null)
+      if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v01.api.letsencrypt.org" ]]; then
+        debug "upgradeing from fake cert to real"
+      else
+        info "certificate for $DOMAIN is still valid for more than $RENEW_ALLOW days (until $enddate)"
+        # everything is OK, so exit.
+        graceful_exit
+      fi
     else
       debug "certificate  for $DOMAIN needs renewal"
     fi
@@ -1621,7 +1622,6 @@ else
   create_key "$ACCOUNT_KEY_TYPE" "$ACCOUNT_KEY" "$ACCOUNT_KEY_LENGTH"
 fi
 
-
 # if not reusing priavte key, then remove the old keys
 if [[ "$REUSE_PRIVATE_KEY" != "true" ]]; then
   if [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
@@ -1640,8 +1640,6 @@ else
 fi
 # End of creating domain keys.
 
-
-
 #create SAN
 if [[ -z "$SANS" ]]; then
   SANLIST="subjectAltName=DNS:${DOMAIN}"
@@ -1659,7 +1657,6 @@ else
   create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
   create_csr "$DOMAIN_DIR/${DOMAIN}.ec.csr" "$DOMAIN_DIR/${DOMAIN}.ec.key"
 fi
-
 
 # use account key to register with CA
 # currently the code registers every time, and gets an "already registered" back if it has been.
@@ -1684,9 +1681,6 @@ else
   error_exit "Error registering account ... $(json_get "$response" detail)"
 fi
 # end of registering account with CA
-
-
-
 
 # verify each domain
 info "Verify each domain"
@@ -1920,9 +1914,6 @@ fi
 # end of ... perform validation if via DNS challenge
 #end of varify each domain.
 
-
-
-
 # Verification has been completed for all SANS, so  request certificate.
 info "Verification completed, obtaining certificate."
 
@@ -1940,9 +1931,6 @@ fi
 cert_archive
 
 debug "Certificates obtained and archived locally, will now copy to specified locations"
-
-
-
 
 # copy certs to the correct location (creating concatenated files as required)
 
@@ -2011,14 +1999,8 @@ if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
 fi
 # end of copying certs.
 
-
-
-
 # Run reload command to restart apache / nginx or whatever system
 reload_service
-
-
-
 
 # deactivate authorizations
 if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
@@ -2039,7 +2021,6 @@ if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
 fi
 # end of deactivating authorizations
 
-
 # Check if the certificate is installed correctly
 if [[ ${CHECK_REMOTE} == "true" ]]; then
   sleep "$CHECK_REMOTE_WAIT"
@@ -2056,12 +2037,9 @@ if [[ ${CHECK_REMOTE} == "true" ]]; then
 fi
 # end of Check if the certificate is installed correctly
 
-
-
 # To have reached here, a certificate should have been successfully obtained.
 # Use echo rather than info so that 'quiet' is ignored.
 echo "certificate obtained for ${DOMAIN}"
-
 
 # gracefully exit ( tidying up temporary files etc).
 graceful_exit
