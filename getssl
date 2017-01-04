@@ -1189,7 +1189,7 @@ while [[ -n $1 ]]; do
      _CHECK_ALL=1 ;;
     -k | --keep)
      shift; _KEEP_VERSIONS="$1";;
-	-n | --no-tokencheck)
+    -n | --no-tokencheck)
 	 _NO_TOKENCHECK=1 ;;
     -q | --quiet)
      _QUIET=1 ;;
