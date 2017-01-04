@@ -219,6 +219,7 @@ _CREATE_CONFIG=0
 _FORCE_RENEW=0
 _KEEP_VERSIONS=""
 _MUTE=0
+_NO_TOKENCHECK=0
 _QUIET=0
 _RECREATE_CSR=0
 _REVOKE=0
@@ -1188,6 +1189,8 @@ while [[ -n $1 ]]; do
      _CHECK_ALL=1 ;;
     -k | --keep)
      shift; _KEEP_VERSIONS="$1";;
+	-n | --no-tokencheck)
+	 _NO_TOKENCHECK=1
     -q | --quiet)
      _QUIET=1 ;;
     -Q | --mute)
@@ -1777,11 +1780,13 @@ for d in $alldomains; do
       if [[ "$SKIP_HTTP_TOKEN_CHECK" == "true" ]]; then
         info "SKIP_HTTP_TOKEN_CHECK=true so not checking that token is working correctly"
       else
-        sleep "$HTTP_TOKEN_CHECK_WAIT"
-        # check that we can reach the challenge ourselves, if not, then error
-        if [[ ! "$(curl -k --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
-          error_exit "for some reason could not reach $wellknown_url - please check it manually"
-        fi
+	    if [[ ${_NO_TOKENCHECK} -eq 0 ]]; then
+          sleep "$HTTP_TOKEN_CHECK_WAIT"
+          # check that we can reach the challenge ourselves, if not, then error
+          if [[ ! "$(curl -k --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
+            error_exit "for some reason could not reach $wellknown_url - please check it manually"
+          fi
+		fi
       fi
 
       check_challenge_completion "$uri" "$d" "$keyauthorization"
