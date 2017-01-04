@@ -1190,7 +1190,7 @@ while [[ -n $1 ]]; do
     -k | --keep)
      shift; _KEEP_VERSIONS="$1";;
 	-n | --no-tokencheck)
-	 _NO_TOKENCHECK=1
+	 _NO_TOKENCHECK=1 ;;
     -q | --quiet)
      _QUIET=1 ;;
     -Q | --mute)
@@ -1786,6 +1786,8 @@ for d in $alldomains; do
           if [[ ! "$(curl -k --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
             error_exit "for some reason could not reach $wellknown_url - please check it manually"
           fi
+		else
+		  debug "skipping HTTP_TOKEN_CHECK"
 		fi
       fi
 
