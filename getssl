@@ -174,11 +174,11 @@
 # 2017-01-01 update comments
 # 2017-01-01 create stable release 2.0 (2.00)
 # 2017-01-02 Added option to limit amount of old versions to keep (2.01)
-# 2017-01-03 Created check_config function to list any obvious config issues
+# 2017-01-03 Created check_config function to list all obvious config issues (2.02)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.01"
+VERSION="2.02"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -226,7 +226,7 @@ _REVOKE=0
 _UPGRADE=0
 _UPGRADE_CHECK=1
 _USE_DEBUG=0
-
+config_errors="false"
 
 # store copy of original command in case of upgrading script and re-running
 ORIGCMD="$0 $*"
@@ -981,6 +981,47 @@ requires() { # check if required function is available
   fi
 }
 
+set_server_type() { # uses SERVER_TYPE to set REMOTE_PORT and REMOTE_EXTRA
+  if [[ ${SERVER_TYPE} == "https" ]] || [[ ${SERVER_TYPE} == "webserver" ]]; then
+    REMOTE_PORT=443
+  elif [[ ${SERVER_TYPE} == "ftp" ]]; then
+    REMOTE_PORT=21
+    REMOTE_EXTRA="-starttls ftp"
+  elif [[ ${SERVER_TYPE} == "ftpi" ]]; then
+    REMOTE_PORT=990
+  elif [[ ${SERVER_TYPE} == "imap" ]]; then
+    REMOTE_PORT=143
+    REMOTE_EXTRA="-starttls imap"
+  elif [[ ${SERVER_TYPE} == "imaps" ]]; then
+    REMOTE_PORT=993
+  elif [[ ${SERVER_TYPE} == "pop3" ]]; then
+    REMOTE_PORT=110
+    REMOTE_EXTRA="-starttls pop3"
+  elif [[ ${SERVER_TYPE} == "pop3s" ]]; then
+    REMOTE_PORT=995
+  elif [[ ${SERVER_TYPE} == "smtp" ]]; then
+    REMOTE_PORT=25
+    REMOTE_EXTRA="-starttls smtp"
+  elif [[ ${SERVER_TYPE} == "smtps_deprecated" ]]; then
+    REMOTE_PORT=465
+  elif [[ ${SERVER_TYPE} == "smtps" ]] || [[ ${SERVER_TYPE} == "smtp_submission" ]]; then
+    REMOTE_PORT=587
+    REMOTE_EXTRA="-starttls smtp"
+  elif [[ ${SERVER_TYPE} == "xmpp" ]]; then
+    REMOTE_PORT=5222
+    REMOTE_EXTRA="-starttls xmpp"
+  elif [[ ${SERVER_TYPE} == "xmpps" ]]; then
+    REMOTE_PORT=5269
+  elif [[ ${SERVER_TYPE} == "ldaps" ]]; then
+    REMOTE_PORT=636
+  elif [[ ${SERVER_TYPE} =~ ^[0-9]+$ ]]; then
+    REMOTE_PORT=${SERVER_TYPE}
+  else
+    info "${DOMAIN}: unknown server type \"$SERVER_TYPE\" in SERVER_TYPE"
+    config_errors=true
+  fi
+}
+
 send_signed_request() { # Sends a request to the ACME server, signed with your private key.
   url=$1
   payload=$2
@@ -1134,21 +1175,18 @@ write_domain_template() { # write out a template file for a domain.
   cat > "$1" <<- _EOF_domain_
 	# Uncomment and modify any variables you need
 	# see https://github.com/srvrco/getssl/wiki/Config-variables for details
+	# see https://github.com/srvrco/getssl/wiki/Example-config-files for example configs
 	#
 	# The staging server is best for testing
 	#CA="https://acme-staging.api.letsencrypt.org"
 	# This server issues full certificates, however has rate limits
 	#CA="https://acme-v01.api.letsencrypt.org"
 
-	# Set an email address associated with your account - generally set at account level rather than domain.
-	#ACCOUNT_EMAIL="me@example.com"
-	#ACCOUNT_KEY_LENGTH=4096
-	#ACCOUNT_KEY="$WORKING_DIR/account.key"
 	#PRIVATE_KEY_ALG="rsa"
 
 	# Additional domains - this could be multiple domains / subdomains in a comma separated list
 	# Note: this is Additional domains - so should not include the primary domain.
-	SANS=${EX_SANS}
+	SANS="${EX_SANS}"
 
 	# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
 	# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
@@ -1172,14 +1210,10 @@ write_domain_template() { # write out a template file for a domain.
 	#DOMAIN_KEY_LOCATION="/etc/ssl/${DOMAIN}.key"
 	#CA_CERT_LOCATION="/etc/ssl/chain.crt"
 	#DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
-	#DOMAIN_KEY_CERT_LOCATION="" # this is the domain_key and domain cert
 	#DOMAIN_PEM_LOCATION="" # this is the domain_key, domain cert and CA cert
 
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
-	# The time period within which you want to allow renewal of a certificate
-	#  this prevents hitting some of the rate limits.
-	#RENEW_ALLOW="30"
 
 	# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
 	# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
@@ -1187,11 +1221,6 @@ write_domain_template() { # write out a template file for a domain.
 	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
 	#SERVER_TYPE="https"
 	#CHECK_REMOTE="true"
-
-	# Use the following 3 variables if you want to validate via DNS
-	#VALIDATE_VIA_DNS="true"
-	#DNS_ADD_COMMAND=
-	#DNS_DEL_COMMAND=
 	_EOF_domain_
 }
 
@@ -1227,16 +1256,10 @@ write_getssl_template() { # write out the main template file
 	SERVER_TYPE="https"
 	CHECK_REMOTE="true"
 
-	# openssl config file.  The default should work in most cases.
-	SSLCONF="$SSLCONF"
-
 	# Use the following 3 variables if you want to validate via DNS
 	#VALIDATE_VIA_DNS="true"
 	#DNS_ADD_COMMAND=
 	#DNS_DEL_COMMAND=
-	#AUTH_DNS_SERVER=""
-	#DNS_WAIT=10
-	#DNS_EXTRA_WAIT=60
 	_EOF_getssl_
 }
 
@@ -1473,6 +1496,9 @@ if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
   . "$DOMAIN_DIR/getssl.cfg"
 fi
 
+# from SERVER_TYPE set REMOTE_PORT and REMOTE_EXTRA
+set_server_type
+
 # check config for typical errors.
 check_config
 
@@ -1481,46 +1507,6 @@ ca_all_loc=$(curl "${CA}/directory" 2>/dev/null)
 URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
 URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
 URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
-
-# from SERVER_TYPE convert names to port numbers and additional data.
-if [[ ${SERVER_TYPE} == "https" ]] || [[ ${SERVER_TYPE} == "webserver" ]]; then
-  REMOTE_PORT=443
-elif [[ ${SERVER_TYPE} == "ftp" ]]; then
-  REMOTE_PORT=21
-  REMOTE_EXTRA="-starttls ftp"
-elif [[ ${SERVER_TYPE} == "ftpi" ]]; then
-  REMOTE_PORT=990
-elif [[ ${SERVER_TYPE} == "imap" ]]; then
-  REMOTE_PORT=143
-  REMOTE_EXTRA="-starttls imap"
-elif [[ ${SERVER_TYPE} == "imaps" ]]; then
-  REMOTE_PORT=993
-elif [[ ${SERVER_TYPE} == "pop3" ]]; then
-  REMOTE_PORT=110
-  REMOTE_EXTRA="-starttls pop3"
-elif [[ ${SERVER_TYPE} == "pop3s" ]]; then
-  REMOTE_PORT=995
-elif [[ ${SERVER_TYPE} == "smtp" ]]; then
-  REMOTE_PORT=25
-  REMOTE_EXTRA="-starttls smtp"
-elif [[ ${SERVER_TYPE} == "smtps_deprecated" ]]; then
-  REMOTE_PORT=465
-elif [[ ${SERVER_TYPE} == "smtps" ]] || [[ ${SERVER_TYPE} == "smtp_submission" ]]; then
-  REMOTE_PORT=587
-  REMOTE_EXTRA="-starttls smtp"
-elif [[ ${SERVER_TYPE} == "xmpp" ]]; then
-  REMOTE_PORT=5222
-  REMOTE_EXTRA="-starttls xmpp"
-elif [[ ${SERVER_TYPE} == "xmpps" ]]; then
-  REMOTE_PORT=5269
-elif [[ ${SERVER_TYPE} == "ldaps" ]]; then
-  REMOTE_PORT=636
-elif [[ ${SERVER_TYPE} =~ ^[0-9]+$ ]]; then
-  REMOTE_PORT=${SERVER_TYPE}
-else
-  error_exit "unknown server type"
-fi
-# end of converting SERVER_TYPE names to port numbers and additional data.
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
@@ -1620,7 +1606,7 @@ fi
 
 if [[ ! -t 0 ]] && [[ "$PREVENT_NON_INTERACTIVE_RENEWAL" = "true" ]]; then
   errmsg="$DOMAIN due for renewal, "
-  errmsg+="Did not not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
+  errmsg+="but not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
   error_exit "$errmsg"
 fi
 
