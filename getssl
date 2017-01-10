@@ -175,10 +175,11 @@
 # 2017-01-01 create stable release 2.0 (2.00)
 # 2017-01-02 Added option to limit amount of old versions to keep (2.01)
 # 2017-01-03 Created check_config function to list all obvious config issues (2.02)
+# 2017-01-10 force renew if FORCE_RENEWAL file exists (2.03)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.02"
+VERSION="2.03"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -1502,6 +1503,12 @@ set_server_type
 # check config for typical errors.
 check_config
 
+if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
+  rm -f "$DOMAIN_DIR/FORCE_RENEWAL" || error_exit "problem deleting file $DOMAIN_DIR/FORCE_RENEWAL"
+  _FORCE_RENEW=1
+  info "${DOMAIN}: forcing renewal (due to FORCE_RENEWAL file)"
+fi
+
 # Obtain CA resource locations
 ca_all_loc=$(curl "${CA}/directory" 2>/dev/null)
 URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
@@ -1548,7 +1555,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
           # remote has longer to expiry date than local copy.
           debug "remote cert has longer to run than local cert - ignoring"
         else
-          info "remote expires sooner than local for $DOMAIN, attempting to upload from local"
+          info "${DOMAIN}: remote cert expires sooner than local, attempting to upload from local"
           copy_file_to_location "domain certificate" \
                                 "$CERT_FILE" \
                                 "$DOMAIN_CERT_LOCATION"
@@ -1571,11 +1578,11 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
           reload_service
         fi
       else
-        info "Certificate on remote domain does not match domain, ignoring remote certificate"
+        info "${DOMAIN}: Certificate on remote domain does not match, ignoring remote certificate"
       fi
     fi
   else
-    info "no certificate obtained from host"
+    info "${DOMAIN}: no certificate obtained from host"
   fi
   # end of .... if obtained a cert
 fi
@@ -1593,12 +1600,12 @@ if [[ -s "$CERT_FILE" ]]; then
       if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v01.api.letsencrypt.org" ]]; then
         debug "upgradeing from fake cert to real"
       else
-        info "certificate for $DOMAIN is still valid for more than $RENEW_ALLOW days (until $enddate)"
+        info "${DOMAIN}: certificate is valid for more than $RENEW_ALLOW days (until $enddate)"
         # everything is OK, so exit.
         graceful_exit
       fi
     else
-      debug "certificate  for $DOMAIN needs renewal"
+      debug "${DOMAIN}: certificate needs renewal"
     fi
   fi
 fi
