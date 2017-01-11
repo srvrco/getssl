@@ -15,16 +15,22 @@ Obtain SSL certificates from the letsencrypt.org ACME server.  Suitable for auto
 * **Reload services** - After a new certificate is obtained then the relevant services (e.g. apache/nginx/postfix) can be reloaded.
 
 ## Installation
-Since the script is only one file, you can use the command
+Since the script is only one file, you can use the following command for a quick and dirty installation:
 ```
 curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl > getssl ; chmod 700 getssl
 ```
-Which will copy the getssl bash script to the current location and change the permissions to make it executable for you.
+This will copy the getssl Bash script to the current location and change the permissions to make it executable for you.
 
-Alternative you can use git
+For a more comprehensive installation (e.g. install also helper scripts) use the provided Makefile with each release tarball. Use the `install` target.
+
+You'll find the latest version in the git repository:
+
 ```
 git clone https://github.com/srvrco/getssl.git
 ```
+
+For Arch Linux there are packages in the AUR, see [here](https://aur.archlinux.org/packages/getssl/) and [there](https://aur.archlinux.org/packages/getssl-git/).
+
 If you use puppet, there is a [GetSSL Puppet module](https://github.com/dthielking/puppet_getssl) by dthielking
 
 ## Overview
