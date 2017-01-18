@@ -177,10 +177,12 @@
 # 2017-01-03 Created check_config function to list all obvious config issues (2.02)
 # 2017-01-10 force renew if FORCE_RENEWAL file exists (2.03)
 # 2017-01-12 added drill, dig or host as alternatives to nslookup (2.04)
+# 2017-01-18 bugfix issue #227 - error deleting csr if doesn't exist
+# 2017-01-18 issue #228 check private key and account key are different (2.05)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.04"
+VERSION="2.05"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -314,6 +316,10 @@ check_config() { # check the config files for all obvious errors
   # check keys
   if [[ ! "$ACCOUNT_KEY_TYPE" =~ ^(rsa|prime256v1|secp384r1|secp521r1)$ ]]; then
     info "${DOMAIN}: invalid ACCOUNT_KEY_TYPE"
+    config_errors=true
+  fi
+  if [[ "$ACCOUNT_KEY" == "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
+    info "${DOMAIN}: ACCOUNT_KEY and domain key ( $DOMAIN_DIR/${DOMAIN}.key ) must be different"
     config_errors=true
   fi
   if [[ ! "$PRIVATE_KEY_ALG" =~ ^(rsa|prime256v1|secp384r1|secp521r1)$ ]]; then
@@ -629,7 +635,9 @@ create_key() { # create a domain key (if it doesn't already exist)
     esac
     umask "$ORIG_UMASK"
     # remove csr on generation of new domain key
-    rm -f "${key_loc::-4}.csr"
+    if [[ -e "${key_loc::-4}.csr" ]]; then
+      rm -f "${key_loc::-4}.csr"
+    fi
   fi
 }
 
