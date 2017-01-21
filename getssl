@@ -179,10 +179,11 @@
 # 2017-01-12 added drill, dig or host as alternatives to nslookup (2.04)
 # 2017-01-18 bugfix issue #227 - error deleting csr if doesn't exist
 # 2017-01-18 issue #228 check private key and account key are different (2.05)
+# 2017-01-21 issue #231 mingw bugfix and typos in debug messages (2.06)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.05"
+VERSION="2.06"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -618,13 +619,13 @@ create_key() { # create a domain key (if it doesn't already exist)
   key_type=$1 # domain key type
   key_loc=$2  # domain key location
   key_len=$3  # domain key length - for rsa keys.
-  # check if domain key exists, if not then create it.
+  # check if key exists, if not then create it.
   if [[ -s "$key_loc" ]]; then
     debug "domain key exists at $key_loc - skipping generation"
     # ideally need to check validity of domain key
   else
     umask 077
-    info "creating domain key - $key_loc"
+    info "creating key - $key_loc"
     case "$key_type" in
       rsa)
         openssl genrsa "$key_len" > "$key_loc";;
@@ -843,7 +844,7 @@ get_os() { # function to get the current Operating System
     os="mac"
   elif [[ ${uname_res:0:6} == "CYGWIN" ]]; then
     os="cygwin"
-  elif [[ ${uname_res:0:6} == "MINGW" ]]; then
+  elif [[ ${uname_res:0:5} == "MINGW" ]]; then
     os="mingw"
   else
     os="unknown"
@@ -1417,6 +1418,11 @@ done
 # Get the current OS, so the correct functions can be used for that OS. (sets the variable os)
 get_os
 
+# check if "recent" version of bash.
+#if [[ "${BASH_VERSINFO[0]}${BASH_VERSINFO[1]}" -lt 42 ]]; then
+#  info "this script is designed for bash v4.2 or later - earlier version may give errors"
+#fi
+
 #check if required applications are included
 
 requires which
@@ -1480,6 +1486,9 @@ DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
+if [[ "$os" == "mingw" ]]; then
+  CSR_SUBJECT="//"
+fi
 
 # Set the OPENSSL_CONF environment variable so openssl knows which config to use
 export OPENSSL_CONF=$SSLCONF
