@@ -430,7 +430,7 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
   if [[ "${latestvdec:-0}" -gt "$localvdec" ]]; then
     if [[ ${_UPGRADE} -eq 1 ]]; then
       install "$0" "${0}.v${VERSION}"
-      install -m 700 "$TEMP_UPGRADE_FILE" "$0"
+      install -m $(stat -c "%a" "$0") "$TEMP_UPGRADE_FILE" "$0"
       if [[ ${_MUTE} -eq 0 ]]; then
         echo "Updated getssl from v${VERSION} to v${latestversion}"
         echo "these update notification can be turned off using the -Q option"
