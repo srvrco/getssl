@@ -28,13 +28,13 @@ if [[ -z "$token" ]]; then
   exit 1
 fi
 
-if [[ -z "$CF_EMAIL" ]]; then
-  echo "CF_EMAIL parameter not set"
+if [[ -z "$email" ]]; then
+  echo "CF_EMAIL (email) parameter not set"
   exit 1
 fi
 
-if [[ -z "$CF_KEY" ]]; then
-  echo "CF_KEY parameter not set"
+if [[ -z "$key" ]]; then
+  echo "CF_KEY (key) parameter not set"
   exit 1
 fi
 
