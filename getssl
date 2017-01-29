@@ -180,10 +180,11 @@
 # 2017-01-18 bugfix issue #227 - error deleting csr if doesn't exist
 # 2017-01-18 issue #228 check private key and account key are different (2.05)
 # 2017-01-21 issue #231 mingw bugfix and typos in debug messages (2.06)
+# 2017-01-29 issue #232 use neutral locale for date formatting (2.07)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.06"
+VERSION="2.07"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -232,6 +233,7 @@ _UPGRADE=0
 _UPGRADE_CHECK=1
 _USE_DEBUG=0
 config_errors="false"
+LANG=C
 
 # store copy of original command in case of upgrading script and re-running
 ORIGCMD="$0 $*"
