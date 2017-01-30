@@ -182,10 +182,11 @@
 # 2017-01-21 issue #231 mingw bugfix and typos in debug messages (2.06)
 # 2017-01-29 issue #232 use neutral locale for date formatting (2.07)
 # 2017-01-30 issue #243 compatibility with bash 3.0 (2.08)
+# 2017-01-30 issue #243 additional compatibility with bash 3.0 (2.09)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.08"
+VERSION="2.09"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -1155,9 +1156,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
 
   # Send header + extended header + payload + signature to the acme-server
   body="{\"header\": ${header},"
-  body+="\"protected\": \"${protected64}\","
-  body+="\"payload\": \"${payload64}\","
-  body+="\"signature\": \"${signed64}\"}"
+  body="${body}\"protected\": \"${protected64}\","
+  body="${body}\"payload\": \"${payload64}\","
+  body="${body}\"signature\": \"${signed64}\"}"
   debug "header, payload and signature = $body"
 
   code="500"
@@ -1715,8 +1716,8 @@ fi
 # end of .... if there is an existing certificate file, check details.
 
 if [[ ! -t 0 ]] && [[ "$PREVENT_NON_INTERACTIVE_RENEWAL" = "true" ]]; then
-  errmsg="$DOMAIN due for renewal, "
-  errmsg+="but not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
+  errmsg="$DOMAIN due for renewal,"
+  errmsg="${errmsg} but not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
   error_exit "$errmsg"
 fi
 
