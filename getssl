@@ -181,10 +181,11 @@
 # 2017-01-18 issue #228 check private key and account key are different (2.05)
 # 2017-01-21 issue #231 mingw bugfix and typos in debug messages (2.06)
 # 2017-01-29 issue #232 use neutral locale for date formatting (2.07)
+# 2017-01-30 issue #243 compatibility with bash 3.0 (2.08)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.07"
+VERSION="2.08"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -317,18 +318,24 @@ check_config() { # check the config files for all obvious errors
   debug "checking config"
 
   # check keys
-  if [[ ! "$ACCOUNT_KEY_TYPE" =~ ^(rsa|prime256v1|secp384r1|secp521r1)$ ]]; then
-    info "${DOMAIN}: invalid ACCOUNT_KEY_TYPE"
-    config_errors=true
-  fi
+  case "$ACCOUNT_KEY_TYPE" in
+    rsa|prime256v1|secp384r1|secp521r1)
+      debug "checked ACCOUNT_KEY_TYPE " ;;
+    *)
+      info "${DOMAIN}: invalid ACCOUNT_KEY_TYPE - $ACCOUNT_KEY_TYPE"
+      config_errors=true ;;
+  esac
   if [[ "$ACCOUNT_KEY" == "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
     info "${DOMAIN}: ACCOUNT_KEY and domain key ( $DOMAIN_DIR/${DOMAIN}.key ) must be different"
     config_errors=true
   fi
-  if [[ ! "$PRIVATE_KEY_ALG" =~ ^(rsa|prime256v1|secp384r1|secp521r1)$ ]]; then
-    info "${DOMAIN}: invalid PRIVATE_KEY_ALG"
-    config_errors=true
-  fi
+  case "$PRIVATE_KEY_ALG" in
+    rsa|prime256v1|secp384r1|secp521r1)
+      debug "checked PRIVATE_KEY_ALG " ;;
+    *)
+      info "${DOMAIN}: invalid PRIVATE_KEY_ALG - $PRIVATE_KEY_ALG"
+      config_errors=true ;;
+  esac
   if [[ "$DUAL_RSA_ECDSA" == "true" ]] && [[ "$PRIVATE_KEY_ALG" == "rsa" ]]; then
     info "${DOMAIN}: PRIVATE_KEY_ALG not set to an EC type and DUAL_RSA_ECDSA=\"true\""
     config_errors=true
@@ -446,7 +453,7 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
         declare -a getssl_versions
         shopt -s nullglob
         for getssl_version in $0.v*; do
-          getssl_versions+=($getssl_version)
+          getssl_versions[${#getssl_versions[@]}]="$getssl_version"
         done
         shopt -u nullglob
         # Explicitly sort the getssl_versions array to make sure
