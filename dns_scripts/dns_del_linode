@@ -1,0 +1,49 @@
+#!/bin/bash
+
+fulldomain="${1}"
+api_url="https://api.linode.com/api/"
+api_key=${LINODE_KEY:-''}
+
+# Verify that required parameters are set
+if [[ -z "$fulldomain" ]]; then
+  echo "DNS script requires full domain name as first parameter"
+  exit 1
+fi
+if [[ -z "$LINODE_KEY" ]]; then
+  echo "LINODE_KEY variable not set"
+  exit 1
+fi
+
+domain_root=$(echo "$fulldomain" | awk -F\. '{print $(NF-1) FS $NF}')
+domain=${fulldomain%.$domain_root}
+txtname="_acme-challenge.$domain"
+
+# Get Domain ID
+response=$(curl --silent -X POST "$api_url" \
+  -H "Accept: application/json" -H "User-Agent: getssl/0.1" -H "application/x-www-form-urlencoded" \
+  -d "api_key=${api_key}&api_action=domain.list" )
+domain_id=$(echo "$response" | egrep -o "{\"DOMAIN\":\"$domain_root\".*\"DOMAINID\":([0-9]+)" | egrep -o "[0-9]+$")
+if [[ $domain_id == "" ]]; then
+  echo "Failed to fetch DomainID"
+  exit 1
+fi
+
+# Get Resource ID
+response=$(curl --silent -X POST "$api_url" \
+  -H "Accept: application/json" -H "User-Agent: getssl/0.1" -H "application/x-www-form-urlencoded" \
+  -d "api_key=${api_key}&api_action=domain.resource.list&DomainID=$domain_id" )
+resource_id=$(echo "$response" | egrep -o "\"RESOURCEID\":[0-9]+,\"TYPE\":\"TXT\",\"NAME\":\"$txtname\"" | egrep -o "\"RESOURCEID\":[0-9]+" | egrep -o "[0-9]+$")
+if [[ $resource_id == "" ]]; then
+  echo "Failed to fetch ResourceID"
+  exit 1
+fi
+
+# Delete TXT record
+response=$(curl --silent -X POST "$api_url" \
+  -H "Accept: application/json" -H "User-Agent: getssl/0.1" -H "application/x-www-form-urlencoded" \
+  -d "api_key=$api_key&api_action=domain.resource.delete&DomainID=$domain_id&ResourceID=$resource_id" )
+errors=$(echo "$response" | egrep -o "\"ERRORARRAY\":\[.*\]")
+if [[ $errors != "\"ERRORARRAY\":[]" ]]; then
+    echo "Something went wrong: $errors"
+    exit 1
+fi
