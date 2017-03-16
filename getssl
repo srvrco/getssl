@@ -383,6 +383,8 @@ check_config() { # check the config files for all obvious errors
       DOMAIN_ACL="${ACL[$dn]}"
     fi
 
+    DOMAIN_ACL=$(echo $DOMAIN_ACL | sed -e "s/\${DOMAIN}/${d}/g")
+
     if [[ $VALIDATE_VIA_DNS != "true" ]]; then # using http-01 challenge
       if [[ -z "${DOMAIN_ACL}" ]]; then
         info "${DOMAIN}: ACL location not specified for domain $d in $DOMAIN_DIR/getssl.cfg"
@@ -1814,6 +1816,8 @@ for d in $alldomains; do
   else
     DOMAIN_ACL="${ACL[$dn]}"
   fi
+
+  DOMAIN_ACL=$(echo $DOMAIN_ACL | sed -e "s/\${DOMAIN}/${d}/g")
 
   # request a challenge token from ACME server
   request="{\"resource\":\"new-authz\",\"identifier\":{\"type\":\"dns\",\"value\":\"$d\"}}"
