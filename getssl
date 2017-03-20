@@ -390,7 +390,7 @@ check_config() { # check the config files for all obvious errors
       fi
       # check domain exist
       if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-        if [[ "$($DNS_CHECK_FUNC "${d}" SOA|grep -c "^${d}")" -ge 1 ]]; then
+        if [[ "$($DNS_CHECK_FUNC "${d}" |grep -c "^${d}")" -ge 1 ]]; then
           debug "found IP for ${d}"
         else
           info "${DOMAIN}: DNS lookup failed for ${d}"
