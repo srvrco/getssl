@@ -1678,6 +1678,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
           copy_file_to_location "full pem" \
                                 "$TEMP_DIR/${DOMAIN}_chain.pem" \
                                 "$DOMAIN_CHAIN_LOCATION"
+          umask 077
           cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
           copy_file_to_location "private key and domain cert pem" \
                                 "$TEMP_DIR/${DOMAIN}_K_C.pem"  \
@@ -1686,6 +1687,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
           copy_file_to_location "full pem" \
                                 "$TEMP_DIR/${DOMAIN}.pem"  \
                                 "$DOMAIN_PEM_LOCATION"
+          umask "$ORIG_UMASK"
           reload_service
         fi
       else
@@ -1736,7 +1738,7 @@ else
   create_key "$ACCOUNT_KEY_TYPE" "$ACCOUNT_KEY" "$ACCOUNT_KEY_LENGTH"
 fi
 
-# if not reusing priavte key, then remove the old keys
+# if not reusing private key, then remove the old keys
 if [[ "$REUSE_PRIVATE_KEY" != "true" ]]; then
   if [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
    rm -f "$DOMAIN_DIR/${DOMAIN}.key"
@@ -2096,12 +2098,14 @@ if [[ ! -z "$DOMAIN_KEY_CERT_LOCATION" ]]; then
   else
     to_location="${DOMAIN_KEY_CERT_LOCATION}"
   fi
+  umask 077
   cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
   copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-  cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"
-  copy_file_to_location "private ec key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"  "${to_location}.ec"
+    cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"
+    copy_file_to_location "private ec key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"  "${to_location}.ec"
   fi
+  umask "$ORIG_UMASK"
 fi
 # if DOMAIN_PEM_LOCATION is not blank, then create and copy file.
 if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
@@ -2110,12 +2114,14 @@ if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
   else
     to_location="${DOMAIN_PEM_LOCATION}"
   fi
+  umask 077
   cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
   copy_file_to_location "full key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
     cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}.pem.ec"
     copy_file_to_location "full ec key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem.ec"  "${to_location}.ec"
   fi
+  umask "$ORIG_UMASK"
 fi
 # end of copying certs.
 
