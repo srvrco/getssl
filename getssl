@@ -527,7 +527,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       fi
     elif [[ "${to:0:4}" == "ftp:" ]] ; then
       if [[ "$cert" != "challenge token" ]] ; then
-        error_exit "ftp is not a sercure method for copying certificates or keys"
+        error_exit "ftp is not a secure method for copying certificates or keys"
       fi
       debug "using ftp to copy the file from $from"
       ftpuser=$(echo "$to"| awk -F: '{print $2}')
@@ -540,7 +540,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       fromfile=$(basename "$from")
       debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost dir=$ftpdirn file=$ftpfile"
       debug "from dir=$fromdir  file=$fromfile"
-      ftp -n <<- _EOF
+      ftp -p -n <<- _EOF
 			open $ftphost
 			user $ftpuser $ftppass
 			cd $ftpdirn
