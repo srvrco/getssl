@@ -3,7 +3,7 @@ Obtain SSL certificates from the letsencrypt.org ACME server.  Suitable for auto
 
 ## Features
 * **Bash** - It runs on virtually all unix machines, including BSD, most Linux distributions, MAC OSX.
-* **Get certificates for remote servers** - The tokens used to provide validation of domain ownership, and the certificates themselves can be automatically copied to remote servers (via ssh, sftp or ftp for tokens). The script doesn't need to run on the server itself. This can be useful if you don't have access to run such scripts on the server itself, as it's a shared server for example.
+* **Get certificates for remote servers** - The tokens used to provide validation of domain ownership, and the certificates themselves can be automatically copied to remote servers (via ssh, sftp or ftp for tokens). The script doesn't need to run on the server itself. This can be useful if you don't have access to run such scripts on the server itself, e.g. if it's a shared server.
 * **Runs as a daily cron** - so certificates will be automatically renewed when required.
 * **Automatic certificate renewals**
 * **Checks certificates are correctly loaded**. After installation of a new certificate it will test the port specified ( see [Server-Types](#server-types) for options ) that the certificate is actually being used correctly.
@@ -100,7 +100,7 @@ reloading SSL services
 **This will (by default) use the staging server, so should give you a certificate that isn't trusted ( Fake Let's Encrypt).**
 Change the server in your config file to get a fully valid certificate.
 
-**Note:**   Verification is done via port 80(http), port 443(https) or dns.  The certificate can be used ( and checked with getssl) on alternate ports.
+**Note:**   Verification is done via port 80 (http), port 443 (https) or dns.  The certificate can be used (and checked with getssl) on alternate ports.
 
 ## Automating updates
 
@@ -142,7 +142,7 @@ RENEW_ALLOW="30"
 SSLCONF="/usr/lib/ssl/openssl.cnf"
 ```
 
-then, within the **working directory** there will be a folder for each certificate (based on it's domain name). Within that folder will be a config file (again called getssl.cfg).  An example of which is;
+then, within the **working directory** there will be a folder for each certificate (based on its domain name). Within that folder will be a config file (again called getssl.cfg).  An example of which is;
 
 ```
 # Uncomment and modify any variables you need
@@ -252,16 +252,16 @@ these are available in getssl to check if the certificate is installed correctly
 | port number      |      |              |
 
 
-##Revoke a certificate
+## Revoke a certificate
 
 In general revoking a certificate is not required.
 
-usage: getssl -r path/to/cert path/to/key [CA_server]
+Usage: `getssl -r path/to/cert path/to/key [CA_server]`
 
 You need to specify both the certificate you want to revoke, and the account or private domain key which was used to sign / obtain the original certificate.  The CA_server is an optional parameter and defaults to Let's Encrypt ( "https://acme-v01.api.letsencrypt.org" ) as that is currently the only Certificate Authority using the ACME protocol.
 
 
-##Elliptic curve keys
+## Elliptic curve keys
 You can use Elliptic curve keys for both the account key and the domain key (different of course, don't use the same key for both). prime256v1 (NIST P-256) and secp384r1 (NIST P-384) are both fully supported.  secp521r1 (NIST P-521) is included in the code, but not currently supported by Let's Encrypt).
 
 
