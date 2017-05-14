@@ -1,0 +1,33 @@
+#!/bin/bash
+
+domains=($(echo "$1"|sed -e 's/^\(\([a-zA-Z0-9.-]*\?\)\.\)*\([a-zA-Z0-9-]\+\.[a-zA-Z-]\+\)$/"\1" _acme-challenge.\2 \3/g'))
+challenge="$2"
+
+# Please, do not forget to ask for your credentials at https://eu.api.ovh.com/createToken/
+# permissions needed are /domain/zone/* in GET,POST,DELETE
+applicationKey="YourAK"
+applicationSecret="YourAS"
+consumerKey="YourCK"
+
+topDomain=${domains[2]}
+subDomain=${domains[1]%%.}
+
+function send
+{
+        method=$1
+        url=$2
+        body=$3
+        ts=$(date +%s)
+
+        sign=\$1\$$(echo -n "${applicationSecret}+${consumerKey}+${method}+https://eu.api.ovh.com/1.0${url}+${body}+${ts}"|sha1sum|cut -d" " -f1)
+        curl -X ${method} -H "Content-Type: application/json" -H "X-Ovh-Application: ${applicationKey}" -H "X-Ovh-Timestamp: ${ts}" -H "X-Ovh-Signature: ${sign}" -H "X-Ovh-Consumer: ${consumerKey}" -d "${body}" https://eu.api.ovh.com/1.0${url}
+}
+
+# Creation request
+send POST /domain/zone/${topDomain}/record "{\"fieldType\":\"TXT\",\"subDomain\":\"$subDomain\",\"ttl\":60,\"target\":\"$challenge\"}"
+
+# Refresh request
+send POST /domain/zone/${topDomain}/refresh ""
+
+# Pause for 10 seconds, for DNS propagation
+sleep 10
