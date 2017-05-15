@@ -429,7 +429,8 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
   curl --silent "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
-    error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
+    longmsg=$'Can not authenticate SSL peer. Your ca_bundle.crt and/or curl may need\nupdating. ca_bundle.crt can be updates with mk-ca-bundle.  Curl should\nsupport SNI (multiple SSL domains on a single IP)'
+    error_exit "$longmsg"
   elif [[ $errcode -gt 0 ]]; then
     error_exit "curl error : $errcode"
   fi
