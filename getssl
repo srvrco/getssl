@@ -814,7 +814,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
     echo -----BEGIN CERTIFICATE----- > "$gc_certfile"
     curl --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
     echo -----END CERTIFICATE-----  >> "$gc_certfile"
-    info "Certificate saved in $CERT_FILE"
+    info "Certificate saved in $gc_certfile"
   fi
 
   # If certificate wasn't a valid certificate, error exit.
