@@ -336,7 +336,7 @@ check_config() { # check the config files for all obvious errors
     rsa|prime256v1|secp384r1|secp521r1)
       debug "checked PRIVATE_KEY_ALG " ;;
     *)
-      info "${DOMAIN}: invalid PRIVATE_KEY_ALG - $PRIVATE_KEY_ALG"
+      info "${DOMAIN}: invalid PRIVATE_KEY_ALG - '$PRIVATE_KEY_ALG'"
       config_errors=true ;;
   esac
   if [[ "$DUAL_RSA_ECDSA" == "true" ]] && [[ "$PRIVATE_KEY_ALG" == "rsa" ]]; then
