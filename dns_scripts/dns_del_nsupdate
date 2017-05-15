@@ -14,7 +14,7 @@ token="$2"
 #                          'open" / 'close'
 
 if [ -n "${DNS_NSUPDATE_KEYFILE}" ]; then
-    if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! ${DNS_NSUPDATE_KEY_HOOK} 'del' 'open'; then
+    if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! ${DNS_NSUPDATE_KEY_HOOK} 'del' 'open' ${fulldomain} ; then
         exit $(( $? + 128 ))
     fi
 
@@ -31,7 +31,7 @@ EOF
 sts=$?
 
 if [ -n "${DNS_NSUPDATE_KEYFILE}" ]; then
-    if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! ${DNS_NSUPDATE_KEY_HOOK} 'del' 'close' ; then
+    if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! ${DNS_NSUPDATE_KEY_HOOK} 'del' 'close'  ${fulldomain} ; then
         exit $(( ${sts} + ( $? * 10 ) ))
     fi
 fi
