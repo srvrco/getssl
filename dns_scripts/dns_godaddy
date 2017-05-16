@@ -178,8 +178,6 @@ fi
     echo "`basename $0`: $op $domain $name \"$data\" $ttl" >&2
 
 # Authorization header has secret and key
-# N.B. These will appear in a 'ps' listing since curl only allows
-#      headers to be provided on the command line.
 
 authhdr="Authorization: sso-key $GODADDY_KEY:$GODADDY_SECRET"
 
@@ -199,9 +197,12 @@ Add request to: $url
 $request"
 --------
 EOF
-        result="$(curl -i -s -X PUT -H "$authhdr" \
-                                    -H "Content-Type: application/json" \
-                       -d "$request" "$url")"
+
+        result="$(curl -i -s -X PUT -d "$request" --config - "$url" <<EOF
+                       header = "Content-Type: application/json" 
+                       header = "$authhdr"
+EOF
+)"
         sts=$?
         [ -n "$DEBUG" ] && cat >&2 <<EOF
 
@@ -255,7 +256,10 @@ while [[ "$domain" =~ [^.]+\.[^.]+ ]]; do
     url="$API/$domain/records/TXT"
     [ -n "$DEBUG" ] && echo "Query for TXT records to: $url" >&2
 
-    current="$(curl -i -s -X GET -H "$authhdr" "$url")"
+    current="$(curl -i -s -X GET --config - "$url" <<EOF
+                        header = "$authhdr" 
+EOF
+)"
     sts=$?
     if [ $sts -ne 0 ]; then
         echo "curl error $sts for query" >&2
@@ -357,9 +361,11 @@ $request
 --------
 EOF
 
-result="$(curl -i -s -X PUT -H "$authhdr" \
-                            -H "Content-Type: application/json" \
-               -d "$request" "$url")"
+result="$(curl -i -s -X PUT -d  "$request" --config - "$url" <<EOF
+               header = "Content-Type: application/json"
+               header = "$authhdr"
+EOF
+)"
 sts=$?
 [ -n "$DEBUG" ] && cat >&2 <<EOF
 
