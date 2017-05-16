@@ -2,7 +2,8 @@
 
 # Copyright (2017) Timothe Litt  litt at acm _dot org
 
-VERSION="1.0.0"
+VERSION="1.0.1"
+PROG="`basename $0`"
 
 # This script is used to update TXT records in GoDaddy DNS server
 # It depends on JSON.sh from https://github.com/dominictarr/JSON.sh
@@ -28,19 +29,20 @@ DEBUG="$GODADDY_DEBUG"
 [ -z "$JSON" ] && JSON="$GODADDY_JSON"
 [ -z "$JSON" ] && JSON="`dirname $0`/JSON.sh"
 
-while getopts 'dhj:k:s:qv' opt; do
+while getopts 'dhj:k:s:t:qv' opt; do
     case $opt in
         d) DEBUG="Y"                                   ;;
         j) JSON="$OPTARG"                              ;;
         k) GODADDY_KEY="$OPTARG"                       ;;
         s) GODADDY_SECRET="$OPTARG"                    ;;
+        t) TRACE="$OPTARG"                             ;;
         q) VERB=                                       ;;
         v) echo "dns_godaddy version $VERSION"; exit 0 ;;
         *)
             cat <<EOF
 Usage
-    `basename $0` [-d -h -j JSON -k:KEY -s:SECRET -q] add domain name data [ttl]
-    `basename $0` [-d -h -j JSON -k:KEY -s:SECRET -q] del domain name data
+    $PROG [-dt -h -j JSON -k:KEY -s:SECRET -q] add domain name data [ttl]
+    $PROG [-dt -h -j JSON -k:KEY -s:SECRET -q] del domain name data
 
 Add or delete TXT records from GoDaddy DNS
 
@@ -76,9 +78,10 @@ Options
           the GODADDY_JSON variable.
     -k:   The GoDaddy API key    Default from GODADDY_KEY
     -s:   The GoDaddy API secret Default from GODADDY_SECRET
+    -t:   Detailed protocol trace data is appended to specified file
     -q    Quiet - omit normal success messages,
 
-    All ourput, except for this help text, is to stderr.
+    All output, except for this help text, is to stderr.
 
 Environment variables
     GODADDY_JSON    location of the JSOH.sh script
@@ -86,6 +89,7 @@ Environment variables
     GODADDY_SCRIPT  location of this script, default location of JSON.sh
     GODADDY_SECRET  default API secret
     GODADDY_TRACE   forces -q off if true
+    GODADDY_TFILE   appends protocol trace to file. Overrides -t
 
 BUGS
     Due to a limitation of the gOdADDY API, deleting the last TXT record
@@ -131,6 +135,7 @@ fi
 
 [ -n "$DEBUG" ] && VERB="y"
 [ -n "$GODADDY_TRACE" ] && VERB="Y"
+[ -n "$GODADDY_TFILE" ] && TRACE="$GODADDY_TFILE"
 
 # Get parameters & validate
 
@@ -175,11 +180,24 @@ fi
 # --- Done with parameters
 
 [ -n "$DEBUG" ] && \
-    echo "`basename $0`: $op $domain $name \"$data\" $ttl" >&2
+    echo "$PROG: $op $domain $name \"$data\" $ttl" >&2
 
 # Authorization header has secret and key
 
 authhdr="Authorization: sso-key $GODADDY_KEY:$GODADDY_SECRET"
+
+if [ -n "$TRACE" ]; then
+    function timestamp { local tm="`date '+%T:%S%N'`"
+        local class="$1"; shift
+        echo "${tm:0:15} ** ${class}: $*" >>"$TRACE"
+    }
+    timestamp 'Info' "$PROG" "V$VERSION" 'Starting new protocol trace'
+    timestamp 'Args' "$@"
+    function curl {
+        command curl --trace-time --trace-ascii % "$@" 2>>"$TRACE"
+    }
+    [ -n "$VERB" ] && echo "Appending protocol trace to $TRACE"
+fi
 
 [ -n "$DEBUG" ] &&  echo "$authhdr" >&2
 
