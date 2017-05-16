@@ -22,28 +22,20 @@ There are two prerequisites to using getssl with GoDaddy DNS:
 
 With those in hand, the installation procedure is:
 
-1) Create a "myscripts" directory under ~/.getssl/
+1) Put JSON.sh in the getssl DNS scripts directory 
+   Default: /usr/share/getssl/dns_scripts
 
-2) Put JSON.sh in "myscripts"
-
-3) Copy (or softlink from the distribution directory) the
-   following files to "myscripts":
-     dns_godaddy    dns_add_godaddy    dns_del_godaddy
-   None of these files need to be customized.
-
-4) Open your config file (the global file in ~/.getssl/getssl.cfg
+2) Open your config file (the global file in ~/.getssl/getssl.cfg
    or the per-account file in ~/.getssl/example.net/getssl.cfg
 
-5) Set the following options:
+3) Set the following options:
    VALIDATE_VIA_DNS="true"
-   DNS_ADD_COMMAND="/path/to/myscripts/dns_add_godaddy"
-   DNS_DEL_COMMAND="/path/to/myscripts/dns_del_godaddy"
+   DNS_ADD_COMMAND="/usr/share/getssl/dns_scripts/dns_add_godaddy"
+   DNS_DEL_COMMAND="/usr/share/getssl/dns_scripts/dns_del_godaddy"
    # The API key for your account/this domain
    export GODADDY_KEY="..." GODADDY_SECRET="..."
 
-   Note that ~user/ probably won't work in the path.
-
-6) Set any other options that you wish (per the standard
+ 4) Set any other options that you wish (per the standard
    directions.)  Use the test CA to make sure that
    everything is setup correctly.
 
