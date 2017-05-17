@@ -193,8 +193,9 @@ if [ -n "$TRACE" ]; then
     }
     timestamp 'Info' "$PROG" "V$VERSION" 'Starting new protocol trace'
     timestamp 'Args' "$@"
+    curl --help | grep -q -- --trace-time && CURL_TFLAGS="--trace-time" # 7.14.0
     function curl {
-        command curl --trace-time --trace-ascii % "$@" 2>>"$TRACE"
+        command curl ${CURL_TFLAGS} --trace-ascii % "$@" 2>>"$TRACE"
     }
     [ -n "$VERB" ] && echo "Appending protocol trace to $TRACE"
 fi
