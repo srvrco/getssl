@@ -187,7 +187,7 @@ fi
 authhdr="Authorization: sso-key $GODADDY_KEY:$GODADDY_SECRET"
 
 if [ -n "$TRACE" ]; then
-    function timestamp { local tm="`date '+%T:%S%N'`"
+    function timestamp { local tm="`LC_TIME=C date '+%T.%N'`"
         local class="$1"; shift
         echo "${tm:0:15} ** ${class}: $*" >>"$TRACE"
     }
