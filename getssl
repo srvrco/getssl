@@ -1483,6 +1483,21 @@ if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]]; then
   graceful_exit
 fi
 
+# if exist the ~/.config directory, use it as parent directory
+if [[ -d "${HOME}/.config" ]]; then
+  WORKING_DIR="${HOME}/.config/getssl"
+fi
+
+#if set $XDG_CONFIG_HOME environment variable, use it as parent directory
+if [[ ! -z ${XDG_CONFIG_HOME+x} ]]; then
+  WORKING_DIR="${XDG_CONFIG_HOME}/getssl"
+fi
+
+# if set $GETSSL_HOME enviroment variable, use it as parent directory
+if [[ ! -z ${GETSSL_HOME+x} ]]; then
+  WORKING_DIR="${GETSSL_HOME}"
+fi
+
 # if the "working directory" doesn't exist, then create it.
 if [[ ! -d "$WORKING_DIR" ]]; then
   debug "Making working directory - $WORKING_DIR"
