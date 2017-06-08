@@ -1981,13 +1981,13 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
                            | grep '"'|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
             check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${d}" "@${ns}" \
-                           | grep ^_acme|awk -F'"' '{ print $2}')
+                           | awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
             check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${d}" "${ns}" \
-                           | grep ^_acme|awk -F'"' '{ print $2}')
+                           | grep ' descriptive text '|awk -F'"' '{ print $2}')
           else
             check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
-                           | grep ^_acme|awk -F'"' '{ print $2}')
+                           |awk -F'"' '{ print $2}')
           fi
           debug "expecting  $auth_key"
           debug "${ns} gave ... $check_result"
