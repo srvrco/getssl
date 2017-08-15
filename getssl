@@ -389,9 +389,18 @@ check_config() { # check the config files for all obvious errors
         config_errors=true
       fi
       # check domain exist
-      if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
+      if [[ "$DNS_CHECK_FUNC" == "drill" ]]; then
         if [[ "$($DNS_CHECK_FUNC "${d}" SOA|grep -c "^${d}")" -ge 1 ]]; then
           debug "found IP for ${d}"
+        else
+          info "${DOMAIN}: DNS lookup failed for ${d}"
+          config_errors=true
+        fi
+      elif [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
+        if [[ "$($DNS_CHECK_FUNC "${d}" -t SOA|grep -c "^${d}")" -ge 1 ]]; then
+          debug "found SOA IP for ${d}"
+        elif [[ "$($DNS_CHECK_FUNC "${d}" -t A|grep -c "^${d}")" -ge 1 ]]; then
+          debug "found A IP for ${d}"
         else
           info "${DOMAIN}: DNS lookup failed for ${d}"
           config_errors=true
