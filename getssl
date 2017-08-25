@@ -1309,11 +1309,11 @@ write_domain_template() { # write out a template file for a domain.
 
 	# Location for all your certs, these can either be on the server (full path name)
 	# or using ssh /sftp as for the ACL
-	#DOMAIN_CERT_LOCATION="/etc/ssl/${DOMAIN}.crt"
-	#DOMAIN_KEY_LOCATION="/etc/ssl/${DOMAIN}.key"
-	#CA_CERT_LOCATION="/etc/ssl/chain.crt"
+	#DOMAIN_CERT_LOCATION="/etc/ssl/${DOMAIN}.crt" # this is domain cert
+	#DOMAIN_KEY_LOCATION="/etc/ssl/${DOMAIN}.key" # this is domain key
+	#CA_CERT_LOCATION="/etc/ssl/chain.crt" # this is CA cert
 	#DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
-	#DOMAIN_PEM_LOCATION="" # this is the domain_key, domain cert and CA cert
+	#DOMAIN_PEM_LOCATION="" # this is the domain key, domain cert and CA cert
 
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
