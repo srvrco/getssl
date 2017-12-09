@@ -192,16 +192,20 @@ VERSION="2.10"
 # defaults
 ACCOUNT_KEY_LENGTH=4096
 ACCOUNT_KEY_TYPE="rsa"
+export AUTH_DNS_SERVER=""
 CA="https://acme-staging.api.letsencrypt.org"
 CA_CERT_LOCATION=""
 CHALLENGE_CHECK_TYPE="http"
 CHECK_ALL_AUTH_DNS="false"
+CHECK_CERT_TIMEOUT="4"
 CHECK_REMOTE="true"
 CHECK_REMOTE_WAIT=0
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
 CSR_SUBJECT="/"
 DEACTIVATE_AUTH="false"
 DEFAULT_REVOKE_CA="https://acme-v01.api.letsencrypt.org"
+DNS_CHECK_FUNC=""
+DNS_CHECK_OPTIONS=""
 DNS_EXTRA_WAIT=""
 DNS_WAIT=10
 DOMAIN_KEY_LENGTH=4096
@@ -212,7 +216,7 @@ IGNORE_DIRECTORY_DOMAIN="false"
 ORIG_UMASK=$(umask)
 PREVIOUSLY_VALIDATED="true"
 PRIVATE_KEY_ALG="rsa"
-PUBLIC_DNS_SERVER=""
+export PUBLIC_DNS_SERVER=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
 REUSE_PRIVATE_KEY="true"
@@ -336,7 +340,7 @@ check_config() { # check the config files for all obvious errors
     rsa|prime256v1|secp384r1|secp521r1)
       debug "checked PRIVATE_KEY_ALG " ;;
     *)
-      info "${DOMAIN}: invalid PRIVATE_KEY_ALG - $PRIVATE_KEY_ALG"
+      info "${DOMAIN}: invalid PRIVATE_KEY_ALG - '$PRIVATE_KEY_ALG'"
       config_errors=true ;;
   esac
   if [[ "$DUAL_RSA_ECDSA" == "true" ]] && [[ "$PRIVATE_KEY_ALG" == "rsa" ]]; then
@@ -389,14 +393,14 @@ check_config() { # check the config files for all obvious errors
         config_errors=true
       fi
       # check domain exist
-      if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
+      if [[ "$DNS_CHECK_FUNC" =~ ^drill ]] || [[ "$DNS_CHECK_FUNC" =~ ^dig ]]; then
         if [[ "$($DNS_CHECK_FUNC "${d}" SOA|grep -c "^${d}")" -ge 1 ]]; then
           debug "found IP for ${d}"
         else
           info "${DOMAIN}: DNS lookup failed for ${d}"
           config_errors=true
         fi
-      elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
+      elif [[ "$DNS_CHECK_FUNC" =~ ^host ]]; then
         if [[ "$($DNS_CHECK_FUNC "${d}" |grep -c "^${d}")" -ge 1 ]]; then
           debug "found IP for ${d}"
         else
@@ -429,7 +433,8 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
   curl --silent "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
-    error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
+    longmsg=$'Can not authenticate SSL peer. Your ca_bundle.crt and/or curl may need\nupdating. ca_bundle.crt can be updates with mk-ca-bundle.  Curl should\nsupport SNI (multiple SSL domains on a single IP)'
+    error_exit "$longmsg"
   elif [[ $errcode -gt 0 ]]; then
     error_exit "curl error : $errcode"
   fi
@@ -715,20 +720,19 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     primary_ns="$all_auth_dns_servers"
     return
   fi
-
-  if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
+  if [[ "$DNS_CHECK_FUNC" =~ ^drill ]] || [[ "$DNS_CHECK_FUNC" =~ ^dig ]]; then
     if [[ -z "$gad_s" ]]; then #checking for CNAMEs
-      res=$($DNS_CHECK_FUNC CNAME "$gad_d"| grep "^$gad_d")
+      res=$($DNS_CHECK_FUNC "$gad_d" CNAME| grep "^$gad_d")
     else
-      res=$($DNS_CHECK_FUNC CNAME "$gad_d" "@$gad_s"| grep "^$gad_d")
+      res=$($DNS_CHECK_FUNC "$gad_d" CNAME "@$gad_s"| grep "^$gad_d")
     fi
     if [[ ! -z "$res" ]]; then # domain is a CNAME so get main domain
       gad_d=$(echo "$res"| awk '{print $5}' |sed 's/\.$//g')
     fi
     if [[ -z "$gad_s" ]]; then #checking for CNAMEs
-      res=$($DNS_CHECK_FUNC NS "$gad_d"| grep "^$gad_d")
+      res=$($DNS_CHECK_FUNC "$gad_d" NS| grep "^$gad_d")
     else
-      res=$($DNS_CHECK_FUNC NS "$gad_d" "@$gad_s"| grep "^$gad_d")
+      res=$($DNS_CHECK_FUNC "$gad_d" NS "@$gad_s"| grep "^$gad_d")
     fi
     if [[ -z "$res" ]]; then
       error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
@@ -743,7 +747,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     return
   fi
 
-  if [[ "$DNS_CHECK_FUNC" == "host" ]]; then
+  if [[ "$DNS_CHECK_FUNC" =~ ^host ]]; then
     if [[ -z "$gad_s" ]]; then
       res=$($DNS_CHECK_FUNC -t NS "$gad_d"| grep "name server")
     else
@@ -813,7 +817,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
     echo -----BEGIN CERTIFICATE----- > "$gc_certfile"
     curl --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
     echo -----END CERTIFICATE-----  >> "$gc_certfile"
-    info "Certificate saved in $CERT_FILE"
+    info "Certificate saved in $gc_certfile"
   fi
 
   # If certificate wasn't a valid certificate, error exit.
@@ -1177,6 +1181,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       response=$($CURL -X POST --data "$body" "$url")
     fi
 
+    touch "$CURL_HEADER"
     responseHeaders=$(cat "$CURL_HEADER")
     debug responseHeaders "$responseHeaders"
     debug response  "$response"
@@ -1324,6 +1329,21 @@ write_domain_template() { # write out a template file for a domain.
 	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
 	#SERVER_TYPE="https"
 	#CHECK_REMOTE="true"
+
+        # Unusual configurations (especially split views) may require these.
+        # If these (or any variable) apply to all your domains, put them in
+        # the per-domain getssl.cfg.
+        #
+        # If you must use an external DNS Server (e.g. due to split views)
+        # Specify it here.  Otherwise, the default is to find the zone master.
+        # The default will usually work.
+        # PUBLIC_DNS_SERVER="8.8.8.8"
+
+        # If getssl is unable to determine the authoritative nameserver for a domain
+        # it will as you to enter AUTH_DNS_SERVER.  This is the primary  server that
+        # getssl will use to check for the acme tokens.  It must be visible externally
+        # as well as internally.  It need not be "authoritiative" in the RFC1035 sense.
+        # AUTH_DNS_SERVER="8.8.8.8"
 	_EOF_domain_
 }
 
@@ -1363,6 +1383,19 @@ write_getssl_template() { # write out the main template file
 	#VALIDATE_VIA_DNS="true"
 	#DNS_ADD_COMMAND=
 	#DNS_DEL_COMMAND=
+
+        # Unusual configurations (especially split views) may require these.
+        # If you have a mixture, these can go in the per-domain getssl.cfg.
+        #
+        # If you must use an external DNS Server (e.g. due to split views)
+        # Specify it here.  Otherwise, the default is to find the zone master.
+        # The default will usually work.
+        # PUBLIC_DNS_SERVER="8.8.8.8"
+
+        # If getssl is unable to determine the authoritative nameserver for a domain
+        # it will as you to enter AUTH_DNS_SERVER.  This is a server that
+        # can answer queries for the zone - a master or a slave, not a recursive server.
+        # AUTH_DNS_SERVER="10.0.0.14"
 	_EOF_getssl_
 }
 
@@ -1445,7 +1478,6 @@ get_os
 requires which
 requires openssl
 requires curl
-requires nslookup drill dig host DNS_CHECK_FUNC
 requires awk
 requires tr
 requires date
@@ -1494,6 +1526,12 @@ if [[ -s "$WORKING_DIR/getssl.cfg" ]]; then
   debug "reading config from $WORKING_DIR/getssl.cfg"
   # shellcheck source=/dev/null
   . "$WORKING_DIR/getssl.cfg"
+fi
+
+if [[ -n "$DNS_CHECK_FUNC" ]]; then
+  requires "${DNS_CHECK_FUNC}"
+else
+  requires nslookup drill dig host DNS_CHECK_FUNC
 fi
 
 # Define defaults for variables not set in the main config.
@@ -1568,11 +1606,17 @@ if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
   if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
     info "domain config already exists $DOMAIN_DIR/getssl.cfg"
   else
-    info "creating domain config file in $DOMAIN_DIR/getssl.cfg"
-    # if domain has an existing cert, copy from domain and use to create defaults.
-    EX_CERT=$(echo \
-      | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null \
-      | openssl x509 2>/dev/null)
+      info "Contacting ${DOMAIN} to inspect current certificate"
+      EX_CERT=$( {
+        if [[ "${BASH_VERSINFO[0]}${BASH_VERSINFO[1]}" -ge 43 ]]; then
+          openssl s_client -servername "$DOMAIN" -connect "$DOMAIN":443 </dev/null 2>/dev/null & PID=$!
+          sleep ${CHECK_CERT_TIMEOUT} & PIDW=$!
+          wait -n # Requires bash 4.3+
+          kill -9 "$PID" "$PIDW" 2>/dev/null
+        else
+          openssl s_client -servername "$DOMAIN" -connect "$DOMAIN":443 </dev/null 2>/dev/null
+        fi
+      } | openssl x509 2>/dev/null)
     EX_SANS="www.${DOMAIN}"
     if [[ ! -z "${EX_CERT}" ]]; then
       EX_SANS=$(echo "$EX_CERT" \
@@ -1581,6 +1625,7 @@ if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
       EX_SANS=${EX_SANS//$'\n'/','}
     fi
     write_domain_template "$DOMAIN_DIR/getssl.cfg"
+    info "created domain config file in $DOMAIN_DIR/getssl.cfg"
   fi
   TEMP_DIR="$DOMAIN_DIR/tmp"
   # end of "-c|--create" option, so exit
@@ -1608,6 +1653,11 @@ if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
   . "$DOMAIN_DIR/getssl.cfg"
 fi
 
+# In case special options are needed for DNS_CHECK_FUNC, add them
+# to the command.  E.G. if a TSIG key or bound local IP is required...
+
+DNS_CHECK_FUNC="${DNS_CHECK_FUNC} ${DNS_CHECK_OPTIONS}"
+
 # from SERVER_TYPE set REMOTE_PORT and REMOTE_EXTRA
 set_server_type
 
@@ -1628,11 +1678,19 @@ URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
-  debug "getting certificate for $DOMAIN from remote server"
+  info "Contacting $DOMAIN on port ${REMOTE_PORT} to inspect current certificate"
   # shellcheck disable=SC2086
-  EX_CERT=$(echo \
-    | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null \
-    | openssl x509 2>/dev/null)
+  EX_CERT=$( {
+        if [[ "${BASH_VERSINFO[0]}${BASH_VERSINFO[1]}" -ge 43 ]]; then
+          echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null & PID=$!
+          sleep ${CHECK_CERT_TIMEOUT} & PIDW=$!
+          wait -n # Requires bash 4.3+
+          kill -9 "$PID" "$PIDW" 2>/dev/null
+        else
+          echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null
+        fi
+      } | openssl x509 2>/dev/null )
+
   if [[ ! -z "$EX_CERT" ]]; then # if obtained a cert
     if [[ -s "$CERT_FILE" ]]; then # if local exists
       CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
@@ -1678,11 +1736,15 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
           copy_file_to_location "full pem" \
                                 "$TEMP_DIR/${DOMAIN}_chain.pem" \
                                 "$DOMAIN_CHAIN_LOCATION"
+          umask 077
           cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
+          umask "$ORIG_UMASK"
           copy_file_to_location "private key and domain cert pem" \
                                 "$TEMP_DIR/${DOMAIN}_K_C.pem"  \
                                 "$DOMAIN_KEY_CERT_LOCATION"
+          umask 077
           cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
+          umask "$ORIG_UMASK"
           copy_file_to_location "full pem" \
                                 "$TEMP_DIR/${DOMAIN}.pem"  \
                                 "$DOMAIN_PEM_LOCATION"
@@ -1979,10 +2041,10 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
             check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
                            | grep ^_acme -A2\
                            | grep '"'|awk -F'"' '{ print $2}')
-          elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-            check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${d}" "@${ns}" \
+          elif [[ "$DNS_CHECK_FUNC" =~ ^drill ]] || [[ "$DNS_CHECK_FUNC" =~ ^dig ]]; then
+            check_result=$($DNS_CHECK_FUNC "_acme-challenge.${d}" TXT "@${ns}" \
                            | grep ^_acme|awk -F'"' '{ print $2}')
-          elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
+          elif [[ "$DNS_CHECK_FUNC" =~ ^host ]]; then
             check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${d}" "${ns}" \
                            | grep ^_acme|awk -F'"' '{ print $2}')
           else
@@ -2096,12 +2158,14 @@ if [[ ! -z "$DOMAIN_KEY_CERT_LOCATION" ]]; then
   else
     to_location="${DOMAIN_KEY_CERT_LOCATION}"
   fi
+  umask 077
   cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
   copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
   cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"
   copy_file_to_location "private ec key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"  "${to_location}.ec"
   fi
+  umask "$ORIG_UMASK"
 fi
 # if DOMAIN_PEM_LOCATION is not blank, then create and copy file.
 if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
@@ -2110,12 +2174,14 @@ if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
   else
     to_location="${DOMAIN_PEM_LOCATION}"
   fi
+  umask 077
   cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
   copy_file_to_location "full key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
     cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}.pem.ec"
     copy_file_to_location "full ec key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem.ec"  "${to_location}.ec"
   fi
+  umask "$ORIG_UMASK"
 fi
 # end of copying certs.
 

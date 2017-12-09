@@ -1,0 +1,3 @@
+# Files not to include in .zip/.tar.gz archives
+#
+.git*           export-ignore
