@@ -930,24 +930,21 @@ graceful_exit() { # normal exit function.
 
 help_message() { # print out the help message
   cat <<- _EOF_
-	$PROGNAME ver. $VERSION
 	Obtain SSL certificates from the letsencrypt.org ACME server
 
 	$(usage)
 
 	Options:
-	  -a, --all          Check all certificates
-	  -d, --debug        Outputs debug information
-	  -c, --create       Create default config files
-	  -f, --force        Force renewal of cert (overrides expiry checks)
-	  -h, --help         Display this help message and exit
-	  -q, --quiet        Quiet mode (only outputs on error, success of new cert, or getssl was upgraded)
-	  -Q, --mute         Like -q, but mutes notification about successful upgrade
-	  -r, --revoke   "cert" "key" [CA_server] Revoke a certificate (the cert and key are required)
-	  -u, --upgrade      Upgrade getssl if a more recent version is available
-	  -k, --keep     "#" Maximum amount of old getssl versions to keep when upgrading
-	  -U, --nocheck      Do not check if a more recent version is available
-	  -w working_dir "Working directory"
+	  -a, --all                         Check all certificates
+	  -d, --debug                       Output debug information
+	  -c, --create DOMAIN               Create default configuration files
+	  -f, --force                       Force renewal of cert (overrides expiry checks)
+	  -h, --help                        Display this help message and exit
+	  -q, --quiet                       Quiet mode (only outputs on error, success of new cert,
+	                                    or getssl was upgraded)
+	  -Q, --mute                        Like -q, but mutes notification about successful upgrade
+	  -r, --revoke CERT KEY [CA SERVER] Revoke a certificate
+	  -k, --keep NUMBER                 Maximum amount of old getssl versions to keep when upgrading
 
 	_EOF_
 }
