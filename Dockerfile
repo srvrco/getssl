@@ -8,6 +8,7 @@ RUN apk --no-cache --virtual .run-depends add \
 
 COPY getssl /usr/local/bin/getssl
 
+WORKDIR /
 
-ENTRYPOINT [ "/usr/local/bin/getssl", "--nocheck" ]
-CMD [ "--help" ]
+COPY ./docker-entrypoint.sh /
+ENTRYPOINT [ "/docker-entrypoint.sh" ]
