@@ -8,5 +8,5 @@ if [ "$1" == "" ] && [ ! -f $WORKING_DIR/getsslD.cfg ]; then
     echo "Type <getsslD -c DOMAIN> to initialize configuration files."
 fi
 
-getssl --nocheck -w $WORKING_DIR "$@"
+getsslD --nocheck -w $WORKING_DIR "$@"
 
