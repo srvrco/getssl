@@ -1150,17 +1150,7 @@ done
 
 #check if required applications are included
 
-requires which
-requires openssl
-requires curl
 requires nslookup drill dig host DNS_CHECK_FUNC
-requires awk
-requires tr
-requires date
-requires grep
-requires sed
-requires sort
-requires mktemp
 
 # Check if upgrades are available (unless they have specified -U to ignore Upgrade checks)
 if [[ $_UPGRADE_CHECK -eq 1 ]]; then
