@@ -62,7 +62,6 @@ _MUTE=${_MUTE:-"0"}
 _QUIET=${_QUIET:-"0"}
 _RECREATE_CSR=${_RECREATE_CSR:-"0"}
 _REVOKE=${_REVOKE:-"0"}
-_UPGRADE_CHECK=${_UPGRADE_CHECK:-"1"}
 _USE_DEBUG=${_USE_DEBUG:-"0"}
 config_errors="false"
 LANG=C
@@ -1061,8 +1060,6 @@ while [[ -n ${1+defined} ]]; do
      REVOKE_KEY="$1"
      shift
      REVOKE_CA="$1" ;;
-    -U | --nocheck)
-      _UPGRADE_CHECK=0 ;;
     -w)
       shift; WORKING_DIR="$1" ;;
     -* | --*)
@@ -1082,11 +1079,6 @@ done
 
 # Main logic
 ############
-
-# Check if upgrades are available (unless they have specified -U to ignore Upgrade checks)
-if [[ $_UPGRADE_CHECK -eq 1 ]]; then
-  check_getsslD_upgrade
-fi
 
 # Revoke a certificate if requested
 if [[ $_REVOKE -eq 1 ]]; then
@@ -1155,7 +1147,7 @@ if [[ ${_CHECK_ALL} -eq 1 ]]; then
   for dir in ${DOMAIN_STORAGE}/*; do
     if [[ -d "$dir" ]]; then
       debug "Checking $dir"
-      cmd="$0 -U" # No update checks when calling recursively
+      cmd="$0"
       if [[ ${_USE_DEBUG} -eq 1 ]]; then
         cmd="$cmd -d"
       fi
