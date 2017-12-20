@@ -1083,13 +1083,6 @@ done
 # Main logic
 ############
 
-# check if "recent" version of bash.
-#if [[ "${BASH_VERSINFO[0]}${BASH_VERSINFO[1]}" -lt 42 ]]; then
-#  info "this script is designed for bash v4.2 or later - earlier version may give errors"
-#fi
-
-#check if required applications are included
-
 # Check if upgrades are available (unless they have specified -U to ignore Upgrade checks)
 if [[ $_UPGRADE_CHECK -eq 1 ]]; then
   check_getsslD_upgrade
