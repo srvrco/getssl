@@ -454,6 +454,11 @@ error_exit() { # give error message on error exit
   exit 1
 }
 
+error() {
+  # Write error message to STDERR for log.
+  echo "$@" >&2
+}
+
 get_auth_dns() { # get the authoritative dns server for a domain (sets primary_ns )
   gad_d="$1" # domain name
   gad_s="$PUBLIC_DNS_SERVER" # start with PUBLIC_DNS_SERVER
@@ -923,8 +928,7 @@ urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and 
 }
 
 usage() { # echos out the program usage
-  echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet]"\
-       "[-r|--revoke cert key] DOMAIN"
+  echo "Usage: $PROGNAME [options] [ARGS]"
 }
 
 write_domain_template() { # write out a template file for a domain.
@@ -1096,6 +1100,7 @@ AGREEMENT=$(curl -I "${CA}/terms" 2>/dev/null | awk '$1 ~ "Location:" {print $2}
 
 # if nothing in command line, print help and exit.
 if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} != "true" ]]; then
+  error "Domain is required for this option."
   help_message
   graceful_exit
 fi

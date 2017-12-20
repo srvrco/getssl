@@ -5,8 +5,7 @@ RUN apk --no-cache --virtual .run-depends add \
     curl \
     openssl
 
-COPY getsslD /usr/local/bin/getsslD
-
+COPY getsslD /
 WORKDIR /
 
 COPY ./docker-entrypoint.sh /
