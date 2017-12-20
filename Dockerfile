@@ -5,7 +5,7 @@ RUN apk --no-cache --virtual .run-depends add \
     curl \
     openssl
 
-COPY getssl /usr/local/bin/getssl
+COPY getsslD /usr/local/bin/getsslD
 
 WORKDIR /
 
