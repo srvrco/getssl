@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# getssl - Obtain SSL certificates from the letsencrypt.org ACME server
+# getsslD - Obtain SSL certificates from the letsencrypt.org ACME server
+#           Running in a Docker conatainer.
+#           Based on the work of https://github.com/srvrco/getssl
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,7 +15,7 @@
 # GNU General Public License at <http://www.gnu.org/licenses/> for
 # more details.
 
-# For usage, run "getssl -h" or see https://github.com/srvrco/getssl
+# For usage, run "getssl -h" or see
 
 # Revision history:
 # 2016-01-08 Created (v0.1)
@@ -189,53 +191,53 @@
 PROGNAME=${0##*/}
 VERSION="2.10"
 
-# defaults
-ACCOUNT_KEY_LENGTH=4096
-ACCOUNT_KEY_TYPE="rsa"
-CA="https://acme-staging.api.letsencrypt.org"
-CA_CERT_LOCATION=""
-CHALLENGE_CHECK_TYPE="http"
-CHECK_ALL_AUTH_DNS="false"
-CHECK_REMOTE="true"
-CHECK_REMOTE_WAIT=0
-CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
-CSR_SUBJECT="/"
-DEACTIVATE_AUTH="false"
-DEFAULT_REVOKE_CA="https://acme-v01.api.letsencrypt.org"
-DNS_EXTRA_WAIT=""
-DNS_WAIT=10
-DOMAIN_KEY_LENGTH=4096
-DUAL_RSA_ECDSA="false"
-GETSSL_IGNORE_CP_PRESERVE="false"
-HTTP_TOKEN_CHECK_WAIT=0
-IGNORE_DIRECTORY_DOMAIN="false"
+# Default values, accepts environment variables if set, otherwise default are used
+ACCOUNT_KEY_LENGTH=${ACCOUNT_KEY_LENGTH:-"4096"}
+ACCOUNT_KEY_TYPE=${ACCOUNT_KEY_TYPE:-"rsa"}
+CA=${CA:-"https://acme-staging.api.letsencrypt.org"}
+CA_CERT_LOCATION=${CA_CERT_LOCATION:-""}
+CHALLENGE_CHECK_TYPE=${CHALLENGE_CHECK_TYPE:-"http"}
+CHECK_ALL_AUTH_DNS=${CHECK_ALL_AUTH_DNS:-"false"}
+CHECK_REMOTE=${CHECK_REMOTE:-"true"}
+CHECK_REMOTE_WAIT=${CHECK_REMOTE_WAIT:-"0"}
+CODE_LOCATION=${CODE_LOCATION:-"https://raw.githubusercontent.com/dschaper/getssl/master/getssl"}
+CSR_SUBJECT=${CSR_SUBJECT:-"/"}
+DEACTIVATE_AUTH=${DEACTIVATE_AUTH:-"false"}
+DEFAULT_REVOKE_CA=${DEFAULT_REVOKE_CA:-"https://acme-v01.api.letsencrypt.org"}
+DNS_EXTRA_WAIT=${DNS_EXTRA_WAIT:-""}
+DNS_WAIT=${DNS_WAIT:-"10"}
+DOMAIN_KEY_LENGTH=${DOMAIN_KEY_LENGTH:-"4096"}
+DUAL_RSA_ECDSA=${DUAL_RSA_ECDSA:-"false"}
+GETSSL_IGNORE_CP_PRESERVE=${GETSSL_IGNORE_CP_PRESERVE:-"false"}
+HTTP_TOKEN_CHECK_WAIT=${HTTP_TOKEN_CHECK_WAIT:-"0"}
+IGNORE_DIRECTORY_DOMAIN=${IGNORE_DIRECTORY_DOMAIN:-"false"}
 ORIG_UMASK=$(umask)
-PREVIOUSLY_VALIDATED="true"
-PRIVATE_KEY_ALG="rsa"
-PUBLIC_DNS_SERVER=""
-RELOAD_CMD=""
-RENEW_ALLOW="30"
-REUSE_PRIVATE_KEY="true"
-SERVER_TYPE="https"
-SKIP_HTTP_TOKEN_CHECK="false"
-SSLCONF="$(openssl version -d 2>/dev/null| cut -d\" -f2)/openssl.cnf"
-OCSP_MUST_STAPLE="false"
-TEMP_UPGRADE_FILE=""
-TOKEN_USER_ID=""
-USE_SINGLE_ACL="false"
-VALIDATE_VIA_DNS=""
-WORKING_DIR=~/.getssl
-_CHECK_ALL=0
-_CREATE_CONFIG=0
-_FORCE_RENEW=0
-_KEEP_VERSIONS=""
-_MUTE=0
-_QUIET=0
-_RECREATE_CSR=0
-_REVOKE=0
-_UPGRADE=0
-_UPGRADE_CHECK=1
-_USE_DEBUG=0
+PREVIOUSLY_VALIDATED=${PREVIOUSLY_VALIDATED:-"true"}
+PRIVATE_KEY_ALG=${PRIVATE_KEY_ALG:-"rsa"}
+PUBLIC_DNS_SERVER=${PUBLIC_DNS_SERVER:-""}
+RELOAD_CMD=${RELOAD_CMD:-""}
+RENEW_ALLOW=${RENEW_ALLOW:-"30"}
+REUSE_PRIVATE_KEY=${REUSE_PRIVATE_KEY:-"true"}
+SERVER_TYPE=${SERVER_TYPE:-"https"}
+SKIP_HTTP_TOKEN_CHECK=${SKIP_HTTP_TOKEN_CHECK:-"false"}
+SSLCONF=${SSLCONF:-"$(openssl version -d 2>/dev/null| cut -d\" -f2)/openssl.cnf"}
+OCSP_MUST_STAPLE=${OCSP_MUST_STAPLE:-"false"}
+TEMP_UPGRADE_FILE=${TEMP_UPGRADE_FILE:-""}
+TOKEN_USER_ID=${TOKEN_USER_ID:-""}
+USE_SINGLE_ACL=${USE_SINGLE_ACL:-"false"}
+VALIDATE_VIA_DNS=${VALIDATE_VIA_DNS:-""}
+WORKING_DIR=${WORKING_DIR:-~/.getssl}
+_CHECK_ALL=${_CHECK_ALL:-"0"}
+_CREATE_CONFIG=${_CREATE_CONFIG:-"0"}
+_FORCE_RENEW=${_FORCE_RENEW:-"0"}
+_KEEP_VERSIONS=${_KEEP_VERSIONS:-""}
+_MUTE=${MUTE:-"0"}
+_QUIET=${_QUIET:-"0"}
+_RECREATE_CSR=${_RECREATE_CSR:-"0"}
+_REVOKE=${_REVOKE:-"0"}
+_UPGRADE=${_UPGRADE:-"0"}
+_UPGRADE_CHECK=${_UPGRADE_CHECK:-"1"}
+_USE_DEBUG=${_USE_DEBUG:-"0"}
 config_errors="false"
 LANG=C
 
