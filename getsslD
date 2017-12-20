@@ -234,21 +234,7 @@ check_config() { # check the config files for all obvious errors
         config_errors=true
       fi
       # check domain exist
-      if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-        if [[ "$($DNS_CHECK_FUNC "${d}" SOA|grep -c "^${d}")" -ge 1 ]]; then
-          debug "found IP for ${d}"
-        else
-          info "${DOMAIN}: DNS lookup failed for ${d}"
-          config_errors=true
-        fi
-      elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
-        if [[ "$($DNS_CHECK_FUNC "${d}" |grep -c "^${d}")" -ge 1 ]]; then
-          debug "found IP for ${d}"
-        else
-          info "${DOMAIN}: DNS lookup failed for ${d}"
-          config_errors=true
-        fi
-      elif [[ "$(nslookup -query=AAAA "${d}"|grep -c "^${d}.*has AAAA address")" -ge 1 ]]; then
+      if [[ "$(nslookup -query=AAAA "${d}"|grep -c "^${d}.*has AAAA address")" -ge 1 ]]; then
         debug "found IPv6 record for ${d}"
       elif [[ "$(nslookup "${d}"| grep -c ^Name)" -ge 1 ]]; then
         debug "found IPv4 record for ${d}"
@@ -473,52 +459,6 @@ error_exit() { # give error message on error exit
 get_auth_dns() { # get the authoritative dns server for a domain (sets primary_ns )
   gad_d="$1" # domain name
   gad_s="$PUBLIC_DNS_SERVER" # start with PUBLIC_DNS_SERVER
-
-  if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-    if [[ -z "$gad_s" ]]; then #checking for CNAMEs
-      res=$($DNS_CHECK_FUNC CNAME "$gad_d"| grep "^$gad_d")
-    else
-      res=$($DNS_CHECK_FUNC CNAME "$gad_d" "@$gad_s"| grep "^$gad_d")
-    fi
-    if [[ ! -z "$res" ]]; then # domain is a CNAME so get main domain
-      gad_d=$(echo "$res"| awk '{print $5}' |sed 's/\.$//g')
-    fi
-    if [[ -z "$gad_s" ]]; then #checking for CNAMEs
-      res=$($DNS_CHECK_FUNC NS "$gad_d"| grep "^$gad_d")
-    else
-      res=$($DNS_CHECK_FUNC NS "$gad_d" "@$gad_s"| grep "^$gad_d")
-    fi
-    if [[ -z "$res" ]]; then
-      error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
-    else
-      all_auth_dns_servers=$(echo "$res" | awk '$4 ~ "NS" {print $5}' | sed 's/\.$//g'|tr '\n' ' ')
-    fi
-    if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
-      primary_ns="$all_auth_dns_servers"
-    else
-      primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
-    fi
-    return
-  fi
-
-  if [[ "$DNS_CHECK_FUNC" == "host" ]]; then
-    if [[ -z "$gad_s" ]]; then
-      res=$($DNS_CHECK_FUNC -t NS "$gad_d"| grep "name server")
-    else
-      res=$($DNS_CHECK_FUNC -t NS "$gad_d" "$gad_s"| grep "name server")
-    fi
-    if [[ -z "$res" ]]; then
-      error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
-    else
-      all_auth_dns_servers=$(echo "$res" | awk '{print $4}' | sed 's/\.$//g'|tr '\n' ' ')
-    fi
-    if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
-      primary_ns="$all_auth_dns_servers"
-    else
-      primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
-    fi
-    return
-  fi
 
   res=$(nslookup -debug=1 -type=soa -type=ns "$gad_d" ${gad_s})
 
@@ -1150,8 +1090,6 @@ done
 
 #check if required applications are included
 
-requires nslookup drill dig host DNS_CHECK_FUNC
-
 # Check if upgrades are available (unless they have specified -U to ignore Upgrade checks)
 if [[ $_UPGRADE_CHECK -eq 1 ]]; then
   check_getsslD_upgrade
@@ -1670,16 +1608,8 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
         ntries=0
         check_dns="fail"
         while [[ "$check_dns" == "fail" ]]; do
-         if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-            check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${d}" "@${ns}" \
+          check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
                            | grep ^_acme|awk -F'"' '{ print $2}')
-          elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
-            check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${d}" "${ns}" \
-                           | grep ^_acme|awk -F'"' '{ print $2}')
-          else
-            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
-                           | grep ^_acme|awk -F'"' '{ print $2}')
-          fi
           debug "expecting  $auth_key"
           debug "${ns} gave ... $check_result"
 
