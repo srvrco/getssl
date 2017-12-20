@@ -664,8 +664,7 @@ help_message() { # print out the help message
 }
 
 hex2bin() { # Remove spaces, add leading zero, escape as hex string ensuring no trailing new line char
-#  printf -- "$(cat | os_esed -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
-  echo -e -n "$(cat | os_esed -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
+  echo -e -n "$(cat | sed -r -e 's/[[:space:]]//g' -e 's/^(.(.{2})*)$/0\1/' -e 's/(.{2})/\\x\1/g')"
 }
 
 info() { # write out info as long as the quiet flag has not been set.
@@ -697,10 +696,6 @@ json_get() { # get the value corresponding to $2 in the JSON passed as $1.
   else
     echo "$jg_result"
   fi
-}
-
-os_esed() { # Use different sed version for different os types (extended regex)
-  sed -r "${@}"
 }
 
 purge_archive() { # purge archive of old, invalid, certificates
@@ -965,7 +960,7 @@ signal_exit() { # Handle trapped signals
 }
 
 urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
-  openssl base64 -e | tr -d '\n\r' | os_esed -e 's:=*$::g' -e 'y:+/:-_:'
+  openssl base64 -e | tr -d '\n\r' | sed -r -e 's:=*$::g' -e 'y:+/:-_:'
 }
 
 usage() { # echos out the program usage
