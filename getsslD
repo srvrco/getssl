@@ -55,14 +55,13 @@ TOKEN_USER_ID=${TOKEN_USER_ID:-""}
 USE_SINGLE_ACL=${USE_SINGLE_ACL:-"false"}
 VALIDATE_VIA_DNS=${VALIDATE_VIA_DNS:-""}
 WORKING_DIR=${WORKING_DIR:-~/.getsslD}
-_CHECK_ALL=${_CHECK_ALL:-"0"}
-_CREATE_CONFIG=${_CREATE_CONFIG:-"0"}
-_FORCE_RENEW=${_FORCE_RENEW:-"0"}
-_MUTE=${_MUTE:-"0"}
-_QUIET=${_QUIET:-"0"}
-_RECREATE_CSR=${_RECREATE_CSR:-"0"}
-_REVOKE=${_REVOKE:-"0"}
-_USE_DEBUG=${_USE_DEBUG:-"0"}
+_CHECK_ALL=${_CHECK_ALL:-"false"}
+_CREATE_CONFIG=${_CREATE_CONFIG:-"false"}
+_FORCE_RENEW=${_FORCE_RENEW:-"false"}
+_QUIET=${_QUIET:-"false"}
+_RECREATE_CSR=${_RECREATE_CSR:-"false"}
+_REVOKE=${_REVOKE:-"false"}
+_USE_DEBUG=${_USE_DEBUG:-"false"}
 config_errors="false"
 LANG=C
 
@@ -107,7 +106,7 @@ cert_archive() {
 
   # Call purge_archive to clear out old files
   debug "Purging old getsslD archives"
-  purge_archive "$DOMAIN_DIR"
+  purge_archive "${DOMAIN_DIR}"
 }
 
 check_challenge_completion() { # checks with the ACME server if our challenge is OK
@@ -374,19 +373,19 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
       if [[ "$(echo "${domains_in_csr}"| grep "^${d}$")" != "${d}" ]]; then
         info "existing csr at $csr_file does not contain ${d} - re-create-csr"\
              ".... $(echo "${domains_in_csr}"| grep "^${d}$")"
-        _RECREATE_CSR=1
+        _RECREATE_CSR="true"
       fi
     done
     # check all domains in csr are in config
     if [[ "$alldomains" != "$domains_in_csr" ]]; then
       info "existing csr at $csr_file does not have the same domains as the config - re-create-csr"
-      _RECREATE_CSR=1
+      _RECREATE_CSR="true"
     fi
   fi
   # end of ... check if domain csr exists - if not then create it
 
   # if CSR does not exist, or flag set to recreate, then create csr
-  if [[ ! -s "$csr_file" ]] || [[ "$_RECREATE_CSR" == "1" ]]; then
+  if [[ ! -s "$csr_file" ]] || [[ "$_RECREATE_CSR" == "true" ]]; then
     info "creating domain csr - $csr_file"
     # create a temporary config file, for portability.
     tmp_conf=$(mktemp)
@@ -443,7 +442,7 @@ date_renew() { # calculates the renewal time in epoch
 }
 
 debug() { # write out debug info if the debug flag has been set
-  if [[ ${_USE_DEBUG} -eq 1 ]]; then
+  if [[ ${_USE_DEBUG} == "true" ]]; then
     echo " "
     echo "$@"
   fi
@@ -628,7 +627,7 @@ hex2bin() { # Remove spaces, add leading zero, escape as hex string ensuring no 
 }
 
 info() { # write out info as long as the quiet flag has not been set.
-  if [[ ${_QUIET} -eq 0 ]]; then
+  if [[ ${_QUIET} != "true" ]]; then
     echo "$@"
   fi
 }
@@ -790,7 +789,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   CURL_HEADER="$TEMP_DIR/curl.header"
   dp="$TEMP_DIR/curl.dump"
   CURL="curl --silent --dump-header $CURL_HEADER "
-  if [[ ${_USE_DEBUG} -eq 1 ]]; then
+  if [[ ${_USE_DEBUG} == "true" ]]; then
     CURL="$CURL --trace-ascii $dp "
   fi
 
@@ -1040,20 +1039,17 @@ while [[ -n ${1+defined} ]]; do
     -h | --help)
       help_message; graceful_exit ;;
     -d | --debug)
-     _USE_DEBUG=1 ;;
+     _USE_DEBUG="true" ;;
     -c | --create)
-     _CREATE_CONFIG=1 ;;
+     _CREATE_CONFIG="true" ;;
     -f | --force)
-     _FORCE_RENEW=1 ;;
+     _FORCE_RENEW="true" ;;
     -a | --all)
-     _CHECK_ALL=1 ;;
+     _CHECK_ALL="true" ;;
     -q | --quiet)
-     _QUIET=1 ;;
-    -Q | --mute)
-     _QUIET=1
-     _MUTE=1 ;;
+     _QUIET="true" ;;
     -r | --revoke)
-     _REVOKE=1
+     _REVOKE="true"
      shift
      REVOKE_CERT="$1"
      shift
@@ -1081,11 +1077,11 @@ done
 ############
 
 # Revoke a certificate if requested
-if [[ $_REVOKE -eq 1 ]]; then
+if [[ $_REVOKE == "true" ]]; then
   if [[ -z $REVOKE_CA ]]; then
     CA=$DEFAULT_REVOKE_CA
   elif [[ "$REVOKE_CA" == "-d" ]]; then
-    _USE_DEBUG=1
+    _USE_DEBUG="true"
     CA=$DEFAULT_REVOKE_CA
   else
     CA=$REVOKE_CA
@@ -1099,7 +1095,7 @@ fi
 AGREEMENT=$(curl -I "${CA}/terms" 2>/dev/null | awk '$1 ~ "Location:" {print $2}'|tr -d '\r')
 
 # if nothing in command line, print help and exit.
-if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]]; then
+if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} != "true" ]]; then
   help_message
   graceful_exit
 fi
@@ -1129,14 +1125,14 @@ TEMP_DIR="$DOMAIN_DIR/tmp"
 export OPENSSL_CONF=$SSLCONF
 
 # if "-a" option then check other parameters and create run for each domain.
-if [[ ${_CHECK_ALL} -eq 1 ]]; then
+if [[ ${_CHECK_ALL} == "true" ]]; then
   info "Check all certificates"
 
-  if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
+  if [[ ${_CREATE_CONFIG} == "true" ]]; then
     error_exit "cannot combine -c|--create with -a|--all"
   fi
 
-  if [[ ${_FORCE_RENEW} -eq 1 ]]; then
+  if [[ ${_FORCE_RENEW} == "true" ]]; then
     error_exit "cannot combine -f|--force with -a|--all because of rate limits"
   fi
 
@@ -1148,10 +1144,10 @@ if [[ ${_CHECK_ALL} -eq 1 ]]; then
     if [[ -d "$dir" ]]; then
       debug "Checking $dir"
       cmd="$0"
-      if [[ ${_USE_DEBUG} -eq 1 ]]; then
+      if [[ ${_USE_DEBUG} == "true" ]]; then
         cmd="$cmd -d"
       fi
-      if [[ ${_QUIET} -eq 1 ]]; then
+      if [[ ${_QUIET} == "true" ]]; then
         cmd="$cmd -q"
       fi
       # check if $dir looks like a domain name (contains a period)
@@ -1168,7 +1164,7 @@ fi
 # end of "-a" option (looping through all domains)
 
 # if "-c|--create" option used, then create config files.
-if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
+if [[ ${_CREATE_CONFIG} == "true" ]]; then
   # If main config file does not exists then create it.
   if [[ ! -s "$WORKING_DIR/getsslD.cfg" ]]; then
     info "creating main config file $WORKING_DIR/getsslD.cfg"
@@ -1234,7 +1230,7 @@ check_config
 
 if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
   rm -f "$DOMAIN_DIR/FORCE_RENEWAL" || error_exit "problem deleting file $DOMAIN_DIR/FORCE_RENEWAL"
-  _FORCE_RENEW=1
+  _FORCE_RENEW="true"
   info "${DOMAIN}: forcing renewal (due to FORCE_RENEWAL file)"
 fi
 
@@ -1245,7 +1241,7 @@ URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
 URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
-if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
+if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW != "true" ]]; then
   debug "getting certificate for $DOMAIN from remote server"
   # shellcheck disable=SC2086
   EX_CERT=$(echo \
@@ -1324,7 +1320,7 @@ if [[ -s "$CERT_FILE" ]]; then
   debug "local cert is valid until $enddate"
   if [[ "$enddate" != "-" ]]; then
     enddate_s=$(date_epoc "$enddate")
-    if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]]; then
+    if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW != "true" ]]; then
       issuer=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null)
       if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v01.api.letsencrypt.org" ]]; then
         debug "upgradeing from fake cert to real"
