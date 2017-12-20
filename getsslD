@@ -424,27 +424,11 @@ create_key() { # create a domain key (if it doesn't already exist)
 }
 
 date_epoc() { # convert the date into epoch time
-  if [[ "$os" == "bsd" ]]; then
-    date -j -f "%b %d %T %Y %Z" "$1" +%s
-  elif [[ "$os" == "mac" ]]; then
-    date -j -f "%b %d %T %Y %Z" "$1" +%s
-  elif [[ "$os" == "busybox" ]]; then
-    de_ld=$(echo "$1" | awk '{print $1 $2 $3 $4}')
-    date -D "%b %d %T %Y" -d "$de_ld" +%s
-  else
-    date -d "$1" +%s
-  fi
-
+    date -D "%b %d %T %Y" -d "$(echo "$1" | awk '{print $1 $2 $3 $4}')" +%s
 }
 
 date_fmt() { # format date from epoc time to YYYY-MM-DD
-  if [[ "$os" == "bsd" ]]; then #uses older style date function.
-    date -j -f "%s" "$1" +%F
-  elif [[ "$os" == "mac" ]]; then # MAC OSX uses older BSD style date.
-    date -j -f "%s" "$1" +%F
-  else
-    date -d "@$1" +%F
-  fi
+  date -d "@$1" +%F
 }
 
 date_renew() { # calculates the renewal time in epoch
@@ -468,17 +452,6 @@ error_exit() { # give error message on error exit
 get_auth_dns() { # get the authoritative dns server for a domain (sets primary_ns )
   gad_d="$1" # domain name
   gad_s="$PUBLIC_DNS_SERVER" # start with PUBLIC_DNS_SERVER
-
-  if [[ "$os" == "cygwin" ]]; then
-    all_auth_dns_servers=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} 2>/dev/null \
-                          | grep "primary name server" \
-                          | awk '{print $NF}')
-    if [[ -z "$all_auth_dns_servers" ]]; then
-      error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
-    fi
-    primary_ns="$all_auth_dns_servers"
-    return
-  fi
 
   if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
     if [[ -z "$gad_s" ]]; then #checking for CNAMEs
@@ -613,26 +586,6 @@ get_cr() { # get curl response
   return $ret
 }
 
-get_os() { # function to get the current Operating System
-  uname_res=$(uname -s)
-  if [[ $(date -h 2>&1 | grep -ic busybox) -gt 0 ]]; then
-    os="busybox"
-  elif [[ ${uname_res} == "Linux" ]]; then
-    os="linux"
-  elif [[ ${uname_res} == "FreeBSD" ]]; then
-    os="bsd"
-  elif [[ ${uname_res} == "Darwin" ]]; then
-    os="mac"
-  elif [[ ${uname_res:0:6} == "CYGWIN" ]]; then
-    os="cygwin"
-  elif [[ ${uname_res:0:5} == "MINGW" ]]; then
-    os="mingw"
-  else
-    os="unknown"
-  fi
-  debug "detected os type = $os"
-}
-
 get_signing_params() { # get signing parameters from key
   skey=$1
   if openssl rsa -in "${skey}" -noout 2>/dev/null ; then # RSA key
@@ -747,13 +700,7 @@ json_get() { # get the value corresponding to $2 in the JSON passed as $1.
 }
 
 os_esed() { # Use different sed version for different os types (extended regex)
-  if [[ "$os" == "bsd" ]]; then # BSD requires -E flag for extended regex
-    sed -E "${@}"
-  elif [[ "$os" == "mac" ]]; then # MAC uses older BSD style sed.
-    sed -E "${@}"
-  else
-    sed -r "${@}"
-  fi
+  sed -r "${@}"
 }
 
 purge_archive() { # purge archive of old, invalid, certificates
@@ -763,13 +710,7 @@ purge_archive() { # purge archive of old, invalid, certificates
     # check each directory
     if [[ -d "$padir" ]]; then
       tstamp=$(basename "$padir"| awk -F"_" '{print $1"-"$2"-"$3" "$4":"$5}')
-      if [[ "$os" == "bsd" ]]; then
-        direpoc=$(date -j -f "%F %H:%M" "$tstamp" +%s)
-      elif [[ "$os" == "mac" ]]; then
-        direpoc=$(date -j -f "%F %H:%M" "$tstamp" +%s)
-      else
-        direpoc=$(date -d "$tstamp" +%s)
-      fi
+      direpoc=$(date -d "$tstamp" +%s)
       current_epoc=$(date "+%s")
       # as certs currently valid for 90 days, purge anything older than 100
       purgedate=$((current_epoc - 60*60*24*100))
@@ -1186,9 +1127,6 @@ done
 # Main logic
 ############
 
-# Get the current OS, so the correct functions can be used for that OS. (sets the variable os)
-get_os
-
 # check if "recent" version of bash.
 #if [[ "${BASH_VERSINFO[0]}${BASH_VERSINFO[1]}" -lt 42 ]]; then
 #  info "this script is designed for bash v4.2 or later - earlier version may give errors"
@@ -1257,9 +1195,6 @@ DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
-if [[ "$os" == "mingw" ]]; then
-  CSR_SUBJECT="//"
-fi
 
 # Set the OPENSSL_CONF environment variable so openssl knows which config to use
 export OPENSSL_CONF=$SSLCONF
@@ -1729,11 +1664,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
         ntries=0
         check_dns="fail"
         while [[ "$check_dns" == "fail" ]]; do
-          if [[ "$os" == "cygwin" ]]; then
-            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
-                           | grep ^_acme -A2\
-                           | grep '"'|awk -F'"' '{ print $2}')
-          elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
+         if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
             check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${d}" "@${ns}" \
                            | grep ^_acme|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
