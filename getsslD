@@ -71,41 +71,38 @@ cert_archive() {
   # Archive certificates files
   # Create directory for day, store certs by DOMAIN-YYYY_MM_DD:HH_MM UTC
 
-  debug "Copying generated certs to archive..."
+  info "Copying generated certs to archive..."
 
   local date_time
   date_time=$(date -u +%Y_%m_%d_%H_%M)
-  local date
-  date=$(date -u +Y_%m_%d)
+  local date=${date_time::10}
   local archive_dir="${DOMAIN_DIR}/archive/${date}"
   local archive_suffix="${DOMAIN}-${date_time}"
-  local orig_umask
-  orig_umask=$(umask)
 
   umask "${DEFAULT_UMASK}"
   mkdir -p "${archive_dir}"
-  debug "   ${archive_dir} created."
+  info "   ${archive_dir} created."
 
   cp "${CERT_FILE}"                "${archive_dir}/${archive_suffix}.crt"
   cp "${DOMAIN_DIR}/${DOMAIN}.csr" "${archive_dir}/${archive_suffix}.csr"
   cp "${DOMAIN_DIR}/${DOMAIN}.key" "${archive_dir}/${archive_suffix}.key"
   cp "${CA_CERT}"                  "${archive_dir}/${archive_suffix}-chain.crt"
   cat "$CERT_FILE" "$CA_CERT" >    "${archive_dir}/${archive_suffix}-fullchain.crt"
-  debug "   RSA certs and chains copied."
+  info "   RSA certs and chains copied."
 
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
     cp "${CERT_FILE::-4}.ec.crt"                            "${archive_dir}/${archive_suffix}.ec.crt"
-    cp "$DOMAIN_DIR/${DOMAIN}.ec.csr"                       "${archive_dir}/${archive_suffix}.ec.csr"
-    cp "$DOMAIN_DIR/${DOMAIN}.ec.key"                       "${archive_dir}/${archive_suffix}.ec.key"
+    cp "${DOMAIN_DIR}/${DOMAIN}.ec.csr"                       "${archive_dir}/${archive_suffix}.ec.csr"
+    cp "${DOMAIN_DIR}/${DOMAIN}.ec.key"                       "${archive_dir}/${archive_suffix}.ec.key"
     cp "${CA_CERT::-4}.ec.crt"                              "${archive_dir}/${archive_suffix}-chain.ec.crt"
     cat "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "${archive_dir}/${archive_suffix}-fullchain.ec.crt"
   fi
-  debug "   EC certs and chains copied."
+  info "   EC certs and chains copied."
 
-  umask "${orig_umask}"
+  umask "${ORIG_UMASK}"
 
   # Call purge_archive to clear out old files
-  debug "Purging old getsslD archives"
+  info "Purging old getsslD archives"
   purge_archive "${DOMAIN_DIR}"
 }
 
