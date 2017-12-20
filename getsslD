@@ -32,6 +32,7 @@ CHECK_REMOTE_WAIT=${CHECK_REMOTE_WAIT:-"0"}
 CSR_SUBJECT=${CSR_SUBJECT:-"/"}
 DEACTIVATE_AUTH=${DEACTIVATE_AUTH:-"false"}
 DEFAULT_REVOKE_CA=${DEFAULT_REVOKE_CA:-"https://acme-v01.api.letsencrypt.org"}
+DEFAULT_UMASK=${DEFAULT_UMASK:-"u=rx,g=rx,o="}
 DNS_EXTRA_WAIT=${DNS_EXTRA_WAIT:-""}
 DNS_WAIT=${DNS_WAIT:-"10"}
 DOMAIN_KEY_LENGTH=${DOMAIN_KEY_LENGTH:-"4096"}
@@ -68,25 +69,45 @@ LANG=C
 
 # Define all functions (in alphabetical order)
 
-cert_archive() {  # Archive certificate file by copying files to dated archive dir.
-  debug "creating an achive copy of current new certs"
-  date_time=$(date +%Y_%m_%d_%H_%M)
-  mkdir -p "${DOMAIN_DIR}/archive/${date_time}"
-  umask 077
-  cp "$CERT_FILE" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.crt"
-  cp "$DOMAIN_DIR/${DOMAIN}.csr" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.csr"
-  cp "$DOMAIN_DIR/${DOMAIN}.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.key"
-  cp "$CA_CERT" "${DOMAIN_DIR}/archive/${date_time}/chain.crt"
-  cat "$CERT_FILE" "$CA_CERT" > "${DOMAIN_DIR}/archive/${date_time}/fullchain.crt"
+cert_archive() {
+  # Archive certificates files
+  # Create directory for day, store certs by DOMAIN-YYYY_MM_DD:HH_MM UTC
+
+  debug "Copying generated certs to archive..."
+
+  local date_time
+  date_time=$(date -u +%Y_%m_%d_%H_%M)
+  local date
+  date=$(date -u +Y_%m_%d)
+  local archive_dir="${DOMAIN_DIR}/archive/${date}"
+  local archive_suffix="${DOMAIN}-${date_time}"
+  local orig_umask
+  orig_umask=$(umask)
+
+  umask "${DEFAULT_UMASK}"
+  mkdir -p "${archive_dir}"
+  debug "   ${archive_dir} created."
+
+  cp "${CERT_FILE}"                "${archive_dir}/${archive_suffix}.crt"
+  cp "${DOMAIN_DIR}/${DOMAIN}.csr" "${archive_dir}/${archive_suffix}.csr"
+  cp "${DOMAIN_DIR}/${DOMAIN}.key" "${archive_dir}/${archive_suffix}.key"
+  cp "${CA_CERT}"                  "${archive_dir}/${archive_suffix}-chain.crt"
+  cat "$CERT_FILE" "$CA_CERT" >    "${archive_dir}/${archive_suffix}-fullchain.crt"
+  debug "   RSA certs and chains copied."
+
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    cp "${CERT_FILE::-4}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.crt"
-    cp "$DOMAIN_DIR/${DOMAIN}.ec.csr" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.csr"
-    cp "$DOMAIN_DIR/${DOMAIN}.ec.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.key"
-    cp "${CA_CERT::-4}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/chain.ec.crt"
-    cat "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "${DOMAIN_DIR}/archive/${date_time}/fullchain.ec.crt"
+    cp "${CERT_FILE::-4}.ec.crt"                            "${archive_dir}/${archive_suffix}.ec.crt"
+    cp "$DOMAIN_DIR/${DOMAIN}.ec.csr"                       "${archive_dir}/${archive_suffix}.ec.csr"
+    cp "$DOMAIN_DIR/${DOMAIN}.ec.key"                       "${archive_dir}/${archive_suffix}.ec.key"
+    cp "${CA_CERT::-4}.ec.crt"                              "${archive_dir}/${archive_suffix}-chain.ec.crt"
+    cat "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "${archive_dir}/${archive_suffix}-fullchain.ec.crt"
   fi
-  umask "$ORIG_UMASK"
-  debug "purging old GetSSLD archives"
+  debug "   EC certs and chains copied."
+
+  umask "${orig_umask}"
+
+  # Call purge_archive to clear out old files
+  debug "Purging old getsslD archives"
   purge_archive "$DOMAIN_DIR"
 }
 
