@@ -938,13 +938,11 @@ help_message() { # print out the help message
 	  -a, --all                         Check all certificates
 	  -d, --debug                       Output debug information
 	  -c, --create DOMAIN               Create default configuration files
-	  -f, --force                       Force renewal of cert (overrides expiry checks)
+	  -f, --force                       Force renewal of cert - override expiry checks
 	  -h, --help                        Display this help message and exit
-	  -q, --quiet                       Quiet mode (only outputs on error or success of new cert,
-	                                    or getssl was upgraded)
-	  -Q, --mute                        Like -q, but mutes notification about successful upgrade
+	  -q, --quiet                       Quiet mode - only outputs on error or success of new cert
 	  -r, --revoke CERT KEY [CA SERVER] Revoke a certificate
-	  -k, --keep NUMBER                 Maximum amount of old getssl versions to keep when upgrading
+	  -k, --keep NUMBER                 Maximum number of old getssl versions to keep when upgrading
 
 	_EOF_
 }
@@ -1268,7 +1266,7 @@ urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and 
 
 usage() { # echos out the program usage
   echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet]"\
-       "[-Q|--mute] [-k|--keep #] [-r|--revoke cert key] [-w working_dir] DOMAIN"
+       "[-k|--keep #] [-r|--revoke cert key] [-w working_dir] DOMAIN"
 }
 
 write_domain_template() { # write out a template file for a domain.
