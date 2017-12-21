@@ -2,7 +2,8 @@
 # ---------------------------------------------------------------------------
 # getsslD - Obtain SSL certificates from the letsencrypt.org ACME server.
 #           Runs in a Docker conatainer.
-#           Based on the work of https://github.com/srvrco/getssl
+#           Based on the work of getssl by srvrco https://github.com/srvrco/getssl
+#           and acme.sh by Neil Pang http://Neilpang/acme.sh
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -43,7 +44,7 @@ IGNORE_DIRECTORY_DOMAIN=${IGNORE_DIRECTORY_DOMAIN:-"false"}
 ORIG_UMASK=$(umask)
 PREVIOUSLY_VALIDATED=${PREVIOUSLY_VALIDATED:-"true"}
 PRIVATE_KEY_ALG=${PRIVATE_KEY_ALG:-"rsa"}
-PUBLIC_DNS_SERVER=${PUBLIC_DNS_SERVER:-""}
+PUBLIC_DNS_SERVER=${PUBLIC_DNS_SERVER:-"8.8.8.8"}
 RELOAD_CMD=${RELOAD_CMD:-""}
 RENEW_ALLOW=${RENEW_ALLOW:-"30"}
 REUSE_PRIVATE_KEY=${REUSE_PRIVATE_KEY:-"true"}
@@ -108,7 +109,7 @@ cert_archive() {
 
 check_challenge_completion() { # checks with the ACME server if our challenge is OK
   uri=$1
-  domain=$2
+  g_domain=$2
   keyauthorization=$3
 
   debug "sending request to ACME server saying we're ready for challenge"
@@ -116,35 +117,35 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 
   # check response from our request to perform challenge
   if [[ ! -z "$code" ]] && [[ ! "$code" == '202' ]] ; then
-    error_exit "$domain:Challenge error: $code"
+    error_exit "$g_domain:Challenge error: $code"
   fi
 
   # loop "forever" to keep checking for a response from the ACME server.
   while true ; do
     debug "checking"
     if ! get_cr "$uri" ; then
-      error_exit "$domain:Verify error:$code"
+      error_exit "$g_domain:Verify error:$code"
     fi
 
     status=$(json_get "$response" status)
 
     # If ACME response is valid, then break out of loop
     if [[ "$status" == "valid" ]] ; then
-      info "Verified $domain"
+      info "Verified $g_domain"
       break;
     fi
 
     # if ACME response is that their check gave an invalid response, error exit
     if [[ "$status" == "invalid" ]] ; then
       err_detail=$(json_get "$response" detail)
-      error_exit "$domain:Verify error:$err_detail"
+      error_exit "$g_domain:Verify error:$err_detail"
     fi
 
     # if ACME response is pending ( they haven't completed checks yet) then wait and try again.
     if [[ "$status" == "pending" ]] ; then
       info "Pending"
     else
-      error_exit "$domain:Verify error:$response"
+      error_exit "$g_domain:Verify error:$response"
     fi
     debug "sleep 5 secs before testing verify again"
     sleep 5
@@ -398,31 +399,43 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
   fi
 }
 
-create_key() { # create a domain key (if it doesn't already exist)
-  key_type=$1 # domain key type
-  key_loc=$2  # domain key location
-  key_len=$3  # domain key length - for rsa keys.
-  # check if key exists, if not then create it.
-  if [[ -s "$key_loc" ]]; then
-    debug "domain key exists at $key_loc - skipping generation"
-    # ideally need to check validity of domain key
+create_key() {
+  # Create an openSSL key
+  local key_loc=${1}
+  local key_len=${2}
+  local key_type
+
+  # Determine key type by length
+  # Valid Let's Encrypt RSA key lengths 2048-4096
+  # Valid Let's Encrypt ECC key lengths 256, 384, 521*(Not implemented)
+
+  if [[ "${key_len}" -ge 2048 ]] && [[ "${key_len}" -le 4096 ]]; then
+    key_type="RSA"
+  elif [[ "${key_len}" -eq 256 ]]; then
+    key_type="prime256v1"
+  elif [[ "${key_len}" -eq 384 ]]; then
+    key_type="secp384r1"
+  elif [[ "${key_len}" -eq 521 ]]; then
+    key_type="secp521r1"
   else
-    umask 077
-    info "creating key - $key_loc"
-    case "$key_type" in
-      rsa)
-        openssl genrsa "$key_len" > "$key_loc";;
-      prime256v1|secp384r1|secp521r1)
-        openssl ecparam -genkey -name "$key_type" > "$key_loc";;
-      *)
-        error_exit "unknown private key algorithm type $key_loc";;
-    esac
-    umask "$ORIG_UMASK"
-    # remove csr on generation of new domain key
-    if [[ -e "${key_loc::-4}.csr" ]]; then
-      rm -f "${key_loc::-4}.csr"
-    fi
+    error "Invalid key length. Please check you configuration."
+    return 1
   fi
+
+  case "$key_type" in
+    RSA)
+      openssl genrsa -out "${key_loc}" "${key_len}" >& /dev/null
+      return 0
+      ;;
+    prime256v1|secp384r1|secp521r1)
+      openssl ecparam -genkey -out "${key_loc}" -name "${key_type}" >& /dev/null
+      return 0
+      ;;
+  esac
+
+  # Error inside case statement openssl generation
+  rm "${key_loc}"
+  return 1
 }
 
 date_epoc() { # convert the date into epoch time
@@ -456,36 +469,38 @@ error() {
   echo "$@" >&2
 }
 
-get_auth_dns() { # get the authoritative dns server for a domain (sets primary_ns )
-  gad_d="$1" # domain name
-  gad_s="$PUBLIC_DNS_SERVER" # start with PUBLIC_DNS_SERVER
+get_auth_dns() {
+  # Find authoritative DNS server for domain via SOA lookup.
+  local g_domain="$1"
+  local g_server="$PUBLIC_DNS_SERVER"
+  local result
 
-  res=$(nslookup -debug=1 -type=soa -type=ns "$gad_d" ${gad_s})
+  result=$(nslookup -debug=1 -type=soa -type=ns "${g_domain}" "${g_server}")
 
-  if [[ "$(echo "$res" | grep -c "Non-authoritative")" -gt 0 ]]; then
+  if echo "${result}" | grep -q "Non-authoritative"; then
     # this is a Non-authoritative server, need to check for an authoritative one.
-    gad_s=$(echo "$res" | awk '$2 ~ "nameserver" {print $4; exit }' |sed 's/\.$//g')
-    if [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
+    gad_s=$(echo "${result}" | awk '$2 ~ "nameserver" {print $4; exit }' |sed 's/\.$//g')
+    if [[ "$(echo "${result}" | grep -c "an't find")" -gt 0 ]]; then
       # if domain name doesn't exist, then find auth servers for next level up
-      gad_s=$(echo "$res" | awk '$1 ~ "origin" {print $3; exit }')
-      gad_d=$(echo "$res" | awk '$1 ~ "->" {print $2; exit}')
+      gad_s=$(echo "${result}" | awk '$1 ~ "origin" {print $3; exit }')
+      g_domain=$(echo "${result}" | awk '$1 ~ "->" {print $2; exit}')
     fi
   fi
 
   if [[ -z "$gad_s" ]]; then
-    res=$(nslookup -debug=1 -type=soa -type=ns "$gad_d")
+    res=$(nslookup -debug=1 -type=soa -type=ns "${g_domain}")
   else
-    res=$(nslookup -debug=1 -type=soa -type=ns "$gad_d" "${gad_s}")
+    res=$(nslookup -debug=1 -type=soa -type=ns "${g_domain}" "${g_server}")
   fi
 
   if [[ "$(echo "$res" | grep -c "canonical name")" -gt 0 ]]; then
-    gad_d=$(echo "$res" | awk ' $2 ~ "canonical" {print $5; exit }' |sed 's/\.$//g')
+    g_domain=$(echo "$res" | awk ' $2 ~ "canonical" {print $5; exit }' |sed 's/\.$//g')
   elif [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
     gad_s=$(echo "$res" | awk ' $1 ~ "origin" {print $3; exit }')
-    gad_d=$(echo "$res"| awk '$1 ~ "->" {print $2; exit}')
+    g_domain=$(echo "$res"| awk '$1 ~ "->" {print $2; exit}')
   fi
 
-  all_auth_dns_servers=$(nslookup -type=soa -type=ns "$gad_d" "$gad_s" \
+  all_auth_dns_servers=$(nslookup -type=soa -type=ns "${g_domain}" "${g_server}" \
                         | awk ' $2 ~ "nameserver" {print $4}' \
                         | sed 's/\.$//g'| tr '\n' ' ')
   if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
@@ -713,29 +728,6 @@ revoke_certificate() { # revoke a certificate
     info "certificate revoked"
   else
     error_exit "Revocation failed: $(echo "$response" | grep "detail")"
-  fi
-}
-
-requires() { # check if required function is available
-  if [[ "$#" -gt 1 ]]; then # if more than 1 value, check list
-    for i in "$@"; do
-      if [[ "$i" == "${!#}" ]]; then # if on last variable then exit as not found
-        error_exit "this script requires one of: ${*:1:$(($#-1))}"
-      fi
-      res=$(which "$i" 2>/dev/null)
-      debug "checking for $i ... $res"
-      if [[ ! -z "$res" ]]; then # if function found, then set variable to function and return
-        debug "function $i found at $res  - setting ${!#} to $i"
-        eval "${!#}=\$i"
-        return
-      fi
-    done
-  else # only one value, so check it.
-    result=$(which "$1" 2>/dev/null)
-    debug "checking for required $1 ... $result"
-    if [[ -z "$result" ]]; then
-      error_exit "This script requires $1 installed"
-    fi
   fi
 }
 
@@ -996,7 +988,7 @@ write_getsslD_template() { # write out the main template file
 	# Set an email address associated with your account - generally set at account level rather than domain.
 	#ACCOUNT_EMAIL="me@example.com"
 	ACCOUNT_KEY_LENGTH=4096
-	ACCOUNT_KEY="$WORKING_DIR/account.key"
+	ACCOUNT_KEY="$WORKING_DIR/account_key.pem"
 	PRIVATE_KEY_ALG="rsa"
 	#REUSE_PRIVATE_KEY="true"
 
@@ -1074,8 +1066,40 @@ while [[ -n ${1+defined} ]]; do
   shift
 done
 
+#####
 # Main logic
-############
+#####
+
+# if the "working directory" doesn't exist, then create it.
+if [[ ! -d "$WORKING_DIR" ]]; then
+  debug "Making working directory - $WORKING_DIR"
+  mkdir -p "$WORKING_DIR"
+fi
+
+# read any variables from config in working directory
+if [[ -s "$WORKING_DIR/getsslD.cfg" ]]; then
+  debug "reading config from $WORKING_DIR/getsslD.cfg"
+  # shellcheck source=/dev/null
+  . "$WORKING_DIR/getsslD.cfg"
+fi
+
+# Define defaults for variables not set in the main config.
+ACCOUNT_KEY="${ACCOUNT_KEY:=$WORKING_DIR/account_key.pem}"
+DOMAIN_STORAGE="${DOMAIN_STORAGE:=$WORKING_DIR}"
+DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
+CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
+CA_CERT="$DOMAIN_DIR/chain.crt"
+TEMP_DIR="$DOMAIN_DIR/tmp"
+
+
+# create account key if it doesn't exist.
+if [[ -s "$ACCOUNT_KEY" ]]; then
+  info "Account key exists at $ACCOUNT_KEY skipping generation"
+else
+  info "Creating account key $ACCOUNT_KEY"
+  create_key "$ACCOUNT_KEY" "$ACCOUNT_KEY_LENGTH"
+fi
+
 
 # Revoke a certificate if requested
 if [[ $_REVOKE == "true" ]]; then
@@ -1101,27 +1125,6 @@ if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} != "true" ]]; then
   help_message
   graceful_exit
 fi
-
-# if the "working directory" doesn't exist, then create it.
-if [[ ! -d "$WORKING_DIR" ]]; then
-  debug "Making working directory - $WORKING_DIR"
-  mkdir -p "$WORKING_DIR"
-fi
-
-# read any variables from config in working directory
-if [[ -s "$WORKING_DIR/getsslD.cfg" ]]; then
-  debug "reading config from $WORKING_DIR/getsslD.cfg"
-  # shellcheck source=/dev/null
-  . "$WORKING_DIR/getsslD.cfg"
-fi
-
-# Define defaults for variables not set in the main config.
-ACCOUNT_KEY="${ACCOUNT_KEY:=$WORKING_DIR/account.key}"
-DOMAIN_STORAGE="${DOMAIN_STORAGE:=$WORKING_DIR}"
-DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
-CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
-CA_CERT="$DOMAIN_DIR/chain.crt"
-TEMP_DIR="$DOMAIN_DIR/tmp"
 
 # Set the OPENSSL_CONF environment variable so openssl knows which config to use
 export OPENSSL_CONF=$SSLCONF
@@ -1342,14 +1345,6 @@ if [[ ! -t 0 ]] && [[ "$PREVENT_NON_INTERACTIVE_RENEWAL" = "true" ]]; then
   errmsg="$DOMAIN due for renewal,"
   errmsg="${errmsg} but not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
   error_exit "$errmsg"
-fi
-
-# create account key if it doesn't exist.
-if [[ -s "$ACCOUNT_KEY" ]]; then
-  debug "Account key exists at $ACCOUNT_KEY skipping generation"
-else
-  info "creating account key $ACCOUNT_KEY"
-  create_key "$ACCOUNT_KEY_TYPE" "$ACCOUNT_KEY" "$ACCOUNT_KEY_LENGTH"
 fi
 
 # if not reusing priavte key, then remove the old keys
@@ -1739,7 +1734,7 @@ if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
     if [[ "$code" == "200" ]]; then
       debug "Authorization deactivated"
     else
-      error_exit "$domain: Deactivation error: $code"
+      error_exit "$g_domain: Deactivation error: $code"
     fi
   done
 fi
