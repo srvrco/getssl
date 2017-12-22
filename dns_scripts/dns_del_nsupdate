@@ -3,12 +3,15 @@
 # example of script to add token to local dns using nsupdate
 
 dnskeyfile="path/to/bla.key"
+server="localhost"
+
 fulldomain="$1"
 token="$2"
 
 updatefile=$(mktemp)
 
-printf "update delete _acme-challenge.%s. 300 in TXT \"%s\"\n\n" "${fulldomain}" "${token}" > "${updatefile}"
+printf "server ${server}\n" > "${updatefile}"
+printf "update delete _acme-challenge.%s. 300 in TXT \"%s\"\n\n" "${fulldomain}" "${token}" >> "${updatefile}"
 
 nsupdate -k "${dnskeyfile}" -v "${updatefile}"
 
