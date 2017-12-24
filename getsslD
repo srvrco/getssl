@@ -100,7 +100,6 @@ get_date() {
 }
 
 help_message_top() {
-  # Print help message
 
   cat <<- _EOF_
   Usage: "${PROGNAME}" [option] [COMMAND] [ARGS...]
@@ -111,8 +110,21 @@ help_message_top() {
 
   Options to long options apply to short options also.
   Options:
-    -r, --rsa      Use RSA algorith for key generation
+    -r, --rsa      Use RSA algorith for key generation (Default)
     -e, --ecc      Use elliptic curve algorithm for key or cert generation
+
+	_EOF_
+	return 0
+}
+
+help_message_account() {
+
+  cat <<- _EOF_
+  Usage: "${PROGNAME}" account [COMMAND] [ARGS...]
+  Manage Lets Encrypt account
+
+  Commands:
+     key [LENGTH]  Create Lets Encrypt account key. (Default 4096 bits)
 
 	_EOF_
 	return 0
@@ -189,6 +201,10 @@ arg_parser() {
             fi
 
             create_key "${ACCOUNT_KEY_LOCATION}" "${key_length}" "${key_type}"
+            exit 0
+            ;;
+          -h | --help)
+            help_message_account
             exit 0
             ;;
           esac # End account subcommands
