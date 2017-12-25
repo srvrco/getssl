@@ -94,10 +94,10 @@ create_key() {
   return 1
 }
 
-get_date() {
-  # get current date and time in UTC YYYY-MM-DDTHH:MM:SSZ
-  echo $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-}
+#get_date() {
+# get current date and time in UTC YYYY-MM-DDTHH:MM:SSZ
+#  echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+#}
 
 help_message_top() {
 
@@ -251,8 +251,6 @@ if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]] || [[ "$1" == "" ]]; then
   help_message_top
   exit 0
 fi
-
-printf '%s' $get_date
 
 arg_parser "$@"
 
