@@ -5,6 +5,7 @@ jobs:
       - image: djschaper/circleci:1.0-alpine3.7
     environment:
       - CIRCLE_BRANCH: integration/circleci
+    working_directory: /srv/getsslD
     steps:
       - run:
           name: Install Run Dependencies
@@ -16,7 +17,7 @@ jobs:
       - checkout
       - run:
           name: Copy getsslD to path'd directory
-          command: cp $CIRCLE_WORKING_DIRECTORY/getsslD /bin/
+          command: cp /srv/getsslD/getsslD /bin/
       - run:
           name: Test initial script run
           shell: /bin/ash
