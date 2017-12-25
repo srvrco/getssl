@@ -7,12 +7,6 @@ jobs:
       - CIRCLE_BRANCH: integration/circleci
     steps:
       - run:
-          name: Set PATH in environment
-          command: echo 'export PATH=$CIRCLE_WORKING_DIR:$PATH' > /etc/profile.d/ash_path
-      - run:
-          name: Export PATH to environment
-          command: source /etc/profile.d/ash_path
-      - run:
           name: Install Run Dependencies
           command: |
             apk add --no-cache --virtual .run-deps \
@@ -20,6 +14,9 @@ jobs:
             drill \
             openssl
       - checkout
+      - run:
+          name: Copy getsslD to path'd directory
+          command: cp $CIRCLE_WORKING_DIRECTORY/getsslD /bin/
       - run:
           name: Test initial script run
           shell: /bin/ash
