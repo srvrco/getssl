@@ -4,10 +4,10 @@ jobs:
     docker:
       - image: djschaper/circleci:1.0-alpine3.7
     steps:
-      - checkout
       - run:
-          name: Greeting
-          command: echo Hello, world.
-      - run:
-          name: Print the Current Time
-          command: date
+          name: Install Run Dependencies
+          command: |
+            apk add --no-cache --virtual .run-deps \
+            curl \
+            drill \
+            openssl
