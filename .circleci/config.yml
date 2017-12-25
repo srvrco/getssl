@@ -7,6 +7,9 @@ jobs:
       - CIRCLE_BRANCH: integration/circleci
     steps:
       - run:
+          name: Set PATH in environment
+          command: echo 'export PATH=$CIRCLECI_WORKING_DIR:$PATH' > /etc/profile.d/ash.sh
+      - run:
           name: Install Run Dependencies
           command: |
             apk add --no-cache --virtual .run-deps \
