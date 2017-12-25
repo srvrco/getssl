@@ -8,7 +8,10 @@ jobs:
     steps:
       - run:
           name: Set PATH in environment
-          command: echo 'export PATH=$CIRCLECI_WORKING_DIR:$PATH' > /etc/profile.d/ash.sh
+          command: echo 'export PATH=$CIRCLE_WORKING_DIR:$PATH' > /etc/profile.d/ash_path
+      - run:
+          name: Export PATH to environment
+          command: source /etc/profile.d/ash_path
       - run:
           name: Install Run Dependencies
           command: |
