@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: djschaper/circleci:1.1-alpine3.7sc
+      - image: djschaper/circleci:1.2-alpine3.7scb
     environment:
       - CIRCLE_BRANCH: integration/circleci
     shell: /bin/ash
@@ -21,7 +21,10 @@ jobs:
           command: cp /srv/getsslD/getsslD /bin/
       - run:
           name: Test initial script run
-          command: getsslD
+          command: getsslD --help
       - run:
           name: Shellcheck getsslD
           command: shellcheck /srv/getsslD/getsslD
+      - run:
+          name: Check for bats executable
+          command: bats -h
