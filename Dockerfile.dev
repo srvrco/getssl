@@ -1,0 +1,15 @@
+FROM koalaman/shellcheck-alpine:v0.4.7
+
+ENV PATH=/bin:$PATH
+
+WORKDIR /ssl
+
+RUN apk --no-cache --virtual .run-depends add \
+    curl \
+    drill \
+    openssl
+
+#COPY getsslD /bin/getsslD
+
+ENTRYPOINT [ "getsslD" ]
+CMD [ "--help" ]

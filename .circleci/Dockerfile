@@ -1,4 +1,4 @@
-FROM alpine:3.7
+FROM koalaman/shellcheck-alpine:v0.4.7
 
 RUN apk add --no-cache --virtual .circleci-deps \
     ca-certificates \
