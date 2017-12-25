@@ -1,4 +1,4 @@
-# getssl
+# getsslD
 Obtain SSL certificates from the letsencrypt.org ACME server.  Suitable for automating the process on remote servers.
 
 ## Features
@@ -17,7 +17,7 @@ Obtain SSL certificates from the letsencrypt.org ACME server.  Suitable for auto
 ## Installation
 Since the script is only one file, you can use the following command for a quick installation of GetSSL only:
 ```
-curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl > getssl ; chmod 700 getssl
+curl --silent https://raw.githubusercontent.com/dschaper/getsslD/master/getsslD > getsslD ; chmod 700 getssl
 ```
 This will copy the getssl Bash script to the current location and change the permissions to make it executable for you.
 
@@ -26,12 +26,8 @@ For a more comprehensive installation (e.g. install also helper scripts) use the
 You'll find the latest version in the git repository:
 
 ```
-git clone https://github.com/srvrco/getssl.git
+git clone https://github.com/dschaper/getsslD.git
 ```
-
-For Arch Linux there are packages in the AUR, see [here](https://aur.archlinux.org/packages/getssl/) and [there](https://aur.archlinux.org/packages/getssl-git/).
-
-If you use puppet, there is a [GetSSL Puppet module](https://github.com/dthielking/puppet_getssl) by dthielking
 
 ## Overview
 

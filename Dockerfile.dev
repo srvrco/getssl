@@ -1,0 +1,17 @@
+FROM koalaman/shellcheck-alpine:v0.4.7
+
+ENV PATH=/bin:$PATH
+
+WORKDIR /ssl
+
+RUN apk --no-cache --virtual .run-depends add \
+    bash \
+    curl \
+    drill \
+    openssl
+
+COPY .bats-core/ /opt/bats/
+
+RUN ln -s /opt/bats/libexec/bats /usr/sbin/bats
+
+ENTRYPOINT ["/bin/ash"]

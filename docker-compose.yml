@@ -1,0 +1,12 @@
+version: '2'
+
+services:
+  development:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    working_dir: /opt/src/getssld
+    volumes:
+      - .:/opt/src/getssld
+      - ./tests:/code
+    entrypoint: /bin/ash

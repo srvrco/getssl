@@ -1,0 +1,274 @@
+#!/bin/ash
+# ---------------------------------------------------------------------------
+# getsslD - Obtain SSL certificates from the letsencrypt.org ACME server.
+#           Runs in a Docker conatainer.
+#           Based on the work of getssl by srvrco https://github.com/srvrco/getssl
+#           and acme.sh by Neil Pang http://Neilpang/acme.sh
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License at <http://www.gnu.org/licenses/> for
+# more details.
+
+# shellcheck disable=SC2169
+# shellcheck shell=dash
+
+PROGNAME=getsslD
+VERSION="0.2 commit 9444e69"
+
+# Default values, accepts environment variables if set, otherwise default are used
+WORKING_DIR=${WORKING_DIR:="/ssl"}
+ACCOUNT_KEY_LOCATION=${ACCOUNT_KEY_LOCATION:="$WORKING_DIR/account.key"}
+ACCOUNT_KEY_LENGTH=${ACCOUNT_KEY_LENGTH:="4096"}
+ACCOUNT_KEY_TYPE=${ACCOUNT_KEY_TYPE:="rsa"}
+
+
+
+#####
+# Functions
+#####
+
+create_key() {
+  # Create an openSSL key
+
+  if [[ "$#" -ne 3 ]]; then
+    printf '!! Invalid number of arguments sent to create_key function.\n'
+    exit 1
+  fi
+
+  local key_loc=$1
+  local key_len=$2
+  local key_type=$3
+  local valid_key_type
+
+  # Check for existing key
+  if [[ -s "$key_loc" ]]; then
+    printf 'Key exists at %s skipping generation.\n' "$key_loc" 1>&2
+    return 0
+  elif [[ ! -d $(dirname "$key_loc") ]]; then
+    printf 'Directory for storing %s does not exist.' "$key_loc" 1>&2
+    return 1
+  fi
+
+  # Valid Lets Encrypt RSA key lengths 2048-8192
+  # Valid Lets Encrypt ECC key lengths 256, 384, 521
+
+
+
+  if [[ "$key_len" -ge "2048" ]] && [[ "$key_len" -le "8192" ]] && [[ "$key_type" == "rsa" ]]; then
+    valid_key_type="RSA"
+  fi
+
+  if [[ "$key_type" == "ecc" ]]; then
+    if [[ "$key_len" -eq 256 ]] ; then
+      valid_key_type="prime256v1"
+    elif [[ "$key_len" -eq 384 ]]; then
+      valid_key_type="secp384r1"
+    elif [[ "$key_len" -eq 521 ]]; then
+      valid_key_type="secp521r1"
+    fi
+  fi
+
+  if [[ -z "${valid_key_type+x}" ]]; then
+    printf 'Invalid key length. Please check your configuration.' 1>&2
+    return 1
+  fi
+
+  case "$valid_key_type" in
+    RSA)
+      openssl genrsa -out "$key_loc" "$key_len" >& /dev/null
+      printf '%s\n' "Done."
+      return 0
+      ;;
+    prime256v1|secp384r1|secp521r1)
+      openssl ecparam -genkey -out "$key_loc" -name "$valid_key_type" >& /dev/null
+      printf '%s\n' "Done."
+      return 0
+      ;;
+  esac
+
+  # Error inside case statement openssl generation
+  printf 'Error creating OpenSSL key, deleting key...' 1>&2
+  rm "$key_loc"
+  printf 'Done.\n' 1>&2
+  return 1
+}
+
+#get_date() {
+# get current date and time in UTC YYYY-MM-DDTHH:MM:SSZ
+#  echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+#}
+
+help_message_top() {
+
+  cat <<- _EOL_
+  Usage: $PROGNAME [option] [COMMAND] [ARGS...]
+  Obtain SSL certificates from the letsencrypt.org ACME server.
+
+  Commands:
+    account        Create or modify Lets Encrypt account.
+
+  Options to long options apply to short options also.
+  Options:
+    -v, --version  Display $PROGNAME version information.
+
+	_EOL_
+	return 0
+}
+
+help_message_account() {
+
+  cat <<- _EOL_
+  Usage: $PROGNAME account [COMMAND] [ARGS...]
+  Manage Lets Encrypt account
+
+  Commands:
+     key           Manage Lets Encrypt account key.
+
+	_EOL_
+	return 0
+}
+
+prep_workdir() { ## DAN FIX THIS
+  # Prepare working directory for key/cert functions
+
+  if [[ ! -d "$WORKING_DIR" ]]; then
+    printf '%s' "Creating getsslD certificate storage directory - $WORKING_DIR..."
+    if ! mkdir -p "$WORKING_DIR" >& /dev/null; then
+      printf '!! Could not create %s. Check volumes.' "$WORKING_DIR" 1>&2
+      exit 1
+    else
+      printf '%s\n' "Done."
+    fi
+  fi
+  return 0
+}
+
+read_config() {
+  # read any variables from config in working directory
+  if [[ -s "$WORKING_DIR/getsslD.cfg" ]]; then
+    printf 'Reading config from from %s/getsslD.cfg\n' "$WORKING_DIR"
+    # shellcheck source=/dev/null
+    . "$WORKING_DIR/getsslD.cfg"
+  else
+    printf '!! Unable to find %s/getsslD.cfg. Please generate or mount directory with file location.' "$WORKING_DIR" 1>&2
+    exit 1
+  fi
+}
+
+arg_parser() {
+  # Check CLI arguments and process
+
+  while [[ "$#" -gt 0 ]]
+  do
+    case $1
+      in
+      -h | --help | "")
+        help_message_top
+        exit 0
+        ;;
+      account)
+        shift
+        read_config
+        prep_workdir
+        case "$1"
+        in # account subcommand
+          -h | --help | "")
+            help_message_account
+            exit 0
+            ;;
+          key)
+            shift
+            case "$1"
+              in # key subcommand
+              -h | --help | "")
+                help_message_account_key
+                exit 0
+                ;;
+              create)
+                shift
+                case "$1"
+                in # create subcommand
+                  -h | --help)
+                    help_message_account_key_create
+                    exit 0
+                    ;;
+                  r | rsa)
+                    shift
+                    key_type="rsa"
+                    key_length="$1"
+                    printf 'Creating %s bit RSA account key...' "$key_length"
+                    create_key "$ACCOUNT_KEY_LOCATION" "$key_length" "$key_type"
+                    shift
+                    exit $?
+                    ;;
+                  e | ecc)
+                    shift
+                    key_type="ecc"
+                    key_length="$1"
+                    printf 'Creating %s bit ECC account key...' "$key_length"
+                    create_key "$ACCOUNT_KEY_LOCATION" "$key_length" "$key_type"
+                    shift
+                    ;;
+                  "")
+                    key_type=$ACCOUNT_KEY_TYPE
+                    key_length=$ACCOUNT_KEY_LENGTH
+                    printf 'Creating %s bit %s account key with default values...' "$key_length" "$key_type"
+                    create_key "$ACCOUNT_KEY_LOCATION" "$key_length" "$key_type"
+                    exit $?
+                    ;;
+                  *)
+                    printf 'Invalid command\n\n'
+                    help_message_account_key_create
+                    exit 1
+                    ;;
+                esac # End create subcommand
+                ;;
+              *)
+                printf 'Invalid command\n\n'
+                help_message_account_key
+                exit 1
+                ;;
+            esac # End key subcommands
+            ;;
+          *)
+            printf 'Invalid command\n\n'
+            help_message_account
+            exit 1
+            ;;
+        esac # End account subcommands
+        ;;
+      *)
+        printf 'Invalid command\n\n'
+        help_message_top
+        exit 1
+        ;;
+    esac # End main program
+  done
+}
+
+#####
+# Main logic
+#####
+
+main() {
+
+if [[ "$1" == "-v" ]] || [[ "$1" == "--version" ]]; then
+  printf '%s v%s\n' "$PROGNAME" "$VERSION"
+  exit 0
+fi
+
+if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]] || [[ "$1" == "" ]]; then
+  help_message_top
+  exit 0
+fi
+
+arg_parser "$@"
+
+}
