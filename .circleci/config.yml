@@ -2,7 +2,7 @@ versio: 2
 jobs:
   build:
     docker:
-      - image: debian:stretch
+      - image: djschaper/circleci:1.0-alpine3.7
     steps:
       - checkout
       - run:
