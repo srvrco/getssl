@@ -2,6 +2,9 @@ version: 2
 jobs:
   build:
     docker:
+      # This image is based on Alpine 3.7, with Shellcheck v0.4.7 and bats-core commit b1da565 (2017-11-13)
+      # Shellcheck is from base image koalaman/shellcheck-alpine:v0.4.7
+      # bats-core is from GitHub repo, see Dockerfile.dev in project root for build environment
       - image: djschaper/circleci:1.2-alpine3.7scb
     environment:
       - CIRCLE_BRANCH: integration/circleci
