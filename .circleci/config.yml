@@ -3,6 +3,8 @@ jobs:
   build:
     docker:
       - image: djschaper/circleci:1.0-alpine3.7
+    environment:
+      - CIRCLE_BRANCH: integration/circleci
     steps:
       - run:
           name: Install Run Dependencies
