@@ -1,0 +1,18 @@
+version: '2'
+
+services:
+  development:
+    build:
+      context: .
+    volumes:
+      - .:/opt/src/getssld
+      - /tmp/testing:/ssl
+    entrypoint: /bin/ash
+
+  bats:
+    build:
+      context: ../../bats-core/
+    image: bats:latest
+    volumes:
+      - .:/code
+    command: /code/test/bats.sh
