@@ -16,14 +16,14 @@
 # GNU General Public License at <http://www.gnu.org/licenses/> for
 # more details.
 
-# shellcheck disable=SC2140,SC2169
+# shellcheck disable=SC2169
 # shellcheck shell=dash
 
 PROGNAME=getsslD
 VERSION="0.2 commit 9444e69"
 
 # Default values, accepts environment variables if set, otherwise default are used
-WORKING_DIR=${WORKING_DIR:="/ssl}"
+WORKING_DIR=${WORKING_DIR:="/ssl"}
 ACCOUNT_KEY_LOCATION=${ACCOUNT_KEY_LOCATION:="$WORKING_DIR/account.key"}
 ACCOUNT_KEY_LENGTH=${ACCOUNT_KEY_LENGTH:="4096"}
 ACCOUNT_KEY_TYPE=${ACCOUNT_KEY_TYPE:="rsa"}
@@ -36,6 +36,11 @@ ACCOUNT_KEY_TYPE=${ACCOUNT_KEY_TYPE:="rsa"}
 
 create_key() {
   # Create an openSSL key
+
+  if [[ "$#" -ne 3 ]]; then
+    printf '!! Invalid number of arguments sent to create_key function.\n'
+    exit 1
+  fi
 
   local key_loc=$1
   local key_len=$2
@@ -51,9 +56,10 @@ create_key() {
     return 1
   fi
 
-  # Determine key type by length
   # Valid Lets Encrypt RSA key lengths 2048-8192
   # Valid Lets Encrypt ECC key lengths 256, 384, 521
+
+
 
   if [[ "$key_len" -ge "2048" ]] && [[ "$key_len" -le "8192" ]] && [[ "$key_type" == "rsa" ]]; then
     valid_key_type="RSA"
@@ -158,11 +164,11 @@ read_config() {
 
 arg_parser() {
   # Check CLI arguments and process
-  local key_type
-  local key_length
 
-  while [[ ! -z "${1+x}" ]]; do
-    case $1 in
+  while [[ "$#" -gt 0 ]]
+  do
+    case $1
+      in
       -h | --help | "")
         help_message_top
         exit 0
@@ -171,22 +177,25 @@ arg_parser() {
         shift
         read_config
         prep_workdir
-        case "$1" in # account subcommand
+        case "$1"
+        in # account subcommand
           -h | --help | "")
             help_message_account
             exit 0
             ;;
           key)
             shift
-            case "$1" in # key subcommand
+            case "$1"
+              in # key subcommand
               -h | --help | "")
                 help_message_account_key
                 exit 0
                 ;;
               create)
                 shift
-                case "$1" in # create subcommand
-                  -h | --help | "")
+                case "$1"
+                in # create subcommand
+                  -h | --help)
                     help_message_account_key_create
                     exit 0
                     ;;
@@ -197,14 +206,22 @@ arg_parser() {
                     printf 'Creating %s bit RSA account key...' "$key_length"
                     create_key "$ACCOUNT_KEY_LOCATION" "$key_length" "$key_type"
                     shift
+                    exit $?
                     ;;
                   e | ecc)
                     shift
                     key_type="ecc"
                     key_length="$1"
                     printf 'Creating %s bit ECC account key...' "$key_length"
-                    create_key "ACCOUNT_KEY_LOCATION" "$key_length" "$key_type"
+                    create_key "$ACCOUNT_KEY_LOCATION" "$key_length" "$key_type"
                     shift
+                    ;;
+                  "")
+                    key_type=$ACCOUNT_KEY_TYPE
+                    key_length=$ACCOUNT_KEY_LENGTH
+                    printf 'Creating %s bit %s account key with default values...' "$key_length" "$key_type"
+                    create_key "$ACCOUNT_KEY_LOCATION" "$key_length" "$key_type"
+                    exit $?
                     ;;
                   *)
                     printf 'Invalid command\n\n'
@@ -255,8 +272,3 @@ fi
 arg_parser "$@"
 
 }
-
-# Only run main if we are not testing.
-if [[ "$GETSSLD_TEST" != true ]]; then
-  main "$@"
-fi
