@@ -4,15 +4,9 @@ services:
   development:
     build:
       context: .
+      dockerfile: Dockerfile.dev
+    working_dir: /opt/src/getssld
     volumes:
       - .:/opt/src/getssld
-      - /tmp/testing:/ssl
+      - ./tests:/code
     entrypoint: /bin/ash
-
-  bats:
-    build:
-      context: ../../bats-core/
-    image: bats:latest
-    volumes:
-      - .:/code
-    command: /code/test/bats.sh

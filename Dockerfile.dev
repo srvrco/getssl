@@ -5,11 +5,13 @@ ENV PATH=/bin:$PATH
 WORKDIR /ssl
 
 RUN apk --no-cache --virtual .run-depends add \
+    bash \
     curl \
     drill \
     openssl
 
-#COPY getsslD /bin/getsslD
+COPY .bats-core/ /opt/bats/
 
-ENTRYPOINT [ "getsslD" ]
-CMD [ "--help" ]
+RUN ln -s /opt/bats/libexec/bats /usr/sbin/bats
+
+ENTRYPOINT ["/bin/ash"]
