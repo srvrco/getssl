@@ -16,8 +16,11 @@
 # GNU General Public License at <http://www.gnu.org/licenses/> for
 # more details.
 
+# shellcheck disable=SC2140,SC2169
+# shellcheck shell=dash
+
 PROGNAME=getsslD
-VERSION="0.2 commit cd8d5b8"
+VERSION="0.2 commit 9444e69"
 
 # Default values, accepts environment variables if set, otherwise default are used
 WORKING_DIR=${WORKING_DIR:="/ssl}"
@@ -44,15 +47,15 @@ create_key() {
     printf 'Key exists at %s skipping generation.\n' "$key_loc" 1>&2
     return 0
   elif [[ ! -d $(dirname "$key_loc") ]]; then
-    printf 'Directory for storing $key_loc does not exist.' 1>&2
+    printf 'Directory for storing %s does not exist.' "$key_loc" 1>&2
     return 1
   fi
 
   # Determine key type by length
-  # Valid Let's Encrypt RSA key lengths 2048-8192
-  # Valid Let's Encrypt ECC key lengths 256, 384, 521
+  # Valid Lets Encrypt RSA key lengths 2048-8192
+  # Valid Lets Encrypt ECC key lengths 256, 384, 521
 
-  if [[ "$key_len" -ge 2048 ]] && [[ "$key_len" -le 8192 ]] && [[ "$key_type" == "rsa" ]]; then
+  if [[ "$key_len" -ge "2048" ]] && [[ "$key_len" -le "8192" ]] && [[ "$key_type" == "rsa" ]]; then
     valid_key_type="RSA"
   fi
 
@@ -66,8 +69,8 @@ create_key() {
     fi
   fi
 
-  if [[ -z ${valid_key_type+x} ]]; then
-    printf "Invalid key length. Please check your configuration." 1>&2
+  if [[ -z "${valid_key_type+x}" ]]; then
+    printf 'Invalid key length. Please check your configuration.' 1>&2
     return 1
   fi
 
@@ -85,9 +88,9 @@ create_key() {
   esac
 
   # Error inside case statement openssl generation
-  printf "Error creating OpenSSL key, deleting key..." 1>&2
+  printf 'Error creating OpenSSL key, deleting key...' 1>&2
   rm "$key_loc"
-  printf "Done.\n" 1>&2
+  printf 'Done.\n' 1>&2
   return 1
 }
 
@@ -99,7 +102,7 @@ get_date() {
 help_message_top() {
 
   cat <<- _EOL_
-  Usage: "$PROGNAME" [option] [COMMAND] [ARGS...]
+  Usage: $PROGNAME [option] [COMMAND] [ARGS...]
   Obtain SSL certificates from the letsencrypt.org ACME server.
 
   Commands:
@@ -116,7 +119,7 @@ help_message_top() {
 help_message_account() {
 
   cat <<- _EOL_
-  Usage: "$PROGNAME" account [COMMAND] [ARGS...]
+  Usage: $PROGNAME account [COMMAND] [ARGS...]
   Manage Lets Encrypt account
 
   Commands:
@@ -126,13 +129,13 @@ help_message_account() {
 	return 0
 }
 
-prep_workdir() {
+prep_workdir() { ## DAN FIX THIS
   # Prepare working directory for key/cert functions
 
   if [[ ! -d "$WORKING_DIR" ]]; then
     printf '%s' "Creating getsslD certificate storage directory - $WORKING_DIR..."
     if ! mkdir -p "$WORKING_DIR" >& /dev/null; then
-      printf "!! Could not create $WORKING_DIR. Check volumes." 1>&2
+      printf '!! Could not create %s. Check volumes.' "$WORKING_DIR" 1>&2
       exit 1
     else
       printf '%s\n' "Done."
@@ -141,12 +144,16 @@ prep_workdir() {
   return 0
 }
 
-print_error() {
-  # Output error messages to STDERR
-  local error=$1
-
-  printf '!! %s\n' "$1" 1>&2
-  return 0
+read_config() {
+  # read any variables from config in working directory
+  if [[ -s "$WORKING_DIR/getsslD.cfg" ]]; then
+    printf 'Reading config from from %s/getsslD.cfg\n' "$WORKING_DIR"
+    # shellcheck source=/dev/null
+    . "$WORKING_DIR/getsslD.cfg"
+  else
+    printf '!! Unable to find %s/getsslD.cfg. Please generate or mount directory with file location.' "$WORKING_DIR" 1>&2
+    exit 1
+  fi
 }
 
 arg_parser() {
@@ -154,7 +161,7 @@ arg_parser() {
   local key_type
   local key_length
 
-  while [[ ! -z ${1+x} ]]; do
+  while [[ ! -z "${1+x}" ]]; do
     case $1 in
       -h | --help | "")
         help_message_top
@@ -162,21 +169,23 @@ arg_parser() {
         ;;
       account)
         shift
-        case $1 in # account subcommand
+        read_config
+        prep_workdir
+        case "$1" in # account subcommand
           -h | --help | "")
             help_message_account
             exit 0
             ;;
           key)
             shift
-            case $1 in # key subcommand
+            case "$1" in # key subcommand
               -h | --help | "")
                 help_message_account_key
                 exit 0
                 ;;
               create)
                 shift
-                case $1 in # create subcommand
+                case "$1" in # create subcommand
                   -h | --help | "")
                     help_message_account_key_create
                     exit 0
@@ -184,15 +193,17 @@ arg_parser() {
                   r | rsa)
                     shift
                     key_type="rsa"
-                    printf 'Creating %s bit RSA account key...' $1
-                    create_key $ACCOUNT_KEY_LOCATION $1 $key_type
+                    key_length="$1"
+                    printf 'Creating %s bit RSA account key...' "$key_length"
+                    create_key "$ACCOUNT_KEY_LOCATION" "$key_length" "$key_type"
                     shift
                     ;;
                   e | ecc)
                     shift
                     key_type="ecc"
-                    printf 'Creating %s bit ECC account key...' $1
-                    create_key $ACCOUNT_KEY_LOCATION $1 $key_type
+                    key_length="$1"
+                    printf 'Creating %s bit ECC account key...' "$key_length"
+                    create_key "ACCOUNT_KEY_LOCATION" "$key_length" "$key_type"
                     shift
                     ;;
                   *)
@@ -241,20 +252,13 @@ if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]] || [[ "$1" == "" ]]; then
   exit 0
 fi
 
-# read any variables from config in working directory
-if [[ -s "$WORKING_DIR/getsslD.cfg" ]]; then
-  printf 'Reading config from from %s/getsslD.cfg\n' "$WORKING_DIR"
-  source "$WORKING_DIR/getsslD.cfg"
-else
-  printf "!! Unable to find $WORKING_DIR/getsslD.cfg. Please generate or mount directory with file location." 1>&2
-  exit 1
-fi
+printf '%s' $get_date
 
-arg_parser $*
+arg_parser "$@"
 
 }
 
 # Only run main if we are not testing.
 if [[ "$GETSSLD_TEST" != true ]]; then
-  main $@
+  main "$@"
 fi
