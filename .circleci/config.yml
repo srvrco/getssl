@@ -5,7 +5,6 @@ jobs:
       - image: djschaper/circleci:1.0-alpine3.7
     environment:
       - CIRCLE_BRANCH: integration/circleci
-      - PATH: $PATH:$CIRCLE_WORKING_DIRECTORY
     steps:
       - run:
           name: Install Run Dependencies
