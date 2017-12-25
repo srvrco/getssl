@@ -19,5 +19,5 @@ jobs:
       - run:
           name: Test initial script run
           environment:
-           - PATH=/bin:$PATH
+           - PATH: /bin:$PATH
           command: getsslD
