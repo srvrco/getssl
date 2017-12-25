@@ -17,4 +17,6 @@ jobs:
       - run:
           name: Test initial script run
           shell: /bin/ash
+          environment:
+            - PATH: /root/project:$PATH
           command: getsslD
