@@ -11,3 +11,12 @@ jobs:
             curl \
             drill \
             openssl
+      - run:
+          name: Clone getsslD repository
+          command: |
+            git clone https://github.com/dschaper/getsslD.git /bin
+
+      - run:
+          name: Test initial script run
+          environment: PATH=/bin:$PATH
+          command: getsslD
