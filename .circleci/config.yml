@@ -1,4 +1,4 @@
-versio: 2
+version: 2
 jobs:
   build:
     docker:
