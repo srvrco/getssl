@@ -184,6 +184,7 @@
 # 2017-01-30 issue #243 compatibility with bash 3.0 (2.08)
 # 2017-01-30 issue #243 additional compatibility with bash 3.0 (2.09)
 # 2017-02-18 add OCSP Must-Staple to the domain csr generation (2.10)
+# 2018-01-04 updating to use the updated letsencrypt APIv2
 # 2019-09-30 issue #423 Use HTTP 1.1 as workaround atm (2.11)
 # 2019-10-02 issue #425 Case insensitive processing of agreement url because of HTTP/2 (2.12)
 # 2019-10-07 update DNS checks to allow use of CNAMEs (2.13)
@@ -241,6 +242,7 @@ _UPGRADE_CHECK=1
 _USE_DEBUG=0
 config_errors="false"
 LANG=C
+API=1
 
 # store copy of original command in case of upgrading script and re-running
 ORIGCMD="$0 $*"
@@ -278,8 +280,14 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
   send_signed_request "$uri" "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
 
   # check response from our request to perform challenge
-  if [[ ! -z "$code" ]] && [[ ! "$code" == '202' ]] ; then
-    error_exit "$domain:Challenge error: $code"
+  if [[ $API -eq 1 ]]; then
+    if [[ ! -z "$code" ]] && [[ ! "$code" == '202' ]] ; then
+      error_exit "$domain:Challenge error: $code"
+    fi
+  else # APIv2
+    if [[ ! -z "$code" ]] && [[ ! "$code" == '200' ]] ; then
+      error_exit "$domain:Challenge error: $code"
+    fi
   fi
 
   # loop "forever" to keep checking for a response from the ACME server.
@@ -807,36 +815,45 @@ get_certificate() { # get certificate for csr, if all domains validated.
 
   der=$(openssl req -in "$gc_csr" -outform DER | urlbase64)
   debug "der $der"
-  send_signed_request "$URL_new_cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
+  if [[ $API -eq 1 ]]; then
+    send_signed_request "$URL_new_cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
+    # convert certificate information into correct format and save to file.
+    CertData=$(awk ' $1 ~ "^Location" {print $2}' "$CURL_HEADER" |tr -d '\r')
+    debug "certdata location = $CertData"
+    if [[ "$CertData" ]] ; then
+      echo -----BEGIN CERTIFICATE----- > "$gc_certfile"
+      curl --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
+      echo -----END CERTIFICATE-----  >> "$gc_certfile"
+      info "Certificate saved in $CERT_FILE"
+    fi
 
-  # convert certificate information into correct format and save to file.
-  CertData=$(awk ' $1 ~ "^Location" {print $2}' "$CURL_HEADER" |tr -d '\r')
-  debug "certdata location = $CertData"
-  if [[ "$CertData" ]] ; then
-    echo -----BEGIN CERTIFICATE----- > "$gc_certfile"
-    curl --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
-    echo -----END CERTIFICATE-----  >> "$gc_certfile"
+    # If certificate wasn't a valid certificate, error exit.
+    if [[ -z "$CertData" ]] ; then
+      response2=$(echo "$response" | fold -w64 |openssl base64 -d)
+      debug "response was $response"
+      error_exit "Sign failed: $(echo "$response2" | grep "detail")"
+    fi
+
+    # get a copy of the CA certificate.
+    IssuerData=$(grep -i '^Link' "$CURL_HEADER" \
+                | cut -d " " -f 2\
+                | cut -d ';' -f 1 \
+                | sed 's/<//g' \
+                | sed 's/>//g')
+    if [[ "$IssuerData" ]] ; then
+      echo -----BEGIN CERTIFICATE----- > "$gc_cafile"
+      curl --silent "$IssuerData" | openssl base64 -e  >> "$gc_cafile"
+      echo -----END CERTIFICATE-----  >> "$gc_cafile"
+      info "The intermediate CA cert is in $gc_cafile"
+    fi
+  else # APIv2
+    send_signed_request "$FinalizeLink" "{\"csr\": \"$der\"}" "needbase64"
+    debug "order link was $OrderLink"
+    cd=$(curl --silent $OrderLink)
+    CertData=$(json_get "$cd" "certificate")
+    debug "CertData is at $CertData"
+    curl --silent "$CertData" > "$CERT_FILE"
     info "Certificate saved in $CERT_FILE"
-  fi
-
-  # If certificate wasn't a valid certificate, error exit.
-  if [[ -z "$CertData" ]] ; then
-    response2=$(echo "$response" | fold -w64 |openssl base64 -d)
-    debug "response was $response"
-    error_exit "Sign failed: $(echo "$response2" | grep "detail")"
-  fi
-
-  # get a copy of the CA certificate.
-  IssuerData=$(grep -i '^Link' "$CURL_HEADER" \
-               | cut -d " " -f 2\
-               | cut -d ';' -f 1 \
-               | sed 's/<//g' \
-               | sed 's/>//g')
-  if [[ "$IssuerData" ]] ; then
-    echo -----BEGIN CERTIFICATE----- > "$gc_cafile"
-    curl --silent "$IssuerData" | openssl base64 -e  >> "$gc_cafile"
-    echo -----END CERTIFICATE-----  >> "$gc_cafile"
-    info "The intermediate CA cert is in $gc_cafile"
   fi
 }
 
@@ -966,28 +983,206 @@ info() { # write out info as long as the quiet flag has not been set.
   fi
 }
 
-json_get() { # get the value corresponding to $2 in the JSON passed as $1.
-  # remove newlines, so it's a single chunk of JSON
-  json_data=$( echo "$1" | tr '\n' ' ')
-  # if $3 is defined, this is the section which the item is in.
-  if [[ ! -z "$3" ]]; then
-    jg_section=$(echo "$json_data" | awk -F"[}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${3}"'\"/){print $i}}}')
-    if [[ "$2" == "uri" ]]; then
-      jg_subsect=$(echo "$jg_section" | awk -F"[,]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i)}}}')
-      jg_result=$(echo "$jg_subsect" | awk -F'"' '{print $4}')
+json_awk() {
+echo $1 | awk '
+{
+  tokenize($0) # while(get_token()) {print TOKEN}
+  if (0 == parse()) {
+    apply(JPATHS, NJPATHS)
+  }
+}
+
+function apply (ary,size,i) {
+  for (i=1; i<size; i++)
+    print ary[i]
+}
+
+function get_token() {
+  TOKEN = TOKENS[++ITOKENS] # for internal tokenize()
+  return ITOKENS < NTOKENS
+}
+
+function parse_array(a1,idx,ary,ret) {
+  idx=0
+  ary=""
+  get_token()
+  if (TOKEN != "]") {
+    while (1) {
+      if (ret = parse_value(a1, idx)) {
+        return ret
+      }
+      idx=idx+1
+      ary=ary VALUE
+      get_token()
+      if (TOKEN == "]") {
+        break
+      } else if (TOKEN == ",") {
+        ary = ary ","
+      } else {
+        report(", or ]", TOKEN ? TOKEN : "EOF")
+        return 2
+      }
+      get_token()
+    }
+  }
+  VALUE=""
+  return 0
+}
+
+function parse_object(a1,key,obj) {
+  obj=""
+  get_token()
+  if (TOKEN != "}") {
+    while (1) {
+      if (TOKEN ~ /^".*"$/) {
+        key=TOKEN
+      } else {
+        report("string", TOKEN ? TOKEN : "EOF")
+        return 3
+      }
+      get_token()
+      if (TOKEN != ":") {
+        report(":", TOKEN ? TOKEN : "EOF")
+        return 4
+      }
+      get_token()
+      if (parse_value(a1, key)) {
+        return 5
+      }
+      obj=obj key ":" VALUE
+      get_token()
+      if (TOKEN == "}") {
+        break
+      } else if (TOKEN == ",") {
+        obj=obj ","
+      } else {
+        report(", or }", TOKEN ? TOKEN : "EOF")
+        return 6
+      }
+      get_token()
+    }
+  }
+  VALUE=""
+  return 0
+}
+
+
+function parse_value(a1, a2,   jpath,ret,x) {
+  jpath=(a1!="" ? a1 "," : "") a2 # "${1:+$1,}$2"
+  if (TOKEN == "{") {
+    if (parse_object(jpath)) {
+      return 7
+    }
+  } else if (TOKEN == "[") {
+    if (ret = parse_array(jpath)) {
+      return ret
+    }
+  } else if (TOKEN == "") { #test case 20150410 #4
+    report("value", "EOF")
+    return 9
+  } else if (TOKEN ~ /^([^0-9])$/) {
+    # At this point, the only valid single-character tokens are digits.
+    report("value", TOKEN)
+    return 9
+  } else {
+    VALUE=TOKEN
+  }
+  if (! ("" == jpath || "" == VALUE)) {
+    x=sprintf("[%s]\t%s", jpath, VALUE)
+    print x
+  }
+  return 0
+}
+
+function parse(   ret) {
+  get_token()
+  if (ret = parse_value()) {
+    return ret
+  }
+  if (get_token()) {
+    report("EOF", TOKEN)
+    return 11
+  }
+  return 0
+}
+
+function report(expected, got,   i,from,to,context) {
+  from = ITOKENS - 10; if (from < 1) from = 1
+  to = ITOKENS + 10; if (to > NTOKENS) to = NTOKENS
+  for (i = from; i < ITOKENS; i++)
+    context = context sprintf("%s ", TOKENS[i])
+  context = context "<<" got ">> "
+  for (i = ITOKENS + 1; i <= to; i++)
+    context = context sprintf("%s ", TOKENS[i])
+  scream("json_awk expected <" expected "> but got <" got "> at input token " ITOKENS "\n" context)
+}
+
+function reset() {
+  TOKEN=""; delete TOKENS; NTOKENS=ITOKENS=0
+  delete JPATHS; NJPATHS=0
+  VALUE=""
+}
+
+function scream(msg) {
+  FAILS[FILENAME] = FAILS[FILENAME] (FAILS[FILENAME]!="" ? "\n" : "") msg
+  msg = FILENAME ": " msg
+  print msg >"/dev/stderr"
+}
+
+function tokenize(a1,pq,pb,ESCAPE,CHAR,STRING,NUMBER,KEYWORD,SPACE) {
+  SPACE="[[:space:]]+"
+  gsub(/\"[^[:cntrl:]\"\\]*((\\[^u[:cntrl:]]|\\u[0-9a-fA-F]{4})[^[:cntrl:]\"\\]*)*\"|-?(0|[1-9][0-9]*)([.][0-9]*)?([eE][+-]?[0-9]*)?|null|false|true|[[:space:]]+|./, "\n&", a1)
+  gsub("\n" SPACE, "\n", a1)
+  sub(/^\n/, "", a1)
+  ITOKENS=0 # get_token() helper
+  return NTOKENS = split(a1, TOKENS, /\n/)
+}'
+}
+
+json_get() { # get values from json
+  if [[ -z "$1" ]] || [[ "$1" == "null" ]]; then
+    echo "json was blank"
+    return
+  fi
+  if [[ $API = 1 ]]; then
+    # remove newlines, so it's a single chunk of JSON
+    json_data=$( echo "$1" | tr '\n' ' ')
+    # if $3 is defined, this is the section which the item is in.
+    if [[ ! -z "$3" ]]; then
+      jg_section=$(echo "$json_data" | awk -F"[}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${3}"'\"/){print $i}}}')
+      if [[ "$2" == "uri" ]]; then
+        jg_subsect=$(echo "$jg_section" | awk -F"[,]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i)}}}')
+        jg_result=$(echo "$jg_subsect" | awk -F'"' '{print $4}')
+      else
+        jg_result=$(echo "$jg_section" | awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i+1)}}}')
+      fi
     else
-      jg_result=$(echo "$jg_section" | awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i+1)}}}')
+      jg_result=$(echo "$json_data" |awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i+1)}}}')
+    fi
+    # check number of quotes
+    jg_q=${jg_result//[^\"]/}
+    # if 2 quotes, assume it's a quoted variable and just return the data within the quotes.
+    if [[ ${#jg_q} -eq 2 ]]; then
+      echo "$jg_result" | awk -F'"' '{print $2}'
+    else
+      echo "$jg_result"
     fi
   else
-    jg_result=$(echo "$json_data" |awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i+1)}}}')
-  fi
-  # check number of quotes
-  jg_q=${jg_result//[^\"]/}
-  # if 2 quotes, assume it's a quoted variable and just return the data within the quotes.
-  if [[ ${#jg_q} -eq 2 ]]; then
-    echo "$jg_result" | awk -F'"' '{print $2}'
-  else
-    echo "$jg_result"
+    if [[ ! -z "$6" ]]; then
+      full=$(json_awk "$1")
+      section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
+      echo "$full" | grep "^..${5}\",$section" | awk '{print $2}' | tr -d '"'
+    elif [[ ! -z "$5" ]]; then
+      full=$(json_awk "$1")
+      section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
+      echo "$full" | grep "^..${2}\",$section" | grep "$5" | awk '{print $2}' | tr -d '"'
+    elif [[ ! -z "$3" ]]; then
+      json_awk "$1" | grep "^..${2}...${3}" | awk '{print $2}' | tr -d '"'
+    elif [[ ! -z "$2" ]]; then
+      json_awk "$1" | grep "^..${2}" | awk '{print $2}' | tr -d '"'
+    else
+      json_awk "$1"
+    fi
   fi
 }
 
@@ -1134,7 +1329,6 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   needbase64=$3
 
   debug url "$url"
-  debug payload "$payload"
 
   CURL_HEADER="$TEMP_DIR/curl.header"
   dp="$TEMP_DIR/curl.dump"
@@ -1152,57 +1346,100 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
 
   # convert payload to url base 64
   payload64="$(printf '%s' "${payload}" | urlbase64)"
-  debug payload64 "$payload64"
 
   # get nonce from ACME server
-  nonceurl="$CA/directory"
-  nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
+  if [[ $API -eq 1 ]]; then
+    nonceurl="$CA/directory"
+    nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
+  else # APIv2
+    nonce=$($CURL -I "$URL_newNonce" | grep "^replay-nonce:" | awk '{print $2}' | tr -d '\r\n ')
+  fi
 
-  debug nonce "$nonce"
+  nonceproblem="true"
+  while [[ "$nonceproblem" == "true" ]]; do
 
-  # Build header with just our public key and algorithm information
-  header='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"'}'
+    debug nonce "$nonce"
 
-  # Build another header which also contains the previously received nonce and encode it as urlbase64
-  protected='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "nonce": "'"${nonce}"'", "url": "'"${url}"'"}'
-  protected64="$(printf '%s' "${protected}" | urlbase64)"
-  debug protected "$protected"
+    # Build header with just our public key and algorithm information
+    header='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"'}'
 
-  # Sign header with nonce and our payload with our private key and encode signature as urlbase64
-  sign_string "$(printf '%s' "${protected64}.${payload64}")"  "${ACCOUNT_KEY}" "$signalg"
-
-  # Send header + extended header + payload + signature to the acme-server
-  body="{\"header\": ${header},"
-  body="${body}\"protected\": \"${protected64}\","
-  body="${body}\"payload\": \"${payload64}\","
-  body="${body}\"signature\": \"${signed64}\"}"
-  debug "header, payload and signature = $body"
-
-  code="500"
-  loop_limit=5
-  while [[ "$code" -eq 500 ]]; do
-    if [[ "$needbase64" ]] ; then
-      response=$($CURL -X POST --data "$body" "$url" | urlbase64)
-    else
-      response=$($CURL -X POST --data "$body" "$url")
+    # Build another header which also contains the previously received nonce and encode it as urlbase64
+    if [[ $API -eq 1 ]]; then
+    protected='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "nonce": "'"${nonce}"'", "url": "'"${url}"'"}'
+    protected64="$(printf '%s' "${protected}" | urlbase64)"
+    else # APIv2
+      if [[ -z "$KID" ]]; then
+        debug "KID is blank, so using jwk"
+        protected='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "nonce": "'"${nonce}"'", "url": "'"${url}"'"}'
+        protected64="$(printf '%s' "${protected}" | urlbase64)"
+      else
+        debug "using KID=${KID}"
+        protected="{\"alg\": \"$jwkalg\", \"kid\": \"$KID\",\"nonce\": \"${nonce}\", \"url\": \"${url}\"}"
+        debug "protected = $protected"
+        protected64="$(printf '%s' "${protected}" | urlbase64)"
+      fi
     fi
 
-    responseHeaders=$(cat "$CURL_HEADER")
-    debug responseHeaders "$responseHeaders"
-    debug response  "$response"
-    code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
-    debug code "$code"
-    response_status=$(json_get "$response" status \
-                      | head -1| awk -F'"' '{print $2}')
-    debug "response status = $response_status"
+    # Sign header with nonce and our payload with our private key and encode signature as urlbase64
+    sign_string "$(printf '%s' "${protected64}.${payload64}")"  "${ACCOUNT_KEY}" "$signalg"
 
-    if [[ "$code" -eq 500 ]]; then
-      info "error on acme server - trying again ...."
-      sleep 2
-      loop_limit=$((loop_limit - 1))
-      if [[ $loop_limit -lt 1 ]]; then
-        error_exit "500 error from ACME server:  $response"
+    # Send header + extended header + payload + signature to the acme-server
+    if [[ $API -eq 1 ]]; then
+      debug "header = $header"
+      debug "protected = $protected"
+      debug "payload = $payload"
+      body="{\"header\": ${header},"
+      body="${body}\"protected\": \"${protected64}\","
+      body="${body}\"payload\": \"${payload64}\","
+      body="${body}\"signature\": \"${signed64}\"}"
+      debug "header, payload and signature = $body"
+    else
+      debug "protected = $protected"
+      debug "payload = $payload"
+      body="{"
+      body="${body}\"protected\": \"${protected64}\","
+      body="${body}\"payload\": \"${payload64}\","
+      body="${body}\"signature\": \"${signed64}\"}"
+      debug "header, payload and signature = $body"
+    fi
+  
+    code="500"
+    loop_limit=5
+    while [[ "$code" -eq 500 ]]; do
+      if [[ "$needbase64" ]] ; then
+        response=$($CURL -X POST --data "$body" "$url" | urlbase64)
+      else
+        response=$($CURL -X POST --data "$body" "$url")
       fi
+
+      responseHeaders=$(cat "$CURL_HEADER")
+      debug responseHeaders "$responseHeaders"
+      debug response  "$response"
+      code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
+      debug code "$code"
+      if [[ $API -eq 1 ]]; then
+        response_status=$(json_get "$response" status \
+                        | head -1| awk -F'"' '{print $2}')
+      else # APIv2
+        response_status=$(json_get "$response" status)
+      fi
+      debug "response status = $response_status"
+      if [[ "$code" -eq 500 ]]; then
+        info "error on acme server - trying again ...."
+        debug "loop_limit = $loop_limit"
+        sleep 5
+        loop_limit=$((loop_limit - 1))
+        if [[ $loop_limit -lt 1 ]]; then
+          error_exit "500 error from ACME server:  $response"
+        fi
+      fi
+    done
+    if [[ $response == *"error:badNonce"* ]]; then
+      debug "bad nonce"
+      nonce=$(echo "$responseHeaders" | grep "^replay-nonce:" | awk '{print $2}' | tr -d '\r\n ')
+      debug "trying new nonce $nonce"
+    else
+      nonceproblem="false"
     fi
   done
 }
@@ -1319,11 +1556,11 @@ write_domain_template() { # write out a template file for a domain.
 
 	# Location for all your certs, these can either be on the server (full path name)
 	# or using ssh /sftp as for the ACL
-	#DOMAIN_CERT_LOCATION="/etc/ssl/${DOMAIN}.crt"
-	#DOMAIN_KEY_LOCATION="/etc/ssl/${DOMAIN}.key"
-	#CA_CERT_LOCATION="/etc/ssl/chain.crt"
+	#DOMAIN_CERT_LOCATION="/etc/ssl/${DOMAIN}.crt" # this is domain cert
+	#DOMAIN_KEY_LOCATION="/etc/ssl/${DOMAIN}.key" # this is domain key
+	#CA_CERT_LOCATION="/etc/ssl/chain.crt" # this is CA cert
 	#DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
-	#DOMAIN_PEM_LOCATION="" # this is the domain_key, domain cert and CA cert
+	#DOMAIN_PEM_LOCATION="" # this is the domain key, domain cert and CA cert
 
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
@@ -1630,11 +1867,31 @@ if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
   info "${DOMAIN}: forcing renewal (due to FORCE_RENEWAL file)"
 fi
 
+echo "testing with API1"
 # Obtain CA resource locations
-ca_all_loc=$(curl "${CA}/directory" 2>/dev/null)
-URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
-URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
-URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
+if [[ $API -eq 1 ]]; then
+  ca_all_loc=$(curl "${CA}/directory" 2>/dev/null)
+  debug "ca_all_loc from ${CA}/dir gives $ca_all_loc"
+  URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
+  URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
+  URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
+  if [[ -z "$URL_new_reg" ]]; then
+    API=2
+    debug "API=1 failed, setting API=2"
+  fi
+fi
+echo "testing with api2"
+if [[ $API -eq 2 ]]; then
+  ca_all_loc=$(curl "${CA}/dir" 2>/dev/null)
+  debug "ca_all_loc from ${CA}/dir gives $ca_all_loc"
+  URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
+  URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
+  URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
+  if [[ -z "$ca_all_loc" ]]; then
+    debug "unknown API type $API"
+    graceful_exit
+  fi
+fi
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
@@ -1786,23 +2043,40 @@ fi
 # currently the code registers every time, and gets an "already registered" back if it has been.
 get_signing_params "$ACCOUNT_KEY"
 
-if [[ "$ACCOUNT_EMAIL" ]] ; then
-  regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
-else
-  regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
-fi
-
 info "Registering account"
 # send the request to the ACME server.
-send_signed_request   "$URL_new_reg"  "$regjson"
+if [[ $API -eq 1 ]]; then 
+  if [[ "$ACCOUNT_EMAIL" ]] ; then
+	regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
+  else
+	regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
+  fi
+  send_signed_request "$URL_new_reg"  "$regjson"
+elif [[ $API -eq 2 ]]; then
+  if [[ "$ACCOUNT_EMAIL" ]] ; then
+	regjson='{"termsOfServiceAgreed": true, "contact": ["mailto: '$ACCOUNT_EMAIL'"]}'
+  else
+	regjson='{"termsOfServiceAgreed": true}'
+  fi
+  send_signed_request "$URL_newAccount"  "$regjson"
+else
+	debug "cant determine account API"
+	graceful_exit
+fi 
 
 if [[ "$code" == "" ]] || [[ "$code" == '201' ]] ; then
   info "Registered"
+  KID=$(echo "$responseHeaders" | grep location | awk '{print $2}'| tr -d '\r\n ')
+  debug "KID=_$KID}_"
   echo "$response" > "$TEMP_DIR/account.json"
 elif [[ "$code" == '409' ]] ; then
   debug "Already registered"
+elif [[ "$code" == '200' ]] ; then
+  KID=$(echo "$responseHeaders" | grep location | awk '{print $2}'| tr -d '\r\n ')
+  debug responseHeaders "$responseHeaders"
+  debug "Already registered account, KID=_${KID}_"
 else
-  error_exit "Error registering account ... $(json_get "$response" detail)"
+  error_exit "Error registering account ...$responseHeaders ... $(json_get "$response" detail)"
 fi
 # end of registering account with CA
 
@@ -1811,10 +2085,33 @@ info "Verify each domain"
 
 # loop through domains for cert ( from SANS list)
 if [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
-    alldomains=${SANS//,/ }
+  alldomains=${SANS//,/ }
 else
   alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
 fi
+
+if [[ $API -eq 2 ]]; then
+  dstring="["
+  for d in $alldomains; do
+    dstring="${dstring}{\"type\":\"dns\",\"value\":\"$d\"},"
+  done
+  dstring="${dstring: : -1}]"
+  #new URL_newOrder
+  request="{\"identifiers\": $dstring}"
+  send_signed_request "$URL_newOrder" "$request"
+  OrderLink=$(echo "$responseHeaders" | grep location | awk '{print $2}'| tr -d '\r\n ')
+  debug "Order link $OrderLink"
+  FinalizeLink=$(json_get "$response" "finalize")
+  debug "finalise link $FinalizeLink"
+  dn=0
+  for d in $alldomains; do
+    # get authorizations link
+    AuthLink[$dn]=$(json_get "$response" "identifiers" "value" "$d" "authorizations" "x")
+    debug "authorizations link for $d - ${AuthLink[$dn]}"
+    ((dn++))
+  done
+fi
+
 dn=0
 for d in $alldomains; do
   # $d is domain in current loop, which is number $dn for ACL
@@ -1826,13 +2123,17 @@ for d in $alldomains; do
   fi
 
   # request a challenge token from ACME server
-  request="{\"resource\":\"new-authz\",\"identifier\":{\"type\":\"dns\",\"value\":\"$d\"}}"
-  send_signed_request "$URL_new_authz" "$request"
+  if [[ $API -eq 1 ]]; then
+    request="{\"resource\":\"new-authz\",\"identifier\":{\"type\":\"dns\",\"value\":\"$d\"}}"
+    send_signed_request "$URL_new_authz" "$request"
+    debug "completed send_signed_request"
 
-  debug "completed send_signed_request"
-  # check if we got a valid response and token, if not then error exit
-  if [[ ! -z "$code" ]] && [[ ! "$code" == '201' ]] ; then
-    error_exit "new-authz error: $response"
+    # check if we got a valid response and token, if not then error exit
+    if [[ ! -z "$code" ]] && [[ ! "$code" == '201' ]] ; then
+      error_exit "new-authz error: $response"
+    fi
+  else
+    response_status=""
   fi
 
   if [[ $response_status == "valid" ]]; then
@@ -1848,13 +2149,24 @@ for d in $alldomains; do
   else
     PREVIOUSLY_VALIDATED="false"
     if [[ $VALIDATE_VIA_DNS == "true" ]]; then # set up the correct DNS token for verification
-      # get the dns component of the ACME response
-      # get the token from the dns component
-      token=$(json_get "$response" "token" "dns-01")
-      debug token "$token"
-      # get the uri from the dns component
-      uri=$(json_get "$response" "uri" "dns-01")
-      debug uri "$uri"
+      if [[ $API -eq 1 ]]; then
+        # get the dns component of the ACME response
+        # get the token from the dns component
+        token=$(json_get "$response" "token" "dns-01")
+        debug token "$token"
+        # get the uri from the dns component
+        uri=$(json_get "$response" "uri" "dns-01")
+        debug uri "$uri"
+      else # APIv2
+        response=$(curl --silent ${AuthLink[$dn]} 2>/dev/null)
+        debug "authlink response = $response"
+        # get the token from the http-01 component
+        token=$(json_get "$response" "challenges" "type" "dns-01" "token")
+        debug token "$token"
+        # get the uri from the http component
+        uri=$(json_get "$response" "challenges" "type" "dns-01" "url")
+        debug uri "$uri"
+      fi
 
       keyauthorization="$token.$thumbprint"
       debug keyauthorization "$keyauthorization"
@@ -1895,12 +2207,23 @@ for d in $alldomains; do
 			_EOF_
 
     else      # set up the correct http token for verification
-      # get the token from the http component
-      token=$(json_get "$response" "token" "http-01")
-      debug token "$token"
-      # get the uri from the http component
-      uri=$(json_get "$response" "uri" "http-01")
-      debug uri "$uri"
+      if [[ $API -eq 1 ]]; then
+        # get the token from the http component
+        token=$(json_get "$response" "token" "http-01")
+        debug token "$token"
+        # get the uri from the http component
+        uri=$(json_get "$response" "uri" "http-01")
+        debug uri "$uri"
+      else # APIv2
+        response=$(curl --silent ${AuthLink[$dn]} 2>/dev/null)
+        debug "authlink response = $response"
+        # get the token from the http-01 component
+        token=$(json_get "$response" "challenges" "type" "http-01" "token")
+        debug token "$token"
+        # get the uri from the http component
+        uri=$(json_get "$response" "challenges" "type" "http-01" "url")
+        debug uri "$uri"
+      fi
 
       #create signed authorization key from token.
       keyauthorization="$token.$thumbprint"
