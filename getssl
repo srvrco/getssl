@@ -1863,7 +1863,6 @@ if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
   info "${DOMAIN}: forcing renewal (due to FORCE_RENEWAL file)"
 fi
 
-echo "testing with API1"
 # Obtain CA resource locations
 if [[ $API -eq 1 ]]; then
   ca_all_loc=$(curl "${CA}/directory" 2>/dev/null)
@@ -1876,7 +1875,6 @@ if [[ $API -eq 1 ]]; then
     debug "API=1 failed, setting API=2"
   fi
 fi
-echo "testing with api2"
 if [[ $API -eq 2 ]]; then
   ca_all_loc=$(curl "${CA}/dir" 2>/dev/null)
   debug "ca_all_loc from ${CA}/dir gives $ca_all_loc"
@@ -1884,7 +1882,7 @@ if [[ $API -eq 2 ]]; then
   URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
   URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
   if [[ -z "$ca_all_loc" ]]; then
-    debug "unknown API type $API"
+    debug "unknown API type"
     graceful_exit
   fi
 fi
