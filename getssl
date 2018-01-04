@@ -849,7 +849,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
   else # APIv2
     send_signed_request "$FinalizeLink" "{\"csr\": \"$der\"}" "needbase64"
     debug "order link was $OrderLink"
-    cd=$(curl --silent $OrderLink)
+    cd=$(curl --silent "$OrderLink")
     CertData=$(json_get "$cd" "certificate")
     debug "CertData is at $CertData"
     curl --silent "$CertData" > "$CERT_FILE"
@@ -983,7 +983,8 @@ info() { # write out info as long as the quiet flag has not been set.
   fi
 }
 
-json_awk() {
+json_awk() { # AWK json converter used for API2 - needs tidying up ;)
+# shellcheck disable=SC2086
 echo $1 | awk '
 {
   tokenize($0) # while(get_token()) {print TOKEN}
@@ -1421,7 +1422,12 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         response_status=$(json_get "$response" status \
                         | head -1| awk -F'"' '{print $2}')
       else # APIv2
-        response_status=$(json_get "$response" status)
+        if [[ ${response##*()} == "{"* ]]; then
+          response_status=$(json_get "$response" status)
+        else
+          debug "response not in json format"
+          debug "$response"
+        fi
       fi
       debug "response status = $response_status"
       if [[ "$code" -eq 500 ]]; then
@@ -2158,7 +2164,7 @@ for d in $alldomains; do
         uri=$(json_get "$response" "uri" "dns-01")
         debug uri "$uri"
       else # APIv2
-        response=$(curl --silent ${AuthLink[$dn]} 2>/dev/null)
+        response=$(curl --silent "${AuthLink[$dn]}" 2>/dev/null)
         debug "authlink response = $response"
         # get the token from the http-01 component
         token=$(json_get "$response" "challenges" "type" "dns-01" "token")
@@ -2215,7 +2221,7 @@ for d in $alldomains; do
         uri=$(json_get "$response" "uri" "http-01")
         debug uri "$uri"
       else # APIv2
-        response=$(curl --silent ${AuthLink[$dn]} 2>/dev/null)
+        response=$(curl --silent "${AuthLink[$dn]}" 2>/dev/null)
         debug "authlink response = $response"
         # get the token from the http-01 component
         token=$(json_get "$response" "challenges" "type" "http-01" "token")
