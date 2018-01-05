@@ -1343,7 +1343,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     nonceurl="$CA/directory"
     nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
   else # APIv2
-    nonce=$($CURL -I "$URL_newNonce" | grep "^replay-nonce:" | awk '{print $2}' | tr -d '\r\n ')
+    nonce=$($CURL -I "$URL_newNonce" | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
   fi
 
   nonceproblem="true"
@@ -1864,27 +1864,36 @@ if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
 fi
 
 # Obtain CA resource locations
-if [[ $API -eq 1 ]]; then
+ca_all_loc=$(curl "${CA}" 2>/dev/null)
+debug "ca_all_loc from ${CA} gives $ca_all_loc"
+# APIv1
+URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
+URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
+URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
+#API v2
+URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
+URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
+URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
+if [[ -z "$URL_new_reg" ]]  && [[ -z "$URL_newAccount" ]]; then
   ca_all_loc=$(curl "${CA}/directory" 2>/dev/null)
-  debug "ca_all_loc from ${CA}/dir gives $ca_all_loc"
+  debug "ca_all_loc from ${CA}/directory gives $ca_all_loc"
+  # APIv1
   URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
   URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
   URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
-  if [[ -z "$URL_new_reg" ]]; then
-    API=2
-    debug "API=1 failed, setting API=2"
-  fi
-fi
-if [[ $API -eq 2 ]]; then
-  ca_all_loc=$(curl "${CA}/dir" 2>/dev/null)
-  debug "ca_all_loc from ${CA}/dir gives $ca_all_loc"
+  #API v2
   URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
   URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
   URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
-  if [[ -z "$ca_all_loc" ]]; then
-    debug "unknown API type"
-    graceful_exit
-  fi
+fi
+
+if [[ ! -z "$URL_new_reg" ]]; then
+  API=1
+elif [[ ! -z "$URL_newAccount" ]]; then
+  API=2
+else
+  info "unknown API version"
+  graceful_exit
 fi
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
@@ -2064,11 +2073,13 @@ if [[ "$code" == "" ]] || [[ "$code" == '201' ]] ; then
   debug "KID=_$KID}_"
   echo "$response" > "$TEMP_DIR/account.json"
 elif [[ "$code" == '409' ]] ; then
-  debug "Already registered"
-elif [[ "$code" == '200' ]] ; then
-  KID=$(echo "$responseHeaders" | grep location | awk '{print $2}'| tr -d '\r\n ')
+  KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
   debug responseHeaders "$responseHeaders"
-  debug "Already registered account, KID=_${KID}_"
+  debug "Already registered KID=$KID"
+elif [[ "$code" == '200' ]] ; then
+  KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
+  debug responseHeaders "$responseHeaders"
+  debug "Already registered account, KID=${KID}"
 else
   error_exit "Error registering account ...$responseHeaders ... $(json_get "$response" detail)"
 fi
@@ -2090,7 +2101,9 @@ if [[ $API -eq 2 ]]; then
     dstring="${dstring}{\"type\":\"dns\",\"value\":\"$d\"},"
   done
   dstring="${dstring: : -1}]"
-  #new URL_newOrder
+  # request NewOrder currently seems to ignore the dates ....
+  #  dstring="${dstring},\"notBefore\": \"$(date -d "-1 hour" --utc +%FT%TZ)\""
+  #  dstring="${dstring},\"notAfter\": \"$(date -d "2 days" --utc +%FT%TZ)\""
   request="{\"identifiers\": $dstring}"
   send_signed_request "$URL_newOrder" "$request"
   OrderLink=$(echo "$responseHeaders" | grep location | awk '{print $2}'| tr -d '\r\n ')
