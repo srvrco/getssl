@@ -193,7 +193,7 @@ VERSION="2.10"
 # defaults
 ACCOUNT_KEY_LENGTH=4096
 ACCOUNT_KEY_TYPE="rsa"
-CA="https://acme-staging.api.letsencrypt.org"
+CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 CA_CERT_LOCATION=""
 CHALLENGE_CHECK_TYPE="http"
 CHECK_ALL_AUTH_DNS="false"
@@ -531,7 +531,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
         debug "servername $servername"
         debug "file $tofile"
         # shellcheck disable=SC2029
-        ssh "$servername" "chown $TOKEN_USER_ID $tofile"
+        ssh "$SSH_OPTS" "$servername" "chown $TOKEN_USER_ID $tofile"
       fi
     elif [[ "${to:0:4}" == "ftp:" ]] ; then
       if [[ "$cert" != "challenge token" ]] ; then
@@ -1226,9 +1226,9 @@ reload_service() {  # Runs a command to reload services ( via ssh if needed)
       sshhost=$(echo "$RELOAD_CMD"| awk -F: '{print $2}')
       command=${RELOAD_CMD:(( ${#sshhost} + 5))}
       debug "running following command to reload cert"
-      debug "ssh $sshhost ${command}"
+      debug "ssh $SSH_OPTS $sshhost ${command}"
       # shellcheck disable=SC2029
-      ssh "$sshhost" "${command}" 1>/dev/null 2>&1
+      ssh "$SSH_OPTS" "$sshhost" "${command}" 1>/dev/null 2>&1
       # allow 2 seconds for services to restart
       sleep 2
     else
@@ -1432,7 +1432,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     done
     if [[ $response == *"error:badNonce"* ]]; then
       debug "bad nonce"
-      nonce=$(echo "$responseHeaders" | grep "^replay-nonce:" | awk '{print $2}' | tr -d '\r\n ')
+      nonce=$(echo "$responseHeaders" | grep -i "^replay-nonce:" | awk '{print $2}' | tr -d '\r\n ')
       debug "trying new nonce $nonce"
     else
       nonceproblem="false"
@@ -1524,7 +1524,7 @@ write_domain_template() { # write out a template file for a domain.
 	# see https://github.com/srvrco/getssl/wiki/Example-config-files for example configs
 	#
 	# The staging server is best for testing
-	#CA="https://acme-staging.api.letsencrypt.org"
+	#CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 	# This server issues full certificates, however has rate limits
 	#CA="https://acme-v01.api.letsencrypt.org"
 
@@ -1576,7 +1576,7 @@ write_getssl_template() { # write out the main template file
 	# see https://github.com/srvrco/getssl/wiki/Config-variables for details
 	#
 	# The staging server is best for testing (hence set as default)
-	CA="https://acme-staging.api.letsencrypt.org"
+	CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 	# This server issues full certificates, however has rate limits
 	#CA="https://acme-v01.api.letsencrypt.org"
 
@@ -2273,9 +2273,9 @@ for d in $alldomains; do
           sshhost=$(echo "${t_loc}"| awk -F: '{print $2}')
           command="rm -f ${t_loc:(( ${#sshhost} + 5))}/${token:?}"
           debug "running following command to remove token"
-          debug "ssh $sshhost ${command}"
+          debug "ssh $SSH_OPTS $sshhost ${command}"
           # shellcheck disable=SC2029
-          ssh "$sshhost" "${command}" 1>/dev/null 2>&1
+          ssh "$SSH_OPTS" "$sshhost" "${command}" 1>/dev/null 2>&1
           rm -f "${TEMP_DIR:?}/${token:?}"
         elif [[ "${t_loc:0:4}" == "ftp:" ]] ; then
           debug "using ftp to remove token file"
