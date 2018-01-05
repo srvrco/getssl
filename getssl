@@ -534,7 +534,8 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
         debug "servername $servername"
         debug "file $tofile"
         # shellcheck disable=SC2029
-        ssh "$SSH_OPTS" "$servername" "chown $TOKEN_USER_ID $tofile"
+        # shellcheck disable=SC2086
+        ssh $SSH_OPTS "$servername" "chown $TOKEN_USER_ID $tofile"
       fi
     elif [[ "${to:0:4}" == "ftp:" ]] ; then
       if [[ "$cert" != "challenge token" ]] ; then
@@ -1231,7 +1232,8 @@ reload_service() {  # Runs a command to reload services ( via ssh if needed)
       debug "running following command to reload cert"
       debug "ssh $SSH_OPTS $sshhost ${command}"
       # shellcheck disable=SC2029
-      ssh "$SSH_OPTS" "$sshhost" "${command}" 1>/dev/null 2>&1
+      # shellcheck disable=SC2086
+      ssh $SSH_OPTS "$sshhost" "${command}" 1>/dev/null 2>&1
       # allow 2 seconds for services to restart
       sleep 2
     else
@@ -2285,7 +2287,8 @@ for d in $alldomains; do
           debug "running following command to remove token"
           debug "ssh $SSH_OPTS $sshhost ${command}"
           # shellcheck disable=SC2029
-          ssh "$SSH_OPTS" "$sshhost" "${command}" 1>/dev/null 2>&1
+          # shellcheck disable=SC2086
+          ssh $SSH_OPTS "$sshhost" "${command}" 1>/dev/null 2>&1
           rm -f "${TEMP_DIR:?}/${token:?}"
         elif [[ "${t_loc:0:4}" == "ftp:" ]] ; then
           debug "using ftp to remove token file"
