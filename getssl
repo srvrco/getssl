@@ -260,11 +260,11 @@ cert_archive() {  # Archive certificate file by copying files to dated archive d
   cp "$CA_CERT" "${DOMAIN_DIR}/archive/${date_time}/chain.crt"
   cat "$CERT_FILE" "$CA_CERT" > "${DOMAIN_DIR}/archive/${date_time}/fullchain.crt"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    cp "${CERT_FILE::-4}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.crt"
+    cp "${CERT_FILE%.*}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.crt"
     cp "$DOMAIN_DIR/${DOMAIN}.ec.csr" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.csr"
     cp "$DOMAIN_DIR/${DOMAIN}.ec.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.key"
-    cp "${CA_CERT::-4}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/chain.ec.crt"
-    cat "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "${DOMAIN_DIR}/archive/${date_time}/fullchain.ec.crt"
+    cp "${CA_CERT%.*}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/chain.ec.crt"
+    cat "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "${DOMAIN_DIR}/archive/${date_time}/fullchain.ec.crt"
   fi
   umask "$ORIG_UMASK"
   debug "purging old GetSSL archives"
@@ -665,8 +665,8 @@ create_key() { # create a domain key (if it doesn't already exist)
     esac
     umask "$ORIG_UMASK"
     # remove csr on generation of new domain key
-    if [[ -e "${key_loc::-4}.csr" ]]; then
-      rm -f "${key_loc::-4}.csr"
+    if [[ -e "${key_loc%.*}.csr" ]]; then
+      rm -f "${key_loc%.*}.csr"
     fi
   fi
 }
@@ -2119,7 +2119,7 @@ if [[ $API -eq 2 ]]; then
   #  dstring="${dstring},\"notAfter\": \"$(date -d "2 days" --utc +%FT%TZ)\""
   request="{\"identifiers\": $dstring}"
   send_signed_request "$URL_newOrder" "$request"
-  OrderLink=$(echo "$responseHeaders" | grep location | awk '{print $2}'| tr -d '\r\n ')
+  OrderLink=$(echo "$responseHeaders" | grep -i location | awk '{print $2}'| tr -d '\r\n ')
   debug "Order link $OrderLink"
   FinalizeLink=$(json_get "$response" "finalize")
   debug "finalise link $FinalizeLink"
@@ -2397,8 +2397,8 @@ get_certificate "$DOMAIN_DIR/${DOMAIN}.csr" \
                 "$CA_CERT"
 if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
   get_certificate "$DOMAIN_DIR/${DOMAIN}.ec.csr" \
-                  "${CERT_FILE::-4}.ec.crt" \
-                  "${CA_CERT::-4}.ec.crt"
+                  "${CERT_FILE%.*}.ec.crt" \
+                  "${CA_CERT%.*}.ec.crt"
 fi
 
 # create Archive of new certs and keys.
@@ -2415,18 +2415,18 @@ copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
 if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
   if [[ ! -z "$DOMAIN_CERT_LOCATION" ]]; then
     copy_file_to_location "ec domain certificate" \
-                          "${CERT_FILE::-4}.ec.crt" \
-                          "${DOMAIN_CERT_LOCATION::-4}.ec.crt"
+                          "${CERT_FILE%.*}.ec.crt" \
+                          "${DOMAIN_CERT_LOCATION%.*}.ec.crt"
   fi
   if [[ ! -z "$DOMAIN_KEY_LOCATION" ]]; then
   copy_file_to_location "ec private key" \
                         "$DOMAIN_DIR/${DOMAIN}.ec.key" \
-                        "${DOMAIN_KEY_LOCATION::-4}.ec.key"
+                        "${DOMAIN_KEY_LOCATION%.*}.ec.key"
   fi
   if [[ ! -z "$CA_CERT_LOCATION" ]]; then
   copy_file_to_location "ec CA certificate" \
-                        "${CA_CERT::-4}.ec.crt" \
-                        "${CA_CERT_LOCATION::-4}.ec.crt"
+                        "${CA_CERT%.*}.ec.crt" \
+                        "${CA_CERT_LOCATION%.*}.ec.crt"
   fi
 fi
 
@@ -2440,7 +2440,7 @@ if [[ ! -z "$DOMAIN_CHAIN_LOCATION" ]]; then
   cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
   copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    cat "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}_chain.pem.ec"
+    cat "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_chain.pem.ec"
     copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem.ec"  "${to_location}.ec"
   fi
 fi
@@ -2454,7 +2454,7 @@ if [[ ! -z "$DOMAIN_KEY_CERT_LOCATION" ]]; then
   cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
   copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-  cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"
+  cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"
   copy_file_to_location "private ec key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"  "${to_location}.ec"
   fi
 fi
@@ -2468,7 +2468,7 @@ if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
   cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
   copy_file_to_location "full key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}.pem.ec"
+    cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}.pem.ec"
     copy_file_to_location "full ec key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem.ec"  "${to_location}.ec"
   fi
 fi
