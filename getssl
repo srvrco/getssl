@@ -378,7 +378,7 @@ check_config() { # check the config files for all obvious errors
   fi
 
   dn=0
-  tmplist=$(mktemp)
+  tmplist=$(mktemp 2>/dev/null || mktemp -t getssl)
   for d in $alldomains; do # loop over domains (dn is domain number)
     debug "checking domain $d"
     if [[ "$(grep "^${d}$" "$tmplist")" = "$d" ]]; then
@@ -401,7 +401,7 @@ check_config() { # check the config files for all obvious errors
       fi
       # check domain exist
       if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-        if [[ "$($DNS_CHECK_FUNC "${d}" SOA|grep -c "^${d}")" -ge 1 ]]; then
+        if [[ "$($DNS_CHECK_FUNC "${d}" |grep -c "${d}")" -ge 1 ]]; then
           debug "found IP for ${d}"
         else
           info "${DOMAIN}: DNS lookup failed for ${d}"
@@ -436,7 +436,7 @@ check_config() { # check the config files for all obvious errors
 }
 
 check_getssl_upgrade() { # check if a more recent version of code is available available
-  TEMP_UPGRADE_FILE="$(mktemp)"
+  TEMP_UPGRADE_FILE="$(mktemp 2>/dev/null || mktemp -t getssl)"
   curl --silent "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
@@ -631,7 +631,7 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
   if [[ ! -s "$csr_file" ]] || [[ "$_RECREATE_CSR" == "1" ]]; then
     info "creating domain csr - $csr_file"
     # create a temporary config file, for portability.
-    tmp_conf=$(mktemp)
+    tmp_conf=$(mktemp 2>/dev/null || mktemp -t getssl)
     cat "$SSLCONF" > "$tmp_conf"
     printf "[SAN]\n%s" "$SANLIST" >> "$tmp_conf"
     # add OCSP Must-Staple to the domain csr
@@ -1251,7 +1251,7 @@ revoke_certificate() { # revoke a certificate
   ACCOUNT_KEY="$REVOKE_KEY"
   # need to set the revoke key as "account_key" since it's used in send_signed_request.
   get_signing_params "$REVOKE_KEY"
-  TEMP_DIR=$(mktemp -d)
+  TEMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t getssl)
   debug "revoking from $CA"
   rcertdata=$(openssl x509 -in "$REVOKE_CERT" -inform PEM -outform DER | urlbase64)
   send_signed_request "$URL_revoke" "{\"resource\": \"revoke-cert\", \"certificate\": \"$rcertdata\"}"
@@ -1579,6 +1579,7 @@ write_domain_template() { # write out a template file for a domain.
 	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
 	#SERVER_TYPE="https"
 	#CHECK_REMOTE="true"
+	#CHECK_REMOTE_WAIT="2" # wait 2 seconds before checking the remote server
 	_EOF_domain_
 }
 
@@ -2406,6 +2407,7 @@ cert_archive
 debug "Certificates obtained and archived locally, will now copy to specified locations"
 
 # copy certs to the correct location (creating concatenated files as required)
+umask 077
 
 copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
 copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
@@ -2471,7 +2473,7 @@ if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
   fi
 fi
 # end of copying certs.
-
+umask "$ORIG_UMASK"
 # Run reload command to restart apache / nginx or whatever system
 reload_service
 
