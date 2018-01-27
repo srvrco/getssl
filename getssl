@@ -429,7 +429,7 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
   curl --silent "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
-    error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
+    error_exit "curl was unable to connect to check for upgrades using SSL. Either it or your CA certificate store may be out of date."
   elif [[ $errcode -gt 0 ]]; then
     error_exit "curl error : $errcode"
   fi
@@ -1181,6 +1181,12 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     debug responseHeaders "$responseHeaders"
     debug response  "$response"
     code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
+
+    # A completely empty response is not good
+    if [[ "$response" == "" && "$responseHeaders" == "" ]] ; then
+      code="418"
+    fi
+
     debug code "$code"
     response_status=$(json_get "$response" status \
                       | head -1| awk -F'"' '{print $2}')
@@ -1266,7 +1272,7 @@ signal_exit() { # Handle trapped signals
 }
 
 urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
-  openssl base64 -e | tr -d '\n\r' | os_esed -e 's:=*$::g' -e 'y:+/:-_:'
+  openssl base64 -e | tr -d '\n\r' | os_esed -e 's:==*$::g' -e 'y:+/:-_:'
 }
 
 usage() { # echos out the program usage
@@ -1505,6 +1511,10 @@ CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
 if [[ "$os" == "mingw" ]]; then
   CSR_SUBJECT="//"
+fi
+
+if [[ ! -s "$SSLCONF" && -s "$WORKING_DIR/openssl.cnf" ]]; then
+  SSLCONF="$WORKING_DIR/openssl.cnf"
 fi
 
 # Set the OPENSSL_CONF environment variable so openssl knows which config to use
@@ -1853,7 +1863,7 @@ for d in $alldomains; do
       auth_key=$(printf '%s' "$keyauthorization" | openssl dgst -sha256 -binary \
                  | openssl base64 -e \
                  | tr -d '\n\r' \
-                 | sed -e 's:=*$::g' -e 'y:+/:-_:')
+                 | sed -e 's:==*$::g' -e 'y:+/:-_:')
       debug auth_key "$auth_key"
 
       debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
