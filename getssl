@@ -367,14 +367,14 @@ check_config() { # check the config files for all obvious errors
   fi
 
   dn=0
-  tmplist=$(mktemp)
+  checklist=''
   for d in $alldomains; do # loop over domains (dn is domain number)
     debug "checking domain $d"
-    if [[ "$(grep "^${d}$" "$tmplist")" = "$d" ]]; then
+    if [[ "$(grep "^${d}$" <(echo "$checklist") )" = "$d" ]]; then
       info "${DOMAIN}: $d appears to be duplicated in domain, SAN list"
       config_errors=true
     else
-      echo "$d" >> "$tmplist"
+      checklist=$(echo "$checklist" ; echo "$d")
     fi
 
     if [[ "$USE_SINGLE_ACL" == "true" ]]; then
@@ -415,9 +415,6 @@ check_config() { # check the config files for all obvious errors
     ((dn++))
   done
 
-  # tidy up
-  rm -f "$tmplist"
-
   if [[ "$config_errors" == "true" ]]; then
     error_exit "${DOMAIN}: exiting due to config errors"
   fi
@@ -425,7 +422,8 @@ check_config() { # check the config files for all obvious errors
 }
 
 check_getssl_upgrade() { # check if a more recent version of code is available available
-  TEMP_UPGRADE_FILE="$(mktemp)"
+  check_working_dir
+  TEMP_UPGRADE_FILE="$WORKING_DIR/getssl.newver"
   curl --silent "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
@@ -619,16 +617,16 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
   if [[ ! -s "$csr_file" ]] || [[ "$_RECREATE_CSR" == "1" ]]; then
     info "creating domain csr - $csr_file"
     # create a temporary config file, for portability.
-    tmp_conf=$(mktemp)
-    cat "$SSLCONF" > "$tmp_conf"
-    printf "[SAN]\n%s" "$SANLIST" >> "$tmp_conf"
-    # add OCSP Must-Staple to the domain csr
-    # if openssl version >= 1.1.0 one can also use "tlsfeature = status_request"
-    if [[ "$OCSP_MUST_STAPLE" == "true" ]]; then
-      printf "\n1.3.6.1.5.5.7.1.24 = DER:30:03:02:01:05" >> "$tmp_conf"
-    fi
-    openssl req -new -sha256 -key "$csr_key" -subj "$CSR_SUBJECT" -reqexts SAN -config "$tmp_conf" > "$csr_file"
-    rm -f "$tmp_conf"
+    san_conf=$(
+	cat "$SSLCONF"
+	printf "[SAN]\n%s" "$SANLIST"
+	# add OCSP Must-Staple to the domain csr
+	# if openssl version >= 1.1.0 one can also use "tlsfeature = status_request"
+	if [[ "$OCSP_MUST_STAPLE" == "true" ]]; then
+	  printf "\n1.3.6.1.5.5.7.1.24 = DER:30:03:02:01:05"
+	fi
+    )
+    openssl req -new -sha256 -key "$csr_key" -subj "$CSR_SUBJECT" -reqexts SAN -config <(echo "$san_conf") > "$csr_file"
   fi
 }
 
@@ -1050,7 +1048,8 @@ revoke_certificate() { # revoke a certificate
   ACCOUNT_KEY="$REVOKE_KEY"
   # need to set the revoke key as "account_key" since it's used in send_signed_request.
   get_signing_params "$REVOKE_KEY"
-  TEMP_DIR=$(mktemp -d)
+  TEMP_DIR="$WORKING_DIR/tmp"
+  mkdir -p "$TEMP_DIR"
   debug "revoking from $CA"
   rcertdata=$(openssl x509 -in "$REVOKE_CERT" -inform PEM -outform DER | urlbase64)
   send_signed_request "$URL_revoke" "{\"resource\": \"revoke-cert\", \"certificate\": \"$rcertdata\"}"
@@ -1382,6 +1381,16 @@ write_openssl_conf() { # write out a minimal openssl conf
 	_EOF_openssl_conf_
 }
 
+check_working_dir() {
+    # if the "working directory" doesn't exist, then create it.
+    if [[ ! -d "$WORKING_DIR" ]]; then
+      debug "Making working directory - $WORKING_DIR"
+      umask 077
+      mkdir -p "$WORKING_DIR"
+      umask "$ORIG_UMASK"
+    fi
+}
+
 # Trap signals
 trap "signal_exit TERM" TERM HUP
 trap "signal_exit INT"  INT
@@ -1458,7 +1467,6 @@ requires date
 requires grep
 requires sed
 requires sort
-requires mktemp
 
 # Check if upgrades are available (unless they have specified -U to ignore Upgrade checks)
 if [[ $_UPGRADE_CHECK -eq 1 ]]; then
@@ -1476,6 +1484,7 @@ if [[ $_REVOKE -eq 1 ]]; then
     CA=$REVOKE_CA
   fi
   URL_revoke=$(curl "${CA}/directory" 2>/dev/null | grep "revoke-cert" | awk -F'"' '{print $4}')
+  check_working_dir
   revoke_certificate
   graceful_exit
 fi
@@ -1489,11 +1498,7 @@ if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]]; then
   graceful_exit
 fi
 
-# if the "working directory" doesn't exist, then create it.
-if [[ ! -d "$WORKING_DIR" ]]; then
-  debug "Making working directory - $WORKING_DIR"
-  mkdir -p "$WORKING_DIR"
-fi
+check_working_dir
 
 # read any variables from config in working directory
 if [[ -s "$WORKING_DIR/getssl.cfg" ]]; then
