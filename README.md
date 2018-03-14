@@ -35,7 +35,7 @@ If you use puppet, there is a [GetSSL Puppet module](https://github.com/dthielki
 
 ## Overview
 
-GetSSL was written in standard bash ( so it can be run on a server,  a desktop computer, or even a virtualbox) and add the checks, and certificates to a remote server ( providing you have a ssh with key, sftp or ftp access to the remote server).
+GetSSL was written in standard bash ( so it can be run on a server, a desktop computer, or even a virtualbox) and add the checks, and certificates to a remote server ( providing you have a ssh with key, sftp or ftp access to the remote server).
 
 ```
 getssl ver. 2.02
