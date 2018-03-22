@@ -850,7 +850,9 @@ get_certificate() { # get certificate for csr, if all domains validated.
     cd=$(curl --silent "$OrderLink")
     CertData=$(json_get "$cd" "certificate")
     debug "CertData is at $CertData"
-    curl --silent "$CertData" > "$CERT_FILE"
+    curl --silent "$CertData" | sed -e '/^$/,$d' > "$gc_certfile"
+    info "The intermediate CA cert is in $gc_cafile"
+    curl --silent "$CertData" | sed -e '1,/^$/d' > "$gc_cafile"
     info "Certificate saved in $CERT_FILE"
   fi
 }
