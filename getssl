@@ -498,7 +498,7 @@ clean_up() { # Perform pre-exit housekeeping
       # shellcheck source=/dev/null
       . "$dnsfile"
       debug "attempting to clean up DNS entry for $d"
-      eval "$DNS_DEL_COMMAND" "$d" "$auth_key"
+      eval "$DNS_DEL_COMMAND" "${d/\*\./}" "$auth_key"
     done
     shopt -u nullglob
   fi
@@ -2188,14 +2188,14 @@ for d in $alldomains; do
                  | sed -e 's:=*$::g' -e 'y:+/:-_:')
       debug auth_key "$auth_key"
 
-      debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
-      if ! eval "$DNS_ADD_COMMAND" "$d" "$auth_key" ; then
+      debug "adding dns via command: $DNS_ADD_COMMAND ${d/\*\./} $auth_key"
+      if ! eval "$DNS_ADD_COMMAND" "${d/\*\./}" "$auth_key" ; then
         error_exit "DNS_ADD_COMMAND failed for domain $d"
       fi
 
       # find a primary / authoritative DNS server for the domain
       if [[ -z "$AUTH_DNS_SERVER" ]]; then
-        get_auth_dns "$d"
+        get_auth_dns "${d/\*\./}"
       else
         primary_ns="$AUTH_DNS_SERVER"
       fi
@@ -2320,17 +2320,17 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
         check_dns="fail"
         while [[ "$check_dns" == "fail" ]]; do
           if [[ "$os" == "cygwin" ]]; then
-            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
+            check_result=$(nslookup -type=txt "_acme-challenge.${d/\*\./}" "${ns}" \
                            | grep ^_acme -A2\
                            | grep '"'|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-            check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${d}" "@${ns}" \
+            check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${d/\*\./}" "@${ns}" \
                            | grep ^_acme|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
-            check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${d}" "${ns}" \
+            check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${d/\*\./}" "${ns}" \
                            | grep ^_acme|awk -F'"' '{ print $2}')
           else
-            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
+            check_result=$(nslookup -type=txt "_acme-challenge.${d/\*\./}" "${ns}" \
                            | grep ^_acme|awk -F'"' '{ print $2}')
           fi
           debug "expecting  $auth_key"
@@ -2369,7 +2369,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
       check_challenge_completion "$uri" "$d" "$keyauthorization"
 
       debug "remove DNS entry"
-      eval "$DNS_DEL_COMMAND" "$d" "$auth_key"
+      eval "$DNS_DEL_COMMAND" "${d/\*\./}" "$auth_key"
       # remove $dnsfile after each loop.
       rm -f "$dnsfile"
     fi
