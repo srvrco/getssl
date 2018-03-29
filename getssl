@@ -2116,7 +2116,7 @@ if [[ $API -eq 2 ]]; then
   dn=0
   for d in $alldomains; do
     # get authorizations link
-    AuthLink[$dn]=$(json_get "$response" "identifiers" "value" "$d" "authorizations" "x")
+    AuthLink[$dn]=$(json_get "$response" "identifiers" "value" "${d/\*/\\*}" "authorizations" "x")
     debug "authorizations link for $d - ${AuthLink[$dn]}"
     ((dn++))
   done
