@@ -498,7 +498,7 @@ clean_up() { # Perform pre-exit housekeeping
       # shellcheck source=/dev/null
       . "$dnsfile"
       debug "attempting to clean up DNS entry for $d"
-      eval "$DNS_DEL_COMMAND" "$d" "$auth_key"
+      eval "$DNS_DEL_COMMAND" "${d##\*.}" "$auth_key"
     done
     shopt -u nullglob
   fi
@@ -1400,9 +1400,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     loop_limit=5
     while [[ "$code" -eq 500 ]]; do
       if [[ "$needbase64" ]] ; then
-        response=$($CURL -X POST --data "$body" "$url" | urlbase64)
+        response=$($CURL -X POST --data "$body" --header "Content-Type: application/jose+json" "$url" | urlbase64)
       else
-        response=$($CURL -X POST --data "$body" "$url")
+        response=$($CURL -X POST --data "$body" --header "Content-Type: application/jose+json" "$url")
       fi
 
       responseHeaders=$(cat "$CURL_HEADER")
@@ -2189,7 +2189,7 @@ for d in $alldomains; do
       debug auth_key "$auth_key"
 
       debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
-      if ! eval "$DNS_ADD_COMMAND" "$d" "$auth_key" ; then
+      if ! eval "$DNS_ADD_COMMAND" "${d##\*.}" "$auth_key" ; then
         error_exit "DNS_ADD_COMMAND failed for domain $d"
       fi
 
@@ -2313,24 +2313,27 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
       # shellcheck source=/dev/null
       . "$dnsfile"
 
+      # remove possible wildcard part
+      real_d="${d##\*.}"
+
       # check for token at public dns server, waiting for a valid response.
       for ns in $primary_ns; do
-        debug "checking dns at $ns"
+        debug "checking entry for _acme-challenge.${real_d} at $ns"
         ntries=0
         check_dns="fail"
         while [[ "$check_dns" == "fail" ]]; do
           if [[ "$os" == "cygwin" ]]; then
-            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
+            check_result=$(nslookup -type=txt "_acme-challenge.${real_d}" "${ns}" \
                            | grep ^_acme -A2\
                            | grep '"'|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-            check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${d}" "@${ns}" \
+            check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${real_d}" "@${ns}" \
                            | grep ^_acme|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
-            check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${d}" "${ns}" \
+            check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${real_d}" "${ns}" \
                            | grep ^_acme|awk -F'"' '{ print $2}')
           else
-            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
+            check_result=$(nslookup -type=txt "_acme-challenge.${real_d}" "${ns}" \
                            | grep ^_acme|awk -F'"' '{ print $2}')
           fi
           debug "expecting  $auth_key"
@@ -2341,12 +2344,12 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
           else
             if [[ $ntries -lt 100 ]]; then
               ntries=$(( ntries + 1 ))
-              info "checking DNS at ${ns} for ${d}. Attempt $ntries/100 gave wrong result, "\
+              info "checking DNS at ${ns} for ${real_d}. Attempt $ntries/100 gave wrong result, "\
                 "waiting $DNS_WAIT secs before checking again"
               sleep $DNS_WAIT
             else
               debug "dns check failed - removing existing value"
-              error_exit "checking _acme-challenge.${d} gave $check_result not $auth_key"
+              error_exit "checking _acme-challenge.${real_d} gave $check_result not $auth_key"
             fi
           fi
         done
@@ -2369,7 +2372,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
       check_challenge_completion "$uri" "$d" "$keyauthorization"
 
       debug "remove DNS entry"
-      eval "$DNS_DEL_COMMAND" "$d" "$auth_key"
+      eval "$DNS_DEL_COMMAND" "${d##\*.}" "$auth_key"
       # remove $dnsfile after each loop.
       rm -f "$dnsfile"
     fi
