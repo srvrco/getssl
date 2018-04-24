@@ -715,7 +715,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
   gad_s="$PUBLIC_DNS_SERVER" # start with PUBLIC_DNS_SERVER
 
   if [[ "$os" == "cygwin" ]]; then
-    all_auth_dns_servers=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} 2>/dev/null \
+    all_auth_dns_servers=$(nslookup -type=soa "${d##\*.}" ${PUBLIC_DNS_SERVER} 2>/dev/null \
                           | grep "primary name server" \
                           | awk '{print $NF}')
     if [[ -z "$all_auth_dns_servers" ]]; then
@@ -2116,7 +2116,7 @@ if [[ $API -eq 2 ]]; then
   dn=0
   for d in $alldomains; do
     # get authorizations link
-    AuthLink[$dn]=$(json_get "$response" "identifiers" "value" "$d" "authorizations" "x")
+    AuthLink[$dn]=$(json_get "$response" "identifiers" "value" "${d##\*.}" "authorizations" "x")
     debug "authorizations link for $d - ${AuthLink[$dn]}"
     ((dn++))
   done
