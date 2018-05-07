@@ -204,7 +204,7 @@ CSR_SUBJECT="/"
 DEACTIVATE_AUTH="false"
 DEFAULT_REVOKE_CA="https://acme-v01.api.letsencrypt.org"
 DNS_EXTRA_WAIT=""
-DNS_FOLLOW_CNAMES="false"
+DNS_FOLLOW_CNAMES="true"
 DNS_WAIT=10
 DOMAIN_KEY_LENGTH=4096
 DUAL_RSA_ECDSA="false"
@@ -1977,16 +1977,21 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
         ntries=0
         check_dns="fail"
         check_fqdn="_acme-challenge.${d}"
+        cname_check=1
         while [[ "$check_dns" == "fail" ]]; do
           if [[ "$os" == "cygwin" ]]; then
             if [[ $DNS_FOLLOW_CNAMES == "true" ]]; then
-              cname_fqdn=$(nslookup -type=cname "${check_fqdn}" "${ns}" \
-                           | grep ^_acme -A2\
-                           | grep '"'|awk '{ print $5}')
+              while [[ $cname_check -gt 0 ]]; then
+                cname_fqdn=$(nslookup -type=cname "${check_fqdn}" "${ns}" \
+                             | grep ^_acme -A2\
+                             | grep '"'|awk '{ print $5}')
 
-              if [[ "$cname_fqdn" != "" ]]; then
-                check_fqdn=$cname_fqdn
-              fi
+                if [[ "$cname_fqdn" != "" ]]; then
+                  check_fqdn=$cname_fqdn
+                else
+                  cname_check=0
+                fi
+              done
             fi
   
             check_result=$(nslookup -type=txt "${check_fqdn}" "${ns}" \
@@ -1994,36 +1999,48 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
                            | grep '"'|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
             if [[ $DNS_FOLLOW_CNAMES == "true" ]]; then
-              cname_fqdn=$($DNS_CHECK_FUNC CNAME "${check_fqdn}" "@${ns}" \
-                           | grep ^_acme|awk '{ print $5}')
+              while [[ $cname_check -gt 0 ]]; then
+                cname_fqdn=$($DNS_CHECK_FUNC CNAME "${check_fqdn}" "@${ns}" \
+                             | grep ^_acme|awk '{ print $5}')
 
-              if [[ "$cname_fqdn" != "" ]]; then
-                check_fqdn=$cname_fqdn
-              fi
+                if [[ "$cname_fqdn" != "" ]]; then
+                  check_fqdn=$cname_fqdn
+                else
+                  cname_check=0
+                fi
+              done
             fi
 
             check_result=$($DNS_CHECK_FUNC TXT "${check_fqdn}" "@${ns}" \
                            | grep ^_acme|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
             if [[ $DNS_FOLLOW_CNAMES == "true" ]]; then
-              cname_fqdn=$($DNS_CHECK_FUNC -t CNAME "${check_fqdn}" "${ns}" \
-                           | grep ^_acme|awk '{ print $5}')
+              while [[ $cname_check -gt 0 ]]; then
+                cname_fqdn=$($DNS_CHECK_FUNC -t CNAME "${check_fqdn}" "${ns}" \
+                             | grep ^_acme|awk '{ print $5}')
 
-              if [[ "$cname_fqdn" != "" ]]; then
-                check_fqdn=$cname_fqdn
-              fi
+                if [[ "$cname_fqdn" != "" ]]; then
+                  check_fqdn=$cname_fqdn
+                else
+                  cname_check=0
+                fi
+              done
             fi
 
             check_result=$($DNS_CHECK_FUNC -t TXT "${check_fqdn}" "${ns}" \
                            | grep ^_acme|awk -F'"' '{ print $2}')
           else
             if [[ $DNS_FOLLOW_CNAMES == "true" ]]; then
-              cname_fqdn=$(nslookup -type=cname "${check_fqdn}" "${ns}" \
-                           | grep ^_acme|awk '{ print $5}')
+              while [[ $cname_check -gt 0 ]]; then
+                cname_fqdn=$(nslookup -type=cname "${check_fqdn}" "${ns}" \
+                             | grep ^_acme|awk '{ print $5}')
 
-              if [[ "$cname_fqdn" != "" ]]; then
-                check_fqdn=$cname_fqdn
-              fi
+                if [[ "$cname_fqdn" != "" ]]; then
+                  check_fqdn=$cname_fqdn
+                else
+                  cname_check=0
+                fi
+              done
             fi
 
             check_result=$(nslookup -type=txt "${check_fqdn}" "${ns}" \
