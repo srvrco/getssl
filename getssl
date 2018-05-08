@@ -1981,7 +1981,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
         while [[ "$check_dns" == "fail" ]]; do
           if [[ "$os" == "cygwin" ]]; then
             if [[ $DNS_FOLLOW_CNAMES == "true" ]]; then
-              while [[ $cname_check -gt 0 ]]; then
+              while [[ $cname_check -gt 0 ]]; do
                 cname_fqdn=$(nslookup -type=cname "${check_fqdn}" "${ns}" \
                              | grep ^_acme -A2\
                              | grep '"'|awk '{ print $5}')
@@ -1999,7 +1999,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
                            | grep '"'|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
             if [[ $DNS_FOLLOW_CNAMES == "true" ]]; then
-              while [[ $cname_check -gt 0 ]]; then
+              while [[ $cname_check -gt 0 ]]; do
                 cname_fqdn=$($DNS_CHECK_FUNC CNAME "${check_fqdn}" "@${ns}" \
                              | grep ^_acme|awk '{ print $5}')
 
@@ -2015,7 +2015,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
                            | grep ^_acme|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
             if [[ $DNS_FOLLOW_CNAMES == "true" ]]; then
-              while [[ $cname_check -gt 0 ]]; then
+              while [[ $cname_check -gt 0 ]]; do
                 cname_fqdn=$($DNS_CHECK_FUNC -t CNAME "${check_fqdn}" "${ns}" \
                              | grep ^_acme|awk '{ print $5}')
 
@@ -2031,7 +2031,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
                            | grep ^_acme|awk -F'"' '{ print $2}')
           else
             if [[ $DNS_FOLLOW_CNAMES == "true" ]]; then
-              while [[ $cname_check -gt 0 ]]; then
+              while [[ $cname_check -gt 0 ]]; do
                 cname_fqdn=$(nslookup -type=cname "${check_fqdn}" "${ns}" \
                              | grep ^_acme|awk '{ print $5}')
 
