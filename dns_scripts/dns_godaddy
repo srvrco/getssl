@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Copyright (2017) Timothe Litt  litt at acm _dot org
+# Copyright (C) 2017,2018) Timothe Litt  litt at acm _dot org
 
-VERSION="1.0.1"
+VERSION="1.0.2"
 PROG="`basename $0`"
 
 # This script is used to update TXT records in GoDaddy DNS server
@@ -209,7 +209,7 @@ if [ "$op" = "add" ]; then
 
         url="$API/$domain/records/TXT/$name"
 
-        request='{"data":"'$data'","ttl":'$ttl'}'
+        request='[{"data":"'$data'","ttl":'$ttl'}]'
         [ -n "$DEBUG" ] && cat >&2 <<EOF
 Add request to: $url
 --------
