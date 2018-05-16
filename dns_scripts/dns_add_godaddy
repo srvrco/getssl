@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (2017) Timothe Litt  litt at acm _dot org
+# Copyright (C) 2017, 2018 Timothe Litt  litt at acm _dot org
 
 # Add token to GoDaddy dns using dns_godaddy
 
@@ -36,5 +36,6 @@ fi
 
 export GODADDY_KEY
 export GODADDY_SECRET
+export GODADDY_BASE
 
 $GODADDY_SCRIPT -q add ${fulldomain} "_acme-challenge.${fulldomain}." "${token}"

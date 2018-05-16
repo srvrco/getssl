@@ -34,6 +34,9 @@ With those in hand, the installation procedure is:
    DNS_DEL_COMMAND="/usr/share/getssl/dns_scripts/dns_del_godaddy"
    # The API key for your account/this domain
    export GODADDY_KEY="..." GODADDY_SECRET="..."
+   # The base domain name(s) in which the challege records are stored
+   # E.g. if www.example.net is in the example.net zone:
+   export GODADDY_BASE="example.com example.net"
 
  4) Set any other options that you wish (per the standard
    directions.)  Use the test CA to make sure that
@@ -47,7 +50,7 @@ GODADDY_TRACE=Y getssl example.net
 There are additional options, which are documented in the
 *godaddy" files and dns_godaddy -h.
 
-Copyright (2017) Timothe Litt  litt at acm _dot org
+Copyright (C) 2017, 2018 Timothe Litt  litt at acm _dot org
 
 This sofware may be freely used providing this notice is included with
 all copies.  The name of the author may not be used to endorse
