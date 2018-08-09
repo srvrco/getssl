@@ -114,7 +114,7 @@
 # 2016-09-27 added additional debug info issue #119 (1.47)
 # 2016-09-27 removed IPv6 switch in favour of checking both IPv4 and IPv6 (1.48)
 # 2016-09-28 Add -Q, or --mute, switch to mute notifications about successfully upgrading getssl (1.49)
-# 2016-09-30 improved portability to work natively on FreeBSD, Slackware and OSX (1.50)
+# 2016-09-30 improved portability to work natively on FreeBSD, Slackware and Mac OS X (1.50)
 # 2016-09-30 comment out PRIVATE_KEY_ALG from the domain template Issue #125 (1.51)
 # 2016-10-03 check remote certificate for right domain before saving to local (1.52)
 # 2016-10-04 allow existing CSR with domain name in subject (1.53)
