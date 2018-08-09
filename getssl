@@ -121,7 +121,7 @@
 # 2016-10-05 improved the check for CSR with domain in subject (1.54)
 # 2016-10-06 prints update info on what was included in latest updates (1.55)
 # 2016-10-06 when using -a flag, ignore folders in working directory which aren't domains (1.56)
-# 2016-10-12 alllow multiple tokens in DNS challenge (1.57)
+# 2016-10-12 allow multiple tokens in DNS challenge (1.57)
 # 2016-10-14 added CHECK_ALL_AUTH_DNS option to check all DNS servres, not just one primary server (1.58)
 # 2016-10-14 added archive of chain and private key for each cert, and purge old archives (1.59)
 # 2016-10-17 updated info comment on failed cert due to rate limits. (1.60)
