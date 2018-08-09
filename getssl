@@ -127,7 +127,7 @@
 # 2016-10-17 updated info comment on failed cert due to rate limits. (1.60)
 # 2016-10-17 fix error messages when using 1.0.1e-fips  (1.61)
 # 2016-10-20 set secure permissions when generating account key (1.62)
-# 2016-10-20 set permsissions to 700 for getssl script during upgrade (1.63)
+# 2016-10-20 set permissions to 700 for getssl script during upgrade (1.63)
 # 2016-10-20 add option to revoke a certificate (1.64)
 # 2016-10-21 set revocation server default to acme-v01.api.letsencrypt.org (1.65)
 # 2016-10-21 bug fix for revocation on different servers. (1.66)
