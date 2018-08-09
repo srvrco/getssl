@@ -85,9 +85,9 @@ and it should run, providing output like;
 ```
 Registering account
 Verify each domain
-Verifing yourdomain.com
+Verifying yourdomain.com
 Verified yourdomain.com
-Verifing www.yourdomain.com
+Verifying www.yourdomain.com
 Verified www.yourdomain.com
 Verification completed, obtaining certificate.
 Certificate saved in /home/user/.getssl/yourdomain.com/yourdomain.com.crt
