@@ -50,7 +50,7 @@
 # 2016-05-04 Improve check for if DNS_DEL_COMMAND is blank. (0.31)
 # 2016-05-06 Setting umask to 077 for security of private keys etc. (0.32)
 # 2016-05-20 update to reflect changes in staging ACME server json (0.33)
-# 2016-05-20 tidying up checking of json following AMCE changes. (0.34)
+# 2016-05-20 tidying up checking of json following ACME changes. (0.34)
 # 2016-05-21 added AUTH_DNS_SERVER to getssl.cfg as optional definition of authoritative DNS server (0.35)
 # 2016-05-21 added DNS_WAIT to getssl.cfg as (default = 10 seconds as before) (0.36)
 # 2016-05-21 added PUBLIC_DNS_SERVER option, for forcing use of an external DNS server (0.37)
