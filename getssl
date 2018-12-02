@@ -564,6 +564,20 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
 			lcd $fromdir
 			put $fromfile
 			_EOF
+    elif [[ "${to:0:5}" == "davs:" ]] ; then
+      debug "using davs to copy the file from $from"
+      davsuser=$(echo "$to"| awk -F: '{print $2}')
+      davspass=$(echo "$to"| awk -F: '{print $3}')
+      davshost=$(echo "$to"| awk -F: '{print $4}')
+      davsport=$(echo "$to"| awk -F: '{print $5}')
+      davslocn=$(echo "$to"| awk -F: '{print $6}')
+      davsdirn=$(dirname "$davslocn")
+      davsfile=$(basename "$davslocn")
+      fromdir=$(dirname "$from")
+      fromfile=$(basename "$from")
+      debug "davs user=$davsuser - pass=$davspass - host=$davshost port=$davsport dir=$davsdirn file=$davsfile"
+      debug "from dir=$fromdir  file=$fromfile"
+      curl -u "${davsuser}:${davspass}" -T "${fromdir}/${fromfile}" "https://${davshost}:${davsport}${davsdirn}/${davsfile}"
     else
       if ! mkdir -p "$(dirname "$to")" ; then
         error_exit "cannot create ACL directory $(basename "$to")"
