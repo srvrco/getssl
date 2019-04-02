@@ -184,10 +184,11 @@
 # 2017-01-30 issue #243 compatibility with bash 3.0 (2.08)
 # 2017-01-30 issue #243 additional compatibility with bash 3.0 (2.09)
 # 2017-02-18 add OCSP Must-Staple to the domain csr generation (2.10)
+# 2017-03-16 implemented replacing ${DOMAIN} in ACL with current domain name (2.11)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.10"
+VERSION="2.11"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -382,6 +383,8 @@ check_config() { # check the config files for all obvious errors
     else
       DOMAIN_ACL="${ACL[$dn]}"
     fi
+
+    DOMAIN_ACL=$(echo $DOMAIN_ACL | sed -e "s/\${DOMAIN}/${d}/g")
 
     if [[ $VALIDATE_VIA_DNS != "true" ]]; then # using http-01 challenge
       if [[ -z "${DOMAIN_ACL}" ]]; then
@@ -1814,6 +1817,8 @@ for d in $alldomains; do
   else
     DOMAIN_ACL="${ACL[$dn]}"
   fi
+
+  DOMAIN_ACL=$(echo $DOMAIN_ACL | sed -e "s/\${DOMAIN}/${d}/g")
 
   # request a challenge token from ACME server
   request="{\"resource\":\"new-authz\",\"identifier\":{\"type\":\"dns\",\"value\":\"$d\"}}"
