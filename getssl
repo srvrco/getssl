@@ -1139,7 +1139,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
 
   CURL_HEADER="$TEMP_DIR/curl.header"
   dp="$TEMP_DIR/curl.dump"
-  CURL="curl --silent --dump-header $CURL_HEADER "
+  CURL="curl --http1.1 --silent --dump-header $CURL_HEADER "
   if [[ ${_USE_DEBUG} -eq 1 ]]; then
     CURL="$CURL --trace-ascii $dp "
   fi
@@ -1232,7 +1232,7 @@ sign_string() { # sign a string with a given key and algorithm and return urlbas
       R=$(echo "$signed" | cut -c 11-142)
       part2=$(echo "$signed" | cut -c 143-)
     else
-      error_exit "error in EC signing couldn't get R from $signed"
+      error_exit "error in EC signing couldn't get R from $signed ($signalg using $key)"
     fi
     debug "R $R"
 
