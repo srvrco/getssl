@@ -1136,7 +1136,14 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
 
   CURL_HEADER="$TEMP_DIR/curl.header"
   dp="$TEMP_DIR/curl.dump"
-  CURL="curl --http1.1 --silent --dump-header $CURL_HEADER "
+
+  CURL="curl "
+  if [[ "$($CURL -V | head -1 | cut -d' ' -f2 )" > "7.33" ]]; then
+    CURL="$CURL --http1.1 "
+  fi
+
+  CURL="$CURL --silent --dump-header $CURL_HEADER "
+
   if [[ ${_USE_DEBUG} -eq 1 ]]; then
     CURL="$CURL --trace-ascii $dp "
   fi
