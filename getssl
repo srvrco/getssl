@@ -50,7 +50,7 @@
 # 2016-05-04 Improve check for if DNS_DEL_COMMAND is blank. (0.31)
 # 2016-05-06 Setting umask to 077 for security of private keys etc. (0.32)
 # 2016-05-20 update to reflect changes in staging ACME server json (0.33)
-# 2016-05-20 tidying up checking of json following AMCE changes. (0.34)
+# 2016-05-20 tidying up checking of json following ACME changes. (0.34)
 # 2016-05-21 added AUTH_DNS_SERVER to getssl.cfg as optional definition of authoritative DNS server (0.35)
 # 2016-05-21 added DNS_WAIT to getssl.cfg as (default = 10 seconds as before) (0.36)
 # 2016-05-21 added PUBLIC_DNS_SERVER option, for forcing use of an external DNS server (0.37)
@@ -114,20 +114,20 @@
 # 2016-09-27 added additional debug info issue #119 (1.47)
 # 2016-09-27 removed IPv6 switch in favour of checking both IPv4 and IPv6 (1.48)
 # 2016-09-28 Add -Q, or --mute, switch to mute notifications about successfully upgrading getssl (1.49)
-# 2016-09-30 improved portability to work natively on FreeBSD, Slackware and OSX (1.50)
+# 2016-09-30 improved portability to work natively on FreeBSD, Slackware and Mac OS X (1.50)
 # 2016-09-30 comment out PRIVATE_KEY_ALG from the domain template Issue #125 (1.51)
 # 2016-10-03 check remote certificate for right domain before saving to local (1.52)
 # 2016-10-04 allow existing CSR with domain name in subject (1.53)
 # 2016-10-05 improved the check for CSR with domain in subject (1.54)
 # 2016-10-06 prints update info on what was included in latest updates (1.55)
 # 2016-10-06 when using -a flag, ignore folders in working directory which aren't domains (1.56)
-# 2016-10-12 alllow multiple tokens in DNS challenge (1.57)
-# 2016-10-14 added CHECK_ALL_AUTH_DNS option to check all DNS servres, not just one primary server (1.58)
+# 2016-10-12 allow multiple tokens in DNS challenge (1.57)
+# 2016-10-14 added CHECK_ALL_AUTH_DNS option to check all DNS servers, not just one primary server (1.58)
 # 2016-10-14 added archive of chain and private key for each cert, and purge old archives (1.59)
 # 2016-10-17 updated info comment on failed cert due to rate limits. (1.60)
 # 2016-10-17 fix error messages when using 1.0.1e-fips  (1.61)
 # 2016-10-20 set secure permissions when generating account key (1.62)
-# 2016-10-20 set permsissions to 700 for getssl script during upgrade (1.63)
+# 2016-10-20 set permissions to 700 for getssl script during upgrade (1.63)
 # 2016-10-20 add option to revoke a certificate (1.64)
 # 2016-10-21 set revocation server default to acme-v01.api.letsencrypt.org (1.65)
 # 2016-10-21 bug fix for revocation on different servers. (1.66)
@@ -246,7 +246,7 @@ ORIGCMD="$0 $*"
 # Define all functions (in alphabetical order)
 
 cert_archive() {  # Archive certificate file by copying files to dated archive dir.
-  debug "creating an achive copy of current new certs"
+  debug "creating an archive copy of current new certs"
   date_time=$(date +%Y_%m_%d_%H_%M)
   mkdir -p "${DOMAIN_DIR}/archive/${date_time}"
   umask 077
@@ -528,7 +528,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       fi
     elif [[ "${to:0:4}" == "ftp:" ]] ; then
       if [[ "$cert" != "challenge token" ]] ; then
-        error_exit "ftp is not a sercure method for copying certificates or keys"
+        error_exit "ftp is not a secure method for copying certificates or keys"
       fi
       debug "using ftp to copy the file from $from"
       ftpuser=$(echo "$to"| awk -F: '{print $2}')
@@ -677,7 +677,7 @@ date_epoc() { # convert the date into epoch time
 date_fmt() { # format date from epoc time to YYYY-MM-DD
   if [[ "$os" == "bsd" ]]; then #uses older style date function.
     date -j -f "%s" "$1" +%F
-  elif [[ "$os" == "mac" ]]; then # MAC OSX uses older BSD style date.
+  elif [[ "$os" == "mac" ]]; then # macOS uses older BSD style date.
     date -j -f "%s" "$1" +%F
   else
     date -d "@$1" +%F
@@ -1717,7 +1717,7 @@ if [[ -s "$CERT_FILE" ]]; then
     if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]]; then
       issuer=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null)
       if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v01.api.letsencrypt.org" ]]; then
-        debug "upgradeing from fake cert to real"
+        debug "upgrading from fake cert to real"
       else
         info "${DOMAIN}: certificate is valid for more than $RENEW_ALLOW days (until $enddate)"
         # everything is OK, so exit.
@@ -1744,7 +1744,7 @@ else
   create_key "$ACCOUNT_KEY_TYPE" "$ACCOUNT_KEY" "$ACCOUNT_KEY_LENGTH"
 fi
 
-# if not reusing priavte key, then remove the old keys
+# if not reusing private key, then remove the old keys
 if [[ "$REUSE_PRIVATE_KEY" != "true" ]]; then
   if [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
    rm -f "$DOMAIN_DIR/${DOMAIN}.key"
