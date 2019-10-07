@@ -518,10 +518,12 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
         error_exit "problem copying file to the server using scp.
         scp $from ${to:4}"
       fi
+      servername=$(echo "$to" | awk -F":" '{print $2}')
+      tofile=$(echo "$to" | awk -F":" '{print $3}')
+      # shellcheck disable=SC2029
+      ssh "$servername" "chmod a+r $tofile"
       debug "userid $TOKEN_USER_ID"
       if [[ "$cert" == "challenge token" ]] && [[ ! -z "$TOKEN_USER_ID" ]]; then
-        servername=$(echo "$to" | awk -F":" '{print $2}')
-        tofile=$(echo "$to" | awk -F":" '{print $3}')
         debug "servername $servername"
         debug "file $tofile"
         # shellcheck disable=SC2029
