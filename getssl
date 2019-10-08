@@ -173,7 +173,7 @@
 # 2016-12-28 tidied up upgrade tmpfile handling (1.95)
 # 2017-01-01 update comments
 # 2017-01-01 create stable release 2.0 (2.00)
-# 2017-01-02 Added option to limit amount of old versions to keep (2.01)
+# 2017-01-02 Added option to limit number of old versions to keep (2.01)
 # 2017-01-03 Created check_config function to list all obvious config issues (2.02)
 # 2017-01-10 force renew if FORCE_RENEWAL file exists (2.03)
 # 2017-01-12 added drill, dig or host as alternatives to nslookup (2.04)
@@ -466,7 +466,7 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
         shopt -s -o noglob
         IFS=$'\n' getssl_versions=($(sort <<< "${getssl_versions[*]}"))
         shopt -u -o noglob
-        # Remove entries until given amount of old versions to keep is reached
+        # Remove entries until given number of old versions to keep is reached
         while [[ ${#getssl_versions[@]} -gt $_KEEP_VERSIONS ]]; do
           debug "removing old version ${getssl_versions[0]}"
           rm "${getssl_versions[0]}"
@@ -940,15 +940,15 @@ help_message() { # print out the help message
 
 	Options:
 	  -a, --all          Check all certificates
-	  -d, --debug        Outputs debug information
+	  -d, --debug        Output debug information
 	  -c, --create       Create default config files
 	  -f, --force        Force renewal of cert (overrides expiry checks)
 	  -h, --help         Display this help message and exit
 	  -q, --quiet        Quiet mode (only outputs on error, success of new cert, or getssl was upgraded)
-	  -Q, --mute         Like -q, but mutes notification about successful upgrade
+	  -Q, --mute         Like -q, but also mute notification about successful upgrade
 	  -r, --revoke   "cert" "key" [CA_server] Revoke a certificate (the cert and key are required)
 	  -u, --upgrade      Upgrade getssl if a more recent version is available
-	  -k, --keep     "#" Maximum amount of old getssl versions to keep when upgrading
+	  -k, --keep     "#" Maximum number of old getssl versions to keep when upgrading
 	  -U, --nocheck      Do not check if a more recent version is available
 	  -w working_dir "Working directory"
 
