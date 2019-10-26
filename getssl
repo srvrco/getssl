@@ -1290,54 +1290,54 @@ write_domain_template() { # write out a template file for a domain.
   else
     cat > "$1" <<- _EOF_domain_
     # Uncomment and modify any variables you need
-    # see https://github.com/srvrco/getssl/wiki/Config-variables for details
-    # see https://github.com/srvrco/getssl/wiki/Example-config-files for example configs
-    #
-    # The staging server is best for testing
-    #CA="https://acme-staging.api.letsencrypt.org"
-    # This server issues full certificates, however has rate limits
-    #CA="https://acme-v01.api.letsencrypt.org"
+		# see https://github.com/srvrco/getssl/wiki/Config-variables for details
+		# see https://github.com/srvrco/getssl/wiki/Example-config-files for example configs
+		#
+		# The staging server is best for testing
+		#CA="https://acme-staging.api.letsencrypt.org"
+		# This server issues full certificates, however has rate limits
+		#CA="https://acme-v01.api.letsencrypt.org"
 
-    #PRIVATE_KEY_ALG="rsa"
+		#PRIVATE_KEY_ALG="rsa"
 
-    # Additional domains - this could be multiple domains / subdomains in a comma separated list
-    # Note: this is Additional domains - so should not include the primary domain.
-    SANS="${EX_SANS}"
+		# Additional domains - this could be multiple domains / subdomains in a comma separated list
+		# Note: this is Additional domains - so should not include the primary domain.
+		SANS="${EX_SANS}"
 
-    # Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
-    # If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
-    # An ssh key will be needed to provide you with access to the remote server.
-    # Optionally, you can specify a different userid for ssh/scp to use on the remote server before the @ sign.
-    # If left blank, the username on the local server will be used to authenticate against the remote server.
-    # If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
-    # These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
-    # where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
-    #ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-    #     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-    #     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-    #     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
+		# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
+		# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
+		# An ssh key will be needed to provide you with access to the remote server.
+		# Optionally, you can specify a different userid for ssh/scp to use on the remote server before the @ sign.
+		# If left blank, the username on the local server will be used to authenticate against the remote server.
+		# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
+		# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
+		# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
+		#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+		#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+		#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+		#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
 
-    #Set USE_SINGLE_ACL="true" to use a single ACL for all checks
-    #USE_SINGLE_ACL="false"
+		#Set USE_SINGLE_ACL="true" to use a single ACL for all checks
+		#USE_SINGLE_ACL="false"
 
-    # Location for all your certs, these can either be on the server (full path name)
-    # or using ssh /sftp as for the ACL
-    #DOMAIN_CERT_LOCATION="/etc/ssl/${DOMAIN}.crt"
-    #DOMAIN_KEY_LOCATION="/etc/ssl/${DOMAIN}.key"
-    #CA_CERT_LOCATION="/etc/ssl/chain.crt"
-    #DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
-    #DOMAIN_PEM_LOCATION="" # this is the domain_key, domain cert and CA cert
+		# Location for all your certs, these can either be on the server (full path name)
+		# or using ssh /sftp as for the ACL
+		#DOMAIN_CERT_LOCATION="/etc/ssl/${DOMAIN}.crt"
+		#DOMAIN_KEY_LOCATION="/etc/ssl/${DOMAIN}.key"
+		#CA_CERT_LOCATION="/etc/ssl/chain.crt"
+		#DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
+		#DOMAIN_PEM_LOCATION="" # this is the domain_key, domain cert and CA cert
 
-    # The command needed to reload apache / nginx or whatever you use
-    #RELOAD_CMD=""
+		# The command needed to reload apache / nginx or whatever you use
+		#RELOAD_CMD=""
 
-    # Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
-    # smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
-    # will be checked for certificate expiry and also will be checked after
-    # an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
-    #SERVER_TYPE="https"
-    #CHECK_REMOTE="true"
-    _EOF_domain_
+		# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
+		# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
+		# will be checked for certificate expiry and also will be checked after
+		# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+		#SERVER_TYPE="https"
+		#CHECK_REMOTE="true"
+	_EOF_domain_
   fi
 }
 
