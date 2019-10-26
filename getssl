@@ -1286,7 +1286,7 @@ usage() { # echos out the program usage
 
 write_domain_template() { # write out a template file for a domain.
   if [[ -s "$WORKING_DIR/getssl_default.cfg" ]]; then
-    cp "$1" $WORKING_DIR/getssl_default.cfg
+    cp $WORKING_DIR/getssl_default.cfg "$1"
   else
     cat > "$1" <<- _EOF_domain_
     # Uncomment and modify any variables you need
