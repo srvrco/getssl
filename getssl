@@ -1455,7 +1455,7 @@ get_os
 requires which
 requires openssl
 requires curl
-requires nslookup drill dig host DNS_CHECK_FUNC
+requires nslookup host drill dig DNS_CHECK_FUNC
 requires awk
 requires tr
 requires date
