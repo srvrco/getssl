@@ -1154,33 +1154,33 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   payload64="$(printf '%s' "${payload}" | urlbase64)"
   debug payload64 "$payload64"
 
-  # get nonce from ACME server
-  nonceurl="$CA/directory"
-  nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
-
-  debug nonce "$nonce"
-
   # Build header with just our public key and algorithm information
   header='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"'}'
-
-  # Build another header which also contains the previously received nonce and encode it as urlbase64
-  protected='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "nonce": "'"${nonce}"'", "url": "'"${url}"'"}'
-  protected64="$(printf '%s' "${protected}" | urlbase64)"
-  debug protected "$protected"
-
-  # Sign header with nonce and our payload with our private key and encode signature as urlbase64
-  sign_string "$(printf '%s' "${protected64}.${payload64}")"  "${ACCOUNT_KEY}" "$signalg"
-
-  # Send header + extended header + payload + signature to the acme-server
-  body="{\"header\": ${header},"
-  body="${body}\"protected\": \"${protected64}\","
-  body="${body}\"payload\": \"${payload64}\","
-  body="${body}\"signature\": \"${signed64}\"}"
-  debug "header, payload and signature = $body"
 
   code="500"
   loop_limit=5
   while [[ "$code" -eq 500 ]]; do
+    # get nonce from ACME server
+    nonceurl="$CA/directory"
+    nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
+
+    debug nonce "$nonce"
+
+    # Build another header which also contains the previously received nonce and encode it as urlbase64
+    protected='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "nonce": "'"${nonce}"'", "url": "'"${url}"'"}'
+    protected64="$(printf '%s' "${protected}" | urlbase64)"
+    debug protected "$protected"
+
+    # Sign header with nonce and our payload with our private key and encode signature as urlbase64
+    sign_string "$(printf '%s' "${protected64}.${payload64}")"  "${ACCOUNT_KEY}" "$signalg"
+
+    # Send header + extended header + payload + signature to the acme-server
+    body="{\"header\": ${header},"
+    body="${body}\"protected\": \"${protected64}\","
+    body="${body}\"payload\": \"${payload64}\","
+    body="${body}\"signature\": \"${signed64}\"}"
+    debug "header, payload and signature = $body"
+
     if [[ "$needbase64" ]] ; then
       response=$($CURL -X POST --data "$body" "$url" | urlbase64)
     else
