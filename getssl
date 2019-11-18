@@ -1410,9 +1410,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     loop_limit=5
     while [[ "$code" -eq 500 ]]; do
       if [[ "$needbase64" ]] ; then
-        response=$($CURL -X POST --data "$body" "$url" | urlbase64)
+        response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" | urlbase64)
       else
-        response=$($CURL -X POST --data "$body" "$url")
+        response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url")
       fi
 
       responseHeaders=$(cat "$CURL_HEADER")
