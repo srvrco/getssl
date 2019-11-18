@@ -188,10 +188,11 @@
 # 2019-09-30 issue #423 Use HTTP 1.1 as workaround atm (2.11)
 # 2019-10-02 issue #425 Case insensitive processing of agreement url because of HTTP/2 (2.12)
 # 2019-10-07 update DNS checks to allow use of CNAMEs (2.13)
+# 2019-11-18 Rebased master onto APIv2 and added Content-Type: application/jose+json (2.14)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.13"
+VERSION="2.14"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
