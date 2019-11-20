@@ -1406,7 +1406,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       body="${body}\"signature\": \"${signed64}\"}"
       debug "header, payload and signature = $body"
     fi
-  
+
     code="500"
     loop_limit=5
     while [[ "$code" -eq 500 ]]; do
@@ -2062,7 +2062,7 @@ get_signing_params "$ACCOUNT_KEY"
 
 info "Registering account"
 # send the request to the ACME server.
-if [[ $API -eq 1 ]]; then 
+if [[ $API -eq 1 ]]; then
   if [[ "$ACCOUNT_EMAIL" ]] ; then
 	regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
   else
@@ -2079,11 +2079,11 @@ elif [[ $API -eq 2 ]]; then
 else
 	debug "cant determine account API"
 	graceful_exit
-fi 
+fi
 
 if [[ "$code" == "" ]] || [[ "$code" == '201' ]] ; then
   info "Registered"
-  KID=$(echo "$responseHeaders" | grep location | awk '{print $2}'| tr -d '\r\n ')
+  KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
   debug "KID=_$KID}_"
   echo "$response" > "$TEMP_DIR/account.json"
 elif [[ "$code" == '409' ]] ; then
