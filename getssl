@@ -205,6 +205,7 @@ CHECK_REMOTE="true"
 CHECK_REMOTE_WAIT=0
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
 CSR_SUBJECT="/"
+CURL_USERAGENT="${PROGNAME}/${VERSION}"
 DEACTIVATE_AUTH="false"
 DEFAULT_REVOKE_CA="https://acme-v01.api.letsencrypt.org"
 DNS_EXTRA_WAIT=""
@@ -438,7 +439,7 @@ check_config() { # check the config files for all obvious errors
 
 check_getssl_upgrade() { # check if a more recent version of code is available available
   TEMP_UPGRADE_FILE="$(mktemp 2>/dev/null || mktemp -t getssl)"
-  curl --silent "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
+  curl --user-agent "$CURL_USERAGENT" --silent "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
     error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
@@ -824,7 +825,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
     debug "certdata location = $CertData"
     if [[ "$CertData" ]] ; then
       echo -----BEGIN CERTIFICATE----- > "$gc_certfile"
-      curl --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
+      curl --user-agent "$CURL_USERAGENT" --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
       echo -----END CERTIFICATE-----  >> "$gc_certfile"
       info "Certificate saved in $CERT_FILE"
     fi
@@ -844,17 +845,17 @@ get_certificate() { # get certificate for csr, if all domains validated.
                 | sed 's/>//g')
     if [[ "$IssuerData" ]] ; then
       echo -----BEGIN CERTIFICATE----- > "$gc_cafile"
-      curl --silent "$IssuerData" | openssl base64 -e  >> "$gc_cafile"
+      curl --user-agent "$CURL_USERAGENT" --silent "$IssuerData" | openssl base64 -e  >> "$gc_cafile"
       echo -----END CERTIFICATE-----  >> "$gc_cafile"
       info "The intermediate CA cert is in $gc_cafile"
     fi
   else # APIv2
     send_signed_request "$FinalizeLink" "{\"csr\": \"$der\"}" "needbase64"
     debug "order link was $OrderLink"
-    cd=$(curl --silent "$OrderLink")
+    cd=$(curl --user-agent "$CURL_USERAGENT" --silent "$OrderLink")
     CertData=$(json_get "$cd" "certificate")
     debug "CertData is at $CertData"
-    curl --silent "$CertData" > "$CERT_FILE"
+    curl --user-agent "$CURL_USERAGENT" --silent "$CertData" > "$CERT_FILE"
     info "Certificate saved in $CERT_FILE"
   fi
 }
@@ -862,7 +863,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
 get_cr() { # get curl response
   url="$1"
   debug url "$url"
-  response=$(curl --silent "$url")
+  response=$(curl --user-agent "$CURL_USERAGENT" --silent "$url")
   ret=$?
   debug response  "$response"
   code=$(json_get "$response" status)
@@ -1342,7 +1343,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     CURL="$CURL --http1.1 "
   fi
 
-  CURL="$CURL --silent --dump-header $CURL_HEADER "
+  CURL="$CURL --user-agent $CURL_USERAGENT --silent --dump-header $CURL_HEADER "
 
   if [[ ${_USE_DEBUG} -eq 1 ]]; then
     CURL="$CURL --trace-ascii $dp "
@@ -1726,13 +1727,13 @@ if [[ $_REVOKE -eq 1 ]]; then
   else
     CA=$REVOKE_CA
   fi
-  URL_revoke=$(curl "${CA}/directory" 2>/dev/null | grep "revoke-cert" | awk -F'"' '{print $4}')
+  URL_revoke=$(curl --user-agent "$CURL_USERAGENT" "${CA}/directory" 2>/dev/null | grep "revoke-cert" | awk -F'"' '{print $4}')
   revoke_certificate
   graceful_exit
 fi
 
 # get latest agreement from CA (as default)
-AGREEMENT=$(curl -I "${CA}/terms" 2>/dev/null | awk 'tolower($1) ~ "location:" {print $2}'|tr -d '\r')
+AGREEMENT=$(curl --user-agent "$CURL_USERAGENT" -I "${CA}/terms" 2>/dev/null | awk 'tolower($1) ~ "location:" {print $2}'|tr -d '\r')
 
 # if nothing in command line, print help and exit.
 if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]]; then
@@ -1878,7 +1879,7 @@ if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
 fi
 
 # Obtain CA resource locations
-ca_all_loc=$(curl "${CA}" 2>/dev/null)
+ca_all_loc=$(curl --user-agent "$CURL_USERAGENT" "${CA}" 2>/dev/null)
 debug "ca_all_loc from ${CA} gives $ca_all_loc"
 # APIv1
 URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
@@ -1889,7 +1890,7 @@ URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}'
 URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
 URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
 if [[ -z "$URL_new_reg" ]]  && [[ -z "$URL_newAccount" ]]; then
-  ca_all_loc=$(curl "${CA}/directory" 2>/dev/null)
+  ca_all_loc=$(curl --user-agent "$CURL_USERAGENT" "${CA}/directory" 2>/dev/null)
   debug "ca_all_loc from ${CA}/directory gives $ca_all_loc"
   # APIv1
   URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
@@ -2179,7 +2180,7 @@ for d in $alldomains; do
         uri=$(json_get "$response" "uri" "dns-01")
         debug uri "$uri"
       else # APIv2
-        response=$(curl --silent "${AuthLink[$dn]}" 2>/dev/null)
+        response=$(curl --user-agent "$CURL_USERAGENT" --silent "${AuthLink[$dn]}" 2>/dev/null)
         debug "authlink response = $response"
         # get the token from the http-01 component
         token=$(json_get "$response" "challenges" "type" "dns-01" "token")
@@ -2236,7 +2237,7 @@ for d in $alldomains; do
         uri=$(json_get "$response" "uri" "http-01")
         debug uri "$uri"
       else # APIv2
-        response=$(curl --silent "${AuthLink[$dn]}" 2>/dev/null)
+        response=$(curl --user-agent "$CURL_USERAGENT" --silent "${AuthLink[$dn]}" 2>/dev/null)
         debug "authlink response = $response"
         # get the token from the http-01 component
         token=$(json_get "$response" "challenges" "type" "http-01" "token")
@@ -2273,7 +2274,7 @@ for d in $alldomains; do
       else
         sleep "$HTTP_TOKEN_CHECK_WAIT"
         # check that we can reach the challenge ourselves, if not, then error
-        if [[ ! "$(curl -k --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
+        if [[ ! "$(curl --user-agent "$CURL_USERAGENT" -k --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
           error_exit "for some reason could not reach $wellknown_url - please check it manually"
         fi
       fi
@@ -2482,7 +2483,7 @@ reload_service
 if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
   debug "in deactivate list is $deactivate_url_list"
   for deactivate_url in $deactivate_url_list; do
-    resp=$(curl "$deactivate_url" 2>/dev/null)
+    resp=$(curl --user-agent "$CURL_USERAGENT" "$deactivate_url" 2>/dev/null)
     d=$(json_get "$resp" "hostname")
     info "deactivating domain $d"
     debug "deactivating  $deactivate_url"
