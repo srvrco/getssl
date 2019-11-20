@@ -2,9 +2,38 @@
 
 # example of script to add token to local dns using nsupdate
 
-dnskeyfile="path/to/bla.key"
-
 fulldomain="$1"
 token="$2"
 
-printf "update add _acme-challenge.%s. 300 in TXT \"%s\"\n\n" "${fulldomain}" "${token}" | nsupdate -k "${dnskeyfile}" -v
+# VARIABLES:
+#
+# DNS_NSUPDATE_KEYFILE - path to a TSIG key file, if required
+# DNS_NSUPDATE_GETKEY  - command to execute if access to the key file requires
+#                        some special action: mounting a disk, decrypting a file..
+#                        Called with the operation 'add' and action 'open" / 'close'
+
+
+if [ -n "${DNS_NSUPDATE_KEYFILE}" ]; then
+    if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! ${DNS_NSUPDATE_KEY_HOOK} 'add' 'open' "${fulldomain}" ; then
+        exit $(( $? + 128 ))
+    fi
+
+    options="-k ${DNS_NSUPDATE_KEYFILE}"
+fi
+
+# Note that blank line is a "send" command to nsupdate
+
+nsupdate "${options}" -v <<EOF
+update add  _acme-challenge.${fulldomain}. 300 in TXT "${token}"
+
+EOF
+
+sts=$?
+
+if [ -n "${DNS_NSUPDATE_KEYFILE}" ]; then
+    if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! ${DNS_NSUPDATE_KEY_HOOK} 'add' 'close'  "${fulldomain}"; then
+        exit $(( sts + ( $? * 10 ) ))
+    fi
+fi
+
+exit ${sts}
