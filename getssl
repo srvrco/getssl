@@ -226,6 +226,7 @@ SERVER_TYPE="https"
 SKIP_HTTP_TOKEN_CHECK="false"
 SSLCONF="$(openssl version -d 2>/dev/null| cut -d\" -f2)/openssl.cnf"
 OCSP_MUST_STAPLE="false"
+IGNORE_PERIOD_CHECK="false"
 TEMP_UPGRADE_FILE=""
 TOKEN_USER_ID=""
 USE_SINGLE_ACL="false"
@@ -1795,7 +1796,7 @@ if [[ ${_CHECK_ALL} -eq 1 ]]; then
         cmd="$cmd -q"
       fi
       # check if $dir looks like a domain name (contains a period)
-      if [[ $(basename "$dir") == *.* ]]; then
+      if [[ $(basename "$dir") == *.* || "$IGNORE_PERIOD_CHECK" == "true" ]]; then
         cmd="$cmd -w $WORKING_DIR $(basename "$dir")"
         debug "CMD: $cmd"
         eval "$cmd"
