@@ -856,7 +856,9 @@ get_certificate() { # get certificate for csr, if all domains validated.
     cd=$(curl --user-agent "$CURL_USERAGENT" --silent "$OrderLink")
     CertData=$(json_get "$cd" "certificate")
     debug "CertData is at $CertData"
-    curl --user-agent "$CURL_USERAGENT" --silent "$CertData" > "$CERT_FILE"
+    curl --user-agent "$CURL_USERAGENT" --silent "$CertData" > "$FULL_CHAIN"
+    info "Full certificate saved in $FULL_CHAIN"
+    awk -v CERT_FILE="$CERT_FILE" -v CA_CERT="$CA_CERT" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$FULL_CHAIN"
     info "Certificate saved in $CERT_FILE"
   fi
 }
@@ -1761,6 +1763,7 @@ ACCOUNT_KEY="${ACCOUNT_KEY:=$WORKING_DIR/account.key}"
 DOMAIN_STORAGE="${DOMAIN_STORAGE:=$WORKING_DIR}"
 DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
+FULL_CHAIN="$DOMAIN_DIR/fullchain.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
 if [[ "$os" == "mingw" ]]; then
