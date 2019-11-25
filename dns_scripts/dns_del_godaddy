@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# Copyright (2017) Timothe Litt  litt at acm _dot org
+
+# Remove token from GoDaddy dns using dns_godaddy
+
+# You do not have to customize this script.
+#
+# Obtain the Key and Secret from https://developer.godaddy.com/getstarted
+# You must obtain a "Production" key - NOT the "Test" key you're required
+# to get first.
+#
+# Obtain JSON.sh from https://github.com/dominictarr/JSON.sh
+# Place it in (or softlink it to) the same directory as $GODADDY_SCRIPT,
+# or specify its location with GODADDY_JSON  The default is
+# /usr/share/getssl/dns_scripts/
+#
+# Define GODADDY_KEY and GO_DADDY_SECRET in your account or domain getssl.cfg
+#
+# See GoDaddy-README.txt for complete instructions.
+
+fulldomain="$1"
+token="$2"
+
+[ -z "$GODADDY_SCRIPT" ] && GODADDY_SCRIPT="/usr/share/getssl/dns_scripts/dns_godaddy"
+[[ "$GODADDY_SCRIPT" =~ ^~ ]] && \
+    eval 'GODADDY_SCRIPT=`readlink -nf ' "$GODADDY_SCRIPT" '`'
+
+if ! [ -x "$GODADDY_SCRIPT" ]; then
+    echo "$GODADDY_SCRIPT: not found.  Please install, softlink or set GODADDY_SCRIPT to its full path"
+    echo "See GoDaddy-README.txt for complete instructions."
+    exit 3
+fi
+
+export GODADDY_KEY
+export GODADDY_SECRET
+
+$GODADDY_SCRIPT -q del "${fulldomain}" "_acme-challenge.${fulldomain}." "${token}"

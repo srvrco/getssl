@@ -184,18 +184,20 @@
 # 2017-01-30 issue #243 compatibility with bash 3.0 (2.08)
 # 2017-01-30 issue #243 additional compatibility with bash 3.0 (2.09)
 # 2017-02-18 add OCSP Must-Staple to the domain csr generation (2.10)
+# 2018-01-04 updating to use the updated letsencrypt APIv2
 # 2019-09-30 issue #423 Use HTTP 1.1 as workaround atm (2.11)
 # 2019-10-02 issue #425 Case insensitive processing of agreement url because of HTTP/2 (2.12)
 # 2019-10-07 update DNS checks to allow use of CNAMEs (2.13)
+# 2019-11-18 Rebased master onto APIv2 and added Content-Type: application/jose+json (2.14)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.13"
+VERSION="2.14"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
 ACCOUNT_KEY_TYPE="rsa"
-CA="https://acme-staging.api.letsencrypt.org"
+CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 CA_CERT_LOCATION=""
 CHALLENGE_CHECK_TYPE="http"
 CHECK_ALL_AUTH_DNS="false"
@@ -203,6 +205,7 @@ CHECK_REMOTE="true"
 CHECK_REMOTE_WAIT=0
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
 CSR_SUBJECT="/"
+CURL_USERAGENT="${PROGNAME}/${VERSION}"
 DEACTIVATE_AUTH="false"
 DEFAULT_REVOKE_CA="https://acme-v01.api.letsencrypt.org"
 DNS_EXTRA_WAIT=""
@@ -241,6 +244,7 @@ _UPGRADE_CHECK=1
 _USE_DEBUG=0
 config_errors="false"
 LANG=C
+API=1
 
 # store copy of original command in case of upgrading script and re-running
 ORIGCMD="$0 $*"
@@ -258,11 +262,11 @@ cert_archive() {  # Archive certificate file by copying files to dated archive d
   cp "$CA_CERT" "${DOMAIN_DIR}/archive/${date_time}/chain.crt"
   cat "$CERT_FILE" "$CA_CERT" > "${DOMAIN_DIR}/archive/${date_time}/fullchain.crt"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    cp "${CERT_FILE::-4}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.crt"
+    cp "${CERT_FILE%.*}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.crt"
     cp "$DOMAIN_DIR/${DOMAIN}.ec.csr" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.csr"
     cp "$DOMAIN_DIR/${DOMAIN}.ec.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.key"
-    cp "${CA_CERT::-4}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/chain.ec.crt"
-    cat "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "${DOMAIN_DIR}/archive/${date_time}/fullchain.ec.crt"
+    cp "${CA_CERT%.*}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/chain.ec.crt"
+    cat "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "${DOMAIN_DIR}/archive/${date_time}/fullchain.ec.crt"
   fi
   umask "$ORIG_UMASK"
   debug "purging old GetSSL archives"
@@ -278,8 +282,14 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
   send_signed_request "$uri" "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
 
   # check response from our request to perform challenge
-  if [[ ! -z "$code" ]] && [[ ! "$code" == '202' ]] ; then
-    error_exit "$domain:Challenge error: $code"
+  if [[ $API -eq 1 ]]; then
+    if [[ -n "$code" ]] && [[ ! "$code" == '202' ]] ; then
+      error_exit "$domain:Challenge error: $code"
+    fi
+  else # APIv2
+    if [[ -n "$code" ]] && [[ ! "$code" == '200' ]] ; then
+      error_exit "$domain:Challenge error: $code"
+    fi
   fi
 
   # loop "forever" to keep checking for a response from the ACME server.
@@ -370,7 +380,7 @@ check_config() { # check the config files for all obvious errors
   fi
 
   dn=0
-  tmplist=$(mktemp)
+  tmplist=$(mktemp 2>/dev/null || mktemp -t getssl)
   for d in $alldomains; do # loop over domains (dn is domain number)
     debug "checking domain $d"
     if [[ "$(grep "^${d}$" "$tmplist")" = "$d" ]]; then
@@ -393,7 +403,7 @@ check_config() { # check the config files for all obvious errors
       fi
       # check domain exist
       if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-        if [[ "$($DNS_CHECK_FUNC "${d}" SOA|grep -c "^${d}")" -ge 1 ]]; then
+        if [[ "$($DNS_CHECK_FUNC "${d}" |grep -c "${d}")" -ge 1 ]]; then
           debug "found IP for ${d}"
         else
           info "${DOMAIN}: DNS lookup failed for ${d}"
@@ -428,8 +438,8 @@ check_config() { # check the config files for all obvious errors
 }
 
 check_getssl_upgrade() { # check if a more recent version of code is available available
-  TEMP_UPGRADE_FILE="$(mktemp)"
-  curl --silent "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
+  TEMP_UPGRADE_FILE="$(mktemp 2>/dev/null || mktemp -t getssl)"
+  curl --user-agent "$CURL_USERAGENT" --silent "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
     error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
@@ -458,12 +468,13 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
         # Obtain all locally stored old versions in getssl_versions
         declare -a getssl_versions
         shopt -s nullglob
-        for getssl_version in $0.v*; do
+        for getssl_version in "$0".v*; do
           getssl_versions[${#getssl_versions[@]}]="$getssl_version"
         done
         shopt -u nullglob
         # Explicitly sort the getssl_versions array to make sure
         shopt -s -o noglob
+        # shellcheck disable=SC2207
         IFS=$'\n' getssl_versions=($(sort <<< "${getssl_versions[*]}"))
         shopt -u -o noglob
         # Remove entries until given number of old versions to keep is reached
@@ -489,7 +500,7 @@ clean_up() { # Perform pre-exit housekeeping
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then
     # Tidy up DNS entries if things failed part way though.
     shopt -s nullglob
-    for dnsfile in $TEMP_DIR/dns_verify/*; do
+    for dnsfile in "$TEMP_DIR"/dns_verify/*; do
       # shellcheck source=/dev/null
       . "$dnsfile"
       debug "attempting to clean up DNS entry for $d"
@@ -497,10 +508,10 @@ clean_up() { # Perform pre-exit housekeeping
     done
     shopt -u nullglob
   fi
-  if [[ ! -z "$DOMAIN_DIR" ]]; then
+  if [[ -n "$DOMAIN_DIR" ]]; then
     rm -rf "${TEMP_DIR:?}"
   fi
-  if [[ ! -z "$TEMP_UPGRADE_FILE" ]] && [[ -f "$TEMP_UPGRADE_FILE" ]]; then
+  if [[ -n "$TEMP_UPGRADE_FILE" ]] && [[ -f "$TEMP_UPGRADE_FILE" ]]; then
     rm -f "$TEMP_UPGRADE_FILE"
   fi
 }
@@ -520,13 +531,14 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
         scp $from ${to:4}"
       fi
       debug "userid $TOKEN_USER_ID"
-      if [[ "$cert" == "challenge token" ]] && [[ ! -z "$TOKEN_USER_ID" ]]; then
+      if [[ "$cert" == "challenge token" ]] && [[ -n "$TOKEN_USER_ID" ]]; then
         servername=$(echo "$to" | awk -F":" '{print $2}')
         tofile=$(echo "$to" | awk -F":" '{print $3}')
         debug "servername $servername"
         debug "file $tofile"
         # shellcheck disable=SC2029
-        ssh "$servername" "chown $TOKEN_USER_ID $tofile"
+        # shellcheck disable=SC2086
+        ssh $SSH_OPTS "$servername" "chown $TOKEN_USER_ID $tofile"
       fi
     elif [[ "${to:0:4}" == "ftp:" ]] ; then
       if [[ "$cert" != "challenge token" ]] ; then
@@ -580,7 +592,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
           error_exit "cannot copy $from to $to"
         fi
       fi
-      if [[ "$cert" == "challenge token" ]] && [[ ! -z "$TOKEN_USER_ID" ]]; then
+      if [[ "$cert" == "challenge token" ]] && [[ -n "$TOKEN_USER_ID" ]]; then
         chown "$TOKEN_USER_ID" "$to"
       fi
     fi
@@ -622,7 +634,7 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
   if [[ ! -s "$csr_file" ]] || [[ "$_RECREATE_CSR" == "1" ]]; then
     info "creating domain csr - $csr_file"
     # create a temporary config file, for portability.
-    tmp_conf=$(mktemp)
+    tmp_conf=$(mktemp 2>/dev/null || mktemp -t getssl)
     cat "$SSLCONF" > "$tmp_conf"
     printf "[SAN]\n%s" "$SANLIST" >> "$tmp_conf"
     # add OCSP Must-Staple to the domain csr
@@ -656,8 +668,8 @@ create_key() { # create a domain key (if it doesn't already exist)
     esac
     umask "$ORIG_UMASK"
     # remove csr on generation of new domain key
-    if [[ -e "${key_loc::-4}.csr" ]]; then
-      rm -f "${key_loc::-4}.csr"
+    if [[ -e "${key_loc%.*}.csr" ]]; then
+      rm -f "${key_loc%.*}.csr"
     fi
   fi
 }
@@ -725,7 +737,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     else
       res=$($DNS_CHECK_FUNC CNAME "$gad_d" "@$gad_s"| grep "^$gad_d")
     fi
-    if [[ ! -z "$res" ]]; then # domain is a CNAME so get main domain
+    if [[ -n "$res" ]]; then # domain is a CNAME so get main domain
       gad_d=$(echo "$res"| awk '{print $5}' |sed 's/\.$//g')
     fi
     if [[ -z "$gad_s" ]]; then #checking for CNAMEs
@@ -807,43 +819,54 @@ get_certificate() { # get certificate for csr, if all domains validated.
 
   der=$(openssl req -in "$gc_csr" -outform DER | urlbase64)
   debug "der $der"
-  send_signed_request "$URL_new_cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
+  if [[ $API -eq 1 ]]; then
+    send_signed_request "$URL_new_cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
+    # convert certificate information into correct format and save to file.
+    CertData=$(awk ' $1 ~ "^Location" {print $2}' "$CURL_HEADER" |tr -d '\r')
+    debug "certdata location = $CertData"
+    if [[ "$CertData" ]] ; then
+      echo -----BEGIN CERTIFICATE----- > "$gc_certfile"
+      curl --user-agent "$CURL_USERAGENT" --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
+      echo -----END CERTIFICATE-----  >> "$gc_certfile"
+      info "Certificate saved in $CERT_FILE"
+    fi
 
-  # convert certificate information into correct format and save to file.
-  CertData=$(awk ' $1 ~ "^Location" {print $2}' "$CURL_HEADER" |tr -d '\r')
-  debug "certdata location = $CertData"
-  if [[ "$CertData" ]] ; then
-    echo -----BEGIN CERTIFICATE----- > "$gc_certfile"
-    curl --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
-    echo -----END CERTIFICATE-----  >> "$gc_certfile"
+    # If certificate wasn't a valid certificate, error exit.
+    if [[ -z "$CertData" ]] ; then
+      response2=$(echo "$response" | fold -w64 |openssl base64 -d)
+      debug "response was $response"
+      error_exit "Sign failed: $(echo "$response2" | grep "detail")"
+    fi
+
+    # get a copy of the CA certificate.
+    IssuerData=$(grep -i '^Link' "$CURL_HEADER" \
+                | cut -d " " -f 2\
+                | cut -d ';' -f 1 \
+                | sed 's/<//g' \
+                | sed 's/>//g')
+    if [[ "$IssuerData" ]] ; then
+      echo -----BEGIN CERTIFICATE----- > "$gc_cafile"
+      curl --user-agent "$CURL_USERAGENT" --silent "$IssuerData" | openssl base64 -e  >> "$gc_cafile"
+      echo -----END CERTIFICATE-----  >> "$gc_cafile"
+      info "The intermediate CA cert is in $gc_cafile"
+    fi
+  else # APIv2
+    send_signed_request "$FinalizeLink" "{\"csr\": \"$der\"}" "needbase64"
+    debug "order link was $OrderLink"
+    cd=$(curl --user-agent "$CURL_USERAGENT" --silent "$OrderLink")
+    CertData=$(json_get "$cd" "certificate")
+    debug "CertData is at $CertData"
+    curl --user-agent "$CURL_USERAGENT" --silent "$CertData" > "$FULL_CHAIN"
+    info "Full certificate saved in $FULL_CHAIN"
+    awk -v CERT_FILE="$CERT_FILE" -v CA_CERT="$CA_CERT" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$FULL_CHAIN"
     info "Certificate saved in $CERT_FILE"
-  fi
-
-  # If certificate wasn't a valid certificate, error exit.
-  if [[ -z "$CertData" ]] ; then
-    response2=$(echo "$response" | fold -w64 |openssl base64 -d)
-    debug "response was $response"
-    error_exit "Sign failed: $(echo "$response2" | grep "detail")"
-  fi
-
-  # get a copy of the CA certificate.
-  IssuerData=$(grep -i '^Link' "$CURL_HEADER" \
-               | cut -d " " -f 2\
-               | cut -d ';' -f 1 \
-               | sed 's/<//g' \
-               | sed 's/>//g')
-  if [[ "$IssuerData" ]] ; then
-    echo -----BEGIN CERTIFICATE----- > "$gc_cafile"
-    curl --silent "$IssuerData" | openssl base64 -e  >> "$gc_cafile"
-    echo -----END CERTIFICATE-----  >> "$gc_cafile"
-    info "The intermediate CA cert is in $gc_cafile"
   fi
 }
 
 get_cr() { # get curl response
   url="$1"
   debug url "$url"
-  response=$(curl --silent "$url")
+  response=$(curl --user-agent "$CURL_USERAGENT" --silent "$url")
   ret=$?
   debug response  "$response"
   code=$(json_get "$response" status)
@@ -966,28 +989,207 @@ info() { # write out info as long as the quiet flag has not been set.
   fi
 }
 
-json_get() { # get the value corresponding to $2 in the JSON passed as $1.
-  # remove newlines, so it's a single chunk of JSON
-  json_data=$( echo "$1" | tr '\n' ' ')
-  # if $3 is defined, this is the section which the item is in.
-  if [[ ! -z "$3" ]]; then
-    jg_section=$(echo "$json_data" | awk -F"[}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${3}"'\"/){print $i}}}')
-    if [[ "$2" == "uri" ]]; then
-      jg_subsect=$(echo "$jg_section" | awk -F"[,]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i)}}}')
-      jg_result=$(echo "$jg_subsect" | awk -F'"' '{print $4}')
+json_awk() { # AWK json converter used for API2 - needs tidying up ;)
+# shellcheck disable=SC2086
+echo $1 | awk '
+{
+  tokenize($0) # while(get_token()) {print TOKEN}
+  if (0 == parse()) {
+    apply(JPATHS, NJPATHS)
+  }
+}
+
+function apply (ary,size,i) {
+  for (i=1; i<size; i++)
+    print ary[i]
+}
+
+function get_token() {
+  TOKEN = TOKENS[++ITOKENS] # for internal tokenize()
+  return ITOKENS < NTOKENS
+}
+
+function parse_array(a1,idx,ary,ret) {
+  idx=0
+  ary=""
+  get_token()
+  if (TOKEN != "]") {
+    while (1) {
+      if (ret = parse_value(a1, idx)) {
+        return ret
+      }
+      idx=idx+1
+      ary=ary VALUE
+      get_token()
+      if (TOKEN == "]") {
+        break
+      } else if (TOKEN == ",") {
+        ary = ary ","
+      } else {
+        report(", or ]", TOKEN ? TOKEN : "EOF")
+        return 2
+      }
+      get_token()
+    }
+  }
+  VALUE=""
+  return 0
+}
+
+function parse_object(a1,key,obj) {
+  obj=""
+  get_token()
+  if (TOKEN != "}") {
+    while (1) {
+      if (TOKEN ~ /^".*"$/) {
+        key=TOKEN
+      } else {
+        report("string", TOKEN ? TOKEN : "EOF")
+        return 3
+      }
+      get_token()
+      if (TOKEN != ":") {
+        report(":", TOKEN ? TOKEN : "EOF")
+        return 4
+      }
+      get_token()
+      if (parse_value(a1, key)) {
+        return 5
+      }
+      obj=obj key ":" VALUE
+      get_token()
+      if (TOKEN == "}") {
+        break
+      } else if (TOKEN == ",") {
+        obj=obj ","
+      } else {
+        report(", or }", TOKEN ? TOKEN : "EOF")
+        return 6
+      }
+      get_token()
+    }
+  }
+  VALUE=""
+  return 0
+}
+
+
+function parse_value(a1, a2,   jpath,ret,x) {
+  jpath=(a1!="" ? a1 "," : "") a2 # "${1:+$1,}$2"
+  if (TOKEN == "{") {
+    if (parse_object(jpath)) {
+      return 7
+    }
+  } else if (TOKEN == "[") {
+    if (ret = parse_array(jpath)) {
+      return ret
+    }
+  } else if (TOKEN == "") { #test case 20150410 #4
+    report("value", "EOF")
+    return 9
+  } else if (TOKEN ~ /^([^0-9])$/) {
+    # At this point, the only valid single-character tokens are digits.
+    report("value", TOKEN)
+    return 9
+  } else {
+    VALUE=TOKEN
+  }
+  if (! ("" == jpath || "" == VALUE)) {
+    x=sprintf("[%s]\t%s", jpath, VALUE)
+    print x
+  }
+  return 0
+}
+
+function parse(   ret) {
+  get_token()
+  if (ret = parse_value()) {
+    return ret
+  }
+  if (get_token()) {
+    report("EOF", TOKEN)
+    return 11
+  }
+  return 0
+}
+
+function report(expected, got,   i,from,to,context) {
+  from = ITOKENS - 10; if (from < 1) from = 1
+  to = ITOKENS + 10; if (to > NTOKENS) to = NTOKENS
+  for (i = from; i < ITOKENS; i++)
+    context = context sprintf("%s ", TOKENS[i])
+  context = context "<<" got ">> "
+  for (i = ITOKENS + 1; i <= to; i++)
+    context = context sprintf("%s ", TOKENS[i])
+  scream("json_awk expected <" expected "> but got <" got "> at input token " ITOKENS "\n" context)
+}
+
+function reset() {
+  TOKEN=""; delete TOKENS; NTOKENS=ITOKENS=0
+  delete JPATHS; NJPATHS=0
+  VALUE=""
+}
+
+function scream(msg) {
+  FAILS[FILENAME] = FAILS[FILENAME] (FAILS[FILENAME]!="" ? "\n" : "") msg
+  msg = FILENAME ": " msg
+  print msg >"/dev/stderr"
+}
+
+function tokenize(a1,pq,pb,ESCAPE,CHAR,STRING,NUMBER,KEYWORD,SPACE) {
+  SPACE="[[:space:]]+"
+  gsub(/\"[^[:cntrl:]\"\\]*((\\[^u[:cntrl:]]|\\u[0-9a-fA-F]{4})[^[:cntrl:]\"\\]*)*\"|-?(0|[1-9][0-9]*)([.][0-9]*)?([eE][+-]?[0-9]*)?|null|false|true|[[:space:]]+|./, "\n&", a1)
+  gsub("\n" SPACE, "\n", a1)
+  sub(/^\n/, "", a1)
+  ITOKENS=0 # get_token() helper
+  return NTOKENS = split(a1, TOKENS, /\n/)
+}'
+}
+
+json_get() { # get values from json
+  if [[ -z "$1" ]] || [[ "$1" == "null" ]]; then
+    echo "json was blank"
+    return
+  fi
+  if [[ $API = 1 ]]; then
+    # remove newlines, so it's a single chunk of JSON
+    json_data=$( echo "$1" | tr '\n' ' ')
+    # if $3 is defined, this is the section which the item is in.
+    if [[ -n "$3" ]]; then
+      jg_section=$(echo "$json_data" | awk -F"[}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${3}"'\"/){print $i}}}')
+      if [[ "$2" == "uri" ]]; then
+        jg_subsect=$(echo "$jg_section" | awk -F"[,]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i)}}}')
+        jg_result=$(echo "$jg_subsect" | awk -F'"' '{print $4}')
+      else
+        jg_result=$(echo "$jg_section" | awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i+1)}}}')
+      fi
     else
-      jg_result=$(echo "$jg_section" | awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i+1)}}}')
+      jg_result=$(echo "$json_data" |awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i+1)}}}')
+    fi
+    # check number of quotes
+    jg_q=${jg_result//[^\"]/}
+    # if 2 quotes, assume it's a quoted variable and just return the data within the quotes.
+    if [[ ${#jg_q} -eq 2 ]]; then
+      echo "$jg_result" | awk -F'"' '{print $2}'
+    else
+      echo "$jg_result"
     fi
   else
-    jg_result=$(echo "$json_data" |awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i+1)}}}')
-  fi
-  # check number of quotes
-  jg_q=${jg_result//[^\"]/}
-  # if 2 quotes, assume it's a quoted variable and just return the data within the quotes.
-  if [[ ${#jg_q} -eq 2 ]]; then
-    echo "$jg_result" | awk -F'"' '{print $2}'
-  else
-    echo "$jg_result"
+    if [[ -n "$6" ]]; then
+      full=$(json_awk "$1")
+      section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
+      echo "$full" | grep "^..${5}\",$section" | awk '{print $2}' | tr -d '"'
+    elif [[ -n "$5" ]]; then
+      full=$(json_awk "$1")
+      section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
+      echo "$full" | grep "^..${2}\",$section" | grep "$5" | awk '{print $2}' | tr -d '"'
+    elif [[ -n "$3" ]]; then
+      json_awk "$1" | grep "^..${2}...${3}" | awk '{print $2}' | tr -d '"'
+    elif [[ -n "$2" ]]; then
+      json_awk "$1" | grep "^..${2}" | awk '{print $2}' | tr -d '"'
+    else
+      json_awk "$1"
+    fi
   fi
 }
 
@@ -1004,7 +1206,7 @@ os_esed() { # Use different sed version for different os types (extended regex)
 purge_archive() { # purge archive of old, invalid, certificates
   arcdir="$1/archive"
   debug "purging archives in ${arcdir}/"
-  for padir in $arcdir/????_??_??_??_??; do
+  for padir in "$arcdir"/????_??_??_??_??; do
     # check each directory
     if [[ -d "$padir" ]]; then
       tstamp=$(basename "$padir"| awk -F"_" '{print $1"-"$2"-"$3" "$4":"$5}')
@@ -1027,15 +1229,16 @@ purge_archive() { # purge archive of old, invalid, certificates
 }
 
 reload_service() {  # Runs a command to reload services ( via ssh if needed)
-  if [[ ! -z "$RELOAD_CMD" ]]; then
+  if [[ -n "$RELOAD_CMD" ]]; then
     info "reloading SSL services"
     if [[ "${RELOAD_CMD:0:4}" == "ssh:" ]] ; then
       sshhost=$(echo "$RELOAD_CMD"| awk -F: '{print $2}')
       command=${RELOAD_CMD:(( ${#sshhost} + 5))}
       debug "running following command to reload cert"
-      debug "ssh $sshhost ${command}"
+      debug "ssh $SSH_OPTS $sshhost ${command}"
       # shellcheck disable=SC2029
-      ssh "$sshhost" "${command}" 1>/dev/null 2>&1
+      # shellcheck disable=SC2086
+      ssh $SSH_OPTS "$sshhost" "${command}" 1>/dev/null 2>&1
       # allow 2 seconds for services to restart
       sleep 2
     else
@@ -1053,7 +1256,7 @@ revoke_certificate() { # revoke a certificate
   ACCOUNT_KEY="$REVOKE_KEY"
   # need to set the revoke key as "account_key" since it's used in send_signed_request.
   get_signing_params "$REVOKE_KEY"
-  TEMP_DIR=$(mktemp -d)
+  TEMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t getssl)
   debug "revoking from $CA"
   rcertdata=$(openssl x509 -in "$REVOKE_CERT" -inform PEM -outform DER | urlbase64)
   send_signed_request "$URL_revoke" "{\"resource\": \"revoke-cert\", \"certificate\": \"$rcertdata\"}"
@@ -1070,16 +1273,16 @@ requires() { # check if required function is available
       if [[ "$i" == "${!#}" ]]; then # if on last variable then exit as not found
         error_exit "this script requires one of: ${*:1:$(($#-1))}"
       fi
-      res=$(which "$i" 2>/dev/null)
+      res=$(command -v "$i" 2>/dev/null)
       debug "checking for $i ... $res"
-      if [[ ! -z "$res" ]]; then # if function found, then set variable to function and return
+      if [[ -n "$res" ]]; then # if function found, then set variable to function and return
         debug "function $i found at $res  - setting ${!#} to $i"
         eval "${!#}=\$i"
         return
       fi
     done
   else # only one value, so check it.
-    result=$(which "$1" 2>/dev/null)
+    result=$(command -v "$1" 2>/dev/null)
     debug "checking for required $1 ... $result"
     if [[ -z "$result" ]]; then
       error_exit "This script requires $1 installed"
@@ -1134,17 +1337,17 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   needbase64=$3
 
   debug url "$url"
-  debug payload "$payload"
 
   CURL_HEADER="$TEMP_DIR/curl.header"
   dp="$TEMP_DIR/curl.dump"
 
   CURL="curl "
+  # shellcheck disable=SC2072
   if [[ "$($CURL -V | head -1 | cut -d' ' -f2 )" > "7.33" ]]; then
     CURL="$CURL --http1.1 "
   fi
 
-  CURL="$CURL --silent --dump-header $CURL_HEADER "
+  CURL="$CURL --user-agent $CURL_USERAGENT --silent --dump-header $CURL_HEADER "
 
   if [[ ${_USE_DEBUG} -eq 1 ]]; then
     CURL="$CURL --trace-ascii $dp "
@@ -1152,57 +1355,105 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
 
   # convert payload to url base 64
   payload64="$(printf '%s' "${payload}" | urlbase64)"
-  debug payload64 "$payload64"
 
   # get nonce from ACME server
-  nonceurl="$CA/directory"
-  nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
+  if [[ $API -eq 1 ]]; then
+    nonceurl="$CA/directory"
+    nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
+  else # APIv2
+    nonce=$($CURL -I "$URL_newNonce" | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
+  fi
 
-  debug nonce "$nonce"
+  nonceproblem="true"
+  while [[ "$nonceproblem" == "true" ]]; do
 
-  # Build header with just our public key and algorithm information
-  header='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"'}'
+    debug nonce "$nonce"
 
-  # Build another header which also contains the previously received nonce and encode it as urlbase64
-  protected='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "nonce": "'"${nonce}"'", "url": "'"${url}"'"}'
-  protected64="$(printf '%s' "${protected}" | urlbase64)"
-  debug protected "$protected"
+    # Build header with just our public key and algorithm information
+    header='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"'}'
 
-  # Sign header with nonce and our payload with our private key and encode signature as urlbase64
-  sign_string "$(printf '%s' "${protected64}.${payload64}")"  "${ACCOUNT_KEY}" "$signalg"
-
-  # Send header + extended header + payload + signature to the acme-server
-  body="{\"header\": ${header},"
-  body="${body}\"protected\": \"${protected64}\","
-  body="${body}\"payload\": \"${payload64}\","
-  body="${body}\"signature\": \"${signed64}\"}"
-  debug "header, payload and signature = $body"
-
-  code="500"
-  loop_limit=5
-  while [[ "$code" -eq 500 ]]; do
-    if [[ "$needbase64" ]] ; then
-      response=$($CURL -X POST --data "$body" "$url" | urlbase64)
-    else
-      response=$($CURL -X POST --data "$body" "$url")
+    # Build another header which also contains the previously received nonce and encode it as urlbase64
+    if [[ $API -eq 1 ]]; then
+    protected='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "nonce": "'"${nonce}"'", "url": "'"${url}"'"}'
+    protected64="$(printf '%s' "${protected}" | urlbase64)"
+    else # APIv2
+      if [[ -z "$KID" ]]; then
+        debug "KID is blank, so using jwk"
+        protected='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "nonce": "'"${nonce}"'", "url": "'"${url}"'"}'
+        protected64="$(printf '%s' "${protected}" | urlbase64)"
+      else
+        debug "using KID=${KID}"
+        protected="{\"alg\": \"$jwkalg\", \"kid\": \"$KID\",\"nonce\": \"${nonce}\", \"url\": \"${url}\"}"
+        debug "protected = $protected"
+        protected64="$(printf '%s' "${protected}" | urlbase64)"
+      fi
     fi
 
-    responseHeaders=$(cat "$CURL_HEADER")
-    debug responseHeaders "$responseHeaders"
-    debug response  "$response"
-    code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
-    debug code "$code"
-    response_status=$(json_get "$response" status \
-                      | head -1| awk -F'"' '{print $2}')
-    debug "response status = $response_status"
+    # Sign header with nonce and our payload with our private key and encode signature as urlbase64
+    sign_string "$(printf '%s' "${protected64}.${payload64}")"  "${ACCOUNT_KEY}" "$signalg"
 
-    if [[ "$code" -eq 500 ]]; then
-      info "error on acme server - trying again ...."
-      sleep 2
-      loop_limit=$((loop_limit - 1))
-      if [[ $loop_limit -lt 1 ]]; then
-        error_exit "500 error from ACME server:  $response"
+    # Send header + extended header + payload + signature to the acme-server
+    if [[ $API -eq 1 ]]; then
+      debug "header = $header"
+      debug "protected = $protected"
+      debug "payload = $payload"
+      body="{\"header\": ${header},"
+      body="${body}\"protected\": \"${protected64}\","
+      body="${body}\"payload\": \"${payload64}\","
+      body="${body}\"signature\": \"${signed64}\"}"
+      debug "header, payload and signature = $body"
+    else
+      debug "protected = $protected"
+      debug "payload = $payload"
+      body="{"
+      body="${body}\"protected\": \"${protected64}\","
+      body="${body}\"payload\": \"${payload64}\","
+      body="${body}\"signature\": \"${signed64}\"}"
+      debug "header, payload and signature = $body"
+    fi
+
+    code="500"
+    loop_limit=5
+    while [[ "$code" -eq 500 ]]; do
+      if [[ "$needbase64" ]] ; then
+        response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" | urlbase64)
+      else
+        response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url")
       fi
+
+      responseHeaders=$(cat "$CURL_HEADER")
+      debug responseHeaders "$responseHeaders"
+      debug response  "$response"
+      code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
+      debug code "$code"
+      if [[ $API -eq 1 ]]; then
+        response_status=$(json_get "$response" status \
+                        | head -1| awk -F'"' '{print $2}')
+      else # APIv2
+        if [[ ${response##*()} == "{"* ]]; then
+          response_status=$(json_get "$response" status)
+        else
+          debug "response not in json format"
+          debug "$response"
+        fi
+      fi
+      debug "response status = $response_status"
+      if [[ "$code" -eq 500 ]]; then
+        info "error on acme server - trying again ...."
+        debug "loop_limit = $loop_limit"
+        sleep 5
+        loop_limit=$((loop_limit - 1))
+        if [[ $loop_limit -lt 1 ]]; then
+          error_exit "500 error from ACME server:  $response"
+        fi
+      fi
+    done
+    if [[ $response == *"error:badNonce"* ]]; then
+      debug "bad nonce"
+      nonce=$(echo "$responseHeaders" | grep -i "^replay-nonce:" | awk '{print $2}' | tr -d '\r\n ')
+      debug "trying new nonce $nonce"
+    else
+      nonceproblem="false"
     fi
   done
 }
@@ -1300,45 +1551,46 @@ write_domain_template() { # write out a template file for a domain.
 		# This server issues full certificates, however has rate limits
 		#CA="https://acme-v01.api.letsencrypt.org"
 
-		#PRIVATE_KEY_ALG="rsa"
+	#PRIVATE_KEY_ALG="rsa"
 
-		# Additional domains - this could be multiple domains / subdomains in a comma separated list
-		# Note: this is Additional domains - so should not include the primary domain.
-		SANS="${EX_SANS}"
+	# Additional domains - this could be multiple domains / subdomains in a comma separated list
+	# Note: this is Additional domains - so should not include the primary domain.
+	SANS="${EX_SANS}"
 
-		# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
-		# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
-		# An ssh key will be needed to provide you with access to the remote server.
-		# Optionally, you can specify a different userid for ssh/scp to use on the remote server before the @ sign.
-		# If left blank, the username on the local server will be used to authenticate against the remote server.
-		# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
-		# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
-		# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
-		#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-		#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-		#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-		#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
+	# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
+	# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
+	# An ssh key will be needed to provide you with access to the remote server.
+	# Optionally, you can specify a different userid for ssh/scp to use on the remote server before the @ sign.
+	# If left blank, the username on the local server will be used to authenticate against the remote server.
+	# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
+	# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
+	# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
+	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+	#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
 
-		#Set USE_SINGLE_ACL="true" to use a single ACL for all checks
-		#USE_SINGLE_ACL="false"
+	#Set USE_SINGLE_ACL="true" to use a single ACL for all checks
+	#USE_SINGLE_ACL="false"
 
-		# Location for all your certs, these can either be on the server (full path name)
-		# or using ssh /sftp as for the ACL
-		#DOMAIN_CERT_LOCATION="/etc/ssl/${DOMAIN}.crt"
-		#DOMAIN_KEY_LOCATION="/etc/ssl/${DOMAIN}.key"
-		#CA_CERT_LOCATION="/etc/ssl/chain.crt"
-		#DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
-		#DOMAIN_PEM_LOCATION="" # this is the domain_key, domain cert and CA cert
+	# Location for all your certs, these can either be on the server (full path name)
+	# or using ssh /sftp as for the ACL
+	#DOMAIN_CERT_LOCATION="/etc/ssl/${DOMAIN}.crt" # this is domain cert
+	#DOMAIN_KEY_LOCATION="/etc/ssl/${DOMAIN}.key" # this is domain key
+	#CA_CERT_LOCATION="/etc/ssl/chain.crt" # this is CA cert
+	#DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
+	#DOMAIN_PEM_LOCATION="" # this is the domain key, domain cert and CA cert
 
-		# The command needed to reload apache / nginx or whatever you use
-		#RELOAD_CMD=""
+	# The command needed to reload apache / nginx or whatever you use
+	#RELOAD_CMD=""
 
-		# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
-		# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
-		# will be checked for certificate expiry and also will be checked after
-		# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
-		#SERVER_TYPE="https"
-		#CHECK_REMOTE="true"
+	# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
+	# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
+	# will be checked for certificate expiry and also will be checked after
+	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+	#SERVER_TYPE="https"
+	#CHECK_REMOTE="true"
+	#CHECK_REMOTE_WAIT="2" # wait 2 seconds before checking the remote server
 	_EOF_domain_
   fi
 }
@@ -1349,7 +1601,7 @@ write_getssl_template() { # write out the main template file
 	# see https://github.com/srvrco/getssl/wiki/Config-variables for details
 	#
 	# The staging server is best for testing (hence set as default)
-	CA="https://acme-staging.api.letsencrypt.org"
+	CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 	# This server issues full certificates, however has rate limits
 	#CA="https://acme-v01.api.letsencrypt.org"
 
@@ -1430,11 +1682,11 @@ while [[ -n ${1+defined} ]]; do
       _UPGRADE_CHECK=0 ;;
     -w)
       shift; WORKING_DIR="$1" ;;
-    -* | --*)
+    -*)
       usage
       error_exit "Unknown option $1" ;;
     *)
-      if [[ ! -z $DOMAIN ]]; then
+      if [[ -n $DOMAIN ]]; then
         error_exit "invalid command line $DOMAIN - it appears to contain more than one domain"
       fi
       DOMAIN="$1"
@@ -1485,13 +1737,13 @@ if [[ $_REVOKE -eq 1 ]]; then
   else
     CA=$REVOKE_CA
   fi
-  URL_revoke=$(curl "${CA}/directory" 2>/dev/null | grep "revoke-cert" | awk -F'"' '{print $4}')
+  URL_revoke=$(curl --user-agent "$CURL_USERAGENT" "${CA}/directory" 2>/dev/null | grep "revoke-cert" | awk -F'"' '{print $4}')
   revoke_certificate
   graceful_exit
 fi
 
 # get latest agreement from CA (as default)
-AGREEMENT=$(curl -I "${CA}/terms" 2>/dev/null | awk 'tolower($1) ~ "location:" {print $2}'|tr -d '\r')
+AGREEMENT=$(curl --user-agent "$CURL_USERAGENT" -I "${CA}/terms" 2>/dev/null | awk 'tolower($1) ~ "location:" {print $2}'|tr -d '\r')
 
 # if nothing in command line, print help and exit.
 if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]]; then
@@ -1517,6 +1769,7 @@ ACCOUNT_KEY="${ACCOUNT_KEY:=$WORKING_DIR/account.key}"
 DOMAIN_STORAGE="${DOMAIN_STORAGE:=$WORKING_DIR}"
 DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
+FULL_CHAIN="$DOMAIN_DIR/fullchain.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
 if [[ "$os" == "mingw" ]]; then
@@ -1542,7 +1795,7 @@ if [[ ${_CHECK_ALL} -eq 1 ]]; then
     error_exit "DOMAIN_STORAGE not found  - $DOMAIN_STORAGE"
   fi
 
-  for dir in ${DOMAIN_STORAGE}/*; do
+  for dir in "${DOMAIN_STORAGE}"/*; do
     if [[ -d "$dir" ]]; then
       debug "Checking $dir"
       cmd="$0 -U" # No update checks when calling recursively
@@ -1590,7 +1843,7 @@ if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
       | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null \
       | openssl x509 2>/dev/null)
     EX_SANS="www.${DOMAIN}"
-    if [[ ! -z "${EX_CERT}" ]]; then
+    if [[ -n "${EX_CERT}" ]]; then
       EX_SANS=$(echo "$EX_CERT" \
         | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
         | grep -Eo "DNS:[a-zA-Z 0-9.-]*" | sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
@@ -1637,10 +1890,37 @@ if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
 fi
 
 # Obtain CA resource locations
-ca_all_loc=$(curl "${CA}/directory" 2>/dev/null)
+ca_all_loc=$(curl --user-agent "$CURL_USERAGENT" "${CA}" 2>/dev/null)
+debug "ca_all_loc from ${CA} gives $ca_all_loc"
+# APIv1
 URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
 URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
 URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
+#API v2
+URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
+URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
+URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
+if [[ -z "$URL_new_reg" ]]  && [[ -z "$URL_newAccount" ]]; then
+  ca_all_loc=$(curl --user-agent "$CURL_USERAGENT" "${CA}/directory" 2>/dev/null)
+  debug "ca_all_loc from ${CA}/directory gives $ca_all_loc"
+  # APIv1
+  URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
+  URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
+  URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
+  #API v2
+  URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
+  URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
+  URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
+fi
+
+if [[ -n "$URL_new_reg" ]]; then
+  API=1
+elif [[ -n "$URL_newAccount" ]]; then
+  API=2
+else
+  info "unknown API version"
+  graceful_exit
+fi
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
@@ -1649,7 +1929,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
   EX_CERT=$(echo \
     | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null \
     | openssl x509 2>/dev/null)
-  if [[ ! -z "$EX_CERT" ]]; then # if obtained a cert
+  if [[ -n "$EX_CERT" ]]; then # if obtained a cert
     if [[ -s "$CERT_FILE" ]]; then # if local exists
       CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
     else # since local doesn't exist leave empty so that the domain validation will happen
@@ -1792,23 +2072,42 @@ fi
 # currently the code registers every time, and gets an "already registered" back if it has been.
 get_signing_params "$ACCOUNT_KEY"
 
-if [[ "$ACCOUNT_EMAIL" ]] ; then
-  regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
-else
-  regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
-fi
-
 info "Registering account"
 # send the request to the ACME server.
-send_signed_request   "$URL_new_reg"  "$regjson"
+if [[ $API -eq 1 ]]; then
+  if [[ "$ACCOUNT_EMAIL" ]] ; then
+	regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
+  else
+	regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
+  fi
+  send_signed_request "$URL_new_reg"  "$regjson"
+elif [[ $API -eq 2 ]]; then
+  if [[ "$ACCOUNT_EMAIL" ]] ; then
+	regjson='{"termsOfServiceAgreed": true, "contact": ["mailto: '$ACCOUNT_EMAIL'"]}'
+  else
+	regjson='{"termsOfServiceAgreed": true}'
+  fi
+  send_signed_request "$URL_newAccount"  "$regjson"
+else
+	debug "cant determine account API"
+	graceful_exit
+fi
 
 if [[ "$code" == "" ]] || [[ "$code" == '201' ]] ; then
   info "Registered"
+  KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
+  debug "KID=_$KID}_"
   echo "$response" > "$TEMP_DIR/account.json"
 elif [[ "$code" == '409' ]] ; then
-  debug "Already registered"
+  KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
+  debug responseHeaders "$responseHeaders"
+  debug "Already registered KID=$KID"
+elif [[ "$code" == '200' ]] ; then
+  KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
+  debug responseHeaders "$responseHeaders"
+  debug "Already registered account, KID=${KID}"
 else
-  error_exit "Error registering account ... $(json_get "$response" detail)"
+  error_exit "Error registering account ...$responseHeaders ... $(json_get "$response" detail)"
 fi
 # end of registering account with CA
 
@@ -1817,10 +2116,35 @@ info "Verify each domain"
 
 # loop through domains for cert ( from SANS list)
 if [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
-    alldomains=${SANS//,/ }
+  alldomains=${SANS//,/ }
 else
   alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
 fi
+
+if [[ $API -eq 2 ]]; then
+  dstring="["
+  for d in $alldomains; do
+    dstring="${dstring}{\"type\":\"dns\",\"value\":\"$d\"},"
+  done
+  dstring="${dstring: : -1}]"
+  # request NewOrder currently seems to ignore the dates ....
+  #  dstring="${dstring},\"notBefore\": \"$(date -d "-1 hour" --utc +%FT%TZ)\""
+  #  dstring="${dstring},\"notAfter\": \"$(date -d "2 days" --utc +%FT%TZ)\""
+  request="{\"identifiers\": $dstring}"
+  send_signed_request "$URL_newOrder" "$request"
+  OrderLink=$(echo "$responseHeaders" | grep -i location | awk '{print $2}'| tr -d '\r\n ')
+  debug "Order link $OrderLink"
+  FinalizeLink=$(json_get "$response" "finalize")
+  debug "finalise link $FinalizeLink"
+  dn=0
+  for d in $alldomains; do
+    # get authorizations link
+    AuthLink[$dn]=$(json_get "$response" "identifiers" "value" "$d" "authorizations" "x")
+    debug "authorizations link for $d - ${AuthLink[$dn]}"
+    ((dn++))
+  done
+fi
+
 dn=0
 for d in $alldomains; do
   # $d is domain in current loop, which is number $dn for ACL
@@ -1832,13 +2156,17 @@ for d in $alldomains; do
   fi
 
   # request a challenge token from ACME server
-  request="{\"resource\":\"new-authz\",\"identifier\":{\"type\":\"dns\",\"value\":\"$d\"}}"
-  send_signed_request "$URL_new_authz" "$request"
+  if [[ $API -eq 1 ]]; then
+    request="{\"resource\":\"new-authz\",\"identifier\":{\"type\":\"dns\",\"value\":\"$d\"}}"
+    send_signed_request "$URL_new_authz" "$request"
+    debug "completed send_signed_request"
 
-  debug "completed send_signed_request"
-  # check if we got a valid response and token, if not then error exit
-  if [[ ! -z "$code" ]] && [[ ! "$code" == '201' ]] ; then
-    error_exit "new-authz error: $response"
+    # check if we got a valid response and token, if not then error exit
+    if [[ -n "$code" ]] && [[ ! "$code" == '201' ]] ; then
+      error_exit "new-authz error: $response"
+    fi
+  else
+    response_status=""
   fi
 
   if [[ $response_status == "valid" ]]; then
@@ -1854,13 +2182,24 @@ for d in $alldomains; do
   else
     PREVIOUSLY_VALIDATED="false"
     if [[ $VALIDATE_VIA_DNS == "true" ]]; then # set up the correct DNS token for verification
-      # get the dns component of the ACME response
-      # get the token from the dns component
-      token=$(json_get "$response" "token" "dns-01")
-      debug token "$token"
-      # get the uri from the dns component
-      uri=$(json_get "$response" "uri" "dns-01")
-      debug uri "$uri"
+      if [[ $API -eq 1 ]]; then
+        # get the dns component of the ACME response
+        # get the token from the dns component
+        token=$(json_get "$response" "token" "dns-01")
+        debug token "$token"
+        # get the uri from the dns component
+        uri=$(json_get "$response" "uri" "dns-01")
+        debug uri "$uri"
+      else # APIv2
+        response=$(curl --user-agent "$CURL_USERAGENT" --silent "${AuthLink[$dn]}" 2>/dev/null)
+        debug "authlink response = $response"
+        # get the token from the http-01 component
+        token=$(json_get "$response" "challenges" "type" "dns-01" "token")
+        debug token "$token"
+        # get the uri from the http component
+        uri=$(json_get "$response" "challenges" "type" "dns-01" "url")
+        debug uri "$uri"
+      fi
 
       keyauthorization="$token.$thumbprint"
       debug keyauthorization "$keyauthorization"
@@ -1901,12 +2240,23 @@ for d in $alldomains; do
 			_EOF_
 
     else      # set up the correct http token for verification
-      # get the token from the http component
-      token=$(json_get "$response" "token" "http-01")
-      debug token "$token"
-      # get the uri from the http component
-      uri=$(json_get "$response" "uri" "http-01")
-      debug uri "$uri"
+      if [[ $API -eq 1 ]]; then
+        # get the token from the http component
+        token=$(json_get "$response" "token" "http-01")
+        debug token "$token"
+        # get the uri from the http component
+        uri=$(json_get "$response" "uri" "http-01")
+        debug uri "$uri"
+      else # APIv2
+        response=$(curl --user-agent "$CURL_USERAGENT" --silent "${AuthLink[$dn]}" 2>/dev/null)
+        debug "authlink response = $response"
+        # get the token from the http-01 component
+        token=$(json_get "$response" "challenges" "type" "http-01" "token")
+        debug token "$token"
+        # get the uri from the http component
+        uri=$(json_get "$response" "challenges" "type" "http-01" "url")
+        debug uri "$uri"
+      fi
 
       #create signed authorization key from token.
       keyauthorization="$token.$thumbprint"
@@ -1935,7 +2285,7 @@ for d in $alldomains; do
       else
         sleep "$HTTP_TOKEN_CHECK_WAIT"
         # check that we can reach the challenge ourselves, if not, then error
-        if [[ ! "$(curl -k --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
+        if [[ ! "$(curl --user-agent "$CURL_USERAGENT" -k --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
           error_exit "for some reason could not reach $wellknown_url - please check it manually"
         fi
       fi
@@ -1949,9 +2299,10 @@ for d in $alldomains; do
           sshhost=$(echo "${t_loc}"| awk -F: '{print $2}')
           command="rm -f ${t_loc:(( ${#sshhost} + 5))}/${token:?}"
           debug "running following command to remove token"
-          debug "ssh $sshhost ${command}"
+          debug "ssh $SSH_OPTS $sshhost ${command}"
           # shellcheck disable=SC2029
-          ssh "$sshhost" "${command}" 1>/dev/null 2>&1
+          # shellcheck disable=SC2086
+          ssh $SSH_OPTS "$sshhost" "${command}" 1>/dev/null 2>&1
           rm -f "${TEMP_DIR:?}/${token:?}"
         elif [[ "${t_loc:0:4}" == "ftp:" ]] ; then
           debug "using ftp to remove token file"
@@ -1979,7 +2330,7 @@ done # end of ... loop through domains for cert ( from SANS list)
 # perform validation if via DNS challenge
 if [[ $VALIDATE_VIA_DNS == "true" ]]; then
   # loop through dns-variable files to check if dns has been changed
-  for dnsfile in $TEMP_DIR/dns_verify/*; do
+  for dnsfile in "$TEMP_DIR"/dns_verify/*; do
     if [[ -e "$dnsfile" ]]; then
       debug "loading DNSfile: $dnsfile"
       # shellcheck source=/dev/null
@@ -2032,7 +2383,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
   fi
 
   # loop through dns-variable files to let the ACME server check the challenges
-  for dnsfile in $TEMP_DIR/dns_verify/*; do
+  for dnsfile in "$TEMP_DIR"/dns_verify/*; do
     if [[ -e "$dnsfile" ]]; then
       debug "loading DNSfile: $dnsfile"
       # shellcheck source=/dev/null
@@ -2059,8 +2410,8 @@ get_certificate "$DOMAIN_DIR/${DOMAIN}.csr" \
                 "$CA_CERT"
 if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
   get_certificate "$DOMAIN_DIR/${DOMAIN}.ec.csr" \
-                  "${CERT_FILE::-4}.ec.crt" \
-                  "${CA_CERT::-4}.ec.crt"
+                  "${CERT_FILE%.*}.ec.crt" \
+                  "${CA_CERT%.*}.ec.crt"
 fi
 
 # create Archive of new certs and keys.
@@ -2069,30 +2420,31 @@ cert_archive
 debug "Certificates obtained and archived locally, will now copy to specified locations"
 
 # copy certs to the correct location (creating concatenated files as required)
+umask 077
 
 copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
 copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
 copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
 if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-  if [[ ! -z "$DOMAIN_CERT_LOCATION" ]]; then
+  if [[ -n "$DOMAIN_CERT_LOCATION" ]]; then
     copy_file_to_location "ec domain certificate" \
-                          "${CERT_FILE::-4}.ec.crt" \
-                          "${DOMAIN_CERT_LOCATION::-4}.ec.crt"
+                          "${CERT_FILE%.*}.ec.crt" \
+                          "${DOMAIN_CERT_LOCATION%.*}.ec.crt"
   fi
-  if [[ ! -z "$DOMAIN_KEY_LOCATION" ]]; then
+  if [[ -n "$DOMAIN_KEY_LOCATION" ]]; then
   copy_file_to_location "ec private key" \
                         "$DOMAIN_DIR/${DOMAIN}.ec.key" \
-                        "${DOMAIN_KEY_LOCATION::-4}.ec.key"
+                        "${DOMAIN_KEY_LOCATION%.*}.ec.key"
   fi
-  if [[ ! -z "$CA_CERT_LOCATION" ]]; then
+  if [[ -n "$CA_CERT_LOCATION" ]]; then
   copy_file_to_location "ec CA certificate" \
-                        "${CA_CERT::-4}.ec.crt" \
-                        "${CA_CERT_LOCATION::-4}.ec.crt"
+                        "${CA_CERT%.*}.ec.crt" \
+                        "${CA_CERT_LOCATION%.*}.ec.crt"
   fi
 fi
 
 # if DOMAIN_CHAIN_LOCATION is not blank, then create and copy file.
-if [[ ! -z "$DOMAIN_CHAIN_LOCATION" ]]; then
+if [[ -n "$DOMAIN_CHAIN_LOCATION" ]]; then
   if [[ "$(dirname "$DOMAIN_CHAIN_LOCATION")" == "." ]]; then
     to_location="${DOMAIN_DIR}/${DOMAIN_CHAIN_LOCATION}"
   else
@@ -2101,12 +2453,12 @@ if [[ ! -z "$DOMAIN_CHAIN_LOCATION" ]]; then
   cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
   copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    cat "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}_chain.pem.ec"
+    cat "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_chain.pem.ec"
     copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem.ec"  "${to_location}.ec"
   fi
 fi
 # if DOMAIN_KEY_CERT_LOCATION is not blank, then create and copy file.
-if [[ ! -z "$DOMAIN_KEY_CERT_LOCATION" ]]; then
+if [[ -n "$DOMAIN_KEY_CERT_LOCATION" ]]; then
   if [[ "$(dirname "$DOMAIN_KEY_CERT_LOCATION")" == "." ]]; then
     to_location="${DOMAIN_DIR}/${DOMAIN_KEY_CERT_LOCATION}"
   else
@@ -2115,12 +2467,12 @@ if [[ ! -z "$DOMAIN_KEY_CERT_LOCATION" ]]; then
   cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
   copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-  cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"
+  cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"
   copy_file_to_location "private ec key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"  "${to_location}.ec"
   fi
 fi
 # if DOMAIN_PEM_LOCATION is not blank, then create and copy file.
-if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
+if [[ -n "$DOMAIN_PEM_LOCATION" ]]; then
   if [[ "$(dirname "$DOMAIN_PEM_LOCATION")" == "." ]]; then
     to_location="${DOMAIN_DIR}/${DOMAIN_PEM_LOCATION}"
   else
@@ -2129,12 +2481,12 @@ if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
   cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
   copy_file_to_location "full key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE::-4}.ec.crt" "${CA_CERT::-4}.ec.crt" > "$TEMP_DIR/${DOMAIN}.pem.ec"
+    cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}.pem.ec"
     copy_file_to_location "full ec key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem.ec"  "${to_location}.ec"
   fi
 fi
 # end of copying certs.
-
+umask "$ORIG_UMASK"
 # Run reload command to restart apache / nginx or whatever system
 reload_service
 
@@ -2142,7 +2494,7 @@ reload_service
 if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
   debug "in deactivate list is $deactivate_url_list"
   for deactivate_url in $deactivate_url_list; do
-    resp=$(curl "$deactivate_url" 2>/dev/null)
+    resp=$(curl --user-agent "$CURL_USERAGENT" "$deactivate_url" 2>/dev/null)
     d=$(json_get "$resp" "hostname")
     info "deactivating domain $d"
     debug "deactivating  $deactivate_url"
