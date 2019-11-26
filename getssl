@@ -284,11 +284,11 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 
   # check response from our request to perform challenge
   if [[ $API -eq 1 ]]; then
-    if [[ ! -z "$code" ]] && [[ ! "$code" == '202' ]] ; then
+    if [[ -n "$code" ]] && [[ ! "$code" == '202' ]] ; then
       error_exit "$domain:Challenge error: $code"
     fi
   else # APIv2
-    if [[ ! -z "$code" ]] && [[ ! "$code" == '200' ]] ; then
+    if [[ -n "$code" ]] && [[ ! "$code" == '200' ]] ; then
       error_exit "$domain:Challenge error: $code"
     fi
   fi
@@ -469,12 +469,13 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
         # Obtain all locally stored old versions in getssl_versions
         declare -a getssl_versions
         shopt -s nullglob
-        for getssl_version in $0.v*; do
+        for getssl_version in "$0".v*; do
           getssl_versions[${#getssl_versions[@]}]="$getssl_version"
         done
         shopt -u nullglob
         # Explicitly sort the getssl_versions array to make sure
         shopt -s -o noglob
+        # shellcheck disable=SC2207
         IFS=$'\n' getssl_versions=($(sort <<< "${getssl_versions[*]}"))
         shopt -u -o noglob
         # Remove entries until given number of old versions to keep is reached
@@ -500,7 +501,7 @@ clean_up() { # Perform pre-exit housekeeping
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then
     # Tidy up DNS entries if things failed part way though.
     shopt -s nullglob
-    for dnsfile in $TEMP_DIR/dns_verify/*; do
+    for dnsfile in "$TEMP_DIR"/dns_verify/*; do
       # shellcheck source=/dev/null
       . "$dnsfile"
       debug "attempting to clean up DNS entry for $d"
@@ -508,10 +509,10 @@ clean_up() { # Perform pre-exit housekeeping
     done
     shopt -u nullglob
   fi
-  if [[ ! -z "$DOMAIN_DIR" ]]; then
+  if [[ -n "$DOMAIN_DIR" ]]; then
     rm -rf "${TEMP_DIR:?}"
   fi
-  if [[ ! -z "$TEMP_UPGRADE_FILE" ]] && [[ -f "$TEMP_UPGRADE_FILE" ]]; then
+  if [[ -n "$TEMP_UPGRADE_FILE" ]] && [[ -f "$TEMP_UPGRADE_FILE" ]]; then
     rm -f "$TEMP_UPGRADE_FILE"
   fi
 }
@@ -531,7 +532,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
         scp $from ${to:4}"
       fi
       debug "userid $TOKEN_USER_ID"
-      if [[ "$cert" == "challenge token" ]] && [[ ! -z "$TOKEN_USER_ID" ]]; then
+      if [[ "$cert" == "challenge token" ]] && [[ -n "$TOKEN_USER_ID" ]]; then
         servername=$(echo "$to" | awk -F":" '{print $2}')
         tofile=$(echo "$to" | awk -F":" '{print $3}')
         debug "servername $servername"
@@ -592,7 +593,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
           error_exit "cannot copy $from to $to"
         fi
       fi
-      if [[ "$cert" == "challenge token" ]] && [[ ! -z "$TOKEN_USER_ID" ]]; then
+      if [[ "$cert" == "challenge token" ]] && [[ -n "$TOKEN_USER_ID" ]]; then
         chown "$TOKEN_USER_ID" "$to"
       fi
     fi
@@ -737,7 +738,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     else
       res=$($DNS_CHECK_FUNC CNAME "$gad_d" "@$gad_s"| grep "^$gad_d")
     fi
-    if [[ ! -z "$res" ]]; then # domain is a CNAME so get main domain
+    if [[ -n "$res" ]]; then # domain is a CNAME so get main domain
       gad_d=$(echo "$res"| awk '{print $5}' |sed 's/\.$//g')
     fi
     if [[ -z "$gad_s" ]]; then #checking for CNAMEs
@@ -856,7 +857,9 @@ get_certificate() { # get certificate for csr, if all domains validated.
     cd=$(curl --user-agent "$CURL_USERAGENT" --silent "$OrderLink")
     CertData=$(json_get "$cd" "certificate")
     debug "CertData is at $CertData"
-    curl --user-agent "$CURL_USERAGENT" --silent "$CertData" > "$CERT_FILE"
+    curl --user-agent "$CURL_USERAGENT" --silent "$CertData" > "$FULL_CHAIN"
+    info "Full certificate saved in $FULL_CHAIN"
+    awk -v CERT_FILE="$CERT_FILE" -v CA_CERT="$CA_CERT" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$FULL_CHAIN"
     info "Certificate saved in $CERT_FILE"
   fi
 }
@@ -1153,7 +1156,7 @@ json_get() { # get values from json
     # remove newlines, so it's a single chunk of JSON
     json_data=$( echo "$1" | tr '\n' ' ')
     # if $3 is defined, this is the section which the item is in.
-    if [[ ! -z "$3" ]]; then
+    if [[ -n "$3" ]]; then
       jg_section=$(echo "$json_data" | awk -F"[}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${3}"'\"/){print $i}}}')
       if [[ "$2" == "uri" ]]; then
         jg_subsect=$(echo "$jg_section" | awk -F"[,]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i)}}}')
@@ -1173,17 +1176,17 @@ json_get() { # get values from json
       echo "$jg_result"
     fi
   else
-    if [[ ! -z "$6" ]]; then
+    if [[ -n "$6" ]]; then
       full=$(json_awk "$1")
       section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
       echo "$full" | grep "^..${5}\",$section" | awk '{print $2}' | tr -d '"'
-    elif [[ ! -z "$5" ]]; then
+    elif [[ -n "$5" ]]; then
       full=$(json_awk "$1")
       section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
       echo "$full" | grep "^..${2}\",$section" | grep "$5" | awk '{print $2}' | tr -d '"'
-    elif [[ ! -z "$3" ]]; then
+    elif [[ -n "$3" ]]; then
       json_awk "$1" | grep "^..${2}...${3}" | awk '{print $2}' | tr -d '"'
-    elif [[ ! -z "$2" ]]; then
+    elif [[ -n "$2" ]]; then
       json_awk "$1" | grep "^..${2}" | awk '{print $2}' | tr -d '"'
     else
       json_awk "$1"
@@ -1204,7 +1207,7 @@ os_esed() { # Use different sed version for different os types (extended regex)
 purge_archive() { # purge archive of old, invalid, certificates
   arcdir="$1/archive"
   debug "purging archives in ${arcdir}/"
-  for padir in $arcdir/????_??_??_??_??; do
+  for padir in "$arcdir"/????_??_??_??_??; do
     # check each directory
     if [[ -d "$padir" ]]; then
       tstamp=$(basename "$padir"| awk -F"_" '{print $1"-"$2"-"$3" "$4":"$5}')
@@ -1227,7 +1230,7 @@ purge_archive() { # purge archive of old, invalid, certificates
 }
 
 reload_service() {  # Runs a command to reload services ( via ssh if needed)
-  if [[ ! -z "$RELOAD_CMD" ]]; then
+  if [[ -n "$RELOAD_CMD" ]]; then
     info "reloading SSL services"
     if [[ "${RELOAD_CMD:0:4}" == "ssh:" ]] ; then
       sshhost=$(echo "$RELOAD_CMD"| awk -F: '{print $2}')
@@ -1271,16 +1274,16 @@ requires() { # check if required function is available
       if [[ "$i" == "${!#}" ]]; then # if on last variable then exit as not found
         error_exit "this script requires one of: ${*:1:$(($#-1))}"
       fi
-      res=$(which "$i" 2>/dev/null)
+      res=$(command -v "$i" 2>/dev/null)
       debug "checking for $i ... $res"
-      if [[ ! -z "$res" ]]; then # if function found, then set variable to function and return
+      if [[ -n "$res" ]]; then # if function found, then set variable to function and return
         debug "function $i found at $res  - setting ${!#} to $i"
         eval "${!#}=\$i"
         return
       fi
     done
   else # only one value, so check it.
-    result=$(which "$1" 2>/dev/null)
+    result=$(command -v "$1" 2>/dev/null)
     debug "checking for required $1 ... $result"
     if [[ -z "$result" ]]; then
       error_exit "This script requires $1 installed"
@@ -1340,6 +1343,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   dp="$TEMP_DIR/curl.dump"
 
   CURL="curl "
+  # shellcheck disable=SC2072
   if [[ "$($CURL -V | head -1 | cut -d' ' -f2 )" > "7.33" ]]; then
     CURL="$CURL --http1.1 "
   fi
@@ -1673,11 +1677,11 @@ while [[ -n ${1+defined} ]]; do
       _UPGRADE_CHECK=0 ;;
     -w)
       shift; WORKING_DIR="$1" ;;
-    -* | --*)
+    -*)
       usage
       error_exit "Unknown option $1" ;;
     *)
-      if [[ ! -z $DOMAIN ]]; then
+      if [[ -n $DOMAIN ]]; then
         error_exit "invalid command line $DOMAIN - it appears to contain more than one domain"
       fi
       DOMAIN="$1"
@@ -1760,6 +1764,7 @@ ACCOUNT_KEY="${ACCOUNT_KEY:=$WORKING_DIR/account.key}"
 DOMAIN_STORAGE="${DOMAIN_STORAGE:=$WORKING_DIR}"
 DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
+FULL_CHAIN="$DOMAIN_DIR/fullchain.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
 if [[ "$os" == "mingw" ]]; then
@@ -1785,7 +1790,7 @@ if [[ ${_CHECK_ALL} -eq 1 ]]; then
     error_exit "DOMAIN_STORAGE not found  - $DOMAIN_STORAGE"
   fi
 
-  for dir in ${DOMAIN_STORAGE}/*; do
+  for dir in "${DOMAIN_STORAGE}"/*; do
     if [[ -d "$dir" ]]; then
       debug "Checking $dir"
       cmd="$0 -U" # No update checks when calling recursively
@@ -1833,7 +1838,7 @@ if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
       | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null \
       | openssl x509 2>/dev/null)
     EX_SANS="www.${DOMAIN}"
-    if [[ ! -z "${EX_CERT}" ]]; then
+    if [[ -n "${EX_CERT}" ]]; then
       EX_SANS=$(echo "$EX_CERT" \
         | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
         | grep -Eo "DNS:[a-zA-Z 0-9.-]*" | sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
@@ -1903,9 +1908,9 @@ if [[ -z "$URL_new_reg" ]]  && [[ -z "$URL_newAccount" ]]; then
   URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
 fi
 
-if [[ ! -z "$URL_new_reg" ]]; then
+if [[ -n "$URL_new_reg" ]]; then
   API=1
-elif [[ ! -z "$URL_newAccount" ]]; then
+elif [[ -n "$URL_newAccount" ]]; then
   API=2
 else
   info "unknown API version"
@@ -1919,7 +1924,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
   EX_CERT=$(echo \
     | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null \
     | openssl x509 2>/dev/null)
-  if [[ ! -z "$EX_CERT" ]]; then # if obtained a cert
+  if [[ -n "$EX_CERT" ]]; then # if obtained a cert
     if [[ -s "$CERT_FILE" ]]; then # if local exists
       CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
     else # since local doesn't exist leave empty so that the domain validation will happen
@@ -2152,7 +2157,7 @@ for d in $alldomains; do
     debug "completed send_signed_request"
 
     # check if we got a valid response and token, if not then error exit
-    if [[ ! -z "$code" ]] && [[ ! "$code" == '201' ]] ; then
+    if [[ -n "$code" ]] && [[ ! "$code" == '201' ]] ; then
       error_exit "new-authz error: $response"
     fi
   else
@@ -2320,7 +2325,7 @@ done # end of ... loop through domains for cert ( from SANS list)
 # perform validation if via DNS challenge
 if [[ $VALIDATE_VIA_DNS == "true" ]]; then
   # loop through dns-variable files to check if dns has been changed
-  for dnsfile in $TEMP_DIR/dns_verify/*; do
+  for dnsfile in "$TEMP_DIR"/dns_verify/*; do
     if [[ -e "$dnsfile" ]]; then
       debug "loading DNSfile: $dnsfile"
       # shellcheck source=/dev/null
@@ -2373,7 +2378,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
   fi
 
   # loop through dns-variable files to let the ACME server check the challenges
-  for dnsfile in $TEMP_DIR/dns_verify/*; do
+  for dnsfile in "$TEMP_DIR"/dns_verify/*; do
     if [[ -e "$dnsfile" ]]; then
       debug "loading DNSfile: $dnsfile"
       # shellcheck source=/dev/null
@@ -2416,17 +2421,17 @@ copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
 copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
 copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
 if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-  if [[ ! -z "$DOMAIN_CERT_LOCATION" ]]; then
+  if [[ -n "$DOMAIN_CERT_LOCATION" ]]; then
     copy_file_to_location "ec domain certificate" \
                           "${CERT_FILE%.*}.ec.crt" \
                           "${DOMAIN_CERT_LOCATION%.*}.ec.crt"
   fi
-  if [[ ! -z "$DOMAIN_KEY_LOCATION" ]]; then
+  if [[ -n "$DOMAIN_KEY_LOCATION" ]]; then
   copy_file_to_location "ec private key" \
                         "$DOMAIN_DIR/${DOMAIN}.ec.key" \
                         "${DOMAIN_KEY_LOCATION%.*}.ec.key"
   fi
-  if [[ ! -z "$CA_CERT_LOCATION" ]]; then
+  if [[ -n "$CA_CERT_LOCATION" ]]; then
   copy_file_to_location "ec CA certificate" \
                         "${CA_CERT%.*}.ec.crt" \
                         "${CA_CERT_LOCATION%.*}.ec.crt"
@@ -2434,7 +2439,7 @@ if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
 fi
 
 # if DOMAIN_CHAIN_LOCATION is not blank, then create and copy file.
-if [[ ! -z "$DOMAIN_CHAIN_LOCATION" ]]; then
+if [[ -n "$DOMAIN_CHAIN_LOCATION" ]]; then
   if [[ "$(dirname "$DOMAIN_CHAIN_LOCATION")" == "." ]]; then
     to_location="${DOMAIN_DIR}/${DOMAIN_CHAIN_LOCATION}"
   else
@@ -2448,7 +2453,7 @@ if [[ ! -z "$DOMAIN_CHAIN_LOCATION" ]]; then
   fi
 fi
 # if DOMAIN_KEY_CERT_LOCATION is not blank, then create and copy file.
-if [[ ! -z "$DOMAIN_KEY_CERT_LOCATION" ]]; then
+if [[ -n "$DOMAIN_KEY_CERT_LOCATION" ]]; then
   if [[ "$(dirname "$DOMAIN_KEY_CERT_LOCATION")" == "." ]]; then
     to_location="${DOMAIN_DIR}/${DOMAIN_KEY_CERT_LOCATION}"
   else
@@ -2462,7 +2467,7 @@ if [[ ! -z "$DOMAIN_KEY_CERT_LOCATION" ]]; then
   fi
 fi
 # if DOMAIN_PEM_LOCATION is not blank, then create and copy file.
-if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
+if [[ -n "$DOMAIN_PEM_LOCATION" ]]; then
   if [[ "$(dirname "$DOMAIN_PEM_LOCATION")" == "." ]]; then
     to_location="${DOMAIN_DIR}/${DOMAIN_PEM_LOCATION}"
   else
