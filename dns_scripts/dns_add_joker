@@ -1,0 +1,44 @@
+#!/bin/bash
+
+FULLDOMAIN=$1
+TOKEN=$2
+TMPFILE=$(mktemp /tmp/dns_add_joker.XXXXXXX)
+
+USERNAME="youruser"
+PASSWORD="yourpassword"
+
+# Verify that required parameters are set
+if [[ -z "${FULLDOMAIN}" ]]; then
+  echo "DNS script requires full domain name as first parameter"
+  exit 1
+fi
+
+if [[ -z "${TOKEN}" ]]; then
+  echo "DNS script requires challenge token as second parameter"
+  exit 1
+fi
+
+DOMAIN_ROOT=$(echo "${FULLDOMAIN}" | awk -F\. '{print $(NF-1) FS $NF}')
+
+SID=$(curl --silent -X POST https://dmapi.joker.com/request/login \
+	-H "Accept: application/json" -H "User-Agent: getssl/0.1" \
+	-H "application/x-www-form-urlencoded" -d "username=${USERNAME}&password=${PASSWORD}" \
+	-i -k 2>/dev/null | grep Auth-Sid | awk '{ print $2 }')
+
+## put zone data in tempfile
+curl --silent -X POST https://dmapi.joker.com/request/dns-zone-get \
+	-H "Accept: application/json" -H "User-Agent: getssl/0.1" \
+	-H "application/x-www-form-urlencoded" -d "domain=${DOMAIN_ROOT}&auth-sid=${SID}" | \
+	tail -n +7 >"${TMPFILE}"
+
+## add txt record
+printf "_acme-challenge.%s. TXT 0  \"%s \" 300\n\n" "${FULLDOMAIN}" "${TOKEN}" >>"${TMPFILE}"
+
+## generate encoded url data
+URLDATA=$(cat "${TMPFILE}" | sed 's/ /%20/g' | sed 's/"/%22/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+
+## write new zonefile to joker
+curl --silent --output /dev/null "https://dmapi.joker.com/request/dns-zone-put?domain=${DOMAIN_ROOT}&zone=${URLDATA}&auth-sid=${SID}" 2>&1
+
+## remove tempfile
+rm -f "${TMPFILE}"
