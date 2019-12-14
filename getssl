@@ -2248,7 +2248,7 @@ for d in $alldomains; do
         token=$(json_get "$response" "challenges" "type" "http-01" "token")
         debug token "$token"
         # get the uri from the http component
-        uri=$(json_get "$response" "challenges" "type" "http-01" "url")
+        uri=$(json_get "$response" "challenges" "type" "http-01" "url" | head -n1)
         debug uri "$uri"
       fi
 
