@@ -1,0 +1,29 @@
+project:
+    name: getssl-test
+    syncFilters:
+        - exclude:
+            - .git/*
+            - '*/__pycache__/*'
+            - .venv/*
+            - .history/*
+
+container:
+    projectDir: /workspace
+    file: test/Dockerfile
+    volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+    # commands: <init script to run here>
+
+instances:
+    - name: m1
+      provider: aws
+      parameters:
+        region: eu-west-1
+        instanceType: m1.medium
+        amiId: ami-047bb4163c506cd98
+        maxPrice: 0.01
+        volumes:
+            - name: workspace
+              parameters:
+                size: 10
