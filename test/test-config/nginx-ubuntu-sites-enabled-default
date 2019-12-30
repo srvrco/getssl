@@ -14,13 +14,13 @@
 # Default server configuration
 #
 server {
-	listen 80 default_server;
-	listen [::]:80 default_server;
+	listen 5002 default_server;
+	listen [::]:5002 default_server;
 
 	# SSL configuration
 	#
-	listen 443 ssl default_server;
-	listen [::]:443 ssl default_server;
+	listen 5001 ssl default_server;
+	listen [::]:5001 ssl default_server;
 	#
 	# Note: You should disable gzip for SSL traffic.
 	# See: https://bugs.debian.org/773332
@@ -39,8 +39,8 @@ server {
 	index index.html index.htm index.nginx-debian.html;
 
 	server_name _;
-    ssl_certificate /etc/nginx/pki/server.crt;
-    ssl_certificate_key /etc/nginx/pki/private/server.key;
+    # ssl_certificate /etc/nginx/pki/server.crt;
+    # ssl_certificate_key /etc/nginx/pki/private/server.key;
 
 	location / {
 		# First attempt to serve request as file, then
