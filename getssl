@@ -1415,7 +1415,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     loop_limit=5
     while [[ "$code" -eq 500 ]]; do
       if [[ "$outfile" ]] ; then
-        $CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" > $outfile
+        $CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" > "$outfile"
         response=$(cat "$outfile")
       elif [[ "$needbase64" ]] ; then
         response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" | urlbase64)
@@ -1438,7 +1438,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         response_status=$(json_get "$response" status \
                         | head -1| awk -F'"' '{print $2}')
       else # APIv2
-        if [[ "$output" && "$response" ]]; then
+        if [[ "$outfile" && "$response" ]]; then
           debug "response written to $outfile"
         elif [[ ${response##*()} == "{"* ]]; then
           response_status=$(json_get "$response" status)
