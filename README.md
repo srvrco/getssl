@@ -2,7 +2,7 @@
 Obtain SSL certificates from the letsencrypt.org ACME server.  Suitable for automating the process on remote servers.
 
 ## Features
-* **Bash** - It runs on virtually all unix machines, including BSD, most Linux distributions, MAC OSX.
+* **Bash** - It runs on virtually all unix machines, including BSD, most Linux distributions, macOS.
 * **Get certificates for remote servers** - The tokens used to provide validation of domain ownership, and the certificates themselves can be automatically copied to remote servers (via ssh, sftp or ftp for tokens). The script doesn't need to run on the server itself. This can be useful if you don't have access to run such scripts on the server itself, e.g. if it's a shared server.
 * **Runs as a daily cron** - so certificates will be automatically renewed when required.
 * **Automatic certificate renewals**
@@ -13,6 +13,7 @@ Obtain SSL certificates from the letsencrypt.org ACME server.  Suitable for auto
 * **Simple and easy to use**
 * **Detailed debug info** - Whilst it shouldn't be needed, detailed debug information is available.
 * **Reload services** - After a new certificate is obtained then the relevant services (e.g. apache/nginx/postfix) can be reloaded.
+* **ACME v1 and V2** - Supports both ACME versions 1 and 2
 
 ## Installation
 Since the script is only one file, you can use the following command for a quick installation of GetSSL only:
@@ -85,9 +86,9 @@ and it should run, providing output like;
 ```
 Registering account
 Verify each domain
-Verifing yourdomain.com
+Verifying yourdomain.com
 Verified yourdomain.com
-Verifing www.yourdomain.com
+Verifying www.yourdomain.com
 Verified www.yourdomain.com
 Verification completed, obtaining certificate.
 Certificate saved in /home/user/.getssl/yourdomain.com/yourdomain.com.crt
