@@ -2131,7 +2131,7 @@ if [[ $API -eq 2 ]]; then
   for d in $alldomains; do
     dstring="${dstring}{\"type\":\"dns\",\"value\":\"$d\"},"
   done
-  dstring="${dstring: : -1}]"
+  dstring="${dstring::${#dstring}-1}]"
   # request NewOrder currently seems to ignore the dates ....
   #  dstring="${dstring},\"notBefore\": \"$(date -d "-1 hour" --utc +%FT%TZ)\""
   #  dstring="${dstring},\"notAfter\": \"$(date -d "2 days" --utc +%FT%TZ)\""
