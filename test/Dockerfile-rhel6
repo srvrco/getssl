@@ -1,0 +1,28 @@
+# FROM ubuntu:xenial
+FROM roboxes/rhel6
+# FROM centos:centos6
+# bionic = latest 18 version
+
+# Update and install required software
+RUN yum -y update
+RUN yum -y install epel-release
+RUN yum -y install git curl dnsutils wget # nginx-light
+
+WORKDIR /root
+#RUN mkdir /etc/nginx/pki
+#RUN mkdir /etc/nginx/pki/private
+#COPY ./test/test-config/nginx-ubuntu-sites-enabled-default /etc/nginx/sites-enabled/default
+
+# BATS (Bash Automated Testings)
+# RUN git clone https://github.com/bats-core/bats-core.git
+# RUN bats-core/install.sh /usr/local
+
+EXPOSE 80 443
+
+# Run eternal loop - for testing
+CMD ["/bin/bash", "-c", "while :; do sleep 10; done"]
+
+# with Pebble
+# docker-compose -f "docker-compose.yml" up -d --build
+# docker exec -it getssl /bin/bash
+# /getssl/test/run-test.sh
