@@ -288,7 +288,8 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
     fi
   else # APIv2
     if [[ -n "$code" ]] && [[ ! "$code" == '200' ]] ; then
-      error_exit "$domain:Challenge error: $code"
+      detail=$(json_get "$response" detail)
+      error_exit "$domain:Challenge error: $code:Detail: $detail"
     fi
   fi
 
@@ -1323,7 +1324,6 @@ set_server_type() { # uses SERVER_TYPE to set REMOTE_PORT and REMOTE_EXTRA
     REMOTE_PORT=636
   elif [[ ${SERVER_TYPE} =~ ^[0-9]+$ ]]; then
     REMOTE_PORT=${SERVER_TYPE}
-    REMOTE_EXTRA="CUSTOM-HTTP-PORT"
   else
     info "${DOMAIN}: unknown server type \"$SERVER_TYPE\" in SERVER_TYPE"
     config_errors=true
@@ -2282,11 +2282,7 @@ for d in $alldomains; do
       done
       umask "$ORIG_UMASK"
 
-      if [[ "$REMOTE_EXTRA" = "CUSTOM-HTTP-PORT" ]]; then
-        wellknown_url="${CHALLENGE_CHECK_TYPE}://${d}:${REMOTE_PORT}/.well-known/acme-challenge/$token"
-      else
-        wellknown_url="${CHALLENGE_CHECK_TYPE}://${d}/.well-known/acme-challenge/$token"
-      fi
+      wellknown_url="${CHALLENGE_CHECK_TYPE}://${d}/.well-known/acme-challenge/$token"
       debug wellknown_url "$wellknown_url"
 
       if [[ "$SKIP_HTTP_TOKEN_CHECK" == "true" ]]; then
@@ -2522,6 +2518,8 @@ fi
 if [[ ${CHECK_REMOTE} == "true" ]]; then
   sleep "$CHECK_REMOTE_WAIT"
   # shellcheck disable=SC2086
+  debug openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA}
+
   CERT_REMOTE=$(echo \
     | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null \
     | openssl x509 -noout -fingerprint 2>/dev/null)
@@ -2529,6 +2527,8 @@ if [[ ${CHECK_REMOTE} == "true" ]]; then
   if [[ "$CERT_LOCAL" == "$CERT_REMOTE" ]]; then
     info "${DOMAIN} - certificate installed OK on server"
   else
+    debug Fingerprint on server ${CERT_REMOTE}
+    debug Fingerprint in file ${CERT_LOCAL}
     error_exit "${DOMAIN} - certificate obtained but certificate on server is different from the new certificate"
   fi
 fi
