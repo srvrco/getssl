@@ -1,4 +1,3 @@
-# FROM ubuntu:xenial
 FROM roboxes/rhel6
 # FROM centos:centos6
 # bionic = latest 18 version

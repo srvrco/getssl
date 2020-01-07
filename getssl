@@ -189,6 +189,11 @@
 # 2019-10-02 issue #425 Case insensitive processing of agreement url because of HTTP/2 (2.12)
 # 2019-10-07 update DNS checks to allow use of CNAMEs (2.13)
 # 2019-11-18 Rebased master onto APIv2 and added Content-Type: application/jose+json (2.14)
+# 2019-11-20 #453 and #454 Add User-Agent to all curl requests
+# 2019-11-22 #456 Fix shellcheck issues
+# 2019-11-23 #459 Fix missing chain.crt
+# 2019-12-18 #462 Use POST-as-GET for ACMEv2 endpoints
+# 2020-01-07 #464 and #486 "json was blank" (change all curl request to use POST-as-GET) (2.15)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -288,7 +293,8 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
     fi
   else # APIv2
     if [[ -n "$code" ]] && [[ ! "$code" == '200' ]] ; then
-      error_exit "$domain:Challenge error: $code"
+      detail=$(json_get "$response" detail)
+      error_exit "$domain:Challenge error: $code:Detail: $detail"
     fi
   fi
 
@@ -2282,11 +2288,7 @@ for d in $alldomains; do
       done
       umask "$ORIG_UMASK"
 
-      if [[ "$REMOTE_EXTRA" = "CUSTOM-HTTP-PORT" ]]; then
-        wellknown_url="${CHALLENGE_CHECK_TYPE}://${d}:${REMOTE_PORT}/.well-known/acme-challenge/$token"
-      else
-        wellknown_url="${CHALLENGE_CHECK_TYPE}://${d}/.well-known/acme-challenge/$token"
-      fi
+      wellknown_url="${CHALLENGE_CHECK_TYPE}://${d}/.well-known/acme-challenge/$token"
       debug wellknown_url "$wellknown_url"
 
       if [[ "$SKIP_HTTP_TOKEN_CHECK" == "true" ]]; then

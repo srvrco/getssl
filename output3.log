@@ -1,0 +1,595 @@
+ * Restarting nginx nginx
+   ...done.
+domain config already exists /root/.getssl/getssl/getssl.cfg
+ 
+detected os type = linux
+ 
+checking for required which ... /usr/bin/which
+ 
+checking for required openssl ... /usr/bin/openssl
+ 
+checking for required curl ... /usr/bin/curl
+ 
+checking for nslookup ... /usr/bin/nslookup
+ 
+function nslookup found at /usr/bin/nslookup  - setting DNS_CHECK_FUNC to nslookup
+ 
+checking for required awk ... /usr/bin/awk
+ 
+checking for required tr ... /usr/bin/tr
+ 
+checking for required date ... /bin/date
+ 
+checking for required grep ... /bin/grep
+ 
+checking for required sed ... /bin/sed
+ 
+checking for required sort ... /usr/bin/sort
+ 
+checking for required mktemp ... /bin/mktemp
+ 
+current code is version 2.14
+ 
+Most recent version is  2.14
+ 
+reading config from /root/.getssl/getssl.cfg
+ 
+Making temp directory - /root/.getssl/getssl/tmp
+ 
+reading config from /root/.getssl/getssl/getssl.cfg
+ 
+checking config
+ 
+checked ACCOUNT_KEY_TYPE 
+ 
+checked PRIVATE_KEY_ALG 
+ 
+checking domain getssl
+ 
+found IPv4 record for getssl
+ 
+getssl: check_config completed  - all OK
+ 
+ca_all_loc from https://pebble:14000/dir gives {
+   "keyChange": "https://pebble:14000/rollover-account-key",
+   "meta": {
+      "externalAccountRequired": false,
+      "termsOfService": "data:text/plain,Do%20what%20thou%20wilt"
+   },
+   "newAccount": "https://pebble:14000/sign-me-up",
+   "newNonce": "https://pebble:14000/nonce-plz",
+   "newOrder": "https://pebble:14000/order-plz",
+   "revokeCert": "https://pebble:14000/revoke-cert"
+}
+ 
+Using API v2
+ 
+certificate /root/.getssl/getssl/getssl.crt exists
+ 
+local cert is valid until Dec 20 03:17:50 2024 GMT
+ 
+getssl: certificate needs renewal
+ 
+Account key exists at /root/.getssl/account.key skipping generation
+ 
+domain key exists at /root/.getssl/getssl/getssl.key - skipping generation
+ 
+created SAN list = subjectAltName=DNS:getssl
+ 
+domain csr exists at - /root/.getssl/getssl/getssl.csr
+ 
+jwk alg = RS256
+ 
+jwk = {"e":"AQAB","kty":"RSA","n":"3o4EbN3Y-PxUYVQYKl1NRAs3Sf9P-AJ8rVObI41wsWANG7WnfvZiPrm4iMfpCxNdhxVymzOjP8s2PN40hC4_11eHSuleXinq3MsrOb4YtxMEV5ds25hKuZvE0h9PtFxwNvZJamLPq7JFDjlb5PjZdD8bFiWAzD8ZgAjf8gag3M5UuPzr8VYmw6Ia3UTgSXc-W-q3lt_mGbeh6XbWdRPlhOiyrBrOhSKDYXTD_9p2trQtevfEKDSW7YTWPp-y0jmgwpqR4fj85i5UERh_7VB4LY94NZDDjHNanDKUOVbgn1Yusg-HPtJswm_xvFwdcLE2q3tEy_2n08DkbMufOrUAvXOBgVVYXW3X2BfUu_QWHjSFW9hkHobvnh6B15qK-64Y-Bdrdw2esg-uquRzLksxw6IKBrBZ8EP-VWs8svzXId3J0qfMLvC0KXamRg4uAVrDYZ3X1LM3gbZ7Tka59O85qM5DS0pT3aY6H61IV7k_FHl24DjfptiRhR9v53lJ_Zyrv5YgpGuznYbYPYPPwZncfSNg3pjQJ5HirD7cnPVjgYbDg-lh2GbhHFutIY11tIwcHaUrSNtgOROHmocF-ruZpE2IWN7hYW5gqxmdgh3UwDVhARaB4Mgg_ngVCul2muWaUqiDLRsPBL8rb-WgNkVUayhU5ageKR5XH0szcf_9bqc"}
+ 
+thumbprint WqwF-_89LEjT1o3QsrxQR9sH8B1wrJKInyR2iQ3gsco
+Registering account
+ 
+url https://pebble:14000/sign-me-up
+ 
+nonce 8-731EQc98zvpaOt5xj9YQ
+ 
+KID is blank, so using jwk
+ 
+protected = {"alg": "RS256", "jwk": {"e":"AQAB","kty":"RSA","n":"3o4EbN3Y-PxUYVQYKl1NRAs3Sf9P-AJ8rVObI41wsWANG7WnfvZiPrm4iMfpCxNdhxVymzOjP8s2PN40hC4_11eHSuleXinq3MsrOb4YtxMEV5ds25hKuZvE0h9PtFxwNvZJamLPq7JFDjlb5PjZdD8bFiWAzD8ZgAjf8gag3M5UuPzr8VYmw6Ia3UTgSXc-W-q3lt_mGbeh6XbWdRPlhOiyrBrOhSKDYXTD_9p2trQtevfEKDSW7YTWPp-y0jmgwpqR4fj85i5UERh_7VB4LY94NZDDjHNanDKUOVbgn1Yusg-HPtJswm_xvFwdcLE2q3tEy_2n08DkbMufOrUAvXOBgVVYXW3X2BfUu_QWHjSFW9hkHobvnh6B15qK-64Y-Bdrdw2esg-uquRzLksxw6IKBrBZ8EP-VWs8svzXId3J0qfMLvC0KXamRg4uAVrDYZ3X1LM3gbZ7Tka59O85qM5DS0pT3aY6H61IV7k_FHl24DjfptiRhR9v53lJ_Zyrv5YgpGuznYbYPYPPwZncfSNg3pjQJ5HirD7cnPVjgYbDg-lh2GbhHFutIY11tIwcHaUrSNtgOROHmocF-ruZpE2IWN7hYW5gqxmdgh3UwDVhARaB4Mgg_ngVCul2muWaUqiDLRsPBL8rb-WgNkVUayhU5ageKR5XH0szcf_9bqc"}, "nonce": "8-731EQc98zvpaOt5xj9YQ", "url": "https://pebble:14000/sign-me-up"}
+ 
+payload = {"termsOfServiceAgreed": true}
+ 
+header, payload and signature = {"protected": "eyJhbGciOiAiUlMyNTYiLCAiandrIjogeyJlIjoiQVFBQiIsImt0eSI6IlJTQSIsIm4iOiIzbzRFYk4zWS1QeFVZVlFZS2wxTlJBczNTZjlQLUFKOHJWT2JJNDF3c1dBTkc3V25mdlppUHJtNGlNZnBDeE5kaHhWeW16T2pQOHMyUE40MGhDNF8xMWVIU3VsZVhpbnEzTXNyT2I0WXR4TUVWNWRzMjVoS3VadkUwaDlQdEZ4d052WkphbUxQcTdKRkRqbGI1UGpaZEQ4YkZpV0F6RDhaZ0FqZjhnYWczTTVVdVB6cjhWWW13NklhM1VUZ1NYYy1XLXEzbHRfbUdiZWg2WGJXZFJQbGhPaXlyQnJPaFNLRFlYVERfOXAydHJRdGV2ZkVLRFNXN1lUV1BwLXkwam1nd3BxUjRmajg1aTVVRVJoXzdWQjRMWTk0TlpERGpITmFuREtVT1ZiZ24xWXVzZy1IUHRKc3dtX3h2RndkY0xFMnEzdEV5XzJuMDhEa2JNdWZPclVBdlhPQmdWVllYVzNYMkJmVXVfUVdIalNGVzloa0hvYnZuaDZCMTVxSy02NFktQmRyZHcyZXNnLXVxdVJ6TGtzeHc2SUtCckJaOEVQLVZXczhzdnpYSWQzSjBxZk1MdkMwS1hhbVJnNHVBVnJEWVozWDFMTTNnYlo3VGthNTlPODVxTTVEUzBwVDNhWTZINjFJVjdrX0ZIbDI0RGpmcHRpUmhSOXY1M2xKX1p5cnY1WWdwR3V6blliWVBZUFB3Wm5jZlNOZzNwalFKNUhpckQ3Y25QVmpnWWJEZy1saDJHYmhIRnV0SVkxMXRJd2NIYVVyU050Z09ST0htb2NGLXJ1WnBFMklXTjdoWVc1Z3F4bWRnaDNVd0RWaEFSYUI0TWdnX25nVkN1bDJtdVdhVXFpRExSc1BCTDhyYi1XZ05rVlVheWhVNWFnZUtSNVhIMHN6Y2ZfOWJxYyJ9LCAibm9uY2UiOiAiOC03MzFFUWM5OHp2cGFPdDV4ajlZUSIsICJ1cmwiOiAiaHR0cHM6Ly9wZWJibGU6MTQwMDAvc2lnbi1tZS11cCJ9","payload": "eyJ0ZXJtc09mU2VydmljZUFncmVlZCI6IHRydWV9","signature": "FQpRVBmZeTU1foG7P-XhcjGu59BXrMrhF4mhSntIbBIiKm_2k0qTunl8B9EtubAyvjwZUlnam3KV2LOLaWzHLtewS_q_LKpjr_zp3w9lUa-aXS9TuUO08Jxv_hG-WIXxxUHoOvcnTO0YIlvrxCoyB0PirZ-fBZRXe9TNt4741B6V9n2WIK-aEFu2NqUlxz1VZrDAy0Dd1EITcAViKPnQ9GdUsif86zWwx-qk1oqF6wy2l-EkvB7LmkuJkHEyBlMAktmZcvlpbctxjIitfsknfygYlfVG_QKMt0c0hIs-ETuTlyZS4yHuLfel66xM_o8n4yYhld4OIaFg8cSW0OA2S1lyblhQv7plCebxx0qDvQQuNtdYRVIXNnRC8yyWO53QKFXBk-TQtpiaCX8l7uDMI0NKwpHxfrbsiJneflJnCP0pGBVFG8gecrLJdg1raTPAWPvEmjyfSAoEncDsvjyLorCM0fh8856smWIw-h8VibraPTDTywIeSG_hEaBWT3o0evuUT__PEyxMQhruHHGUU9p3DcNQTHv8gbMLTP1Ld1aX3n3qJpc86_LF9xcns422h2UvyW2fgcmuyfTETY5Mfc-4mgiNzUKemTn7sJkLRBBth7gpm1qzlfz2mrccEK_1yINAPqMTMIiIoSshxLVUuMVjGdgfzdiMZU8ew395OvE"}
+ 
+responseHeaders HTTP/1.1 100 Continue
+
+HTTP/1.1 200 OK
+Cache-Control: public, max-age=0, no-cache
+Content-Type: application/json; charset=utf-8
+Link: <https://pebble:14000/dir>;rel="index"
+Location: https://pebble:14000/my-account/1
+Replay-Nonce: -U2uZwkTzVHIRV-ZzQHLXg
+Date: Fri, 20 Dec 2019 03:18:46 GMT
+Content-Length: 829
+
+ 
+response {
+   "status": "valid",
+   "orders": "https://pebble:14000/list-orderz/1",
+   "key": {
+      "kty": "RSA",
+      "n": "3o4EbN3Y-PxUYVQYKl1NRAs3Sf9P-AJ8rVObI41wsWANG7WnfvZiPrm4iMfpCxNdhxVymzOjP8s2PN40hC4_11eHSuleXinq3MsrOb4YtxMEV5ds25hKuZvE0h9PtFxwNvZJamLPq7JFDjlb5PjZdD8bFiWAzD8ZgAjf8gag3M5UuPzr8VYmw6Ia3UTgSXc-W-q3lt_mGbeh6XbWdRPlhOiyrBrOhSKDYXTD_9p2trQtevfEKDSW7YTWPp-y0jmgwpqR4fj85i5UERh_7VB4LY94NZDDjHNanDKUOVbgn1Yusg-HPtJswm_xvFwdcLE2q3tEy_2n08DkbMufOrUAvXOBgVVYXW3X2BfUu_QWHjSFW9hkHobvnh6B15qK-64Y-Bdrdw2esg-uquRzLksxw6IKBrBZ8EP-VWs8svzXId3J0qfMLvC0KXamRg4uAVrDYZ3X1LM3gbZ7Tka59O85qM5DS0pT3aY6H61IV7k_FHl24DjfptiRhR9v53lJ_Zyrv5YgpGuznYbYPYPPwZncfSNg3pjQJ5HirD7cnPVjgYbDg-lh2GbhHFutIY11tIwcHaUrSNtgOROHmocF-ruZpE2IWN7hYW5gqxmdgh3UwDVhARaB4Mgg_ngVCul2muWaUqiDLRsPBL8rb-WgNkVUayhU5ageKR5XH0szcf_9bqc",
+      "e": "AQAB"
+   }
+}
+ 
+code 200
+ 
+response status = valid
+ 
+responseHeaders HTTP/1.1 100 Continue
+
+HTTP/1.1 200 OK
+Cache-Control: public, max-age=0, no-cache
+Content-Type: application/json; charset=utf-8
+Link: <https://pebble:14000/dir>;rel="index"
+Location: https://pebble:14000/my-account/1
+Replay-Nonce: -U2uZwkTzVHIRV-ZzQHLXg
+Date: Fri, 20 Dec 2019 03:18:46 GMT
+Content-Length: 829
+
+ 
+Already registered account, KID=https://pebble:14000/my-account/1
+Verify each domain
+ 
+url https://pebble:14000/order-plz
+ 
+nonce OvNsn1aSjtCQkbRWKf5Wgw
+ 
+using KID=https://pebble:14000/my-account/1
+ 
+protected = {"alg": "RS256", "kid": "https://pebble:14000/my-account/1","nonce": "OvNsn1aSjtCQkbRWKf5Wgw", "url": "https://pebble:14000/order-plz"}
+ 
+payload = {"identifiers": [{"type":"dns","value":"getssl"}]}
+ 
+header, payload and signature = {"protected": "eyJhbGciOiAiUlMyNTYiLCAia2lkIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL215LWFjY291bnQvMSIsIm5vbmNlIjogIk92TnNuMWFTanRDUWtiUldLZjVXZ3ciLCAidXJsIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL29yZGVyLXBseiJ9","payload": "eyJpZGVudGlmaWVycyI6IFt7InR5cGUiOiJkbnMiLCJ2YWx1ZSI6ImdldHNzbCJ9XX0","signature": "lAce5bAR2wjVjLda9OViL970C2m9wOokHaFzyv3tQI2Xv0fIai0vkPr9zyKsvg_zSxQV6LCOH6OcHYpGKAcHozDiksohV4aMRm4oLjnbEeoUld7x6m6AYSnmc_6TOsnqJ8lQS8DK-f5UOB3zRUJGVAB2nV0gZ1KHAshvhI2P_4w8q38DfQ4vivAuQ4TKiyVKcH3mekPM6ZIHdcMrd2cLrMkO1FqGgk1sbY4TeM9AurfAEYu9CitdwbMatmC1Xp5aWQaqqrHH61AYCpYVKcaKJ5lsEVK8AfwCWORJiSG9M_4YNRJfQZ9wwXfiw6-Ybu0ZkvzpCQfs70ogDO66nIopxCXdWRj2wU8P3NisF-sUjUvglGyJvcpkzqO1rCRvrnJeNnX0eqndk1NV00EnGY7LMGAyDiIQwN97m9fCXtHXx_82ZPtNdjPmz3D48xp68qCqIyGA8UPERxQB-iu2xplZPQXm2M4Lhu9vExA4e4M3UDIGMU_pP38vEilgrJIY7HmTWf7yeHsiVlO_C3hPtLkIHHUwEwLZGQ9YYAITAX31e_YltiJqUifT_oVj9HMpNlLXE3tpm2alt0K5hpsCa12Qg0HnD3BwzVx7Je8GTtSzRcxYdXylWM7_LuiqrfPs5rSTPDOJWETibnFgDmkHgtA9hN3a9CbeHO5POkAgu1HyN5g"}
+ 
+responseHeaders HTTP/1.1 201 Created
+Cache-Control: public, max-age=0, no-cache
+Content-Type: application/json; charset=utf-8
+Link: <https://pebble:14000/dir>;rel="index"
+Location: https://pebble:14000/my-order/BiMMa1UDLGbesCtqCV3LiPghv8f5cDlfOiHWBMNae4E
+Replay-Nonce: EfAQg1HgPii2CSTCMLC8OQ
+Date: Fri, 20 Dec 2019 03:18:46 GMT
+Content-Length: 363
+
+ 
+response {
+   "status": "pending",
+   "expires": "2019-12-21T03:18:46Z",
+   "identifiers": [
+      {
+         "type": "dns",
+         "value": "getssl"
+      }
+   ],
+   "finalize": "https://pebble:14000/finalize-order/BiMMa1UDLGbesCtqCV3LiPghv8f5cDlfOiHWBMNae4E",
+   "authorizations": [
+      "https://pebble:14000/authZ/gCXDU5WWw4t1a0XYint-aHVSsvHX6uhemZdrpMYWNkI"
+   ]
+}
+ 
+code 201
+ 
+response status = pending
+ 
+Order link https://pebble:14000/my-order/BiMMa1UDLGbesCtqCV3LiPghv8f5cDlfOiHWBMNae4E
+ 
+finalise link https://pebble:14000/finalize-order/BiMMa1UDLGbesCtqCV3LiPghv8f5cDlfOiHWBMNae4E
+ 
+authorizations link for getssl - https://pebble:14000/authZ/gCXDU5WWw4t1a0XYint-aHVSsvHX6uhemZdrpMYWNkI
+Verifying getssl
+ 
+url https://pebble:14000/authZ/gCXDU5WWw4t1a0XYint-aHVSsvHX6uhemZdrpMYWNkI
+ 
+nonce H7EVCnCgB7dDn_Xdxzz7EQ
+ 
+using KID=https://pebble:14000/my-account/1
+ 
+protected = {"alg": "RS256", "kid": "https://pebble:14000/my-account/1","nonce": "H7EVCnCgB7dDn_Xdxzz7EQ", "url": "https://pebble:14000/authZ/gCXDU5WWw4t1a0XYint-aHVSsvHX6uhemZdrpMYWNkI"}
+ 
+payload = 
+ 
+header, payload and signature = {"protected": "eyJhbGciOiAiUlMyNTYiLCAia2lkIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL215LWFjY291bnQvMSIsIm5vbmNlIjogIkg3RVZDbkNnQjdkRG5fWGR4eno3RVEiLCAidXJsIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL2F1dGhaL2dDWERVNVdXdzR0MWEwWFlpbnQtYUhWU3N2SFg2dWhlbVpkcnBNWVdOa0kifQ","payload": "","signature": "lVk-htc2IJBamEVw3FUzZk5yfOtismvteb6SJF_eB5SWbGXi34rT2yIW5DpU0_FX4MdftP19hru_qZycAbRgkLkLsGysa069zAYiUOUicke5UZ7gorG8ZVm3cdKlGvvDb6HkOGowYu0sTJXmoSZ5pS_emN-i79x145q_v2EdewCM8x_o2kyEGhBQr-KxlrBeyVGTUM8GPzaHXOu8W1PequgPblsz9k_-fnsUotRaUn4s8IgnJ_HvxX8PYXJ-_yloZc9OpczA_WpOr5te4iogCuICf2KhY7Xx3c_5JD_zKBeeaOjrRH3dAUoAzjnAniaXsYXPg0PyfNFNCJ9n8uc2xUE7vKBWmo5OoLG1SI1QMTi-tZLBIlSilO2Ry_JVtbnJMJMSG7BL7EDtkUgJJqGYQEwYvJJk7wmAsgOLmmmTiTNiD2aQRLijSBPUnb3o0OiwFIfgA6VgJpSXVHQRr_rz8EyfWedxl-tGlzx9R8hR8nDmAX7Sumro1Gkbmx7A7542SVugUk-9axTuX96qv3t3iHazvZsa2ERR0o5c_r49tR5CaBF1nT0c_4YosnLTz3cSFllntTcYdBXIoQSDhKPpK2p-vM1Dr4ZabLjNvQqRLmlB4tlH8oRHsvYMrR-r94f-fdC9y4UDQWgGdg5sjcUN0VlvdHCGpXMcgaMdr7pQB4s"}
+ 
+responseHeaders HTTP/1.1 200 OK
+Cache-Control: public, max-age=0, no-cache
+Content-Type: application/json; charset=utf-8
+Link: <https://pebble:14000/dir>;rel="index"
+Replay-Nonce: jQuttMeTXy744vnfHOG6Ew
+Date: Fri, 20 Dec 2019 03:18:47 GMT
+Content-Length: 848
+
+ 
+response {
+   "status": "pending",
+   "identifier": {
+      "type": "dns",
+      "value": "getssl"
+   },
+   "challenges": [
+      {
+         "type": "http-01",
+         "url": "https://pebble:14000/chalZ/du8iZYrIQI7-Q6IsIXgxBHMd-MvwtMLHNz_TBiiPZR0",
+         "token": "eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw",
+         "status": "pending"
+      },
+      {
+         "type": "tls-alpn-01",
+         "url": "https://pebble:14000/chalZ/a3pnrLsYlgBcSNO64lJf9-Mrsl3JW0QnY5ZE-_Vrpmo",
+         "token": "8-ebEaH2Clpr_cjRlitDXBumnGRLzVPNR7GkHwZV32o",
+         "status": "pending"
+      },
+      {
+         "type": "dns-01",
+         "url": "https://pebble:14000/chalZ/4d_E-daxR7Q6HsGdGpn_9JhXQzPEON_b1x7SGCG3ajI",
+         "token": "1BE_Z5tKoBR2XGyFXsG3UPa3gTC0peT42LQjhPEZz4M",
+         "status": "pending"
+      }
+   ],
+   "expires": "2019-12-20T04:18:46Z"
+}
+ 
+code 200
+ 
+response status = pending
+ 
+authlink response = {
+   "status": "pending",
+   "identifier": {
+      "type": "dns",
+      "value": "getssl"
+   },
+   "challenges": [
+      {
+         "type": "http-01",
+         "url": "https://pebble:14000/chalZ/du8iZYrIQI7-Q6IsIXgxBHMd-MvwtMLHNz_TBiiPZR0",
+         "token": "eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw",
+         "status": "pending"
+      },
+      {
+         "type": "tls-alpn-01",
+         "url": "https://pebble:14000/chalZ/a3pnrLsYlgBcSNO64lJf9-Mrsl3JW0QnY5ZE-_Vrpmo",
+         "token": "8-ebEaH2Clpr_cjRlitDXBumnGRLzVPNR7GkHwZV32o",
+         "status": "pending"
+      },
+      {
+         "type": "dns-01",
+         "url": "https://pebble:14000/chalZ/4d_E-daxR7Q6HsGdGpn_9JhXQzPEON_b1x7SGCG3ajI",
+         "token": "1BE_Z5tKoBR2XGyFXsG3UPa3gTC0peT42LQjhPEZz4M",
+         "status": "pending"
+      }
+   ],
+   "expires": "2019-12-20T04:18:46Z"
+}
+ 
+token eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw
+ 
+uri https://pebble:14000/chalZ/du8iZYrIQI7-Q6IsIXgxBHMd-MvwtMLHNz_TBiiPZR0
+ 
+keyauthorization eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw.WqwF-_89LEjT1o3QsrxQR9sH8B1wrJKInyR2iQ3gsco
+ 
+copying file from /root/.getssl/getssl/tmp/eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw to /var/www/html/.well-known/acme-challenge
+copying challenge token to /var/www/html/.well-known/acme-challenge/eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw
+ 
+copying from /root/.getssl/getssl/tmp/eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw to /var/www/html/.well-known/acme-challenge/eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw
+ 
+copied /root/.getssl/getssl/tmp/eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw to /var/www/html/.well-known/acme-challenge/eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw
+ 
+wellknown_url http://getssl/.well-known/acme-challenge/eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw
+ 
+sending request to ACME server saying we're ready for challenge
+ 
+url https://pebble:14000/chalZ/du8iZYrIQI7-Q6IsIXgxBHMd-MvwtMLHNz_TBiiPZR0
+ 
+nonce AEYrbsWIhAUsOrg9-9Wn_Q
+ 
+using KID=https://pebble:14000/my-account/1
+ 
+protected = {"alg": "RS256", "kid": "https://pebble:14000/my-account/1","nonce": "AEYrbsWIhAUsOrg9-9Wn_Q", "url": "https://pebble:14000/chalZ/du8iZYrIQI7-Q6IsIXgxBHMd-MvwtMLHNz_TBiiPZR0"}
+ 
+payload = {}
+ 
+header, payload and signature = {"protected": "eyJhbGciOiAiUlMyNTYiLCAia2lkIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL215LWFjY291bnQvMSIsIm5vbmNlIjogIkFFWXJic1dJaEFVc09yZzktOVduX1EiLCAidXJsIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL2NoYWxaL2R1OGlaWXJJUUk3LVE2SXNJWGd4QkhNZC1Ndnd0TUxITnpfVEJpaVBaUjAifQ","payload": "e30","signature": "U10lkXG4yzNgZ41xUSc4RMgaoF0SobOF5dYEleLrNoROPsnPGPH3v7esFLym_x5lbwTmO8sEk-g7g2LwQ231rS76Fbsocj3OLmfIZYvlaFs08iYMIcryOegFjyqfn8HycjBXtQo81aDBLQuqnk5cpC5ayOQb7LsIDMJ-5ONRs01OM9VUf5-IRX79xOzefZQa4vT2rWYyUJpgg6DHYyi31qlOe9GS69c1GggL8JmCErYg5U0Aiz8EjdhU4-thVs6fCUDfLLgxCYLs1ZvHjmF4rBX67RfTS1UlEcGQN_EkzRQ2LUQXErHMj9h7Z9Nv9EV4U6cfDFVk5tcleAceiI0ubJGCYl-4W5WY57TOz6p-zh_4gh3KrFJzcwYVrJ901YCCQW47MMc3V54_357guW57tUZTw0M_pQyrzE54euknWzsRTot8Ytyl7W_aXOFfZkAoCkLZb4jf-qDEFpdgxmM19fgTsH-pvO5ACKjEXd3J08yM5ycP5YJLETuho-SlYHYWVq4NGmhcwbzs2hFF_MjRM0XvNQDZk4fDgRse2qb97Hjl18DdVuZCC9WnuureAQdy6HPNhveASEKHhNaYy-se94Zttt_m816mE8Rma9HP0mTsoeSuE-1zhSD3RqqFA68Xwi2YmysdLGaUbeNMV0uvfEmE_ykSo8EQc6yVvG-gH4Y"}
+ 
+responseHeaders HTTP/1.1 200 OK
+Cache-Control: public, max-age=0, no-cache
+Content-Type: application/json; charset=utf-8
+Link: <https://pebble:14000/dir>;rel="index"
+Link: <https://pebble:14000/authZ/gCXDU5WWw4t1a0XYint-aHVSsvHX6uhemZdrpMYWNkI>;rel="up"
+Replay-Nonce: xPdteiGQmBU939fWm2Pr7A
+Date: Fri, 20 Dec 2019 03:18:47 GMT
+Content-Length: 191
+
+ 
+response {
+   "type": "http-01",
+   "url": "https://pebble:14000/chalZ/du8iZYrIQI7-Q6IsIXgxBHMd-MvwtMLHNz_TBiiPZR0",
+   "token": "eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw",
+   "status": "pending"
+}
+ 
+code 200
+ 
+response status = pending
+ 
+checking if challenge is complete
+ 
+url https://pebble:14000/chalZ/du8iZYrIQI7-Q6IsIXgxBHMd-MvwtMLHNz_TBiiPZR0
+ 
+nonce DnxPK0EmYWsWZ-buL_Yy2A
+ 
+using KID=https://pebble:14000/my-account/1
+ 
+protected = {"alg": "RS256", "kid": "https://pebble:14000/my-account/1","nonce": "DnxPK0EmYWsWZ-buL_Yy2A", "url": "https://pebble:14000/chalZ/du8iZYrIQI7-Q6IsIXgxBHMd-MvwtMLHNz_TBiiPZR0"}
+ 
+payload = 
+ 
+header, payload and signature = {"protected": "eyJhbGciOiAiUlMyNTYiLCAia2lkIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL215LWFjY291bnQvMSIsIm5vbmNlIjogIkRueFBLMEVtWVdzV1otYnVMX1l5MkEiLCAidXJsIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL2NoYWxaL2R1OGlaWXJJUUk3LVE2SXNJWGd4QkhNZC1Ndnd0TUxITnpfVEJpaVBaUjAifQ","payload": "","signature": "2hfrHdye9KYAYrgzcZ4Gr609REiT2R6gPuWS9L_J3kD_sKYWW_0i-X2TlpqMdmoPcyHYkP04M6LdRxdVrdVBclq74q31hMRaGK0gInnQXYODIFP3ZRBleESOeoN6okin_1cA01HvDOfsuJevPKbay0HSz1uKXyKkN6asgDOZBkWy9EIinCDLgf5rqZYEzt0__CLa_tPog6aHX_83GKO07BPsxPnmVXAWLBY6hLb1SHscw3pHB42_iI_0-7vgjKvvQu0LfyHd6GXzXFprVE98Xg4Bbb3yOh9jRV-OecNQyqVcuKSIr4A3xUqZv6zIscQdwYEQkNLNQD_exyp_d-BVz_YoaPnf4Um7vdms0lz2ZTDKCX3M6wRgrFLye7nBp33TY8Olxmn4XVA4SJzjSY1Jtyeh-y8OxkiN6z-LL688Ha914MYLe_qWKA5fTPPv9uB7urcYO0sY4egR3pSyN4apdRexYE0ITPaEDCbaDK97SNtvnvD94KQuyKAf6_FbBAhcKo0atLckdbwzjvtTrd3Jd81yz9hngLkgkrJhrY_sQe3oicviX5i3UVbWxVJMCshSXcjFZVeYh0XYuMHT3MLA57W2dYMPKHVp0Tb-M8gzk2Den-qyLXJsLbiJA4PLyyE00oBMiU8oDXetZROLnWwv6eZDnPNNfjm-YpQqOLF46zE"}
+ 
+responseHeaders HTTP/1.1 200 OK
+Cache-Control: public, max-age=0, no-cache
+Content-Type: application/json; charset=utf-8
+Link: <https://pebble:14000/dir>;rel="index"
+Replay-Nonce: s1DfhdpXBW0OibLHRKq0yQ
+Date: Fri, 20 Dec 2019 03:18:47 GMT
+Content-Length: 231
+
+ 
+response {
+   "type": "http-01",
+   "url": "https://pebble:14000/chalZ/du8iZYrIQI7-Q6IsIXgxBHMd-MvwtMLHNz_TBiiPZR0",
+   "token": "eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw",
+   "status": "pending",
+   "validated": "2019-12-20T03:18:47Z"
+}
+ 
+code 200
+ 
+response status = pending
+Pending
+ 
+sleep 5 secs before testing verify again
+ 
+checking if challenge is complete
+ 
+url https://pebble:14000/chalZ/du8iZYrIQI7-Q6IsIXgxBHMd-MvwtMLHNz_TBiiPZR0
+ 
+nonce GX38gMw-RHJsOj0XH3dZqA
+ 
+using KID=https://pebble:14000/my-account/1
+ 
+protected = {"alg": "RS256", "kid": "https://pebble:14000/my-account/1","nonce": "GX38gMw-RHJsOj0XH3dZqA", "url": "https://pebble:14000/chalZ/du8iZYrIQI7-Q6IsIXgxBHMd-MvwtMLHNz_TBiiPZR0"}
+ 
+payload = 
+ 
+header, payload and signature = {"protected": "eyJhbGciOiAiUlMyNTYiLCAia2lkIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL215LWFjY291bnQvMSIsIm5vbmNlIjogIkdYMzhnTXctUkhKc09qMFhIM2RacUEiLCAidXJsIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL2NoYWxaL2R1OGlaWXJJUUk3LVE2SXNJWGd4QkhNZC1Ndnd0TUxITnpfVEJpaVBaUjAifQ","payload": "","signature": "VDZD2zfETgKkstthHHk90A-SH0H1f1FX9g4B0esvXEifgH29ysgNK84D4Ne24QXFaLwub3lKugSsjf5vLf0VxCrN3pNPCYA7A-MW6NQKDeNSxJgIOJmwguJUwnmgCrjmQykUQeI3y53NAsWb5a4pUtXZavZ1BeXqvo9lKPL-GnjVmRuoAPv7zQG2dMvJ1H147bHLQ26mc6cUAT_QQPt2IGILswtLrhb8ec1N-jcnV2LBUs44G2HuOqS1ADefJ5zx4tpy1UA_sbvMOsr9tmshvZfRyhi65xE4lK7fb5J3DNOLqu-nLOaiILyrq4mEfH0gDm1PnzjqRpqlXkg9ehfgR4LrL2AsaRDt_O9wAVCAs85V46yyWxFHsWMdJr5RaEjISewLPUGH_cDp7fUhzTzxQmN1trfiS6EuxVbi-gJhzZa-0C70s_mxLIeNRoyRaXhGTdtvXlJsk-OQPOpr10VMJTcSfxGExNfMiNhdm5UnawVKZ5-54wuen_l7iic28iOSRBvIL7WFIaeR2zz1CDxFWWUiMZzHRhiG0BCSpJJYpuhZtoNzyTQdOlxnB_GqPFoOlva5eQdvMevQlVarBQA65X6L1-l3kQIkLj7WM5Zm0a0veIStmY7o3O8eltqFHDg9IVyyNLJgttct6iqudljkEljIkPA95qta0W5yuLUlIEo"}
+ 
+responseHeaders HTTP/1.1 200 OK
+Cache-Control: public, max-age=0, no-cache
+Content-Type: application/json; charset=utf-8
+Link: <https://pebble:14000/dir>;rel="index"
+Replay-Nonce: SFf7d-6yNhqBOCZg6PSVVQ
+Date: Fri, 20 Dec 2019 03:18:52 GMT
+Content-Length: 229
+
+ 
+response {
+   "type": "http-01",
+   "url": "https://pebble:14000/chalZ/du8iZYrIQI7-Q6IsIXgxBHMd-MvwtMLHNz_TBiiPZR0",
+   "token": "eHxr9UAH1RD10yIDyFXQyscPI60z6TcDcMtLK2_iBPw",
+   "status": "valid",
+   "validated": "2019-12-20T03:18:47Z"
+}
+ 
+code 200
+ 
+response status = valid
+Verified getssl
+ 
+remove token from /var/www/html/.well-known/acme-challenge
+Verification completed, obtaining certificate.
+ 
+der MIIEaTCCAlECAQAwADCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMrgigSBeu4tVK42neFRn6-FqUYgRjLsV1h1QLP4jBSGAsAljahTs97H4xUrXNw-mAtyiYNQHUj9E1RU7FbZ6GS3Kq6ZC0PyvjsWJX6ysFxD318KvDLjmq1CKV6CbwwwXxz5GGpaExQSlI9e9VL52vqCcb4KYYDJ8xg1swZA4ltrx3UCBhx6hHM0OppZ40pZC6CXsYpHarC3H5b0Uu97Op78lU2VoUTcCaKY6MhAHpi5fWejfhudPjVXE34im78ywPHH8Eoe5cTnttH5FWaR3qotT0Zss0uozGE3IM25_OVuudSfO5Tyo6VzMdK-uqZf7KtRcah7_n03k1zR5VcQwtPWeK1N3mRsEyfFaIlcQYtWJYORrQHkkOuTzxeWC3WFem7lS1SrpXSkaRUdR14BWrheeZylabCZrHp4v_R_LkW8pK2SpcryDfZgVDmdxObb7nJH0N4T4RWqtLnnwW7RwE6ialqUJoQrkHL9xAyh8M1XS96c-v-tFjJ90RZrHNHQL-4Y5CDSNpjBJOxiwS54gqFci39O70NzDQpAA_45fQ_fL5zHLRwowq2Pzy_SjnCECcG-APzHdFOescrMONhenVEuXGbOmP4QR1RgPRKvXYt2jVgngB9NzuFQvaRKonkrLmFzMczq8ImErHU6BPGOcQOtJfZykpP8QLnoybvoSoNrAgMBAAGgJDAiBgkqhkiG9w0BCQ4xFTATMBEGA1UdEQQKMAiCBmdldHNzbDANBgkqhkiG9w0BAQsFAAOCAgEAKDqSTCB2TdRCUv8PC-Qub9oeuBcZvvDpttDbHSG6YnUcPZDB36UddI8R-CCu6p-0DGq9VQIv8ISghjEvCcObTykhIbaC9fSf2iKo3aMWHRH9cAVJRB9EN3RiO9pvqcnftuE2qf3mB4UzBp1L7kjfHb9fWWIK2cNXQrYcP2kcbTGUnMj5wAj__kujTKZMSkzAJxFboaheD0kyCqXbG3nwEvpT8nHQky0N2nRJxdEIf6hX_VFAlPJkOWgHdKxAs7A1ns-e2KpwLQYv-MCZPH22d5uWrVVBBfdNLvh9HIm6qSwedQXivLjnTruzZK0bRzsOabYj2Y_FtIDRupCO6tpPDhzKdp2_S5PVI02yOfkXa0PT9yMmTwj-6vocZsdYYkzowPvivHpMPd3AQKGg1deJ56Jj5uvWk0sQ7s8MLHmgd1y9UAbfYmiJfb9IkxqjVjeSCfbaFer1XCh0YQZaaK-15jYEHT0jVdIlI5EALbVvt01ksHRlUetOyvAHpDMSWpjK7kE534TJlXTNhrTuyem5w4fa1cmE7Ur7BOhApKa_bkpvYbIpq4kn-MnVei7KdXOph0Rnwe2qrg1iQNWV628rMrYtc3IQi5Xv6HiuuRUsh4jLkliGb7Rug1vTnAjWxH64vkmsNdoEpSH6g9baItOQ_a3gOjV-aesG3eNQwnM0IXc
+ 
+url https://pebble:14000/finalize-order/BiMMa1UDLGbesCtqCV3LiPghv8f5cDlfOiHWBMNae4E
+ 
+nonce ftvqUqtfnJVLjEbvCqCmnA
+ 
+using KID=https://pebble:14000/my-account/1
+ 
+protected = {"alg": "RS256", "kid": "https://pebble:14000/my-account/1","nonce": "ftvqUqtfnJVLjEbvCqCmnA", "url": "https://pebble:14000/finalize-order/BiMMa1UDLGbesCtqCV3LiPghv8f5cDlfOiHWBMNae4E"}
+ 
+payload = {"csr": "MIIEaTCCAlECAQAwADCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMrgigSBeu4tVK42neFRn6-FqUYgRjLsV1h1QLP4jBSGAsAljahTs97H4xUrXNw-mAtyiYNQHUj9E1RU7FbZ6GS3Kq6ZC0PyvjsWJX6ysFxD318KvDLjmq1CKV6CbwwwXxz5GGpaExQSlI9e9VL52vqCcb4KYYDJ8xg1swZA4ltrx3UCBhx6hHM0OppZ40pZC6CXsYpHarC3H5b0Uu97Op78lU2VoUTcCaKY6MhAHpi5fWejfhudPjVXE34im78ywPHH8Eoe5cTnttH5FWaR3qotT0Zss0uozGE3IM25_OVuudSfO5Tyo6VzMdK-uqZf7KtRcah7_n03k1zR5VcQwtPWeK1N3mRsEyfFaIlcQYtWJYORrQHkkOuTzxeWC3WFem7lS1SrpXSkaRUdR14BWrheeZylabCZrHp4v_R_LkW8pK2SpcryDfZgVDmdxObb7nJH0N4T4RWqtLnnwW7RwE6ialqUJoQrkHL9xAyh8M1XS96c-v-tFjJ90RZrHNHQL-4Y5CDSNpjBJOxiwS54gqFci39O70NzDQpAA_45fQ_fL5zHLRwowq2Pzy_SjnCECcG-APzHdFOescrMONhenVEuXGbOmP4QR1RgPRKvXYt2jVgngB9NzuFQvaRKonkrLmFzMczq8ImErHU6BPGOcQOtJfZykpP8QLnoybvoSoNrAgMBAAGgJDAiBgkqhkiG9w0BCQ4xFTATMBEGA1UdEQQKMAiCBmdldHNzbDANBgkqhkiG9w0BAQsFAAOCAgEAKDqSTCB2TdRCUv8PC-Qub9oeuBcZvvDpttDbHSG6YnUcPZDB36UddI8R-CCu6p-0DGq9VQIv8ISghjEvCcObTykhIbaC9fSf2iKo3aMWHRH9cAVJRB9EN3RiO9pvqcnftuE2qf3mB4UzBp1L7kjfHb9fWWIK2cNXQrYcP2kcbTGUnMj5wAj__kujTKZMSkzAJxFboaheD0kyCqXbG3nwEvpT8nHQky0N2nRJxdEIf6hX_VFAlPJkOWgHdKxAs7A1ns-e2KpwLQYv-MCZPH22d5uWrVVBBfdNLvh9HIm6qSwedQXivLjnTruzZK0bRzsOabYj2Y_FtIDRupCO6tpPDhzKdp2_S5PVI02yOfkXa0PT9yMmTwj-6vocZsdYYkzowPvivHpMPd3AQKGg1deJ56Jj5uvWk0sQ7s8MLHmgd1y9UAbfYmiJfb9IkxqjVjeSCfbaFer1XCh0YQZaaK-15jYEHT0jVdIlI5EALbVvt01ksHRlUetOyvAHpDMSWpjK7kE534TJlXTNhrTuyem5w4fa1cmE7Ur7BOhApKa_bkpvYbIpq4kn-MnVei7KdXOph0Rnwe2qrg1iQNWV628rMrYtc3IQi5Xv6HiuuRUsh4jLkliGb7Rug1vTnAjWxH64vkmsNdoEpSH6g9baItOQ_a3gOjV-aesG3eNQwnM0IXc"}
+ 
+header, payload and signature = {"protected": "eyJhbGciOiAiUlMyNTYiLCAia2lkIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL215LWFjY291bnQvMSIsIm5vbmNlIjogImZ0dnFVcXRmbkpWTGpFYnZDcUNtbkEiLCAidXJsIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL2ZpbmFsaXplLW9yZGVyL0JpTU1hMVVETEdiZXNDdHFDVjNMaVBnaHY4ZjVjRGxmT2lIV0JNTmFlNEUifQ","payload": "eyJjc3IiOiAiTUlJRWFUQ0NBbEVDQVFBd0FEQ0NBaUl3RFFZSktvWklodmNOQVFFQkJRQURnZ0lQQURDQ0Fnb0NnZ0lCQU1yZ2lnU0JldTR0Vks0Mm5lRlJuNi1GcVVZZ1JqTHNWMWgxUUxQNGpCU0dBc0FsamFoVHM5N0g0eFVyWE53LW1BdHlpWU5RSFVqOUUxUlU3RmJaNkdTM0txNlpDMFB5dmpzV0pYNnlzRnhEMzE4S3ZETGptcTFDS1Y2Q2J3d3dYeHo1R0dwYUV4UVNsSTllOVZMNTJ2cUNjYjRLWVlESjh4ZzFzd1pBNGx0cngzVUNCaHg2aEhNME9wcFo0MHBaQzZDWHNZcEhhckMzSDViMFV1OTdPcDc4bFUyVm9VVGNDYUtZNk1oQUhwaTVmV2VqZmh1ZFBqVlhFMzRpbTc4eXdQSEg4RW9lNWNUbnR0SDVGV2FSM3FvdFQwWnNzMHVvekdFM0lNMjVfT1Z1dWRTZk81VHlvNlZ6TWRLLXVxWmY3S3RSY2FoN19uMDNrMXpSNVZjUXd0UFdlSzFOM21Sc0V5ZkZhSWxjUVl0V0pZT1JyUUhra091VHp4ZVdDM1dGZW03bFMxU3JwWFNrYVJVZFIxNEJXcmhlZVp5bGFiQ1pySHA0dl9SX0xrVzhwSzJTcGNyeURmWmdWRG1keE9iYjduSkgwTjRUNFJXcXRMbm53VzdSd0U2aWFscVVKb1Fya0hMOXhBeWg4TTFYUzk2Yy12LXRGako5MFJackhOSFFMLTRZNUNEU05wakJKT3hpd1M1NGdxRmNpMzlPNzBOekRRcEFBXzQ1ZlFfZkw1ekhMUndvd3EyUHp5X1NqbkNFQ2NHLUFQekhkRk9lc2NyTU9OaGVuVkV1WEdiT21QNFFSMVJnUFJLdlhZdDJqVmduZ0I5Tnp1RlF2YVJLb25rckxtRnpNY3pxOEltRXJIVTZCUEdPY1FPdEpmWnlrcFA4UUxub3lidm9Tb05yQWdNQkFBR2dKREFpQmdrcWhraUc5dzBCQ1E0eEZUQVRNQkVHQTFVZEVRUUtNQWlDQm1kbGRITnpiREFOQmdrcWhraUc5dzBCQVFzRkFBT0NBZ0VBS0RxU1RDQjJUZFJDVXY4UEMtUXViOW9ldUJjWnZ2RHB0dERiSFNHNlluVWNQWkRCMzZVZGRJOFItQ0N1NnAtMERHcTlWUUl2OElTZ2hqRXZDY09iVHlraEliYUM5ZlNmMmlLbzNhTVdIUkg5Y0FWSlJCOUVOM1JpTzlwdnFjbmZ0dUUycWYzbUI0VXpCcDFMN2tqZkhiOWZXV0lLMmNOWFFyWWNQMmtjYlRHVW5NajV3QWpfX2t1alRLWk1Ta3pBSnhGYm9haGVEMGt5Q3FYYkczbndFdnBUOG5IUWt5ME4yblJKeGRFSWY2aFhfVkZBbFBKa09XZ0hkS3hBczdBMW5zLWUyS3B3TFFZdi1NQ1pQSDIyZDV1V3JWVkJCZmROTHZoOUhJbTZxU3dlZFFYaXZMam5UcnV6WkswYlJ6c09hYllqMllfRnRJRFJ1cENPNnRwUERoektkcDJfUzVQVkkwMnlPZmtYYTBQVDl5TW1Ud2otNnZvY1pzZFlZa3pvd1B2aXZIcE1QZDNBUUtHZzFkZUo1NkpqNXV2V2swc1E3czhNTEhtZ2QxeTlVQWJmWW1pSmZiOUlreHFqVmplU0NmYmFGZXIxWENoMFlRWmFhSy0xNWpZRUhUMGpWZElsSTVFQUxiVnZ0MDFrc0hSbFVldE95dkFIcERNU1dwaks3a0U1MzRUSmxYVE5oclR1eWVtNXc0ZmExY21FN1VyN0JPaEFwS2FfYmtwdlliSXBxNGtuLU1uVmVpN0tkWE9waDBSbndlMnFyZzFpUU5XVjYyOHJNcll0YzNJUWk1WHY2SGl1dVJVc2g0akxrbGlHYjdSdWcxdlRuQWpXeEg2NHZrbXNOZG9FcFNINmc5YmFJdE9RX2EzZ09qVi1hZXNHM2VOUXduTTBJWGMifQ","signature": "DMoLGlEXr6Xe3kSQlZRJmplIcihp1SYMnSb0WsyzjotQ7YGUkRTdIn3Jo7L8k_xrsV0fbkOu99TI_KtAavnWMdezSiKUt1VbCypPDxSriMkm9JDq7tYQFNO2pEoerU6l8UW1IGVygeIIgm2yYf-16QaHd9FJp5ieMCJt7NrqyEtkfX48yqWH-GCqGAwBbxPnOZoGcY7gdUhWXRQYiwbu7mpR_QujYeZ2HywUm9ysRmOBMgadHGFZ1BPu4P4f6TnppmWz6fcghhwCYO6ssRYl55vqieGDFWfWzEd-A4e617fiYCn8rIb-Nvvf_hLZLg6mZnbZtz9U5i5MMi4QruYI-4_VIvJmO_MNk3VpjGu5nZy1ZAzeGy0YirpLyvMRXHnnLYOdVnDzwZnPvoOgONw5z6MCRpClVSmm2ew7-xmg6PB6Sbug8Aqs35V57w9QSRmkNUw9EyURtixBFAozKb1ZOM3s7iL51L0deOg4m1pQ13aQZykcqzbRuoqDPMQbG1fsTpdgAqZPkh7fA5SQeDsNoPceKe39-EeA_x3D6O8kKYBVJTvV7BQHmj7R-zuF9KzxXAfOT397hACZSwrDd1vFLNeMWDEGJ4F4hw-qJOIA-gMVnzBGbmp2MEGDoL5UKsjPSR44FhhnHTFow3Y4DzEOeqsLuwYuTC90HqRjwXF9ANw"}
+ 
+responseHeaders HTTP/1.1 100 Continue
+
+HTTP/1.1 200 OK
+Cache-Control: public, max-age=0, no-cache
+Content-Type: application/json; charset=utf-8
+Link: <https://pebble:14000/dir>;rel="index"
+Location: https://pebble:14000/my-order/BiMMa1UDLGbesCtqCV3LiPghv8f5cDlfOiHWBMNae4E
+Replay-Nonce: QMDNv4fPmcXhL2pLP9F_Vw
+Date: Fri, 20 Dec 2019 03:18:53 GMT
+Content-Length: 366
+
+ 
+response {
+   "status": "processing",
+   "expires": "2019-12-21T03:18:46Z",
+   "identifiers": [
+      {
+         "type": "dns",
+         "value": "getssl"
+      }
+   ],
+   "finalize": "https://pebble:14000/finalize-order/BiMMa1UDLGbesCtqCV3LiPghv8f5cDlfOiHWBMNae4E",
+   "authorizations": [
+      "https://pebble:14000/authZ/gCXDU5WWw4t1a0XYint-aHVSsvHX6uhemZdrpMYWNkI"
+   ]
+}
+ 
+code 200
+ 
+response status = processing
+ 
+order link was https://pebble:14000/my-order/BiMMa1UDLGbesCtqCV3LiPghv8f5cDlfOiHWBMNae4E
+ 
+url https://pebble:14000/my-order/BiMMa1UDLGbesCtqCV3LiPghv8f5cDlfOiHWBMNae4E
+ 
+nonce 69XVuayDBE1McRVt6GY_Ig
+ 
+using KID=https://pebble:14000/my-account/1
+ 
+protected = {"alg": "RS256", "kid": "https://pebble:14000/my-account/1","nonce": "69XVuayDBE1McRVt6GY_Ig", "url": "https://pebble:14000/my-order/BiMMa1UDLGbesCtqCV3LiPghv8f5cDlfOiHWBMNae4E"}
+ 
+payload = 
+ 
+header, payload and signature = {"protected": "eyJhbGciOiAiUlMyNTYiLCAia2lkIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL215LWFjY291bnQvMSIsIm5vbmNlIjogIjY5WFZ1YXlEQkUxTWNSVnQ2R1lfSWciLCAidXJsIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL215LW9yZGVyL0JpTU1hMVVETEdiZXNDdHFDVjNMaVBnaHY4ZjVjRGxmT2lIV0JNTmFlNEUifQ","payload": "","signature": "v3AZCXn2D2j__ro6q9IVqOTGWGBJfdlbtg1941Gh-StRts5ANzLZZH7N155fMDuI5EEWneZlU0mrfNAVCpCoFKrXTXgIXB2hc3Gfb2c1DhnwSci3XYgmT51wvY7gW40oRMC5SlZwOyBY1yL1Ka4vz0jI-fsTAR5Z_KG7k8dOsBLNb7XMWO4E95rXwlcmIpRBuDZtvzlv3tfaDN7GBLj1Q2J6QS7Bj8gs3oXsWHAPt0izVQqgmgqc83Updwno4fwmHK7kPiOoRlQk5xL-PLKfGs2oO5rMtqkrmr-BTxouvM0mJE2oqawWf7m_N3LfXicGd5ur5h3HUT7OfbZ-BC1w8anSHMm7k2lh6YpOlJi82bAtkvl_hRlylIH3pnmhi8wH5dibziUpIcC86J58T0HGVXAy1DXDFsFByKIlXtU9NID0pkJU9wR3P7qr7xJk7zNERfTkDCaUL6GbFMyzRqTf88KJ8CV1fyzX-1oaWutjGzkYV9KxMpkH3RiRiQVFh4tNsvWOzJmAsJQs-OJYYb_fReKLj3rFJikdPUnrpq_schxYKo48C_lczL-zNVoAlug-H1TanKQpGrD2i1-yjIb69cu6y1u__fdcVdVLSmpnnBa9SMMUF4AygxzwuE82oIrDOFGG4LBj6xJf7a3P9Dqxu5SxpMDFtTcuzxtN0Asb7Ak"}
+ 
+responseHeaders HTTP/1.1 200 OK
+Cache-Control: public, max-age=0, no-cache
+Content-Type: application/json; charset=utf-8
+Link: <https://pebble:14000/dir>;rel="index"
+Replay-Nonce: WVp7OzYsMlRyGN7qs35xiw
+Date: Fri, 20 Dec 2019 03:18:53 GMT
+Content-Length: 426
+
+ 
+response {
+   "status": "valid",
+   "expires": "2019-12-21T03:18:46Z",
+   "identifiers": [
+      {
+         "type": "dns",
+         "value": "getssl"
+      }
+   ],
+   "finalize": "https://pebble:14000/finalize-order/BiMMa1UDLGbesCtqCV3LiPghv8f5cDlfOiHWBMNae4E",
+   "authorizations": [
+      "https://pebble:14000/authZ/gCXDU5WWw4t1a0XYint-aHVSsvHX6uhemZdrpMYWNkI"
+   ],
+   "certificate": "https://pebble:14000/certZ/6710d1e806bdcfbb"
+}
+ 
+code 200
+ 
+response status = valid
+ 
+CertData is at https://pebble:14000/certZ/6710d1e806bdcfbb
+ 
+url https://pebble:14000/certZ/6710d1e806bdcfbb
+ 
+nonce 6vP-IFz4WX75xABjKNtckQ
+ 
+using KID=https://pebble:14000/my-account/1
+ 
+protected = {"alg": "RS256", "kid": "https://pebble:14000/my-account/1","nonce": "6vP-IFz4WX75xABjKNtckQ", "url": "https://pebble:14000/certZ/6710d1e806bdcfbb"}
+ 
+payload = 
+ 
+header, payload and signature = {"protected": "eyJhbGciOiAiUlMyNTYiLCAia2lkIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL215LWFjY291bnQvMSIsIm5vbmNlIjogIjZ2UC1JRno0V1g3NXhBQmpLTnRja1EiLCAidXJsIjogImh0dHBzOi8vcGViYmxlOjE0MDAwL2NlcnRaLzY3MTBkMWU4MDZiZGNmYmIifQ","payload": "","signature": "LaqNnEGVjYMGg7owTFYKfnXLEmw3jTiZJW2wJTWhk3_zPLTxg-aK5sankD_DbBlj99swq9hpwjPx-yLgMPzVXbKqKlRm6EHVG29W3qTBOlsBA7spyVHJekzijNSjPJL9wHKPCweKRcdco3EOZTPc79S_iKHy2q4saNq2shf5YcxB6ziycPCshfey-T-LEpsdw2VCa2FQ_eUVmTFqBbQfRCvRixp4r4RsWSHB9GMzLwXHJOU0Rho47FNQU48bxyIo5SzFRrVS--t7Sf4NoKSqFXqXHGUe3-E55xs2cAQ2UFSe8iXlIwI1LZyiMDklXZiSrixiZFhTF6aOBiU8qeReSxk8ZbDIoNPZV0Jv9Suukb055FIEAXhy3ioKPo4_k9IwWRHaYUH7CRA-zssGvTiGwXq6KeolNDyge7huUd1ndnii8hgfqFPCdW3nAINXyreuMsyyahEnLNio_p3AAKeeiI5j0FGLeWmdTwKLyiG-_iEibCrvIDzTF7zhr3xdcQWXLQ8iZWEX6px6Fr2KFqGABortgQZvUHB29VL1xKw5eGYuzHa3a5oF6GcI9Jw-Trq1Gk2kA6-mP4M4923I6-i_Nv_1qzVorlRc-Am5ixq1cL1dpYZRRJdX8ON9euAPOeBf_tbTx2eMdXKXO5rOWGSeYvogWq34RYp8ykECFXUR7nY"}
+ 
+responseHeaders HTTP/1.1 200 OK
+Cache-Control: public, max-age=0, no-cache
+Content-Type: application/pem-certificate-chain; charset=utf-8
+Link: <https://pebble:14000/dir>;rel="index"
+Replay-Nonce: QU_CjJhkERE-JvgITzDcdg
+Date: Fri, 20 Dec 2019 03:18:53 GMT
+Transfer-Encoding: chunked
+
+ 
+response -----BEGIN CERTIFICATE-----
+MIIETzCCAzegAwIBAgIIZxDR6Aa9z7swDQYJKoZIhvcNAQELBQAwKDEmMCQGA1UE
+AxMdUGViYmxlIEludGVybWVkaWF0ZSBDQSAwNjA3MWUwHhcNMTkxMjIwMDMxODUz
+WhcNMjQxMjIwMDMxODUzWjARMQ8wDQYDVQQDEwZnZXRzc2wwggIiMA0GCSqGSIb3
+DQEBAQUAA4ICDwAwggIKAoICAQDK4IoEgXruLVSuNp3hUZ+vhalGIEYy7FdYdUCz
++IwUhgLAJY2oU7Pex+MVK1zcPpgLcomDUB1I/RNUVOxW2ehktyqumQtD8r47FiV+
+srBcQ99fCrwy45qtQilegm8MMF8c+RhqWhMUEpSPXvVS+dr6gnG+CmGAyfMYNbMG
+QOJba8d1AgYceoRzNDqaWeNKWQugl7GKR2qwtx+W9FLvezqe/JVNlaFE3AmimOjI
+QB6YuX1no34bnT41VxN+Ipu/MsDxx/BKHuXE57bR+RVmkd6qLU9GbLNLqMxhNyDN
+ufzlbrnUnzuU8qOlczHSvrqmX+yrUXGoe/59N5Nc0eVXEMLT1nitTd5kbBMnxWiJ
+XEGLViWDka0B5JDrk88Xlgt1hXpu5UtUq6V0pGkVHUdeAVq4XnmcpWmwmax6eL/0
+fy5FvKStkqXK8g32YFQ5ncTm2+5yR9DeE+EVqrS558Fu0cBOompalCaEK5By/cQM
+ofDNV0venPr/rRYyfdEWaxzR0C/uGOQg0jaYwSTsYsEueIKhXIt/Tu9Dcw0KQAP+
+OX0P3y+cxy0cKMKtj88v0o5whAnBvgD8x3RTnrHKzDjYXp1RLlxmzpj+EEdUYD0S
+r12Ldo1YJ4AfTc7hUL2kSqJ5Ky5hczHM6vCJhKx1OgTxjnEDrSX2cpKT/EC56Mm7
+6EqDawIDAQABo4GTMIGQMA4GA1UdDwEB/wQEAwIFoDAdBgNVHSUEFjAUBggrBgEF
+BQcDAQYIKwYBBQUHAwIwDAYDVR0TAQH/BAIwADAdBgNVHQ4EFgQUwGowfVIovoKa
+bqgBaaLV5jlM7GQwHwYDVR0jBBgwFoAU8Sgscz/lttO9NIfZYVID8V0raPcwEQYD
+VR0RBAowCIIGZ2V0c3NsMA0GCSqGSIb3DQEBCwUAA4IBAQAiZtSODTQgnlocOeYf
+TzS+DHpriMXrZSxGIHLcjyObsqEL/yCaCVICCxnr7JawaoLLOwmy/FM+hiuf68HA
+TnHaBHbBbxNO0oBAgRf4VZqfRnemaQTXaHSTUtkkGJ4PdF9EbT9q47QRm3LHOErk
+2s3hmeTySADLc9SSQAHnsATdvz6SvRZ5QLIoUrT2dlX7pqT8GmWWC0p7qZ7Z9Y/c
+3ohoKRFUrKSRkTIHN+HHLeQ/0j5eKEZigY6YsOha1WOjSWO6BHZo5N5W9qWR1szU
+QwIgons/geXSP357Qlg6Mo9DhoiP6owGpmW4mSx1vlbR/CNNpUnO/7qcTMpaLEqj
+VDYH
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+MIIDTjCCAjagAwIBAgIIZU0pK5O6OpEwDQYJKoZIhvcNAQELBQAwIDEeMBwGA1UE
+AxMVUGViYmxlIFJvb3QgQ0EgNjQ2NzZlMB4XDTE5MTIyMDAzMTYwNVoXDTQ5MTIy
+MDAzMTYwNVowKDEmMCQGA1UEAxMdUGViYmxlIEludGVybWVkaWF0ZSBDQSAwNjA3
+MWUwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDc5kJQ5ccOe//IJ3wg
+rONbjTurtkSPPHX7qyIMtDSmfeqvg21linqOjsoic9oe9uVLdCNz/diL4qSTwSdv
+RdiuzFWJBet0u/abvPzdmqYAJS6+yEhOPrSRmtUbzEhuHl+xHXvtNOcfPmTjgEHH
+aUdNaeu3lYeTwqR9/evAnmf068SnjzahsQ47wNpOjE1o6xACEaq2H11rmDJHEbao
+7mX23tv1HcRKk5QNx2PT7A+KQkr9zEpP5IOEdq8yZQaErD+l2dZs2KB62GVN/Bjl
+dr5QJMYZKii0AE8k3jo//37IYs4U7dg7TMkdMaxhXAdhAnUak3yZGKZdLvbOYhJW
+BpCTAgMBAAGjgYMwgYAwDgYDVR0PAQH/BAQDAgKEMB0GA1UdJQQWMBQGCCsGAQUF
+BwMBBggrBgEFBQcDAjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBTxKCxzP+W2
+0700h9lhUgPxXSto9zAfBgNVHSMEGDAWgBQD3gUtOtnufrHET6AaZY9wxk6YPTAN
+BgkqhkiG9w0BAQsFAAOCAQEAEpaYPqRcWIFUAA7CR3qFqP5EDWDrUbAWHBGJ8HZY
+6Ooy9e86b4maJ7CD/xWNMOVLfc4I3Z6fQbgW+9J7brLKn+YimEe88G4R1eWWwm7q
+QOh8jt9e/JZ1Hf74IPLVUbERl1Ehr8wWlOK1LshuePy30nCHDlxKqhLtCTv+BYfm
+d8agopumbzEFIBmHWpNpZwIKCXurz2BYasFmVa45kjGly/xmxk4+VcoCFV0+Lope
+ZQLntT+pT6aIJ1bh98zNm9T3eiOTAqPf+F/a6nEt3lRfj8+xd1mFQQgfGTDWaccF
+nKKz0AVqRvN9xG45nHDA/fxL4NNVSknCqYVGHh+ruzbA/w==
+-----END CERTIFICATE-----
+ 
+code 200
+ 
+response written to /root/.getssl/getssl/fullchain.crt
+ 
+response status = valid
+Full certificate saved in /root/.getssl/getssl/fullchain.crt
+Certificate saved in /root/.getssl/getssl/getssl.crt
+ 
+creating an archive copy of current new certs
+ 
+purging old GetSSL archives
+ 
+purging archives in /root/.getssl/getssl/archive/
+ 
+Certificates obtained and archived locally, will now copy to specified locations
+copying domain certificate to /etc/nginx/pki/server.crt
+ 
+copying from /root/.getssl/getssl/getssl.crt to /etc/nginx/pki/server.crt
+ 
+copied /root/.getssl/getssl/getssl.crt to /etc/nginx/pki/server.crt
+copying private key to /etc/nginx/pki/private/server.key
+ 
+copying from /root/.getssl/getssl/getssl.key to /etc/nginx/pki/private/server.key
+ 
+copied /root/.getssl/getssl/getssl.key to /etc/nginx/pki/private/server.key
+copying CA certificate to /etc/nginx/pki/chain.crt
+ 
+copying from /root/.getssl/getssl/chain.crt to /etc/nginx/pki/chain.crt
+ 
+copied /root/.getssl/getssl/chain.crt to /etc/nginx/pki/chain.crt
+reloading SSL services
+ 
+running reload command cp /root/.getssl/getssl/fullchain.crt /root/pebble-ca-bundle.crt && cp /getssl/test/test-config/nginx-ubuntu-ssl /etc/nginx/sites-enabled/default && service nginx restart
+ * Restarting nginx nginx
+   ...done.
+ 
+openssl s_client -servername getssl -connect getssl:443
+getssl - certificate installed OK on server
+certificate obtained for getssl

@@ -14,13 +14,18 @@
 # Default server configuration
 #
 server {
+	listen 80 default_server;
 	listen 5002 default_server;
 	listen [::]:5002 default_server;
 
 	# SSL configuration
 	#
-	listen 5001 ssl default_server;
-	listen [::]:5001 ssl default_server;
+	listen 443 default_server;
+	listen [::]:443 default_server;
+
+	listen 5001 default_server;
+	listen [::]:5001 default_server;
+
 	#
 	# Note: You should disable gzip for SSL traffic.
 	# See: https://bugs.debian.org/773332
