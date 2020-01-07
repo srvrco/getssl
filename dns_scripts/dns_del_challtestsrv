@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Simple script to update the challtestserv mock DNS server when testing DNS responses
+
+fulldomain="${1}"
+
+curl -X POST -d "{\"host\":\"_acme-challenge.${fulldomain}.\"}" http://10.30.50.3:8055/clear-txt
