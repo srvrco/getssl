@@ -293,7 +293,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
     fi
   else # APIv2
     if [[ -n "$code" ]] && [[ ! "$code" == '200' ]] ; then
-      detail=$(json_get "$response" detail)
+      detail=$(echo "$response" | grep "detail" | awk -F\" '{print $4}')
       error_exit "$domain:Challenge error: $code:Detail: $detail"
     fi
   fi
@@ -1428,6 +1428,10 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url")
       fi
 
+      if [[ "$response" == "" ]]; then
+        error_exit "ERROR curl \"$url\" returned nothing"
+      fi
+
       responseHeaders=$(cat "$CURL_HEADER")
       if [[ "$needbase64" && ${response##*()} != "{"* ]]; then
         # response is in base64 too, decode
@@ -1461,6 +1465,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         if [[ $loop_limit -lt 1 ]]; then
           error_exit "500 error from ACME server:  $response"
         fi
+      fi
+      if [[ "$code" -eq 429 ]]; then
+        error_exit "429 rate limited error from ACME server"
       fi
     done
     if [[ $response == *"error:badNonce"* ]]; then
