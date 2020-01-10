@@ -20,8 +20,3 @@ EXPOSE 80 443
 
 # Run eternal loop - for testing
 CMD ["/bin/bash", "-c", "while :; do sleep 10; done"]
-
-# with Pebble
-# docker-compose -f "docker-compose.yml" up -d --build
-# docker exec -it getssl /bin/bash
-# /getssl/test/run-test.sh
