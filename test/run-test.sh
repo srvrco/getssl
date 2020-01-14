@@ -3,7 +3,9 @@
 set -e
 
 # Test setup
-rm -r /root/.getssl
+if [[ -d /root/.getssl ]]; then
+    rm -r /root/.getssl
+fi
 
 wget --no-clobber https://raw.githubusercontent.com/letsencrypt/pebble/master/test/certs/pebble.minica.pem
 # cat /etc/pki/tls/certs/ca-bundle.crt /root/pebble.minica.pem > /root/pebble-ca-bundle.crt
@@ -24,11 +26,12 @@ cp /getssl/test/test-config/getssl-http01.cfg /root/.getssl/getssl/getssl.cfg
 # Test #2 - http-01 forced renewal
 echo Test \#2 - http-01 forced renewal
 
-sleep 5  # There's a race condition if renew too soon (authlink returns "valid" instead of "pending")
+# There's a race condition if renew too soon (authlink returns "valid" instead of "pending")
+echo Sleeping 20s to allow previous validation to expire
+sleep 20
 /getssl/getssl getssl -f
 
 # Test cleanup
-
 rm -r /root/.getssl
 
 # Test #3 - dns-01 verification
@@ -43,5 +46,8 @@ cp /getssl/test/test-config/getssl-dns01.cfg /root/.getssl/getssl/getssl.cfg
 # Test #4 - dns-01 forced renewal
 echo Test \#4 - dns-01 forced renewal
 
-sleep 5  # There's a race condition if renew too soon (authlink returns "valid" instead of "pending")
+# There's a race condition if renew too soon (authlink returns "valid" instead of "pending")
+echo Sleeping 30s to allow previous validation to expire
+sleep 30
+
 /getssl/getssl getssl -f

@@ -193,11 +193,13 @@
 # 2019-11-22 #456 Fix shellcheck issues
 # 2019-11-23 #459 Fix missing chain.crt
 # 2019-12-18 #462 Use POST-as-GET for ACMEv2 endpoints
-# 2020-01-07 #464 and #486 "json was blank" (change all curl request to use POST-as-GET) (2.15)
+# 2020-01-07 #464 and #486 "json was blank" (change all curl request to use POST-as-GET)
+# 2020-01-08 Error and exit if rate limited, exit if curl returns nothing
+# 2020-01-10 Change domain and getssl templates to v2 (2.15)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.14"
+VERSION="2.15"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -212,7 +214,7 @@ CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
 CSR_SUBJECT="/"
 CURL_USERAGENT="${PROGNAME}/${VERSION}"
 DEACTIVATE_AUTH="false"
-DEFAULT_REVOKE_CA="https://acme-v01.api.letsencrypt.org"
+DEFAULT_REVOKE_CA="https://acme-v02.api.letsencrypt.org"
 DNS_EXTRA_WAIT=""
 DNS_WAIT=10
 DOMAIN_KEY_LENGTH=4096
@@ -293,7 +295,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
     fi
   else # APIv2
     if [[ -n "$code" ]] && [[ ! "$code" == '200' ]] ; then
-      detail=$(json_get "$response" detail)
+      detail=$(echo "$response" | grep "detail" | awk -F\" '{print $4}')
       error_exit "$domain:Challenge error: $code:Detail: $detail"
     fi
   fi
@@ -1429,6 +1431,10 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url")
       fi
 
+      if [[ "$response" == "" ]]; then
+        error_exit "ERROR curl \"$url\" returned nothing"
+      fi
+
       responseHeaders=$(cat "$CURL_HEADER")
       if [[ "$needbase64" && ${response##*()} != "{"* ]]; then
         # response is in base64 too, decode
@@ -1462,6 +1468,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         if [[ $loop_limit -lt 1 ]]; then
           error_exit "500 error from ACME server:  $response"
         fi
+      fi
+      if [[ "$code" -eq 429 ]]; then
+        error_exit "429 rate limited error from ACME server"
       fi
     done
     if [[ $response == *"error:badNonce"* ]]; then
@@ -1560,7 +1569,7 @@ write_domain_template() { # write out a template file for a domain.
 	# The staging server is best for testing
 	#CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 	# This server issues full certificates, however has rate limits
-	#CA="https://acme-v01.api.letsencrypt.org"
+	#CA="https://acme-v02.api.letsencrypt.org"
 
 	#PRIVATE_KEY_ALG="rsa"
 
@@ -1613,7 +1622,7 @@ write_getssl_template() { # write out the main template file
 	# The staging server is best for testing (hence set as default)
 	CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 	# This server issues full certificates, however has rate limits
-	#CA="https://acme-v01.api.letsencrypt.org"
+	#CA="https://acme-v02.api.letsencrypt.org"
 
 	#AGREEMENT="$AGREEMENT"
 
@@ -2015,7 +2024,7 @@ if [[ -s "$CERT_FILE" ]]; then
     enddate_s=$(date_epoc "$enddate")
     if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]]; then
       issuer=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null)
-      if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v01.api.letsencrypt.org" ]]; then
+      if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v02.api.letsencrypt.org" ]]; then
         debug "upgrading from fake cert to real"
       else
         info "${DOMAIN}: certificate is valid for more than $RENEW_ALLOW days (until $enddate)"
@@ -2265,7 +2274,7 @@ for d in $alldomains; do
         token=$(json_get "$response" "challenges" "type" "http-01" "token")
         debug token "$token"
         # get the uri from the http component
-        uri=$(json_get "$response" "challenges" "type" "http-01" "url")
+        uri=$(json_get "$response" "challenges" "type" "http-01" "url" | head -n1)
         debug uri "$uri"
       fi
 

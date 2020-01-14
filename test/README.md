@@ -1,13 +1,20 @@
 # Testing
 
-Create virtualenv
-    virtualenv -p python3 .venv
+This directory contains a simple test script which tests creating certificates with Pebble (testing version of the LetsEncrypt server)
 
-Use virtualenv
-    source .venv\Scripts\activate
+Start up pebble, the challdnstest server for DNS challenges
+`docker-compose -f "docker-compose.yml" up -d --build`
 
-Install spotty
-    pip install spotty
+Run the tests
+`docker exec -it getssl /getssl/test/run-test.sh`
 
-Run tests using Dockerfile on an Amazon AWS t2.micro spot instance
-    spotty start
+Debug (need to set CURL_CA_BUNDLE as pebble uses a local certificate, otherwise you get a "unknown API version" error)
+`docker exec -it getssl /bin/bash`
+`export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt`
+`/getssl/getssl -d getssl`
+
+# TODO
+1. Move to BATS (bash automated testing) instead of run-test.sh
+2. Test RHEL6, Debian as well
+3. Test SSH, SFTP
+4. Test wildcards
