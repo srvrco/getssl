@@ -31,6 +31,8 @@ services:
     networks:
       acmenet:
         ipv4_address: 10.30.50.4
+        aliases:
+          - getssl.test
 
 networks:
   acmenet:
