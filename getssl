@@ -1436,10 +1436,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       fi
 
       responseHeaders=$(cat "$CURL_HEADER")
-      if [[ "$needbase64" && ${response##*()} != "{"* ]]; then
-        # response is in base64 too, decode
-        #!FIXME need to use openssl base64 decoder if it exists
-        response=$(echo "$response" | base64 -d)
+      if [[ "$needbase64" && ${response##\()} != "{"* ]]; then
+        # response is in base64 too, decode (append = to otherwise openssl truncates output)
+        response=$(echo "${response}=" | openssl base64 -d)
       fi
 
       debug responseHeaders "$responseHeaders"
