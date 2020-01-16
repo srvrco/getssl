@@ -196,6 +196,7 @@
 # 2020-01-07 #464 and #486 "json was blank" (change all curl request to use POST-as-GET)
 # 2020-01-08 Error and exit if rate limited, exit if curl returns nothing
 # 2020-01-10 Change domain and getssl templates to v2 (2.15)
+# 2020-01-16 Add support for CloudDNS
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
