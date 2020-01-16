@@ -286,14 +286,15 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
   keyauthorization=$3
 
   debug "sending request to ACME server saying we're ready for challenge"
-  send_signed_request "$uri" "{}"
 
   # check response from our request to perform challenge
   if [[ $API -eq 1 ]]; then
+    send_signed_request "$uri" "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
     if [[ -n "$code" ]] && [[ ! "$code" == '202' ]] ; then
       error_exit "$domain:Challenge error: $code"
     fi
   else # APIv2
+    send_signed_request "$uri" "{}"
     if [[ -n "$code" ]] && [[ ! "$code" == '200' ]] ; then
       detail=$(echo "$response" | grep "detail" | awk -F\" '{print $4}')
       error_exit "$domain:Challenge error: $code:Detail: $detail"
@@ -303,7 +304,13 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
   # loop "forever" to keep checking for a response from the ACME server.
   while true ; do
     debug "checking if challenge is complete"
-    send_signed_request "$uri" ""
+    if [[ $API -eq 1 ]]; then
+      if ! get_cr "$uri" ; then
+        error_exit "$domain:Verify error:$code"
+      fi
+    else # APIv2
+      send_signed_request "$uri" ""
+    fi
 
     status=$(json_get "$response" status)
 
