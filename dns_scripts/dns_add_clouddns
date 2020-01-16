@@ -69,7 +69,7 @@ if [[ -z "$domain_id" ]]; then
 fi
 
 # Add challenge record
-txt_record="_acme-challenge.$domain_root."
+txt_record="_acme-challenge.$fulldomain."
 resp=$(curl --silent "${curl_params[@]}" -X POST "$API/record-txt" \
   --data "{\"type\":\"TXT\",\"name\":\"$txt_record\",\"value\":\"$token\",\"domainId\":\"$domain_id\"}")
 

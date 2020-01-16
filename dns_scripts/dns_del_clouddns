@@ -54,7 +54,7 @@ curl_params=( -H "Authorization: Bearer $access_token" -H 'Content-Type: applica
 
 # Get main domain and challenge record
 domain_root=$(echo "$fulldomain" | awk -F\. '{print $(NF-1) FS $NF}')
-txt_record="_acme-challenge.$domain_root."
+txt_record="_acme-challenge.$fulldomain."
 
 # Get domain id
 curl_domainid_body="{\"search\": [{\"name\": \"clientId\", \"operator\": \"eq\", \"value\": \"$client\"}, {\"name\": \"domainName\", \"operator\": \"eq\", \"value\": \"$domain_root.\"}]}"
