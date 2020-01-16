@@ -249,7 +249,7 @@ _REVOKE=0
 _UPGRADE=0
 _UPGRADE_CHECK=1
 _USE_DEBUG=0
-_GREEN=$(tput setaf 2)
+_INFO_COLOR=""
 _RESET=$(tput sgr0)
 config_errors="false"
 LANG=C
@@ -531,7 +531,6 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
   IFS=\; read -r -a copy_locations <<<"$3"
   for to in "${copy_locations[@]}"; do
     info "copying $cert to $to"
-    debug "copying from $from to $to"
     if [[ "${to:0:4}" == "ssh:" ]] ; then
       debug "using scp scp -q $from ${to:4}"
       if ! scp -q "$from" "${to:4}" >/dev/null 2>&1 ; then
@@ -696,7 +695,6 @@ create_order() {
   OrderLink=$(echo "$responseHeaders" | grep -i location | awk '{print $2}'| tr -d '\r\n ')
   debug "Order link $OrderLink"
   FinalizeLink=$(json_get "$response" "finalize")
-  debug "finalise link $FinalizeLink"
   dn=0
   for d in $alldomains; do
     # get authorizations link
@@ -791,7 +789,6 @@ for d in $alldomains; do
         # get the dns component of the ACME response
         # get the token from the dns component
         token=$(json_get "$response" "token" "dns-01")
-        debug token "$token"
         # get the uri from the dns component
         uri=$(json_get "$response" "uri" "dns-01")
         debug uri "$uri"
@@ -799,7 +796,6 @@ for d in $alldomains; do
         debug "authlink response = $response"
         # get the token from the http-01 component
         token=$(json_get "$response" "challenges" "type" "dns-01" "token")
-        debug token "$token"
         # get the uri from the http component
         uri=$(json_get "$response" "challenges" "type" "dns-01" "url")
         debug uri "$uri"
@@ -847,7 +843,6 @@ for d in $alldomains; do
       if [[ $API -eq 1 ]]; then
         # get the token from the http component
         token=$(json_get "$response" "token" "http-01")
-        debug token "$token"
         # get the uri from the http component
         uri=$(json_get "$response" "uri" "http-01")
         debug uri "$uri"
@@ -856,7 +851,6 @@ for d in $alldomains; do
         debug "authlink response = $response"
         # get the token from the http-01 component
         token=$(json_get "$response" "challenges" "type" "http-01" "token")
-        debug token "$token"
         # get the uri from the http component
         uri=$(json_get "$response" "challenges" "type" "http-01" "url" | head -n1)
         debug uri "$uri"
@@ -864,7 +858,6 @@ for d in $alldomains; do
 
       #create signed authorization key from token.
       keyauthorization="$token.$thumbprint"
-      debug keyauthorization "$keyauthorization"
 
       # save variable into temporary file
       echo -n "$keyauthorization" > "$TEMP_DIR/$token"
@@ -1107,12 +1100,10 @@ get_certificate() { # get certificate for csr, if all domains validated.
   gc_cafile=$3      # The filename for the CA certificate
 
   der=$(openssl req -in "$gc_csr" -outform DER | urlbase64)
-  debug "der $der"
   if [[ $API -eq 1 ]]; then
     send_signed_request "$URL_new_cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
     # convert certificate information into correct format and save to file.
     CertData=$(awk ' $1 ~ "^Location" {print $2}' "$CURL_HEADER" |tr -d '\r')
-    debug "certdata location = $CertData"
     if [[ "$CertData" ]] ; then
       echo -----BEGIN CERTIFICATE----- > "$gc_certfile"
       curl --user-agent "$CURL_USERAGENT" --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
@@ -1140,7 +1131,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
       info "The intermediate CA cert is in $gc_cafile"
     fi
   else # APIv2
-    info Requesting Finalize Link
+    info "Requesting Finalize Link"
     send_signed_request "$FinalizeLink" "{\"csr\": \"$der\"}" "needbase64"
     info Requesting Order Link
     debug "order link was $OrderLink"
@@ -1149,11 +1140,10 @@ get_certificate() { # get certificate for csr, if all domains validated.
     while [[ "$response_status" == "processing" ]]; do
       info "ACME server still Processing certificates"
       sleep 5
-      #! FIXME do I need multiple create_orders now I've fixed this!?!?!
       send_signed_request "$OrderLink" ""
     done
+    info "Requesting certificate"
     CertData=$(json_get "$response" "certificate")
-    debug "CertData is at $CertData"
     send_signed_request "$CertData" "" "" "$FULL_CHAIN"
     info "Full certificate saved in $FULL_CHAIN"
     awk -v CERT_FILE="$gc_certfile" -v CA_CERT="$gc_cafile" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$FULL_CHAIN"
@@ -1191,6 +1181,9 @@ get_os() { # function to get the current Operating System
     os="unknown"
   fi
   debug "detected os type = $os"
+  if [[ -f /etc/issue ]]; then
+    debug "Running $(cat /etc/issue)"
+  fi
 }
 
 get_signing_params() { # get signing parameters from key
@@ -1233,18 +1226,14 @@ get_signing_params() { # get signing parameters from key
                | awk '/^pub:/{p=1;next}/^ASN1 OID:/{p=0}p' \
                | tr -d ": \n\r")"
     mid=$(( (${#pubtext} -2) / 2 + 2 ))
-    debug "pubtext = $pubtext"
     x64=$(echo "$pubtext" | cut -b 3-$mid | hex2bin | urlbase64)
     y64=$(echo "$pubtext" | cut -b $((mid+1))-${#pubtext} | hex2bin | urlbase64)
     jwk='{"crv":"'"$crv"'","kty":"EC","x":"'"$x64"'","y":"'"$y64"'"}'
-    debug "jwk $jwk"
   else
     error_exit "Invalid key file"
   fi
   thumbprint="$(printf "%s" "$jwk" | openssl dgst -sha256 -binary | urlbase64)"
   debug "jwk alg = $jwkalg"
-  debug "jwk = $jwk"
-  debug "thumbprint $thumbprint"
 }
 
 graceful_exit() { # normal exit function.
@@ -1283,7 +1272,7 @@ hex2bin() { # Remove spaces, add leading zero, escape as hex string ensuring no 
 
 info() { # write out info as long as the quiet flag has not been set.
   if [[ ${_QUIET} -eq 0 ]]; then
-    echo -n "${_GREEN}"
+    echo -n "${_INFO_COLOR}"
     echo "$@"
     echo -n "${_RESET}"
   fi
@@ -1669,8 +1658,6 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   nonceproblem="true"
   while [[ "$nonceproblem" == "true" ]]; do
 
-    debug nonce "$nonce"
-
     # Build header with just our public key and algorithm information
     header='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"'}'
 
@@ -1694,23 +1681,17 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     sign_string "$(printf '%s' "${protected64}.${payload64}")"  "${ACCOUNT_KEY}" "$signalg"
 
     # Send header + extended header + payload + signature to the acme-server
+    debug "payload = $payload"
     if [[ $API -eq 1 ]]; then
-      debug "header = $header"
-      debug "protected = $protected"
-      debug "payload = $payload"
       body="{\"header\": ${header},"
       body="${body}\"protected\": \"${protected64}\","
       body="${body}\"payload\": \"${payload64}\","
       body="${body}\"signature\": \"${signed64}\"}"
-      debug "header, payload and signature = $body"
     else
-      debug "protected = $protected"
-      debug "payload = $payload"
       body="{"
       body="${body}\"protected\": \"${protected64}\","
       body="${body}\"payload\": \"${payload64}\","
       body="${body}\"signature\": \"${signed64}\"}"
-      debug "header, payload and signature = $body"
     fi
 
     code="500"
@@ -1731,7 +1712,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
 
       responseHeaders=$(cat "$CURL_HEADER")
       if [[ "$needbase64" && ${response##\()} != "{"* ]]; then
-        # response is in base64 too, decode (append = to otherwise openssl truncates output)
+        # response is in base64 too, decode (append = otherwise openssl truncates output)
         response=$(echo "${response}=" | openssl base64 -d)
       fi
 
@@ -1825,6 +1806,7 @@ sign_string() { # sign a string with a given key and algorithm and return urlbas
     elif [[ "${part2:0:4}" == "0242" ]]; then #sha512
       S=$(echo "$part2" | cut -c 5-136)
     else
+      info "print ${str} | openssl dgst -$signalg -sign $key -hex"
       error_exit "error in EC signing couldn't get S from $signed"
     fi
 
@@ -1968,7 +1950,8 @@ while [[ -n ${1+defined} ]]; do
     -h | --help)
       help_message; graceful_exit ;;
     -d | --debug)
-     _USE_DEBUG=1 ;;
+     _USE_DEBUG=1
+     _INFO_COLOR=$(tput setaf 2);;
     -c | --create)
      _CREATE_CONFIG=1 ;;
     -f | --force)
@@ -2450,10 +2433,12 @@ get_certificate "$DOMAIN_DIR/${DOMAIN}.csr" \
                 "$CERT_FILE" \
                 "$CA_CERT"
 if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+  info "Creating order for EC certificate"
   if [[ $API -eq 2 ]]; then
     create_order
     fulfill_challenges
   fi
+  info "obtaining EC certificate."
   get_certificate "$DOMAIN_DIR/${DOMAIN}.ec.csr" \
                   "${CERT_FILE%.*}.ec.crt" \
                   "${CA_CERT%.*}.ec.crt"
