@@ -1,0 +1,23 @@
+FROM ubuntu:xenial
+# bionic = latest 18 version
+
+# Update and install required software
+RUN apt-get update
+# TODO work out why default version of awk fails
+RUN apt-get install -y git curl dnsutils wget gawk nginx-light # linux-libc-dev make gcc binutils
+RUN apt-get install -y vim dos2unix # for debugging
+# TODO test with drill, dig, host
+
+WORKDIR /root
+RUN mkdir /etc/nginx/pki
+RUN mkdir /etc/nginx/pki/private
+COPY ./test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
+
+# BATS (Bash Automated Testings)
+# RUN git clone https://github.com/bats-core/bats-core.git
+# RUN bats-core/install.sh /usr/local
+
+EXPOSE 80 443
+
+# Run eternal loop - for testing
+CMD ["/bin/bash", "-c", "while :; do sleep 10; done"]
