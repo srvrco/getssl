@@ -189,10 +189,18 @@
 # 2019-10-02 issue #425 Case insensitive processing of agreement url because of HTTP/2 (2.12)
 # 2019-10-07 update DNS checks to allow use of CNAMEs (2.13)
 # 2019-11-18 Rebased master onto APIv2 and added Content-Type: application/jose+json (2.14)
+# 2019-11-20 #453 and #454 Add User-Agent to all curl requests
+# 2019-11-22 #456 Fix shellcheck issues
+# 2019-11-23 #459 Fix missing chain.crt
+# 2019-12-18 #462 Use POST-as-GET for ACMEv2 endpoints
+# 2020-01-07 #464 and #486 "json was blank" (change all curl request to use POST-as-GET)
+# 2020-01-08 Error and exit if rate limited, exit if curl returns nothing
+# 2020-01-10 Change domain and getssl templates to v2 (2.15)
+# 2020-01-17 #473 and #477 Don't use POST-as-GET when sending ready for challenge for ACMEv1 (2.16)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.14"
+VERSION="2.16"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -207,7 +215,7 @@ CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
 CSR_SUBJECT="/"
 CURL_USERAGENT="${PROGNAME}/${VERSION}"
 DEACTIVATE_AUTH="false"
-DEFAULT_REVOKE_CA="https://acme-v01.api.letsencrypt.org"
+DEFAULT_REVOKE_CA="https://acme-v02.api.letsencrypt.org"
 DNS_EXTRA_WAIT=""
 DNS_WAIT=10
 DOMAIN_KEY_LENGTH=4096
@@ -280,24 +288,30 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
   keyauthorization=$3
 
   debug "sending request to ACME server saying we're ready for challenge"
-  send_signed_request "$uri" "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
 
   # check response from our request to perform challenge
   if [[ $API -eq 1 ]]; then
-    if [[ ! -z "$code" ]] && [[ ! "$code" == '202' ]] ; then
+    send_signed_request "$uri" "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
+    if [[ -n "$code" ]] && [[ ! "$code" == '202' ]] ; then
       error_exit "$domain:Challenge error: $code"
     fi
   else # APIv2
-    if [[ ! -z "$code" ]] && [[ ! "$code" == '200' ]] ; then
-      error_exit "$domain:Challenge error: $code"
+    send_signed_request "$uri" "{}"
+    if [[ -n "$code" ]] && [[ ! "$code" == '200' ]] ; then
+      detail=$(echo "$response" | grep "detail" | awk -F\" '{print $4}')
+      error_exit "$domain:Challenge error: $code:Detail: $detail"
     fi
   fi
 
   # loop "forever" to keep checking for a response from the ACME server.
   while true ; do
-    debug "checking"
-    if ! get_cr "$uri" ; then
-      error_exit "$domain:Verify error:$code"
+    debug "checking if challenge is complete"
+    if [[ $API -eq 1 ]]; then
+      if ! get_cr "$uri" ; then
+        error_exit "$domain:Verify error:$code"
+      fi
+    else # APIv2
+      send_signed_request "$uri" ""
     fi
 
     status=$(json_get "$response" status)
@@ -469,12 +483,13 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
         # Obtain all locally stored old versions in getssl_versions
         declare -a getssl_versions
         shopt -s nullglob
-        for getssl_version in $0.v*; do
+        for getssl_version in "$0".v*; do
           getssl_versions[${#getssl_versions[@]}]="$getssl_version"
         done
         shopt -u nullglob
         # Explicitly sort the getssl_versions array to make sure
         shopt -s -o noglob
+        # shellcheck disable=SC2207
         IFS=$'\n' getssl_versions=($(sort <<< "${getssl_versions[*]}"))
         shopt -u -o noglob
         # Remove entries until given number of old versions to keep is reached
@@ -500,7 +515,7 @@ clean_up() { # Perform pre-exit housekeeping
   if [[ $VALIDATE_VIA_DNS == "true" ]]; then
     # Tidy up DNS entries if things failed part way though.
     shopt -s nullglob
-    for dnsfile in $TEMP_DIR/dns_verify/*; do
+    for dnsfile in "$TEMP_DIR"/dns_verify/*; do
       # shellcheck source=/dev/null
       . "$dnsfile"
       debug "attempting to clean up DNS entry for $d"
@@ -508,10 +523,10 @@ clean_up() { # Perform pre-exit housekeeping
     done
     shopt -u nullglob
   fi
-  if [[ ! -z "$DOMAIN_DIR" ]]; then
+  if [[ -n "$DOMAIN_DIR" ]]; then
     rm -rf "${TEMP_DIR:?}"
   fi
-  if [[ ! -z "$TEMP_UPGRADE_FILE" ]] && [[ -f "$TEMP_UPGRADE_FILE" ]]; then
+  if [[ -n "$TEMP_UPGRADE_FILE" ]] && [[ -f "$TEMP_UPGRADE_FILE" ]]; then
     rm -f "$TEMP_UPGRADE_FILE"
   fi
 }
@@ -531,7 +546,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
         scp $from ${to:4}"
       fi
       debug "userid $TOKEN_USER_ID"
-      if [[ "$cert" == "challenge token" ]] && [[ ! -z "$TOKEN_USER_ID" ]]; then
+      if [[ "$cert" == "challenge token" ]] && [[ -n "$TOKEN_USER_ID" ]]; then
         servername=$(echo "$to" | awk -F":" '{print $2}')
         tofile=$(echo "$to" | awk -F":" '{print $3}')
         debug "servername $servername"
@@ -592,7 +607,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
           error_exit "cannot copy $from to $to"
         fi
       fi
-      if [[ "$cert" == "challenge token" ]] && [[ ! -z "$TOKEN_USER_ID" ]]; then
+      if [[ "$cert" == "challenge token" ]] && [[ -n "$TOKEN_USER_ID" ]]; then
         chown "$TOKEN_USER_ID" "$to"
       fi
     fi
@@ -742,7 +757,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     else
       res=$($DNS_CHECK_FUNC CNAME "$gad_d" "@$gad_s"| grep "^$gad_d")
     fi
-    if [[ ! -z "$res" ]]; then # domain is a CNAME so get main domain
+    if [[ -n "$res" ]]; then # domain is a CNAME so get main domain
       gad_d=$(echo "$res"| awk '{print $5}' |sed 's/\.$//g')
     fi
     if [[ -z "$gad_s" ]]; then #checking for CNAMEs
@@ -858,10 +873,12 @@ get_certificate() { # get certificate for csr, if all domains validated.
   else # APIv2
     send_signed_request "$FinalizeLink" "{\"csr\": \"$der\"}" "needbase64"
     debug "order link was $OrderLink"
-    cd=$(curl --user-agent "$CURL_USERAGENT" --silent "$OrderLink")
-    CertData=$(json_get "$cd" "certificate")
+    send_signed_request "$OrderLink" ""
+    CertData=$(json_get "$response" "certificate")
     debug "CertData is at $CertData"
-    curl --user-agent "$CURL_USERAGENT" --silent "$CertData" > "$CERT_FILE"
+    send_signed_request "$CertData" "" "" "$FULL_CHAIN"
+    info "Full certificate saved in $FULL_CHAIN"
+    awk -v CERT_FILE="$CERT_FILE" -v CA_CERT="$CA_CERT" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$FULL_CHAIN"
     info "Certificate saved in $CERT_FILE"
   fi
 }
@@ -1158,7 +1175,7 @@ json_get() { # get values from json
     # remove newlines, so it's a single chunk of JSON
     json_data=$( echo "$1" | tr '\n' ' ')
     # if $3 is defined, this is the section which the item is in.
-    if [[ ! -z "$3" ]]; then
+    if [[ -n "$3" ]]; then
       jg_section=$(echo "$json_data" | awk -F"[}]" '{for(i=1;i<=NF;i++){if($i~/\"'"${3}"'\"/){print $i}}}')
       if [[ "$2" == "uri" ]]; then
         jg_subsect=$(echo "$jg_section" | awk -F"[,]" '{for(i=1;i<=NF;i++){if($i~/\"'"${2}"'\"/){print $(i)}}}')
@@ -1178,17 +1195,17 @@ json_get() { # get values from json
       echo "$jg_result"
     fi
   else
-    if [[ ! -z "$6" ]]; then
+    if [[ -n "$6" ]]; then
       full=$(json_awk "$1")
       section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
       echo "$full" | grep "^..${5}\",$section" | awk '{print $2}' | tr -d '"'
-    elif [[ ! -z "$5" ]]; then
+    elif [[ -n "$5" ]]; then
       full=$(json_awk "$1")
       section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
       echo "$full" | grep "^..${2}\",$section" | grep "$5" | awk '{print $2}' | tr -d '"'
-    elif [[ ! -z "$3" ]]; then
+    elif [[ -n "$3" ]]; then
       json_awk "$1" | grep "^..${2}...${3}" | awk '{print $2}' | tr -d '"'
-    elif [[ ! -z "$2" ]]; then
+    elif [[ -n "$2" ]]; then
       json_awk "$1" | grep "^..${2}" | awk '{print $2}' | tr -d '"'
     else
       json_awk "$1"
@@ -1209,7 +1226,7 @@ os_esed() { # Use different sed version for different os types (extended regex)
 purge_archive() { # purge archive of old, invalid, certificates
   arcdir="$1/archive"
   debug "purging archives in ${arcdir}/"
-  for padir in $arcdir/????_??_??_??_??; do
+  for padir in "$arcdir"/????_??_??_??_??; do
     # check each directory
     if [[ -d "$padir" ]]; then
       tstamp=$(basename "$padir"| awk -F"_" '{print $1"-"$2"-"$3" "$4":"$5}')
@@ -1232,7 +1249,7 @@ purge_archive() { # purge archive of old, invalid, certificates
 }
 
 reload_service() {  # Runs a command to reload services ( via ssh if needed)
-  if [[ ! -z "$RELOAD_CMD" ]]; then
+  if [[ -n "$RELOAD_CMD" ]]; then
     info "reloading SSL services"
     if [[ "${RELOAD_CMD:0:4}" == "ssh:" ]] ; then
       sshhost=$(echo "$RELOAD_CMD"| awk -F: '{print $2}')
@@ -1276,16 +1293,16 @@ requires() { # check if required function is available
       if [[ "$i" == "${!#}" ]]; then # if on last variable then exit as not found
         error_exit "this script requires one of: ${*:1:$(($#-1))}"
       fi
-      res=$(which "$i" 2>/dev/null)
+      res=$(command -v "$i" 2>/dev/null)
       debug "checking for $i ... $res"
-      if [[ ! -z "$res" ]]; then # if function found, then set variable to function and return
+      if [[ -n "$res" ]]; then # if function found, then set variable to function and return
         debug "function $i found at $res  - setting ${!#} to $i"
         eval "${!#}=\$i"
         return
       fi
     done
   else # only one value, so check it.
-    result=$(which "$1" 2>/dev/null)
+    result=$(command -v "$1" 2>/dev/null)
     debug "checking for required $1 ... $result"
     if [[ -z "$result" ]]; then
       error_exit "This script requires $1 installed"
@@ -1338,6 +1355,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   url=$1
   payload=$2
   needbase64=$3
+  outfile=$4 # save response into this file (certificate data)
 
   debug url "$url"
 
@@ -1345,6 +1363,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   dp="$TEMP_DIR/curl.dump"
 
   CURL="curl "
+  # shellcheck disable=SC2072
   if [[ "$($CURL -V | head -1 | cut -d' ' -f2 )" > "7.33" ]]; then
     CURL="$CURL --http1.1 "
   fi
@@ -1376,8 +1395,8 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
 
     # Build another header which also contains the previously received nonce and encode it as urlbase64
     if [[ $API -eq 1 ]]; then
-    protected='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "nonce": "'"${nonce}"'", "url": "'"${url}"'"}'
-    protected64="$(printf '%s' "${protected}" | urlbase64)"
+      protected='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "nonce": "'"${nonce}"'", "url": "'"${url}"'"}'
+      protected64="$(printf '%s' "${protected}" | urlbase64)"
     else # APIv2
       if [[ -z "$KID" ]]; then
         debug "KID is blank, so using jwk"
@@ -1386,7 +1405,6 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       else
         debug "using KID=${KID}"
         protected="{\"alg\": \"$jwkalg\", \"kid\": \"$KID\",\"nonce\": \"${nonce}\", \"url\": \"${url}\"}"
-        debug "protected = $protected"
         protected64="$(printf '%s' "${protected}" | urlbase64)"
       fi
     fi
@@ -1417,13 +1435,25 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     code="500"
     loop_limit=5
     while [[ "$code" -eq 500 ]]; do
-      if [[ "$needbase64" ]] ; then
+      if [[ "$outfile" ]] ; then
+        $CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" > "$outfile"
+        response=$(cat "$outfile")
+      elif [[ "$needbase64" ]] ; then
         response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" | urlbase64)
       else
         response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url")
       fi
 
+      if [[ "$response" == "" ]]; then
+        error_exit "ERROR curl \"$url\" returned nothing"
+      fi
+
       responseHeaders=$(cat "$CURL_HEADER")
+      if [[ "$needbase64" && ${response##*()} != "{"* ]]; then
+        # response is in base64 too, decode
+        response=$(echo "$response" | base64 -d 2>&1)
+      fi
+
       debug responseHeaders "$responseHeaders"
       debug response  "$response"
       code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
@@ -1432,7 +1462,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         response_status=$(json_get "$response" status \
                         | head -1| awk -F'"' '{print $2}')
       else # APIv2
-        if [[ ${response##*()} == "{"* ]]; then
+        if [[ "$outfile" && "$response" ]]; then
+          debug "response written to $outfile"
+        elif [[ ${response##*()} == "{"* ]]; then
           response_status=$(json_get "$response" status)
         else
           debug "response not in json format"
@@ -1448,6 +1480,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         if [[ $loop_limit -lt 1 ]]; then
           error_exit "500 error from ACME server:  $response"
         fi
+      fi
+      if [[ "$code" -eq 429 ]]; then
+        error_exit "429 rate limited error from ACME server"
       fi
     done
     if [[ $response == *"error:badNonce"* ]]; then
@@ -1546,7 +1581,7 @@ write_domain_template() { # write out a template file for a domain.
 	# The staging server is best for testing
 	#CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 	# This server issues full certificates, however has rate limits
-	#CA="https://acme-v01.api.letsencrypt.org"
+	#CA="https://acme-v02.api.letsencrypt.org"
 
 	#PRIVATE_KEY_ALG="rsa"
 
@@ -1599,7 +1634,7 @@ write_getssl_template() { # write out the main template file
 	# The staging server is best for testing (hence set as default)
 	CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 	# This server issues full certificates, however has rate limits
-	#CA="https://acme-v01.api.letsencrypt.org"
+	#CA="https://acme-v02.api.letsencrypt.org"
 
 	#AGREEMENT="$AGREEMENT"
 
@@ -1678,11 +1713,11 @@ while [[ -n ${1+defined} ]]; do
       _UPGRADE_CHECK=0 ;;
     -w)
       shift; WORKING_DIR="$1" ;;
-    -* | --*)
+    -*)
       usage
       error_exit "Unknown option $1" ;;
     *)
-      if [[ ! -z $DOMAIN ]]; then
+      if [[ -n $DOMAIN ]]; then
         error_exit "invalid command line $DOMAIN - it appears to contain more than one domain"
       fi
       DOMAIN="$1"
@@ -1765,6 +1800,7 @@ ACCOUNT_KEY="${ACCOUNT_KEY:=$WORKING_DIR/account.key}"
 DOMAIN_STORAGE="${DOMAIN_STORAGE:=$WORKING_DIR}"
 DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
+FULL_CHAIN="$DOMAIN_DIR/fullchain.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
 if [[ "$os" == "mingw" ]]; then
@@ -1790,7 +1826,7 @@ if [[ ${_CHECK_ALL} -eq 1 ]]; then
     error_exit "DOMAIN_STORAGE not found  - $DOMAIN_STORAGE"
   fi
 
-  for dir in ${DOMAIN_STORAGE}/*; do
+  for dir in "${DOMAIN_STORAGE}"/*; do
     if [[ -d "$dir" ]]; then
       debug "Checking $dir"
       cmd="$0 -U" # No update checks when calling recursively
@@ -1838,7 +1874,7 @@ if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
       | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:443" 2>/dev/null \
       | openssl x509 2>/dev/null)
     EX_SANS="www.${DOMAIN}"
-    if [[ ! -z "${EX_CERT}" ]]; then
+    if [[ -n "${EX_CERT}" ]]; then
       EX_SANS=$(echo "$EX_CERT" \
         | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
         | grep -Eo "DNS:[a-zA-Z 0-9.-]*" | sed "s@DNS:$DOMAIN@@g" | grep -v '^$' | cut -c 5-)
@@ -1908,14 +1944,15 @@ if [[ -z "$URL_new_reg" ]]  && [[ -z "$URL_newAccount" ]]; then
   URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
 fi
 
-if [[ ! -z "$URL_new_reg" ]]; then
+if [[ -n "$URL_new_reg" ]]; then
   API=1
-elif [[ ! -z "$URL_newAccount" ]]; then
+elif [[ -n "$URL_newAccount" ]]; then
   API=2
 else
   info "unknown API version"
   graceful_exit
 fi
+debug "Using API v$API"
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
@@ -1924,7 +1961,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
   EX_CERT=$(echo \
     | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null \
     | openssl x509 2>/dev/null)
-  if [[ ! -z "$EX_CERT" ]]; then # if obtained a cert
+  if [[ -n "$EX_CERT" ]]; then # if obtained a cert
     if [[ -s "$CERT_FILE" ]]; then # if local exists
       CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
     else # since local doesn't exist leave empty so that the domain validation will happen
@@ -1999,7 +2036,7 @@ if [[ -s "$CERT_FILE" ]]; then
     enddate_s=$(date_epoc "$enddate")
     if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]]; then
       issuer=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null)
-      if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v01.api.letsencrypt.org" ]]; then
+      if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v02.api.letsencrypt.org" ]]; then
         debug "upgrading from fake cert to real"
       else
         info "${DOMAIN}: certificate is valid for more than $RENEW_ALLOW days (until $enddate)"
@@ -2121,7 +2158,7 @@ if [[ $API -eq 2 ]]; then
   for d in $alldomains; do
     dstring="${dstring}{\"type\":\"dns\",\"value\":\"$d\"},"
   done
-  dstring="${dstring: : -1}]"
+  dstring="${dstring::${#dstring}-1}]"
   # request NewOrder currently seems to ignore the dates ....
   #  dstring="${dstring},\"notBefore\": \"$(date -d "-1 hour" --utc +%FT%TZ)\""
   #  dstring="${dstring},\"notAfter\": \"$(date -d "2 days" --utc +%FT%TZ)\""
@@ -2157,7 +2194,7 @@ for d in $alldomains; do
     debug "completed send_signed_request"
 
     # check if we got a valid response and token, if not then error exit
-    if [[ ! -z "$code" ]] && [[ ! "$code" == '201' ]] ; then
+    if [[ -n "$code" ]] && [[ ! "$code" == '201' ]] ; then
       error_exit "new-authz error: $response"
     fi
   else
@@ -2186,7 +2223,7 @@ for d in $alldomains; do
         uri=$(json_get "$response" "uri" "dns-01")
         debug uri "$uri"
       else # APIv2
-        response=$(curl --user-agent "$CURL_USERAGENT" --silent "${AuthLink[$dn]}" 2>/dev/null)
+        send_signed_request "${AuthLink[$dn]}" ""
         debug "authlink response = $response"
         # get the token from the http-01 component
         token=$(json_get "$response" "challenges" "type" "dns-01" "token")
@@ -2243,13 +2280,13 @@ for d in $alldomains; do
         uri=$(json_get "$response" "uri" "http-01")
         debug uri "$uri"
       else # APIv2
-        response=$(curl --user-agent "$CURL_USERAGENT" --silent "${AuthLink[$dn]}" 2>/dev/null)
+        send_signed_request "${AuthLink[$dn]}" ""
         debug "authlink response = $response"
         # get the token from the http-01 component
         token=$(json_get "$response" "challenges" "type" "http-01" "token")
         debug token "$token"
         # get the uri from the http component
-        uri=$(json_get "$response" "challenges" "type" "http-01" "url")
+        uri=$(json_get "$response" "challenges" "type" "http-01" "url" | head -n1)
         debug uri "$uri"
       fi
 
@@ -2272,7 +2309,7 @@ for d in $alldomains; do
       done
       umask "$ORIG_UMASK"
 
-      wellknown_url="${CHALLENGE_CHECK_TYPE}://$d/.well-known/acme-challenge/$token"
+      wellknown_url="${CHALLENGE_CHECK_TYPE}://${d}/.well-known/acme-challenge/$token"
       debug wellknown_url "$wellknown_url"
 
       if [[ "$SKIP_HTTP_TOKEN_CHECK" == "true" ]]; then
@@ -2325,7 +2362,7 @@ done # end of ... loop through domains for cert ( from SANS list)
 # perform validation if via DNS challenge
 if [[ $VALIDATE_VIA_DNS == "true" ]]; then
   # loop through dns-variable files to check if dns has been changed
-  for dnsfile in $TEMP_DIR/dns_verify/*; do
+  for dnsfile in "$TEMP_DIR"/dns_verify/*; do
     if [[ -e "$dnsfile" ]]; then
       debug "loading DNSfile: $dnsfile"
       # shellcheck source=/dev/null
@@ -2378,7 +2415,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
   fi
 
   # loop through dns-variable files to let the ACME server check the challenges
-  for dnsfile in $TEMP_DIR/dns_verify/*; do
+  for dnsfile in "$TEMP_DIR"/dns_verify/*; do
     if [[ -e "$dnsfile" ]]; then
       debug "loading DNSfile: $dnsfile"
       # shellcheck source=/dev/null
@@ -2421,17 +2458,17 @@ copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
 copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
 copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
 if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-  if [[ ! -z "$DOMAIN_CERT_LOCATION" ]]; then
+  if [[ -n "$DOMAIN_CERT_LOCATION" ]]; then
     copy_file_to_location "ec domain certificate" \
                           "${CERT_FILE%.*}.ec.crt" \
                           "${DOMAIN_CERT_LOCATION%.*}.ec.crt"
   fi
-  if [[ ! -z "$DOMAIN_KEY_LOCATION" ]]; then
+  if [[ -n "$DOMAIN_KEY_LOCATION" ]]; then
   copy_file_to_location "ec private key" \
                         "$DOMAIN_DIR/${DOMAIN}.ec.key" \
                         "${DOMAIN_KEY_LOCATION%.*}.ec.key"
   fi
-  if [[ ! -z "$CA_CERT_LOCATION" ]]; then
+  if [[ -n "$CA_CERT_LOCATION" ]]; then
   copy_file_to_location "ec CA certificate" \
                         "${CA_CERT%.*}.ec.crt" \
                         "${CA_CERT_LOCATION%.*}.ec.crt"
@@ -2439,7 +2476,7 @@ if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
 fi
 
 # if DOMAIN_CHAIN_LOCATION is not blank, then create and copy file.
-if [[ ! -z "$DOMAIN_CHAIN_LOCATION" ]]; then
+if [[ -n "$DOMAIN_CHAIN_LOCATION" ]]; then
   if [[ "$(dirname "$DOMAIN_CHAIN_LOCATION")" == "." ]]; then
     to_location="${DOMAIN_DIR}/${DOMAIN_CHAIN_LOCATION}"
   else
@@ -2453,7 +2490,7 @@ if [[ ! -z "$DOMAIN_CHAIN_LOCATION" ]]; then
   fi
 fi
 # if DOMAIN_KEY_CERT_LOCATION is not blank, then create and copy file.
-if [[ ! -z "$DOMAIN_KEY_CERT_LOCATION" ]]; then
+if [[ -n "$DOMAIN_KEY_CERT_LOCATION" ]]; then
   if [[ "$(dirname "$DOMAIN_KEY_CERT_LOCATION")" == "." ]]; then
     to_location="${DOMAIN_DIR}/${DOMAIN_KEY_CERT_LOCATION}"
   else
@@ -2467,7 +2504,7 @@ if [[ ! -z "$DOMAIN_KEY_CERT_LOCATION" ]]; then
   fi
 fi
 # if DOMAIN_PEM_LOCATION is not blank, then create and copy file.
-if [[ ! -z "$DOMAIN_PEM_LOCATION" ]]; then
+if [[ -n "$DOMAIN_PEM_LOCATION" ]]; then
   if [[ "$(dirname "$DOMAIN_PEM_LOCATION")" == "." ]]; then
     to_location="${DOMAIN_DIR}/${DOMAIN_PEM_LOCATION}"
   else
@@ -2489,8 +2526,8 @@ reload_service
 if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
   debug "in deactivate list is $deactivate_url_list"
   for deactivate_url in $deactivate_url_list; do
-    resp=$(curl --user-agent "$CURL_USERAGENT" "$deactivate_url" 2>/dev/null)
-    d=$(json_get "$resp" "hostname")
+    send_signed_request "$deactivate_url" ""
+    d=$(json_get "$response" "hostname")
     info "deactivating domain $d"
     debug "deactivating  $deactivate_url"
     send_signed_request "$deactivate_url" "{\"resource\": \"authz\", \"status\": \"deactivated\"}"
