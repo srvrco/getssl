@@ -1192,7 +1192,7 @@ json_get() { # get values from json
     if [[ -n "$6" ]]; then
       full=$(json_awk "$1")
       section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
-      echo "$full" | grep "^..${5}\",$section" | awk '{print $2}' | tr -d '"'
+      echo "$full" | grep "^..${5}\",$section\]" | awk '{print $2}' | tr -d '"'
     elif [[ -n "$5" ]]; then
       full=$(json_awk "$1")
       section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
