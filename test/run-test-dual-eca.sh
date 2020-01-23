@@ -22,7 +22,7 @@ echo Test \#1 - http-01 verification
 cp /getssl/test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
 service nginx restart
 /getssl/getssl -c $HOST
-cp /getssl/test/test-config/getssl-http01.cfg /root/.getssl/${HOST}/getssl.cfg
+cp /getssl/test/test-config/getssl-http01-dual-rsa-ecdsa.cfg /root/.getssl/${HOST}/getssl.cfg
 /getssl/getssl -f $HOST
 
 # Test #2 - http-01 forced renewal
@@ -38,7 +38,7 @@ echo Test \#3 - dns-01 verification
 cp /getssl/test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
 service nginx restart
 /getssl/getssl -c $HOST
-cp /getssl/test/test-config/getssl-dns01.cfg /root/.getssl/${HOST}/getssl.cfg
+cp /getssl/test/test-config/getssl-dns01-dual-rsa-ecdsa.cfg /root/.getssl/${HOST}/getssl.cfg
 /getssl/getssl $HOST
 
 # Test #4 - dns-01 forced renewal

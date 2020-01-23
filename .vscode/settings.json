@@ -13,5 +13,15 @@
         "rhel",
         "roboxes",
         "workdir"
-    ]
+    ],
+    "workbench.colorCustomizations": {
+        "titleBar.activeBackground": "#68217a",
+        "titleBar.inactiveBackground": "#68217a99",
+        "titleBar.activeForeground": "#e7e7e7",
+        "titleBar.inactiveForeground": "#e7e7e799",
+        "statusBar.background": "#68217a",
+        "statusBarItem.hoverBackground": "#8a2ca2",
+        "statusBar.foreground": "#e7e7e7"
+    },
+    "peacock.color": "#68217A"
 }
