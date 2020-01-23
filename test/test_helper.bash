@@ -32,6 +32,5 @@ create_certificate() {
     # Create certificate
     cp ${CODE_DIR}/test/test-config/${CONFIG_FILE} ${INSTALL_DIR}/.getssl/${HOST}/getssl.cfg
     run ${CODE_DIR}/getssl $HOST
-    assert_success
     #!FIXME test certificate has been placed in the expected location
 }

@@ -22,10 +22,11 @@ setup() {
 
     init_getssl
     create_certificate
+    assert_success
 }
 
 
-@test "Force renewal of all certificates using HTTP-01" {
+@test "Force renewal of more than 10 certificates using HTTP-01" {
     #!FIXME test certificate has been updated
     run ${CODE_DIR}/getssl -f $HOST
     assert_success

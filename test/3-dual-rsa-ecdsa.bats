@@ -11,11 +11,12 @@ setup() {
 }
 
 
-@test "Create creating dual certificates using HTTP-01 verification" {
+@test "Create dual certificates using HTTP-01 verification" {
     CONFIG_FILE="getssl-http01-dual-rsa-ecdsa.cfg"
     setup_environment
     init_getssl
     create_certificate
+    assert_success
 }
 
 
@@ -25,11 +26,12 @@ setup() {
     assert_success
 }
 
-@test "Create creating dual certificates using DNS-01 verification" {
+@test "Create dual certificates using DNS-01 verification" {
     CONFIG_FILE="getssl-dns01-dual-rsa-ecdsa.cfg"
     setup_environment
     init_getssl
     create_certificate
+    assert_success
 }
 
 
