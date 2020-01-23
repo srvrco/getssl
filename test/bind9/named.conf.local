@@ -1,0 +1,4 @@
+zone "getssl.test" {
+    type master;
+    file "/etc/bind/zones/db.getssl.test";
+};
