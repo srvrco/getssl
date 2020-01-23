@@ -6,7 +6,10 @@ Start up pebble, the challdnstest server for DNS challenges
 `docker-compose -f "docker-compose.yml" up -d --build`
 
 Run the tests
-`docker exec -it getssl /getssl/test/run-test.sh`
+`docker exec -it getssl bats /getssl/test`
+
+Run individual test
+`docker exec -it getssl bats /getssl/test/<filename.bats>`
 
 Debug (need to set CURL_CA_BUNDLE as pebble uses a local certificate, otherwise you get a "unknown API version" error)
 `docker exec -it getssl /bin/bash`
@@ -14,7 +17,6 @@ Debug (need to set CURL_CA_BUNDLE as pebble uses a local certificate, otherwise 
 `/getssl/getssl -d getssl`
 
 # TODO
-1. Move to BATS (bash automated testing) instead of run-test.sh
-2. Test RHEL6, Debian as well
-3. Test SSH, SFTP
-4. Test wildcards
+1. Test RHEL6, Debian as well
+2. Test SSH, SFTP
+3. Test wildcards

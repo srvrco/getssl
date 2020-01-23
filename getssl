@@ -325,15 +325,14 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 
     # if ACME response is that their check gave an invalid response, error exit
     if [[ "$status" == "invalid" ]] ; then
-      err_detail=$(json_get "$response" detail)
-      error_exit "$domain:Verify error:$err_detail"
+      error_exit "$domain:Verify error:$(echo "$response" | grep "detail" | awk -F' "' '{print $3}')"
     fi
 
     # if ACME response is pending ( they haven't completed checks yet) then wait and try again.
     if [[ "$status" == "pending" ]] ; then
       info "Pending"
     else
-      error_exit "$domain:Verify error:$response"
+      error_exit "$domain:Verify error:$(echo "$response" | grep "detail")"
     fi
     debug "sleep 5 secs before testing verify again"
     sleep 5
