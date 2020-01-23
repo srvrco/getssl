@@ -34,7 +34,6 @@ rm -r /root/.getssl
 
 # Test #3 - dns-01 verification
 echo Test \#3 - dns-01 verification
-
 cp /getssl/test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
 service nginx restart
 /getssl/getssl -c $HOST
