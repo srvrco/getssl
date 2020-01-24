@@ -1850,8 +1850,8 @@ if [[ ${_CHECK_ALL} -eq 1 ]]; then
       if [[ ${_QUIET} -eq 1 ]]; then
         cmd="$cmd -q"
       fi
-      # check if $dir looks like a domain name (contains a period)
-      if [[ $(basename "$dir") == *.* ]]; then
+      # check if $dir is a directory with a getssl.cfg in it
+      if [[ -f "$dir/getssl.cfg" ]]; then
         cmd="$cmd -w $WORKING_DIR $(basename "$dir")"
         debug "CMD: $cmd"
         eval "$cmd"
