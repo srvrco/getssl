@@ -1608,13 +1608,13 @@ write_domain_template() { # write out a template file for a domain.
 	# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
 	# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
 	# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
-        # You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
-        # password, host, port (explicitly needed even if using default port 443) and path on the server.
+    # You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
+    # password, host, port (explicitly needed even if using default port 443) and path on the server.
 	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
-        #      'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge')
+    #     'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge')
 
 	#Set USE_SINGLE_ACL="true" to use a single ACL for all checks
 	#USE_SINGLE_ACL="false"
@@ -2212,7 +2212,7 @@ for d in $alldomains; do
       error_exit "new-authz error: $response"
     fi
   else
-    response_status=""
+    send_signed_request "${AuthLink[$dn]}" ""
   fi
 
   if [[ $response_status == "valid" ]]; then
@@ -2237,7 +2237,6 @@ for d in $alldomains; do
         uri=$(json_get "$response" "uri" "dns-01")
         debug uri "$uri"
       else # APIv2
-        send_signed_request "${AuthLink[$dn]}" ""
         debug "authlink response = $response"
         # get the token from the http-01 component
         token=$(json_get "$response" "challenges" "type" "dns-01" "token")
