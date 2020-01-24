@@ -12,21 +12,29 @@ docker-compose -f "docker-compose.yml" up -d --build
 Run the tests
 
 ```sh
-docker exec -it getssl /getssl/test/run-test.sh
+docker exec -it getssl bats /getssl/test
 ```
 
-Debug (need to set `CURL_CA_BUNDLE` as pebble uses a local certificate,
+Run individual test
+
+```sh
+docker exec -it getssl bats /getssl/test/<filename.bats>
+```
+
+Debug (uses helper script to set `CURL_CA_BUNDLE` as pebble uses a local certificate,
 otherwise you get a "unknown API version" error)
 
 ```sh
-docker exec -it getssl /bin/bash
-export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
-/getssl/getssl -d getssl
+docker exec -it getssl-<os> /getssl/test/run-test.sh <config-file>`
+
+eg.
+
+```sh
+docker exec -it getssl-ubuntu18 /getssl/test/run-test.sh getssl-http01.cfg
 ```
 
 ## TODO
 
-1. Move to BATS (bash automated testing) instead of run-test.sh
-2. Test RHEL6, Debian as well
-3. Test SSH, SFTP
-4. Test wildcards
+1. Test RHEL6, Debian as well
+2. Test SSH, SFTP
+3. Test wildcards
