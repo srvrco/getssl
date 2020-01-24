@@ -199,6 +199,7 @@
 # 2020-01-17 #473 and #477 Don't use POST-as-GET when sending ready for challenge for ACMEv1 (2.16)
 # 2020-01-22 #475 and #483 Fix grep regex for >9 subdomains in json_get
 # 2020-01-24 Add support for CloudDNS
+# 2020-01-24 allow file transfer using WebDAV over HTTPS
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -595,6 +596,20 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
 			lcd $fromdir
 			put $fromfile
 			_EOF
+    elif [[ "${to:0:5}" == "davs:" ]] ; then
+      debug "using davs to copy the file from $from"
+      davsuser=$(echo "$to"| awk -F: '{print $2}')
+      davspass=$(echo "$to"| awk -F: '{print $3}')
+      davshost=$(echo "$to"| awk -F: '{print $4}')
+      davsport=$(echo "$to"| awk -F: '{print $5}')
+      davslocn=$(echo "$to"| awk -F: '{print $6}')
+      davsdirn=$(dirname "$davslocn")
+      davsfile=$(basename "$davslocn")
+      fromdir=$(dirname "$from")
+      fromfile=$(basename "$from")
+      debug "davs user=$davsuser - pass=$davspass - host=$davshost port=$davsport dir=$davsdirn file=$davsfile"
+      debug "from dir=$fromdir  file=$fromfile"
+      curl -u "${davsuser}:${davspass}" -T "${fromdir}/${fromfile}" "https://${davshost}:${davsport}${davsdirn}/${davsfile}"
     else
       if ! mkdir -p "$(dirname "$to")" ; then
         error_exit "cannot create ACL directory $(basename "$to")"
@@ -1593,10 +1608,13 @@ write_domain_template() { # write out a template file for a domain.
 	# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
 	# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
 	# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
+        # You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
+        # password, host, port (explicitly needed even if using default port 443) and path on the server.
 	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
+	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
+        #      'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge')
 
 	#Set USE_SINGLE_ACL="true" to use a single ACL for all checks
 	#USE_SINGLE_ACL="false"
