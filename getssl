@@ -196,11 +196,13 @@
 # 2020-01-07 #464 and #486 "json was blank" (change all curl request to use POST-as-GET)
 # 2020-01-08 Error and exit if rate limited, exit if curl returns nothing
 # 2020-01-10 Change domain and getssl templates to v2 (2.15)
-# 2020-01-16 Add support for CloudDNS
+# 2020-01-17 #473 and #477 Don't use POST-as-GET when sending ready for challenge for ACMEv1 (2.16)
+# 2020-01-22 #475 and #483 Fix grep regex for >9 subdomains in json_get
+# 2020-01-24 Add support for CloudDNS
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.15"
+VERSION="2.16"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -287,14 +289,15 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
   keyauthorization=$3
 
   debug "sending request to ACME server saying we're ready for challenge"
-  send_signed_request "$uri" "{}"
 
   # check response from our request to perform challenge
   if [[ $API -eq 1 ]]; then
+    send_signed_request "$uri" "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
     if [[ -n "$code" ]] && [[ ! "$code" == '202' ]] ; then
       error_exit "$domain:Challenge error: $code"
     fi
   else # APIv2
+    send_signed_request "$uri" "{}"
     if [[ -n "$code" ]] && [[ ! "$code" == '200' ]] ; then
       detail=$(echo "$response" | grep "detail" | awk -F\" '{print $4}')
       error_exit "$domain:Challenge error: $code:Detail: $detail"
@@ -304,7 +307,13 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
   # loop "forever" to keep checking for a response from the ACME server.
   while true ; do
     debug "checking if challenge is complete"
-    send_signed_request "$uri" ""
+    if [[ $API -eq 1 ]]; then
+      if ! get_cr "$uri" ; then
+        error_exit "$domain:Verify error:$code"
+      fi
+    else # APIv2
+      send_signed_request "$uri" ""
+    fi
 
     status=$(json_get "$response" status)
 
@@ -1185,7 +1194,7 @@ json_get() { # get values from json
     if [[ -n "$6" ]]; then
       full=$(json_awk "$1")
       section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
-      echo "$full" | grep "^..${5}\",$section" | awk '{print $2}' | tr -d '"'
+      echo "$full" | grep "^..${5}\",$section\]" | awk '{print $2}' | tr -d '"'
     elif [[ -n "$5" ]]; then
       full=$(json_awk "$1")
       section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
@@ -1438,8 +1447,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       responseHeaders=$(cat "$CURL_HEADER")
       if [[ "$needbase64" && ${response##*()} != "{"* ]]; then
         # response is in base64 too, decode
-        #!FIXME need to use openssl base64 decoder if it exists
-        response=$(echo "$response" | base64 -d)
+        response=$(echo "$response" | base64 -d 2>&1)
       fi
 
       debug responseHeaders "$responseHeaders"

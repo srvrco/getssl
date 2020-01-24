@@ -25,10 +25,6 @@ cp /getssl/test/test-config/getssl-http01.cfg /root/.getssl/getssl/getssl.cfg
 
 # Test #2 - http-01 forced renewal
 echo Test \#2 - http-01 forced renewal
-
-# There's a race condition if renew too soon (authlink returns "valid" instead of "pending")
-echo Sleeping 20s to allow previous validation to expire
-sleep 20
 /getssl/getssl getssl -f
 
 # Test cleanup
@@ -36,7 +32,6 @@ rm -r /root/.getssl
 
 # Test #3 - dns-01 verification
 echo Test \#3 - dns-01 verification
-
 cp /getssl/test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
 service nginx restart
 /getssl/getssl -c getssl
@@ -45,9 +40,4 @@ cp /getssl/test/test-config/getssl-dns01.cfg /root/.getssl/getssl/getssl.cfg
 
 # Test #4 - dns-01 forced renewal
 echo Test \#4 - dns-01 forced renewal
-
-# There's a race condition if renew too soon (authlink returns "valid" instead of "pending")
-echo Sleeping 30s to allow previous validation to expire
-sleep 30
-
 /getssl/getssl getssl -f
