@@ -1,8 +1,8 @@
-FROM ubuntu:xenial
+FROM ubuntu:bionic
 # bionic = latest 18 version
 
 # Update and install required software
-RUN apt-get update
+RUN apt-get update --fix-missing
 # TODO work out why default version of awk fails
 RUN apt-get install -y git curl dnsutils wget gawk nginx-light # linux-libc-dev make gcc binutils
 RUN apt-get install -y vim dos2unix # for debugging

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This runs getssl outside of the BATS framework for debugging, etc, against pebble
-# Usage: /getssl/test/run-test.sh getssl-http-01.cfg
+# Usage: /getssl/test/run-test.sh getssl-http01.cfg
 
 CONFIG_FILE=$1
 source /getssl/test/test_helper.bash

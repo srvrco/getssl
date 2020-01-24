@@ -9,13 +9,16 @@ setup_environment() {
     fi
 
     if [ ! -f ${INSTALL_DIR}/pebble.minica.pem ]; then
-        wget --no-clobber https://raw.githubusercontent.com/letsencrypt/pebble/master/test/certs/pebble.minica.pem 2>&1 # | sed 's/^/# /' >&3
-        # cat /etc/pki/tls/certs/ca-bundle.crt /root/pebble.minica.pem > /root/pebble-ca-bundle.crt  # RHEL6?
-        cat /etc/ssl/certs/ca-certificates.crt ${INSTALL_DIR}/pebble.minica.pem > ${INSTALL_DIR}/pebble-ca-bundle.crt
+        wget --no-clobber https://raw.githubusercontent.com/letsencrypt/pebble/master/test/certs/pebble.minica.pem 2>&1
+        CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+        if [ ! -f $CERT_FILE ]; then
+            CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt
+        fi
+        cat $CERT_FILE ${INSTALL_DIR}/pebble.minica.pem > ${INSTALL_DIR}/pebble-ca-bundle.crt
     fi
 
     curl -X POST -d '{"host":"'"$GETSSL_HOST"'", "addresses":["'"$GETSSL_IP"'"]}' http://10.30.50.3:8055/add-a
-    cp ${CODE_DIR}/test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
+    cp ${CODE_DIR}/test/test-config/nginx-ubuntu-no-ssl ${NGINX_CONFIG}
     service nginx restart >&3-
 }
 
