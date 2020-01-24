@@ -197,6 +197,7 @@
 # 2020-01-08 Error and exit if rate limited, exit if curl returns nothing
 # 2020-01-10 Change domain and getssl templates to v2 (2.15)
 # 2020-01-17 #473 and #477 Don't use POST-as-GET when sending ready for challenge for ACMEv1 (2.16)
+# 2020-01-22 #475 and #483 Fix grep regex for >9 subdomains in json_get
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -1192,7 +1193,7 @@ json_get() { # get values from json
     if [[ -n "$6" ]]; then
       full=$(json_awk "$1")
       section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
-      echo "$full" | grep "^..${5}\",$section" | awk '{print $2}' | tr -d '"'
+      echo "$full" | grep "^..${5}\",$section\]" | awk '{print $2}' | tr -d '"'
     elif [[ -n "$5" ]]; then
       full=$(json_awk "$1")
       section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
