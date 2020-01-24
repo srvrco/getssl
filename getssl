@@ -189,11 +189,21 @@
 # 2019-10-02 issue #425 Case insensitive processing of agreement url because of HTTP/2 (2.12)
 # 2019-10-07 update DNS checks to allow use of CNAMEs (2.13)
 # 2019-11-18 Rebased master onto APIv2 and added Content-Type: application/jose+json (2.14)
-# 2020-01-03 allow file transfer using WebDAV over HTTPS (2.15)
+# 2019-11-20 #453 and #454 Add User-Agent to all curl requests
+# 2019-11-22 #456 Fix shellcheck issues
+# 2019-11-23 #459 Fix missing chain.crt
+# 2019-12-18 #462 Use POST-as-GET for ACMEv2 endpoints
+# 2020-01-07 #464 and #486 "json was blank" (change all curl request to use POST-as-GET)
+# 2020-01-08 Error and exit if rate limited, exit if curl returns nothing
+# 2020-01-10 Change domain and getssl templates to v2 (2.15)
+# 2020-01-17 #473 and #477 Don't use POST-as-GET when sending ready for challenge for ACMEv1 (2.16)
+# 2020-01-22 #475 and #483 Fix grep regex for >9 subdomains in json_get
+# 2020-01-24 Add support for CloudDNS
+# 2020-01-24 allow file transfer using WebDAV over HTTPS
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.15"
+VERSION="2.16"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -208,7 +218,7 @@ CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
 CSR_SUBJECT="/"
 CURL_USERAGENT="${PROGNAME}/${VERSION}"
 DEACTIVATE_AUTH="false"
-DEFAULT_REVOKE_CA="https://acme-v01.api.letsencrypt.org"
+DEFAULT_REVOKE_CA="https://acme-v02.api.letsencrypt.org"
 DNS_EXTRA_WAIT=""
 DNS_WAIT=10
 DOMAIN_KEY_LENGTH=4096
@@ -280,24 +290,30 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
   keyauthorization=$3
 
   debug "sending request to ACME server saying we're ready for challenge"
-  send_signed_request "$uri" "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
 
   # check response from our request to perform challenge
   if [[ $API -eq 1 ]]; then
+    send_signed_request "$uri" "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
     if [[ -n "$code" ]] && [[ ! "$code" == '202' ]] ; then
       error_exit "$domain:Challenge error: $code"
     fi
   else # APIv2
+    send_signed_request "$uri" "{}"
     if [[ -n "$code" ]] && [[ ! "$code" == '200' ]] ; then
-      error_exit "$domain:Challenge error: $code"
+      detail=$(echo "$response" | grep "detail" | awk -F\" '{print $4}')
+      error_exit "$domain:Challenge error: $code:Detail: $detail"
     fi
   fi
 
   # loop "forever" to keep checking for a response from the ACME server.
   while true ; do
-    debug "checking"
-    if ! get_cr "$uri" ; then
-      error_exit "$domain:Verify error:$code"
+    debug "checking if challenge is complete"
+    if [[ $API -eq 1 ]]; then
+      if ! get_cr "$uri" ; then
+        error_exit "$domain:Verify error:$code"
+      fi
+    else # APIv2
+      send_signed_request "$uri" ""
     fi
 
     status=$(json_get "$response" status)
@@ -868,10 +884,10 @@ get_certificate() { # get certificate for csr, if all domains validated.
   else # APIv2
     send_signed_request "$FinalizeLink" "{\"csr\": \"$der\"}" "needbase64"
     debug "order link was $OrderLink"
-    cd=$(curl --user-agent "$CURL_USERAGENT" --silent "$OrderLink")
-    CertData=$(json_get "$cd" "certificate")
+    send_signed_request "$OrderLink" ""
+    CertData=$(json_get "$response" "certificate")
     debug "CertData is at $CertData"
-    curl --user-agent "$CURL_USERAGENT" --silent "$CertData" > "$FULL_CHAIN"
+    send_signed_request "$CertData" "" "" "$FULL_CHAIN"
     info "Full certificate saved in $FULL_CHAIN"
     awk -v CERT_FILE="$CERT_FILE" -v CA_CERT="$CA_CERT" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$FULL_CHAIN"
     info "Certificate saved in $CERT_FILE"
@@ -1193,7 +1209,7 @@ json_get() { # get values from json
     if [[ -n "$6" ]]; then
       full=$(json_awk "$1")
       section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
-      echo "$full" | grep "^..${5}\",$section" | awk '{print $2}' | tr -d '"'
+      echo "$full" | grep "^..${5}\",$section\]" | awk '{print $2}' | tr -d '"'
     elif [[ -n "$5" ]]; then
       full=$(json_awk "$1")
       section=$(echo "$full" | grep "\"$2\"" | grep "\"$3\"" | grep "\"$4\"" | awk -F"," '{print $2}')
@@ -1350,6 +1366,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   url=$1
   payload=$2
   needbase64=$3
+  outfile=$4 # save response into this file (certificate data)
 
   debug url "$url"
 
@@ -1389,8 +1406,8 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
 
     # Build another header which also contains the previously received nonce and encode it as urlbase64
     if [[ $API -eq 1 ]]; then
-    protected='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "nonce": "'"${nonce}"'", "url": "'"${url}"'"}'
-    protected64="$(printf '%s' "${protected}" | urlbase64)"
+      protected='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "nonce": "'"${nonce}"'", "url": "'"${url}"'"}'
+      protected64="$(printf '%s' "${protected}" | urlbase64)"
     else # APIv2
       if [[ -z "$KID" ]]; then
         debug "KID is blank, so using jwk"
@@ -1399,7 +1416,6 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       else
         debug "using KID=${KID}"
         protected="{\"alg\": \"$jwkalg\", \"kid\": \"$KID\",\"nonce\": \"${nonce}\", \"url\": \"${url}\"}"
-        debug "protected = $protected"
         protected64="$(printf '%s' "${protected}" | urlbase64)"
       fi
     fi
@@ -1430,13 +1446,25 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     code="500"
     loop_limit=5
     while [[ "$code" -eq 500 ]]; do
-      if [[ "$needbase64" ]] ; then
+      if [[ "$outfile" ]] ; then
+        $CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" > "$outfile"
+        response=$(cat "$outfile")
+      elif [[ "$needbase64" ]] ; then
         response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" | urlbase64)
       else
         response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url")
       fi
 
+      if [[ "$response" == "" ]]; then
+        error_exit "ERROR curl \"$url\" returned nothing"
+      fi
+
       responseHeaders=$(cat "$CURL_HEADER")
+      if [[ "$needbase64" && ${response##*()} != "{"* ]]; then
+        # response is in base64 too, decode
+        response=$(echo "$response" | base64 -d 2>&1)
+      fi
+
       debug responseHeaders "$responseHeaders"
       debug response  "$response"
       code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
@@ -1445,7 +1473,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         response_status=$(json_get "$response" status \
                         | head -1| awk -F'"' '{print $2}')
       else # APIv2
-        if [[ ${response##*()} == "{"* ]]; then
+        if [[ "$outfile" && "$response" ]]; then
+          debug "response written to $outfile"
+        elif [[ ${response##*()} == "{"* ]]; then
           response_status=$(json_get "$response" status)
         else
           debug "response not in json format"
@@ -1461,6 +1491,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         if [[ $loop_limit -lt 1 ]]; then
           error_exit "500 error from ACME server:  $response"
         fi
+      fi
+      if [[ "$code" -eq 429 ]]; then
+        error_exit "429 rate limited error from ACME server"
       fi
     done
     if [[ $response == *"error:badNonce"* ]]; then
@@ -1559,7 +1592,7 @@ write_domain_template() { # write out a template file for a domain.
 	# The staging server is best for testing
 	#CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 	# This server issues full certificates, however has rate limits
-	#CA="https://acme-v01.api.letsencrypt.org"
+	#CA="https://acme-v02.api.letsencrypt.org"
 
 	#PRIVATE_KEY_ALG="rsa"
 
@@ -1615,7 +1648,7 @@ write_getssl_template() { # write out the main template file
 	# The staging server is best for testing (hence set as default)
 	CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 	# This server issues full certificates, however has rate limits
-	#CA="https://acme-v01.api.letsencrypt.org"
+	#CA="https://acme-v02.api.letsencrypt.org"
 
 	#AGREEMENT="$AGREEMENT"
 
@@ -1933,6 +1966,7 @@ else
   info "unknown API version"
   graceful_exit
 fi
+debug "Using API v$API"
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
@@ -2016,7 +2050,7 @@ if [[ -s "$CERT_FILE" ]]; then
     enddate_s=$(date_epoc "$enddate")
     if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]]; then
       issuer=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null)
-      if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v01.api.letsencrypt.org" ]]; then
+      if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v02.api.letsencrypt.org" ]]; then
         debug "upgrading from fake cert to real"
       else
         info "${DOMAIN}: certificate is valid for more than $RENEW_ALLOW days (until $enddate)"
@@ -2138,7 +2172,7 @@ if [[ $API -eq 2 ]]; then
   for d in $alldomains; do
     dstring="${dstring}{\"type\":\"dns\",\"value\":\"$d\"},"
   done
-  dstring="${dstring: : -1}]"
+  dstring="${dstring::${#dstring}-1}]"
   # request NewOrder currently seems to ignore the dates ....
   #  dstring="${dstring},\"notBefore\": \"$(date -d "-1 hour" --utc +%FT%TZ)\""
   #  dstring="${dstring},\"notAfter\": \"$(date -d "2 days" --utc +%FT%TZ)\""
@@ -2266,7 +2300,7 @@ for d in $alldomains; do
         token=$(json_get "$response" "challenges" "type" "http-01" "token")
         debug token "$token"
         # get the uri from the http component
-        uri=$(json_get "$response" "challenges" "type" "http-01" "url")
+        uri=$(json_get "$response" "challenges" "type" "http-01" "url" | head -n1)
         debug uri "$uri"
       fi
 
@@ -2289,7 +2323,7 @@ for d in $alldomains; do
       done
       umask "$ORIG_UMASK"
 
-      wellknown_url="${CHALLENGE_CHECK_TYPE}://$d/.well-known/acme-challenge/$token"
+      wellknown_url="${CHALLENGE_CHECK_TYPE}://${d}/.well-known/acme-challenge/$token"
       debug wellknown_url "$wellknown_url"
 
       if [[ "$SKIP_HTTP_TOKEN_CHECK" == "true" ]]; then

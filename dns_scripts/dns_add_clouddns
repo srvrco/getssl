@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# Need to add your email address and API key to clouddns below or set as env variables
+email=${CLOUDDNS_EMAIL:-''}
+password=${CLOUDDNS_PASSWORD:-''}
+client=${CLOUDDNS_CLIENT:-''}
+
+# This script adds a token to clouddns DNS for the ACME challenge
+# usage dns_add_clouddns "domain name" "token"
+# return codes are;
+# 0 - success
+# 1 - error in input
+# 2 - error within internal processing
+# 3 - error in result ( domain not found in clouddns etc)
+
+fulldomain="${1}"
+token="${2}"
+API='https://admin.vshosting.cloud/clouddns'
+LOGIN_API='https://admin.vshosting.cloud/api/public/auth/login'
+
+# Check initial parameters
+if [[ -z "$fulldomain" ]]; then
+  echo "DNS script requires full domain name as first parameter"
+  exit 1
+fi
+if [[ -z "$token" ]]; then
+  echo "DNS script requires challenge token as second parameter"
+  exit 1
+fi
+if [[ -z "$email" ]]; then
+  echo "CLOUDDNS_EMAIL (email) parameter not set"
+  exit 1
+fi
+if [[ -z "$password" ]]; then
+  echo "CLOUDDNS_PASSWORD (password) parameter not set"
+  exit 1
+fi
+if [[ -z "$client" ]]; then
+  echo "CLOUDDNS_CLIENT (id) parameter not set"
+  exit 1
+fi
+
+# Login to clouddns to get accessToken
+resp=$(curl --silent -X POST -H 'Content-Type: application/json' "$LOGIN_API" \
+  --data "{\"email\": \"$email\", \"password\": \"$password\"}")
+re='"accessToken":"([^,]*)",' # Match access token
+if [[ "${resp// }" =~ $re ]]; then
+  access_token="${BASH_REMATCH[1]}"
+fi
+if [[ -z "$access_token" ]]; then
+  echo 'Could not get access token; check your credentials'
+  exit 3
+fi
+curl_params=( -H "Authorization: Bearer $access_token" -H 'Content-Type: application/json' )
+
+# Get main domain
+resp=$(curl --silent "${curl_params[@]}" -X POST "$API/domain/search" \
+  --data "{\"search\": [{\"name\": \"clientId\", \"operator\": \"eq\", \"value\": \"$client\"}]}")
+domain_slice="$fulldomain"
+while [[ -z "$domain_root" ]]; do
+  if [[ "${resp// }" =~ domainName\":\"$domain_slice ]]; then
+    domain_root="$domain_slice"
+    _debug domain_root "$domain_root"
+  fi
+  domain_slice="${domain_slice#[^\.]*.}"
+done
+
+# Get domain id
+resp=$(curl --silent "${curl_params[@]}" -X POST "$API/domain/search" \
+  --data "{\"search\": [{\"name\": \"clientId\", \"operator\": \"eq\", \"value\": \"$client\"}, {\"name\": \"domainName\", \"operator\": \"eq\", \"value\": \"$domain_root.\"}]}")
+re='domainType":"[^"]*","id":"([^,]*)",' # Match domain id
+if [[ "${resp//[$'\t\r\n ']}" =~ $re ]]; then
+  domain_id="${BASH_REMATCH[1]}"
+fi
+
+if [[ -z "$domain_id" ]]; then
+  echo 'Domain name not found on your CloudDNS account'
+  exit 3
+fi
+
+# Add challenge record
+txt_record="_acme-challenge.$fulldomain."
+resp=$(curl --silent "${curl_params[@]}" -X POST "$API/record-txt" \
+  --data "{\"type\":\"TXT\",\"name\":\"$txt_record\",\"value\":\"$token\",\"domainId\":\"$domain_id\"}")
+
+# If adding record failed (error:) then print error message
+if [[ "${resp// }" == *'"error"'* ]]; then
+  if [[ "${resp// }" == *'"code":4136'* ]]; then
+    echo "DNS challenge token already exists"
+    exit
+  fi
+  re='"message":"([^"]+)"'
+  if [[ "$resp" =~ $re ]]; then
+    echo "Error: DNS challenge not added: ${BASH_REMATCH[1]}"
+    exit 3
+  else
+    echo "Error: DNS challenge not added: unknown error - ${resp}"
+    exit 3
+  fi
+fi
+
+# Publish challenge record
+resp=$(curl --silent "${curl_params[@]}" -X PUT "$API/domain/$domain_id/publish" \
+  --data "{\"soaTtl\":300}")
