@@ -1445,7 +1445,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       responseHeaders=$(cat "$CURL_HEADER")
       if [[ "$needbase64" && ${response##*()} != "{"* ]]; then
         # response is in base64 too, decode
-        response=$(echo "$response" | base64 -d 2>&1)
+        response=$(urlbase64_decode "$response")
       fi
 
       debug responseHeaders "$responseHeaders"
@@ -1559,6 +1559,18 @@ signal_exit() { # Handle trapped signals
 
 urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
   openssl base64 -e | tr -d '\n\r' | os_esed -e 's:=*$::g' -e 'y:+/:-_:'
+}
+
+# base64url decode
+# From: https://gist.github.com/alvis/89007e96f7958f2686036d4276d28e47
+urlbase64_decode() {
+  INPUT=$1 # $(if [ -z "$1" ]; then echo -n $(cat -); else echo -n "$1"; fi)
+  MOD=$(($(echo -n "$INPUT" | wc -c) % 4))
+  PADDING=$(if [ $MOD -eq 2 ]; then echo -n '=='; elif [ $MOD -eq 3 ]; then echo -n '=' ; fi)
+  echo -n "$INPUT$PADDING" |
+    sed s/-/+/g |
+    sed s/_/\\//g |
+    openssl base64 -d -A
 }
 
 usage() { # echos out the program usage
