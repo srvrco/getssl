@@ -23,30 +23,32 @@ services:
     networks:
       acmenet:
         ipv4_address: 10.30.50.3
-  getssl:
+  getssl-ubuntu16:
     build:
       context: .
       dockerfile: test/Dockerfile-ubuntu
-    container_name: getssl
+    container_name: getssl-ubuntu16
     volumes:
       - .:/getssl
+    environment:
+      GETSSL_HOST: ubuntu16.getssl.test
+      GETSSL_IP: 10.30.50.4
     networks:
       acmenet:
         ipv4_address: 10.30.50.4
         aliases:
-          - getssl.test
-          - a.getssl.test
-          - b.getssl.test
-          - c.getssl.test
-          - d.getssl.test
-          - e.getssl.test
-          - f.getssl.test
-          - g.getssl.test
-          - h.getssl.test
-          - i.getssl.test
-          - j.getssl.test
-          - k.getssl.test
-
+          - ubuntu16.getssl.test
+          - a.ubuntu16.getssl.test
+          - b.ubuntu16.getssl.test
+          - c.ubuntu16.getssl.test
+          - d.ubuntu16.getssl.test
+          - e.ubuntu16.getssl.test
+          - f.ubuntu16.getssl.test
+          - g.ubuntu16.getssl.test
+          - h.ubuntu16.getssl.test
+          - i.ubuntu16.getssl.test
+          - j.ubuntu16.getssl.test
+          - k.ubuntu16.getssl.test
 networks:
   acmenet:
     driver: bridge

@@ -22,7 +22,7 @@ setup() {
 
 @test "Force renewal of dual certificates using HTTP-01" {
     #!FIXME test certificate has been updated
-    run ${CODE_DIR}/getssl -f $HOST
+    run ${CODE_DIR}/getssl -f $GETSSL_HOST
     assert_success
 }
 
@@ -37,6 +37,7 @@ setup() {
 
 @test "Force renewal of dual certificates using DNS-01" {
     #!FIXME test certificate has been updated
-    run ${CODE_DIR}/getssl -f $HOST
+    run ${CODE_DIR}/getssl -f $GETSSL_HOST
     assert_success
+    cleanup_environment
 }

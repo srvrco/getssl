@@ -1,6 +1,6 @@
 INSTALL_DIR=/root
 CODE_DIR=/getssl
-HOST=getssl.test
+
 
 setup_environment() {
     # One-off test setup
@@ -14,15 +14,20 @@ setup_environment() {
         cat /etc/ssl/certs/ca-certificates.crt ${INSTALL_DIR}/pebble.minica.pem > ${INSTALL_DIR}/pebble-ca-bundle.crt
     fi
 
-    curl -X POST -d '{"host":"'$HOST'", "addresses":["10.30.50.4"]}' http://10.30.50.3:8055/add-a
+    curl -X POST -d '{"host":"'"$GETSSL_HOST"'", "addresses":["'"$GETSSL_IP"'"]}' http://10.30.50.3:8055/add-a
     cp ${CODE_DIR}/test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
     service nginx restart >&3-
 }
 
 
+cleanup_environment() {
+    curl -X POST -d '{"host":"'"$GETSSL_HOST"'", "addresses":["'"$GETSSL_IP"'"]}' http://10.30.50.3:8055/del-a
+}
+
+
 init_getssl() {
     # Run initialisation (create account key, etc)
-    run ${CODE_DIR}/getssl -c $HOST
+    run ${CODE_DIR}/getssl -c "$GETSSL_HOST"
     assert_success
     [ -d "$INSTALL_DIR/.getssl" ]
 }
@@ -30,7 +35,7 @@ init_getssl() {
 
 create_certificate() {
     # Create certificate
-    cp ${CODE_DIR}/test/test-config/${CONFIG_FILE} ${INSTALL_DIR}/.getssl/${HOST}/getssl.cfg
-    run ${CODE_DIR}/getssl $HOST
+    cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_HOST}/getssl.cfg"
+    run ${CODE_DIR}/getssl "$GETSSL_HOST"
     #!FIXME test certificate has been placed in the expected location
 }

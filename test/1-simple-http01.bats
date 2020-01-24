@@ -22,6 +22,7 @@ setup() {
 
 @test "Force renewal of certificate using HTTP-01" {
     #!FIXME test certificate has been updated
-    run ${CODE_DIR}/getssl -f $HOST
+    run ${CODE_DIR}/getssl -f $GETSSL_HOST
     assert_success
+    cleanup_environment
 }
