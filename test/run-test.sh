@@ -1,43 +1,14 @@
-#! /bin/bash
+#!/usr/bin/env bash
 
-set -e
+# This runs getssl outside of the BATS framework for debugging, etc, against pebble
+# Usage: /getssl/test/run-test.sh getssl-http01.cfg
 
-# Test setup
-if [[ -d /root/.getssl ]]; then
-    rm -r /root/.getssl
-fi
+CONFIG_FILE=$1
+source /getssl/test/test_helper.bash
 
-wget --no-clobber https://raw.githubusercontent.com/letsencrypt/pebble/master/test/certs/pebble.minica.pem
-# cat /etc/pki/tls/certs/ca-bundle.crt /root/pebble.minica.pem > /root/pebble-ca-bundle.crt
-cat /etc/ssl/certs/ca-certificates.crt /root/pebble.minica.pem > /root/pebble-ca-bundle.crt
+setup_environment 3>&1
 export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
 
-curl -X POST -d '{"host":"getssl", "addresses":["10.30.50.4"]}' http://10.30.50.3:8055/add-a
-
-# Test #1 - http-01 verification
-echo Test \#1 - http-01 verification
-
-cp /getssl/test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
-service nginx restart
-/getssl/getssl -c getssl
-cp /getssl/test/test-config/getssl-http01.cfg /root/.getssl/getssl/getssl.cfg
-/getssl/getssl -f getssl
-
-# Test #2 - http-01 forced renewal
-echo Test \#2 - http-01 forced renewal
-/getssl/getssl getssl -f
-
-# Test cleanup
-rm -r /root/.getssl
-
-# Test #3 - dns-01 verification
-echo Test \#3 - dns-01 verification
-cp /getssl/test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
-service nginx restart
-/getssl/getssl -c getssl
-cp /getssl/test/test-config/getssl-dns01.cfg /root/.getssl/getssl/getssl.cfg
-/getssl/getssl getssl
-
-# Test #4 - dns-01 forced renewal
-echo Test \#4 - dns-01 forced renewal
-/getssl/getssl getssl -f
+"${CODE_DIR}/getssl" -c "$GETSSL_HOST" 3>&1
+cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_HOST}/getssl.cfg"
+"${CODE_DIR}/getssl" -f -d "$GETSSL_HOST" 3>&1
