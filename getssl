@@ -200,6 +200,8 @@
 # 2020-01-22 #475 and #483 Fix grep regex for >9 subdomains in json_get
 # 2020-01-24 Add support for CloudDNS
 # 2020-01-24 allow file transfer using WebDAV over HTTPS
+# 2020-01-26 Use urlbase64_decode() instead of base64 -d
+# 2020-01-26 Fix "already verified" error for ACMEv2
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
