@@ -17,6 +17,9 @@ setup() {
     init_getssl
     create_certificate
     assert_success
+    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
+    refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
+    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
 }
 
 
@@ -24,5 +27,8 @@ setup() {
     #!FIXME test certificate has been updated
     run ${CODE_DIR}/getssl -f $GETSSL_HOST
     assert_success
+    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
+    refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
+    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
     cleanup_environment
 }
