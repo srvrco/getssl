@@ -88,6 +88,7 @@ services:
       GETSSL_HOST: ubuntu18-no-gawk.getssl.test
       GETSSL_IP: 10.30.50.6
       NGINX_CONFIG: /etc/nginx/sites-enabled/default
+      TEST_AWK: "yes"
     networks:
       acmenet:
         ipv4_address: 10.30.50.6

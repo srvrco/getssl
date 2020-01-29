@@ -14,8 +14,7 @@ setup() {
 @test "Check getssl fails if an old version of awk is installed" {
     CONFIG_FILE="getssl-http01.cfg"
     # Make sure this test only runs on an image running an old version of awk
-    awk_version=$(awk -V 2>/dev/null) || true
-    if [[ "$awk_version" == "" ]]; then
+    if [[ "$TEST_AWK" != "" ]]; then
         setup_environment
         init_getssl
         create_certificate
