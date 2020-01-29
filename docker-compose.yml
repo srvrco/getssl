@@ -77,6 +77,22 @@ services:
           - i.centos6.getssl.test
           - j.centos6.getssl.test
           - k.centos6.getssl.test
+  getssl-ubuntu18-no-gawk:
+    build:
+      context: .
+      dockerfile: test/Dockerfile-ubuntu18-no-gawk
+    container_name: getssl-ubuntu18-no-gawk
+    volumes:
+      - .:/getssl
+    environment:
+      GETSSL_HOST: ubuntu18-no-gawk.getssl.test
+      GETSSL_IP: 10.30.50.6
+      NGINX_CONFIG: /etc/nginx/sites-enabled/default
+    networks:
+      acmenet:
+        ipv4_address: 10.30.50.6
+        aliases:
+          - ubuntu18-no-gawk.getssl.test
 
 networks:
   acmenet:
