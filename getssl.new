@@ -15,8 +15,6 @@
 
 # For usage, run "getssl -h" or see https://github.com/srvrco/getssl
 
-# ACMEv2 process is documented at https://tools.ietf.org/html/rfc8555#section-7.4
-
 # Revision history:
 # 2016-01-08 Created (v0.1)
 # 2016-01-11 type correction and upload to github (v0.2)
@@ -199,12 +197,6 @@
 # 2020-01-08 Error and exit if rate limited, exit if curl returns nothing
 # 2020-01-10 Change domain and getssl templates to v2 (2.15)
 # 2020-01-17 #473 and #477 Don't use POST-as-GET when sending ready for challenge for ACMEv1 (2.16)
-# 2020-01-22 #475 and #483 Fix grep regex for >9 subdomains in json_get
-# 2020-01-24 Add support for CloudDNS
-# 2020-01-24 allow file transfer using WebDAV over HTTPS
-# 2020-01-26 Use urlbase64_decode() instead of base64 -d
-# 2020-01-26 Fix "already verified" error for ACMEv2
-# 2020-01-29 Check awk new enough to support json_awk
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -258,6 +250,8 @@ _REVOKE=0
 _UPGRADE=0
 _UPGRADE_CHECK=1
 _USE_DEBUG=0
+_INFO_COLOR=""
+_RESET=$(tput sgr0)
 config_errors="false"
 LANG=C
 API=1
@@ -599,20 +593,6 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
 			lcd $fromdir
 			put $fromfile
 			_EOF
-    elif [[ "${to:0:5}" == "davs:" ]] ; then
-      debug "using davs to copy the file from $from"
-      davsuser=$(echo "$to"| awk -F: '{print $2}')
-      davspass=$(echo "$to"| awk -F: '{print $3}')
-      davshost=$(echo "$to"| awk -F: '{print $4}')
-      davsport=$(echo "$to"| awk -F: '{print $5}')
-      davslocn=$(echo "$to"| awk -F: '{print $6}')
-      davsdirn=$(dirname "$davslocn")
-      davsfile=$(basename "$davslocn")
-      fromdir=$(dirname "$from")
-      fromfile=$(basename "$from")
-      debug "davs user=$davsuser - pass=$davspass - host=$davshost port=$davsport dir=$davsdirn file=$davsfile"
-      debug "from dir=$fromdir  file=$fromfile"
-      curl -u "${davsuser}:${davspass}" -T "${fromdir}/${fromfile}" "https://${davshost}:${davsport}${davsdirn}/${davsfile}"
     else
       if ! mkdir -p "$(dirname "$to")" ; then
         error_exit "cannot create ACL directory $(basename "$to")"
@@ -1299,7 +1279,9 @@ hex2bin() { # Remove spaces, add leading zero, escape as hex string ensuring no 
 
 info() { # write out info as long as the quiet flag has not been set.
   if [[ ${_QUIET} -eq 0 ]]; then
+    echo -n "${_INFO_COLOR}"
     echo "$@"
+    echo -n "${_RESET}"
   fi
 }
 
@@ -1639,6 +1621,7 @@ set_server_type() { # uses SERVER_TYPE to set REMOTE_PORT and REMOTE_EXTRA
     REMOTE_PORT=636
   elif [[ ${SERVER_TYPE} =~ ^[0-9]+$ ]]; then
     REMOTE_PORT=${SERVER_TYPE}
+    REMOTE_EXTRA="CUSTOM-HTTP-PORT"
   else
     info "${DOMAIN}: unknown server type \"$SERVER_TYPE\" in SERVER_TYPE"
     config_errors=true
@@ -1735,9 +1718,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       fi
 
       responseHeaders=$(cat "$CURL_HEADER")
-      if [[ "$needbase64" && ${response##*()} != "{"* ]]; then
-        # response is in base64 too, decode
-        response=$(urlbase64_decode "$response")
+      if [[ "$needbase64" && ${response##\()} != "{"* ]]; then
+        # response is in base64 too, decode (append = otherwise openssl truncates output)
+        response=$(echo "${response}=" | openssl base64 -d)
       fi
 
       debug responseHeaders "$responseHeaders"
@@ -1771,9 +1754,6 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         if [[ $loop_limit -lt 1 ]]; then
           error_exit "500 error from ACME server:  $response"
         fi
-      fi
-      if [[ "$code" -eq 429 ]]; then
-        error_exit "429 rate limited error from ACME server"
       fi
     done
     if [[ $response == *"error:badNonce"* ]]; then
@@ -1859,18 +1839,6 @@ urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and 
   openssl base64 -e | tr -d '\n\r' | os_esed -e 's:=*$::g' -e 'y:+/:-_:'
 }
 
-# base64url decode
-# From: https://gist.github.com/alvis/89007e96f7958f2686036d4276d28e47
-urlbase64_decode() {
-  INPUT=$1 # $(if [ -z "$1" ]; then echo -n $(cat -); else echo -n "$1"; fi)
-  MOD=$(($(echo -n "$INPUT" | wc -c) % 4))
-  PADDING=$(if [ $MOD -eq 2 ]; then echo -n '=='; elif [ $MOD -eq 3 ]; then echo -n '=' ; fi)
-  echo -n "$INPUT$PADDING" |
-    sed s/-/+/g |
-    sed s/_/\\//g |
-    openssl base64 -d -A
-}
-
 usage() { # echos out the program usage
   echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet]"\
        "[-Q|--mute] [-u|--upgrade] [-k|--keep #] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] domain"
@@ -1901,13 +1869,10 @@ write_domain_template() { # write out a template file for a domain.
 	# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
 	# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
 	# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
-    # You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
-    # password, host, port (explicitly needed even if using default port 443) and path on the server.
 	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
-    #     'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge')
+	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
 
 	#Set USE_SINGLE_ACL="true" to use a single ACL for all checks
 	#USE_SINGLE_ACL="false"
@@ -1992,7 +1957,8 @@ while [[ -n ${1+defined} ]]; do
     -h | --help)
       help_message; graceful_exit ;;
     -d | --debug)
-     _USE_DEBUG=1 ;;
+     _USE_DEBUG=1
+     _INFO_COLOR=$(tput setaf 2);;
     -c | --create)
      _CREATE_CONFIG=1 ;;
     -f | --force)
@@ -2143,8 +2109,8 @@ if [[ ${_CHECK_ALL} -eq 1 ]]; then
       if [[ ${_QUIET} -eq 1 ]]; then
         cmd="$cmd -q"
       fi
-      # check if $dir is a directory with a getssl.cfg in it
-      if [[ -f "$dir/getssl.cfg" ]]; then
+      # check if $dir looks like a domain name (contains a period)
+      if [[ $(basename "$dir") == *.* ]]; then
         cmd="$cmd -w $WORKING_DIR $(basename "$dir")"
         debug "CMD: $cmd"
         eval "$cmd"
@@ -2260,14 +2226,6 @@ else
   graceful_exit
 fi
 debug "Using API v$API"
-
-# Check if awk supports json_awk (required for ACMEv2)
-if [[ $API -eq 2 ]]; then
-    json_awk_test=$(json_awk '{ "test": "1" }' 2>/dev/null)
-    if [[ "${json_awk_test}" == "" ]]; then
-        error_exit "Your version of awk does not work with json_awk (see http://github.com/step-/JSON.awk/issues/6), please install a newer version of mawk or gawk"
-    fi
-fi
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then

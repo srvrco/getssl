@@ -3,26 +3,15 @@ FROM ubuntu:bionic
 
 # Update and install required software
 RUN apt-get update --fix-missing
-# TODO work out why default version of awk fails
-RUN apt-get install -y git curl dnsutils wget gawk nginx-light # linux-libc-dev make gcc binutils
-RUN apt-get install -y vim dos2unix # for debugging
-# TODO test with drill, dig, host
+RUN apt-get install -y git curl dnsutils wget nginx-light
 
 WORKDIR /root
-RUN mkdir /etc/nginx/pki
-RUN mkdir /etc/nginx/pki/private
-COPY ./test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
-
-# Prevent "Can't load /root/.rnd into RNG" error from openssl
-RUN touch /root/.rnd
 
 # BATS (Bash Automated Testings)
 RUN git clone https://github.com/bats-core/bats-core.git /bats-core
 RUN git clone https://github.com/jasonkarns/bats-support /bats-support
 RUN git clone https://github.com/jasonkarns/bats-assert-1 /bats-assert
 RUN /bats-core/install.sh /usr/local
-
-EXPOSE 80 443
 
 # Run eternal loop - for testing
 CMD ["/bin/bash", "-c", "while :; do sleep 10; done"]

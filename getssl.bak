@@ -15,8 +15,6 @@
 
 # For usage, run "getssl -h" or see https://github.com/srvrco/getssl
 
-# ACMEv2 process is documented at https://tools.ietf.org/html/rfc8555#section-7.4
-
 # Revision history:
 # 2016-01-08 Created (v0.1)
 # 2016-01-11 type correction and upload to github (v0.2)
