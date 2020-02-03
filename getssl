@@ -211,37 +211,49 @@ PROGNAME=${0##*/}
 VERSION="2.16"
 
 # defaults
+# ACCOUNT_EMAIL
+# ACCOUNT_KEY_ALG
 ACCOUNT_KEY_LENGTH=4096
 ACCOUNT_KEY_TYPE="rsa"
-CA="https://acme-staging-v02.api.letsencrypt.org/directory"
+# AGREEMENT?
 CA_CERT_LOCATION=""
+CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 CHALLENGE_CHECK_TYPE="http"
 CHECK_ALL_AUTH_DNS="false"
-CHECK_REMOTE="true"
 CHECK_REMOTE_WAIT=0
+CHECK_REMOTE="true"
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
 CSR_SUBJECT="/"
 CURL_USERAGENT="${PROGNAME}/${VERSION}"
 DEACTIVATE_AUTH="false"
 DEFAULT_REVOKE_CA="https://acme-v02.api.letsencrypt.org"
+# DNS_ADD_COMMAND
+# DNS_DEL_COMMAND
+# DNS_CHECK_FUNC (internal?)
 DNS_EXTRA_WAIT=""
 DNS_WAIT=10
+# DOMAIN_DIR
 DOMAIN_KEY_LENGTH=4096
 DUAL_RSA_ECDSA="false"
+# FORCE_RENEWAL (file)
 GETSSL_IGNORE_CP_PRESERVE="false"
 HTTP_TOKEN_CHECK_WAIT=0
 IGNORE_DIRECTORY_DOMAIN="false"
+OCSP_MUST_STAPLE="false"
 ORIG_UMASK=$(umask)
+# PREVENT_NON_INTERACTIVE_RENEWAL
 PREVIOUSLY_VALIDATED="true"
 PRIVATE_KEY_ALG="rsa"
 PUBLIC_DNS_SERVER=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
 REUSE_PRIVATE_KEY="true"
+# REMOTE_EXTRA
+# REVOKE_CA
 SERVER_TYPE="https"
 SKIP_HTTP_TOKEN_CHECK="false"
+# SSH_OPTS
 SSLCONF="$(openssl version -d 2>/dev/null| cut -d\" -f2)/openssl.cnf"
-OCSP_MUST_STAPLE="false"
 TEMP_UPGRADE_FILE=""
 TOKEN_USER_ID=""
 USE_SINGLE_ACL="false"
@@ -1878,7 +1890,10 @@ usage() { # echos out the program usage
 
 write_domain_template() { # write out a template file for a domain.
   cat > "$1" <<- _EOF_domain_
-	# Uncomment and modify any variables you need
+	# This file is read second (and per domain if running with the -a option)
+    # and overwrites any settings from the first file
+    #
+    # Uncomment and modify any variables you need
 	# see https://github.com/srvrco/getssl/wiki/Config-variables for details
 	# see https://github.com/srvrco/getssl/wiki/Example-config-files for example configs
 	#
@@ -1909,6 +1924,9 @@ write_domain_template() { # write out a template file for a domain.
 	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
     #     'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge')
 
+    # Specify SSH options, e.g. non standard port in SSH_OPTS
+    # SSH_OPTS=-p 12345
+
 	#Set USE_SINGLE_ACL="true" to use a single ACL for all checks
 	#USE_SINGLE_ACL="false"
 
@@ -1935,7 +1953,9 @@ write_domain_template() { # write out a template file for a domain.
 
 write_getssl_template() { # write out the main template file
   cat > "$1" <<- _EOF_getssl_
-	# Uncomment and modify any variables you need
+	# This file is read first and is common to all domains
+    #
+    # Uncomment and modify any variables you need
 	# see https://github.com/srvrco/getssl/wiki/Config-variables for details
 	#
 	# The staging server is best for testing (hence set as default)
@@ -2081,7 +2101,7 @@ if [[ $_REVOKE -eq 1 ]]; then
 fi
 
 # get latest agreement from CA (as default)
-AGREEMENT=$(curl --user-agent "$CURL_USERAGENT" -I "${CA}/terms" 2>/dev/null | awk 'tolower($1) ~ "location:" {print $2}'|tr -d '\r')
+AGREEMENT=$(curl --user-agent "$CURL_USERAGENT" -I "${CA}/terms" 2>/dev/null | awk 'tolower($1) ~ "location:" {print $2}' | tr -d '\r')
 
 # if nothing in command line, print help and exit.
 if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]]; then
