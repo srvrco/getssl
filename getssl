@@ -749,7 +749,7 @@ date_epoc() { # convert the date into epoch time
   elif [[ "$os" == "mac" ]]; then
     date -j -f "%b %d %T %Y %Z" "$1" +%s
   elif [[ "$os" == "busybox" ]]; then
-    de_ld=$(echo "$1" | awk '{print $1 $2 $3 $4}')
+    de_ld=$(echo "$1" | awk '{print $1 " " $2 " " $3 " " $4}')
     date -D "%b %d %T %Y" -d "$de_ld" +%s
   else
     date -d "$1" +%s
