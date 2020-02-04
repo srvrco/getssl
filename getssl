@@ -1756,7 +1756,8 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       debug response  "$response"
       code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
       debug code "$code"
-      if [[ "$code" == 4* && $response != *"error:badNonce"* ]]; then
+      # Check for errors but ignore code 409 (Registration key is already in use) as we always try to register the account
+      if [[ "$code" == 4* && "$code" != "409" && $response != *"error:badNonce"* ]]; then
         detail=$(echo "$response" | grep "detail")
         error_exit "ACME server returned error: ${code}: ${detail}"
       fi
