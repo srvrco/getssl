@@ -25,4 +25,4 @@ RUN /bats-core/install.sh /usr/local
 EXPOSE 80 443
 
 # Run eternal loop - for testing
-CMD ["/bin/bash", "-c", "while :; do sleep 10; done"]
+CMD tail -f /dev/null

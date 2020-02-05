@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+if [ "$GETSSL_HOST" = "alpine.getssl.test" ]; then
+    killall -HUP nginx >&3-
+    sleep 5
+else
+    service nginx restart >&3-
+fi
