@@ -716,7 +716,7 @@ date_epoc() { # convert the date into epoch time
   elif [[ "$os" == "mac" ]]; then
     date -j -f "%b %d %T %Y %Z" "$1" +%s
   elif [[ "$os" == "busybox" ]]; then
-    de_ld=$(echo "$1" | awk '{print $1 $2 $3 $4}')
+    de_ld=$(echo "$1" | awk '{print $1 " " $2 " " $3 " " $4}')
     date -D "%b %d %T %Y" -d "$de_ld" +%s
   else
     date -d "$1" +%s
@@ -1174,7 +1174,7 @@ function scream(msg) {
 
 function tokenize(a1,pq,pb,ESCAPE,CHAR,STRING,NUMBER,KEYWORD,SPACE) {
   SPACE="[[:space:]]+"
-  gsub(/\"[^[:cntrl:]\"\\]*((\\[^u[:cntrl:]]|\\u[0-9a-fA-F]{4})[^[:cntrl:]\"\\]*)*\"|-?(0|[1-9][0-9]*)([.][0-9]*)?([eE][+-]?[0-9]*)?|null|false|true|[[:space:]]+|./, "\n&", a1)
+  gsub(/"[^[:cntrl:]"\\]*((\\[^u[:cntrl:]]|\\u[0-9a-fA-F]{4})[^[:cntrl:]"\\]*)*"|-?(0|[1-9][0-9]*)([.][0-9]*)?([eE][+-]?[0-9]*)?|null|false|true|[[:space:]]+|./, "\n&", a1)
   gsub("\n" SPACE, "\n", a1)
   sub(/^\n/, "", a1)
   ITOKENS=0 # get_token() helper
