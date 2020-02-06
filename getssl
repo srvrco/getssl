@@ -813,7 +813,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     return
   fi
 
-  res=$(nslookup -debug=1 -type=soa -type=ns "$gad_d" ${gad_s})
+  res=$(nslookup -debug -type=soa -type=ns "$gad_d" ${gad_s})
 
   if [[ "$(echo "$res" | grep -c "Non-authoritative")" -gt 0 ]]; then
     # this is a Non-authoritative server, need to check for an authoritative one.
@@ -826,9 +826,9 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
   fi
 
   if [[ -z "$gad_s" ]]; then
-    res=$(nslookup -debug=1 -type=soa -type=ns "$gad_d")
+    res=$(nslookup -debug -type=soa -type=ns "$gad_d")
   else
-    res=$(nslookup -debug=1 -type=soa -type=ns "$gad_d" "${gad_s}")
+    res=$(nslookup -debug -type=soa -type=ns "$gad_d" "${gad_s}")
   fi
 
   if [[ "$(echo "$res" | grep -c "canonical name")" -gt 0 ]]; then
@@ -838,13 +838,17 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     gad_d=$(echo "$res"| awk '$1 ~ "->" {print $2; exit}')
   fi
 
-  all_auth_dns_servers=$(nslookup -type=soa -type=ns "$gad_d" "$gad_s" \
-                        | awk ' $2 ~ "nameserver" {print $4}' \
-                        | sed 's/\.$//g'| tr '\n' ' ')
-  if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
-    primary_ns="$all_auth_dns_servers"
+  if [[ "$gad_d" == "" ]]; then
+    info "Cannot find an authorative DNS server for $1"
   else
-    primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
+    all_auth_dns_servers=$(nslookup -type=soa -type=ns "$gad_d" "$gad_s" \
+                            | awk ' $2 ~ "nameserver" {print $4}' \
+                            | sed 's/\.$//g'| tr '\n' ' ')
+    if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
+        primary_ns="$all_auth_dns_servers"
+    else
+        primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
+    fi
   fi
 }
 
