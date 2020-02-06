@@ -1027,7 +1027,7 @@ info() { # write out info as long as the quiet flag has not been set.
 
 json_awk() { # AWK json converter used for API2 - needs tidying up ;)
 # shellcheck disable=SC2086
-echo $1 | awk '
+echo "$1" | tr -d '\n' | awk '
 {
   tokenize($0) # while(get_token()) {print TOKEN}
   if (0 == parse()) {
@@ -1173,8 +1173,8 @@ function scream(msg) {
 }
 
 function tokenize(a1,pq,pb,ESCAPE,CHAR,STRING,NUMBER,KEYWORD,SPACE) {
-  SPACE="[[:space:]]+"
-  gsub(/"[^[:cntrl:]"\\]*((\\[^u[:cntrl:]]|\\u[0-9a-fA-F]{4})[^[:cntrl:]"\\]*)*"|-?(0|[1-9][0-9]*)([.][0-9]*)?([eE][+-]?[0-9]*)?|null|false|true|[[:space:]]+|./, "\n&", a1)
+  SPACE="[ \t\n]+"
+  gsub(/"[^\001-\037"\\]*((\\[^u\001-\037]|\\u[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])[^\001-\037"\\]*)*"|-?(0|[1-9][0-9]*)([.][0-9]*)?([eE][+-]?[0-9]*)?|null|false|true|[ \t\n]+|./, "\n&", a1)
   gsub("\n" SPACE, "\n", a1)
   sub(/^\n/, "", a1)
   ITOKENS=0 # get_token() helper
