@@ -21,60 +21,6 @@ services:
     networks:
       acmenet:
         ipv4_address: 10.30.50.3
-  getssl-ubuntu18:
-    build:
-      context: .
-      dockerfile: test/Dockerfile-ubuntu18
-    container_name: getssl-ubuntu18
-    volumes:
-      - .:/getssl
-    environment:
-      GETSSL_HOST: ubuntu18.getssl.test
-      GETSSL_IP: 10.30.50.4
-      NGINX_CONFIG: /etc/nginx/sites-enabled/default
-    networks:
-      acmenet:
-        ipv4_address: 10.30.50.4
-        aliases:
-          - ubuntu18.getssl.test
-          - a.ubuntu18.getssl.test
-          - b.ubuntu18.getssl.test
-          - c.ubuntu18.getssl.test
-          - d.ubuntu18.getssl.test
-          - e.ubuntu18.getssl.test
-          - f.ubuntu18.getssl.test
-          - g.ubuntu18.getssl.test
-          - h.ubuntu18.getssl.test
-          - i.ubuntu18.getssl.test
-          - j.ubuntu18.getssl.test
-          - k.ubuntu18.getssl.test
-  getssl-centos6:
-    build:
-      context: .
-      dockerfile: test/Dockerfile-centos6
-    container_name: getssl-centos6
-    volumes:
-      - .:/getssl
-    environment:
-      GETSSL_HOST: centos6.getssl.test
-      GETSSL_IP: 10.30.50.5
-      NGINX_CONFIG: /etc/nginx/conf.d/default.conf
-    networks:
-      acmenet:
-        ipv4_address: 10.30.50.5
-        aliases:
-          -   centos6.getssl.test
-          - a.centos6.getssl.test
-          - b.centos6.getssl.test
-          - c.centos6.getssl.test
-          - d.centos6.getssl.test
-          - e.centos6.getssl.test
-          - f.centos6.getssl.test
-          - g.centos6.getssl.test
-          - h.centos6.getssl.test
-          - i.centos6.getssl.test
-          - j.centos6.getssl.test
-          - k.centos6.getssl.test
   getssl-alpine:
     build:
       context: .
@@ -84,11 +30,11 @@ services:
       - .:/getssl
     environment:
       GETSSL_HOST: alpine.getssl.test
-      GETSSL_IP: 10.30.50.6
+      GETSSL_IP: 10.30.50.10
       NGINX_CONFIG: /etc/nginx/conf.d/default.conf
     networks:
       acmenet:
-        ipv4_address: 10.30.50.6
+        ipv4_address: 10.30.50.10
         aliases:
           -   alpine.getssl.test
           - a.alpine.getssl.test
@@ -102,23 +48,116 @@ services:
           - i.alpine.getssl.test
           - j.alpine.getssl.test
           - k.alpine.getssl.test
-  getssl-ubuntu18-no-gawk:
+  getssl-centos6:
     build:
       context: .
-      dockerfile: test/Dockerfile-ubuntu18-no-gawk
-    container_name: getssl-ubuntu18-no-gawk
+      dockerfile: test/Dockerfile-centos6
+    container_name: getssl-centos6
     volumes:
       - .:/getssl
     environment:
-      GETSSL_HOST: ubuntu18-no-gawk.getssl.test
-      GETSSL_IP: 10.30.50.7
-      NGINX_CONFIG: /etc/nginx/sites-enabled/default
-      TEST_AWK: "yes"
+      GETSSL_HOST: centos6.getssl.test
+      GETSSL_IP: 10.30.50.11
+      NGINX_CONFIG: /etc/nginx/conf.d/default.conf
     networks:
       acmenet:
-        ipv4_address: 10.30.50.7
+        ipv4_address: 10.30.50.11
         aliases:
-          - ubuntu18-no-gawk.getssl.test
+          -   centos6.getssl.test
+          - a.centos6.getssl.test
+          - b.centos6.getssl.test
+          - c.centos6.getssl.test
+          - d.centos6.getssl.test
+          - e.centos6.getssl.test
+          - f.centos6.getssl.test
+          - g.centos6.getssl.test
+          - h.centos6.getssl.test
+          - i.centos6.getssl.test
+          - j.centos6.getssl.test
+          - k.centos6.getssl.test
+  getssl-debian:
+    build:
+      context: .
+      dockerfile: test/Dockerfile-debian
+    container_name: getssl-debian
+    volumes:
+      - .:/getssl
+    environment:
+      GETSSL_HOST: debian.getssl.test
+      GETSSL_IP: 10.30.50.12
+      NGINX_CONFIG: /etc/nginx/sites-enabled/default
+    networks:
+      acmenet:
+        ipv4_address: 10.30.50.12
+        aliases:
+          -   debian.getssl.test
+          - a.debian.getssl.test
+          - b.debian.getssl.test
+          - c.debian.getssl.test
+          - d.debian.getssl.test
+          - e.debian.getssl.test
+          - f.debian.getssl.test
+          - g.debian.getssl.test
+          - h.debian.getssl.test
+          - i.debian.getssl.test
+          - j.debian.getssl.test
+          - k.debian.getssl.test
+  getssl-ubuntu:
+    build:
+      context: .
+      dockerfile: test/Dockerfile-ubuntu
+    container_name: getssl-ubuntu
+    volumes:
+      - .:/getssl
+    environment:
+      GETSSL_HOST: ubuntu.getssl.test
+      GETSSL_IP: 10.30.50.13
+      NGINX_CONFIG: /etc/nginx/sites-enabled/default
+    networks:
+      acmenet:
+        ipv4_address: 10.30.50.13
+        aliases:
+          - ubuntu.getssl.test
+          - a.ubuntu.getssl.test
+          - b.ubuntu.getssl.test
+          - c.ubuntu.getssl.test
+          - d.ubuntu.getssl.test
+          - e.ubuntu.getssl.test
+          - f.ubuntu.getssl.test
+          - g.ubuntu.getssl.test
+          - h.ubuntu.getssl.test
+          - i.ubuntu.getssl.test
+          - j.ubuntu.getssl.test
+          - k.ubuntu.getssl.test
+  getssl-ubuntu18:
+    build:
+      context: .
+      dockerfile: test/Dockerfile-ubuntu18
+    container_name: getssl-ubuntu18
+    volumes:
+      - .:/getssl
+    environment:
+      GETSSL_HOST: ubuntu18.getssl.test
+      GETSSL_IP: 10.30.50.14
+      NGINX_CONFIG: /etc/nginx/sites-enabled/default
+    networks:
+      acmenet:
+        ipv4_address: 10.30.50.14
+        aliases:
+          - ubuntu18.getssl.test
+          - a.ubuntu18.getssl.test
+          - b.ubuntu18.getssl.test
+          - c.ubuntu18.getssl.test
+          - d.ubuntu18.getssl.test
+          - e.ubuntu18.getssl.test
+          - f.ubuntu18.getssl.test
+          - g.ubuntu18.getssl.test
+          - h.ubuntu18.getssl.test
+          - i.ubuntu18.getssl.test
+          - j.ubuntu18.getssl.test
+          - k.ubuntu18.getssl.test
+
+
 
 networks:
   acmenet:
