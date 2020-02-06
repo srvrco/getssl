@@ -102,6 +102,33 @@ services:
           - i.alpine.getssl.test
           - j.alpine.getssl.test
           - k.alpine.getssl.test
+  getssl-debian:
+    build:
+      context: .
+      dockerfile: test/Dockerfile-debian
+    container_name: getssl-debian
+    volumes:
+      - .:/getssl
+    environment:
+      GETSSL_HOST: debian.getssl.test
+      GETSSL_IP: 10.30.50.7
+      NGINX_CONFIG: /etc/nginx/sites-enabled/default
+    networks:
+      acmenet:
+        ipv4_address: 10.30.50.7
+        aliases:
+          -   debian.getssl.test
+          - a.debian.getssl.test
+          - b.debian.getssl.test
+          - c.debian.getssl.test
+          - d.debian.getssl.test
+          - e.debian.getssl.test
+          - f.debian.getssl.test
+          - g.debian.getssl.test
+          - h.debian.getssl.test
+          - i.debian.getssl.test
+          - j.debian.getssl.test
+          - k.debian.getssl.test
   getssl-ubuntu18-no-gawk:
     build:
       context: .
@@ -111,12 +138,12 @@ services:
       - .:/getssl
     environment:
       GETSSL_HOST: ubuntu18-no-gawk.getssl.test
-      GETSSL_IP: 10.30.50.7
+      GETSSL_IP: 10.30.50.8
       NGINX_CONFIG: /etc/nginx/sites-enabled/default
       TEST_AWK: "yes"
     networks:
       acmenet:
-        ipv4_address: 10.30.50.7
+        ipv4_address: 10.30.50.8
         aliases:
           - ubuntu18-no-gawk.getssl.test
 
