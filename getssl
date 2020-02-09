@@ -205,10 +205,12 @@
 # 2020-01-26 Use urlbase64_decode() instead of base64 -d
 # 2020-01-26 Fix "already verified" error for ACMEv2
 # 2020-01-29 Check awk new enough to support json_awk
+# 2020-02-05 Fix epoch_date for busybox
+# 2020-02-06 Bugfixes for json_awk and nslookup to support old awk versions (2.17)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.16"
+VERSION="2.17"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
