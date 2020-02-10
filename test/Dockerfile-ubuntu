@@ -1,11 +1,17 @@
-FROM ubuntu:bionic
-# bionic = latest 18 version
+FROM ubuntu:latest
+
+# Note this image uses mawk1.3
 
 # Update and install required software
 RUN apt-get update --fix-missing
 RUN apt-get install -y git curl dnsutils wget nginx-light
+RUN apt-get install -y vim dos2unix # for debugging
+# TODO test with drill, dig, host
 
 WORKDIR /root
+
+# Prevent "Can't load /root/.rnd into RNG" error from openssl
+RUN touch /root/.rnd
 
 # BATS (Bash Automated Testings)
 RUN git clone https://github.com/bats-core/bats-core.git /bats-core
@@ -14,4 +20,4 @@ RUN git clone https://github.com/jasonkarns/bats-assert-1 /bats-assert
 RUN /bats-core/install.sh /usr/local
 
 # Run eternal loop - for testing
-CMD ["/bin/bash", "-c", "while :; do sleep 10; done"]
+CMD tail -f /dev/null

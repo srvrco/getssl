@@ -18,8 +18,8 @@ setup_environment() {
     fi
 
     curl -X POST -d '{"host":"'"$GETSSL_HOST"'", "addresses":["'"$GETSSL_IP"'"]}' http://10.30.50.3:8055/add-a
-    cp ${CODE_DIR}/test/test-config/nginx-ubuntu-no-ssl ${NGINX_CONFIG}
-    service nginx restart >&3-
+    cp ${CODE_DIR}/test/test-config/nginx-ubuntu-no-ssl "${NGINX_CONFIG}"
+    /getssl/test/restart-nginx
 }
 
 
@@ -40,5 +40,4 @@ create_certificate() {
     # Create certificate
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_HOST}/getssl.cfg"
     run ${CODE_DIR}/getssl "$GETSSL_HOST"
-    #!FIXME test certificate has been placed in the expected location
 }
