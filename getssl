@@ -207,6 +207,7 @@
 # 2020-01-29 Check awk new enough to support json_awk
 # 2020-02-05 Fix epoch_date for busybox
 # 2020-02-06 Bugfixes for json_awk and nslookup to support old awk versions (2.17)
+# 2020-02-11 Add SCP_OPTS and SFTP_OPTS
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -549,8 +550,9 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
     info "copying $cert to $to"
     debug "copying from $from to $to"
     if [[ "${to:0:4}" == "ssh:" ]] ; then
-      debug "using scp scp -q $from ${to:4}"
-      if ! scp -q "$from" "${to:4}" >/dev/null 2>&1 ; then
+      debug "using scp -q $SCP_OPTS $from ${to:4}"
+      # shellcheck disable=SC2086
+      if ! scp -q $SCP_OPTS "$from" "${to:4}" >/dev/null 2>&1 ; then
         error_exit "problem copying file to the server using scp.
         scp $from ${to:4}"
       fi
@@ -596,9 +598,10 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       ftpfile=$(basename "$ftplocn")
       fromdir=$(dirname "$from")
       fromfile=$(basename "$from")
-      debug "sftp user=$ftpuser - pass=$ftppass - host=$ftphost dir=$ftpdirn file=$ftpfile"
+      debug "sftp $SFTP_OPTS user=$ftpuser - pass=$ftppass - host=$ftphost dir=$ftpdirn file=$ftpfile"
       debug "from dir=$fromdir  file=$fromfile"
-      sshpass -p "$ftppass" sftp "$ftpuser@$ftphost" <<- _EOF
+      # shellcheck disable=SC2086
+      sshpass -p "$ftppass" sftp $SFTP_OPTS "$ftpuser@$ftphost" <<- _EOF
 			cd $ftpdirn
 			lcd $fromdir
 			put $fromfile
