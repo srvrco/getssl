@@ -1607,15 +1607,19 @@ usage() { # echos out the program usage
 
 write_domain_template() { # write out a template file for a domain.
   cat > "$1" <<- _EOF_domain_
+	# This file is read second (and per domain if running with the -a option)
+	# and overwrites any settings from the first file
+	#
 	# Uncomment and modify any variables you need
 	# see https://github.com/srvrco/getssl/wiki/Config-variables for details
 	# see https://github.com/srvrco/getssl/wiki/Example-config-files for example configs
 	#
 	# The staging server is best for testing
-	#CA="https://acme-staging-v02.api.letsencrypt.org/directory"
+	#CA="https://acme-staging-v02.api.letsencrypt.org/"
 	# This server issues full certificates, however has rate limits
 	#CA="https://acme-v02.api.letsencrypt.org"
 
+	# Private key types - can be rsa, prime256v1, secp384r1 or secp521r1
 	#PRIVATE_KEY_ALG="rsa"
 
 	# Additional domains - this could be multiple domains / subdomains in a comma separated list
@@ -1630,15 +1634,19 @@ write_domain_template() { # write out a template file for a domain.
 	# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
 	# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
 	# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
-    # You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
-    # password, host, port (explicitly needed even if using default port 443) and path on the server.
+	# You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
+	# password, host, port (explicitly needed even if using default port 443) and path on the server.
 	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
-    #     'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge')
+	#     'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge')
 
-	#Set USE_SINGLE_ACL="true" to use a single ACL for all checks
+	# Specify SSH options, e.g. non standard port in SSH_OPTS
+	# (Can also use SCP_OPTS and SFTP_OPTS)
+	# SSH_OPTS=-p 12345
+
+	# Set USE_SINGLE_ACL="true" to use a single ACL for all checks
 	#USE_SINGLE_ACL="false"
 
 	# Location for all your certs, these can either be on the server (full path name)
@@ -1652,6 +1660,9 @@ write_domain_template() { # write out a template file for a domain.
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
 
+	# Uncomment the following line to prevent non-interactive renewals of certificates
+	#PREVENT_NON_INTERACTIVE_RENEWAL="true"
+
 	# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
 	# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
 	# will be checked for certificate expiry and also will be checked after
@@ -1664,27 +1675,36 @@ write_domain_template() { # write out a template file for a domain.
 
 write_getssl_template() { # write out the main template file
   cat > "$1" <<- _EOF_getssl_
+	# This file is read first and is common to all domains
+	#
 	# Uncomment and modify any variables you need
 	# see https://github.com/srvrco/getssl/wiki/Config-variables for details
 	#
 	# The staging server is best for testing (hence set as default)
-	CA="https://acme-staging-v02.api.letsencrypt.org/directory"
+	CA="https://acme-staging-v02.api.letsencrypt.org"
 	# This server issues full certificates, however has rate limits
 	#CA="https://acme-v02.api.letsencrypt.org"
 
+	# The agreement that must be signed with the CA, if not defined the default agreement will be used
 	#AGREEMENT="$AGREEMENT"
 
 	# Set an email address associated with your account - generally set at account level rather than domain.
 	#ACCOUNT_EMAIL="me@example.com"
 	ACCOUNT_KEY_LENGTH=4096
 	ACCOUNT_KEY="$WORKING_DIR/account.key"
+
+	# Account key and private key types - can be rsa, prime256v1, secp384r1 or secp521r1
+	#ACCOUNT_KEY_TYPE="rsa"
 	PRIVATE_KEY_ALG="rsa"
 	#REUSE_PRIVATE_KEY="true"
 
 	# The command needed to reload apache / nginx or whatever you use
 	#RELOAD_CMD=""
+
 	# The time period within which you want to allow renewal of a certificate
 	#  this prevents hitting some of the rate limits.
+	# Creating a file called FORCE_RENEWAL in the domain directory allows one-off overrides
+	# of this setting
 	RENEW_ALLOW="30"
 
 	# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
