@@ -210,10 +210,11 @@
 # 2020-02-11 Add SCP_OPTS and SFTP_OPTS
 # 2020-02-12 Fix for DUAL_RSA_ECDSA not working with ACMEv2 (#334, #474, #502)
 # 2020-02-12 Fix #424 - Sporadic "error in EC signing couldn't get R from ..." (2.18)
+# 2020-02-12 Fix "Registration key already in use" (2.19)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.18"
+VERSION="2.19"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -1753,7 +1754,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       debug response  "$response"
       code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
       debug code "$code"
-      if [[ "$code" == 4* && $response != *"error:badNonce"* ]]; then
+      if [[ "$code" == 4* && $response != *"error:badNonce"* && "$code" != 409 ]]; then
         detail=$(echo "$response" | grep "detail")
         error_exit "ACME server returned error: ${code}: ${detail}"
       fi
