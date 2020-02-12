@@ -297,11 +297,12 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
   domain=$2
   keyauthorization=$3
 
-  debug "sending request to ACME server saying we're ready for challenge"
+  info "sending request to ACME server saying we're ready for challenge"
 
   # check response from our request to perform challenge
   if [[ $API -eq 1 ]]; then
     send_signed_request "$uri" "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
+
     if [[ -n "$code" ]] && [[ ! "$code" == '202' ]] ; then
       error_exit "$domain:Challenge error: $code"
     fi
@@ -315,7 +316,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 
   # loop "forever" to keep checking for a response from the ACME server.
   while true ; do
-    debug "checking if challenge is complete"
+    info "checking if challenge is complete"
     if [[ $API -eq 1 ]]; then
       if ! get_cr "$uri" ; then
         error_exit "$domain:Verify error:$code"
@@ -548,7 +549,6 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
   IFS=\; read -r -a copy_locations <<<"$3"
   for to in "${copy_locations[@]}"; do
     info "copying $cert to $to"
-    debug "copying from $from to $to"
     if [[ "${to:0:4}" == "ssh:" ]] ; then
       debug "using scp -q $SCP_OPTS $from ${to:4}"
       # shellcheck disable=SC2086
@@ -715,6 +715,29 @@ create_key() { # create a domain key (if it doesn't already exist)
   fi
 }
 
+create_order() {
+  dstring="["
+  for d in $alldomains; do
+    dstring="${dstring}{\"type\":\"dns\",\"value\":\"$d\"},"
+  done
+  dstring="${dstring::${#dstring}-1}]"
+  # request NewOrder currently seems to ignore the dates ....
+  #  dstring="${dstring},\"notBefore\": \"$(date -d "-1 hour" --utc +%FT%TZ)\""
+  #  dstring="${dstring},\"notAfter\": \"$(date -d "2 days" --utc +%FT%TZ)\""
+  request="{\"identifiers\": $dstring}"
+  send_signed_request "$URL_newOrder" "$request"
+  OrderLink=$(echo "$responseHeaders" | grep -i location | awk '{print $2}'| tr -d '\r\n ')
+  debug "Order link $OrderLink"
+  FinalizeLink=$(json_get "$response" "finalize")
+  dn=0
+  for d in $alldomains; do
+    # get authorizations link
+    AuthLink[$dn]=$(json_get "$response" "identifiers" "value" "$d" "authorizations" "x")
+    debug "authorizations link for $d - ${AuthLink[$dn]}"
+    ((dn++))
+  done
+}
+
 date_epoc() { # convert the date into epoch time
   if [[ "$os" == "bsd" ]]; then
     date -j -f "%b %d %T %Y %Z" "$1" +%s
@@ -755,6 +778,258 @@ error_exit() { # give error message on error exit
   echo -e "${PROGNAME}: ${1:-"Unknown Error"}" >&2
   clean_up
   exit 1
+}
+
+fulfill_challenges() {
+dn=0
+for d in $alldomains; do
+  # $d is domain in current loop, which is number $dn for ACL
+  info "Verifying $d"
+  if [[ "$USE_SINGLE_ACL" == "true" ]]; then
+    DOMAIN_ACL="${ACL[0]}"
+  else
+    DOMAIN_ACL="${ACL[$dn]}"
+  fi
+
+  # request a challenge token from ACME server
+  if [[ $API -eq 1 ]]; then
+    request="{\"resource\":\"new-authz\",\"identifier\":{\"type\":\"dns\",\"value\":\"$d\"}}"
+    send_signed_request "$URL_new_authz" "$request"
+    debug "completed send_signed_request"
+
+    # check if we got a valid response and token, if not then error exit
+    if [[ -n "$code" ]] && [[ ! "$code" == '201' ]] ; then
+      error_exit "new-authz error: $response"
+    fi
+  else
+    send_signed_request "${AuthLink[$dn]}" ""
+  fi
+
+  if [[ $response_status == "valid" ]]; then
+    info "$d is already validated"
+    if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
+      deactivate_url="$(echo "$responseHeaders" | awk ' $1 ~ "^Location" {print $2}' | tr -d "\r")"
+      deactivate_url_list+=" $deactivate_url "
+      debug "url added to deactivate list ${deactivate_url}"
+      debug "deactivate list is now $deactivate_url_list"
+    fi
+    # increment domain-counter
+    ((dn++))
+  else
+    PREVIOUSLY_VALIDATED="false"
+    if [[ $VALIDATE_VIA_DNS == "true" ]]; then # set up the correct DNS token for verification
+      if [[ $API -eq 1 ]]; then
+        # get the dns component of the ACME response
+        # get the token from the dns component
+        token=$(json_get "$response" "token" "dns-01")
+        # get the uri from the dns component
+        uri=$(json_get "$response" "uri" "dns-01")
+        debug uri "$uri"
+      else # APIv2
+        debug "authlink response = $response"
+        # get the token from the http-01 component
+        token=$(json_get "$response" "challenges" "type" "dns-01" "token")
+        # get the uri from the http component
+        uri=$(json_get "$response" "challenges" "type" "dns-01" "url")
+        debug uri "$uri"
+      fi
+
+      keyauthorization="$token.$thumbprint"
+      debug keyauthorization "$keyauthorization"
+
+      #create signed authorization key from token.
+      auth_key=$(printf '%s' "$keyauthorization" | openssl dgst -sha256 -binary \
+                 | openssl base64 -e \
+                 | tr -d '\n\r' \
+                 | sed -e 's:=*$::g' -e 'y:+/:-_:')
+      debug auth_key "$auth_key"
+
+      debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
+      if ! eval "$DNS_ADD_COMMAND" "$d" "$auth_key" ; then
+        error_exit "DNS_ADD_COMMAND failed for domain $d"
+      fi
+
+      # find a primary / authoritative DNS server for the domain
+      if [[ -z "$AUTH_DNS_SERVER" ]]; then
+        get_auth_dns "$d"
+      else
+        primary_ns="$AUTH_DNS_SERVER"
+      fi
+      debug primary_ns "$primary_ns"
+
+      # make a directory to hold pending dns-challenges
+      if [[ ! -d "$TEMP_DIR/dns_verify" ]]; then
+        mkdir "$TEMP_DIR/dns_verify"
+      fi
+
+      # generate a file with the current variables for the dns-challenge
+      cat > "$TEMP_DIR/dns_verify/$d" <<- _EOF_
+			token="${token}"
+			uri="${uri}"
+			keyauthorization="${keyauthorization}"
+			d="${d}"
+			primary_ns="${primary_ns}"
+			auth_key="${auth_key}"
+			_EOF_
+
+    else      # set up the correct http token for verification
+      if [[ $API -eq 1 ]]; then
+        # get the token from the http component
+        token=$(json_get "$response" "token" "http-01")
+        # get the uri from the http component
+        uri=$(json_get "$response" "uri" "http-01")
+        debug uri "$uri"
+      else # APIv2
+        send_signed_request "${AuthLink[$dn]}" ""
+        debug "authlink response = $response"
+        # get the token from the http-01 component
+        token=$(json_get "$response" "challenges" "type" "http-01" "token")
+        # get the uri from the http component
+        uri=$(json_get "$response" "challenges" "type" "http-01" "url" | head -n1)
+        debug uri "$uri"
+      fi
+
+      #create signed authorization key from token.
+      keyauthorization="$token.$thumbprint"
+
+      # save variable into temporary file
+      echo -n "$keyauthorization" > "$TEMP_DIR/$token"
+      chmod 644 "$TEMP_DIR/$token"
+
+      # copy to token to acme challenge location
+      umask 0022
+      IFS=\; read -r -a token_locations <<<"$DOMAIN_ACL"
+      for t_loc in "${token_locations[@]}"; do
+        debug "copying file from $TEMP_DIR/$token to ${t_loc}"
+        copy_file_to_location "challenge token" \
+                              "$TEMP_DIR/$token" \
+                              "${t_loc}/$token"
+      done
+      umask "$ORIG_UMASK"
+
+      wellknown_url="${CHALLENGE_CHECK_TYPE}://${d}/.well-known/acme-challenge/$token"
+      debug wellknown_url "$wellknown_url"
+
+      if [[ "$SKIP_HTTP_TOKEN_CHECK" == "true" ]]; then
+        info "SKIP_HTTP_TOKEN_CHECK=true so not checking that token is working correctly"
+      else
+        sleep "$HTTP_TOKEN_CHECK_WAIT"
+        # check that we can reach the challenge ourselves, if not, then error
+        if [[ ! "$(curl --user-agent "$CURL_USERAGENT" -k --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
+          error_exit "for some reason could not reach $wellknown_url - please check it manually"
+        fi
+      fi
+
+      check_challenge_completion "$uri" "$d" "$keyauthorization"
+
+      debug "remove token from ${DOMAIN_ACL}"
+      IFS=\; read -r -a token_locations <<<"$DOMAIN_ACL"
+      for t_loc in "${token_locations[@]}"; do
+        if [[ "${t_loc:0:4}" == "ssh:" ]] ; then
+          sshhost=$(echo "${t_loc}"| awk -F: '{print $2}')
+          command="rm -f ${t_loc:(( ${#sshhost} + 5))}/${token:?}"
+          debug "running following command to remove token"
+          debug "ssh $SSH_OPTS $sshhost ${command}"
+          # shellcheck disable=SC2029
+          # shellcheck disable=SC2086
+          ssh $SSH_OPTS "$sshhost" "${command}" 1>/dev/null 2>&1
+          rm -f "${TEMP_DIR:?}/${token:?}"
+        elif [[ "${t_loc:0:4}" == "ftp:" ]] ; then
+          debug "using ftp to remove token file"
+          ftpuser=$(echo "${t_loc}"| awk -F: '{print $2}')
+          ftppass=$(echo "${t_loc}"| awk -F: '{print $3}')
+          ftphost=$(echo "${t_loc}"| awk -F: '{print $4}')
+          ftplocn=$(echo "${t_loc}"| awk -F: '{print $5}')
+          debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost location=$ftplocn"
+          ftp -n <<- EOF
+					open $ftphost
+					user $ftpuser $ftppass
+					cd $ftplocn
+					delete ${token:?}
+					EOF
+        else
+          rm -f "${t_loc:?}/${token:?}"
+        fi
+      done
+    fi
+    # increment domain-counter
+    ((dn++))
+  fi
+done # end of ... loop through domains for cert ( from SANS list)
+
+# perform validation if via DNS challenge
+if [[ $VALIDATE_VIA_DNS == "true" ]]; then
+  # loop through dns-variable files to check if dns has been changed
+  for dnsfile in "$TEMP_DIR"/dns_verify/*; do
+    if [[ -e "$dnsfile" ]]; then
+      debug "loading DNSfile: $dnsfile"
+      # shellcheck source=/dev/null
+      . "$dnsfile"
+
+      # check for token at public dns server, waiting for a valid response.
+      for ns in $primary_ns; do
+        debug "checking dns at $ns"
+        ntries=0
+        check_dns="fail"
+        while [[ "$check_dns" == "fail" ]]; do
+          if [[ "$os" == "cygwin" ]]; then
+            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
+                           | grep ^_acme -A2\
+                           | grep '"'|awk -F'"' '{ print $2}')
+          elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
+            check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${d}" "@${ns}" \
+                           | grep '300 IN TXT'|awk -F'"' '{ print $2}')
+          elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
+            check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${d}" "${ns}" \
+                           | grep 'descriptive text'|awk -F'"' '{ print $2}')
+          else
+            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
+                           | grep 'text ='|awk -F'"' '{ print $2}')
+          fi
+          debug "expecting  $auth_key"
+          debug "${ns} gave ... $check_result"
+
+          if [[ "$check_result" == *"$auth_key"* ]]; then
+            check_dns="success"
+          else
+            if [[ $ntries -lt 100 ]]; then
+              ntries=$(( ntries + 1 ))
+              info "checking DNS at ${ns} for ${d}. Attempt $ntries/100 gave wrong result, "\
+                "waiting $DNS_WAIT secs before checking again"
+              sleep $DNS_WAIT
+            else
+              debug "dns check failed - removing existing value"
+              error_exit "checking _acme-challenge.${d} gave $check_result not $auth_key"
+            fi
+          fi
+        done
+      done
+    fi
+  done
+
+  if [[ "$DNS_EXTRA_WAIT" -gt 0 && "$PREVIOUSLY_VALIDATED" != "true" ]]; then
+    info "sleeping $DNS_EXTRA_WAIT seconds before asking the ACME-server to check the dns"
+    sleep "$DNS_EXTRA_WAIT"
+  fi
+
+  # loop through dns-variable files to let the ACME server check the challenges
+  for dnsfile in "$TEMP_DIR"/dns_verify/*; do
+    if [[ -e "$dnsfile" ]]; then
+      debug "loading DNSfile: $dnsfile"
+      # shellcheck source=/dev/null
+      . "$dnsfile"
+
+      check_challenge_completion "$uri" "$d" "$keyauthorization"
+
+      debug "remove DNS entry"
+      eval "$DNS_DEL_COMMAND" "$d" "$auth_key"
+      # remove $dnsfile after each loop.
+      rm -f "$dnsfile"
+    fi
+  done
+fi
+# end of ... perform validation if via DNS challenge
+#end of varify each domain.
 }
 
 get_auth_dns() { # get the authoritative dns server for a domain (sets primary_ns )
@@ -859,12 +1134,10 @@ get_certificate() { # get certificate for csr, if all domains validated.
   gc_cafile=$3      # The filename for the CA certificate
 
   der=$(openssl req -in "$gc_csr" -outform DER | urlbase64)
-  debug "der $der"
   if [[ $API -eq 1 ]]; then
     send_signed_request "$URL_new_cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
     # convert certificate information into correct format and save to file.
     CertData=$(awk ' $1 ~ "^Location" {print $2}' "$CURL_HEADER" |tr -d '\r')
-    debug "certdata location = $CertData"
     if [[ "$CertData" ]] ; then
       echo -----BEGIN CERTIFICATE----- > "$gc_certfile"
       curl --user-agent "$CURL_USERAGENT" --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
@@ -892,15 +1165,23 @@ get_certificate() { # get certificate for csr, if all domains validated.
       info "The intermediate CA cert is in $gc_cafile"
     fi
   else # APIv2
+    info "Requesting Finalize Link"
     send_signed_request "$FinalizeLink" "{\"csr\": \"$der\"}" "needbase64"
+    info Requesting Order Link
     debug "order link was $OrderLink"
     send_signed_request "$OrderLink" ""
+    # if ACME response is processing (still creating certificates) then wait and try again.
+    while [[ "$response_status" == "processing" ]]; do
+      info "ACME server still Processing certificates"
+      sleep 5
+      send_signed_request "$OrderLink" ""
+    done
+    info "Requesting certificate"
     CertData=$(json_get "$response" "certificate")
-    debug "CertData is at $CertData"
     send_signed_request "$CertData" "" "" "$FULL_CHAIN"
     info "Full certificate saved in $FULL_CHAIN"
-    awk -v CERT_FILE="$CERT_FILE" -v CA_CERT="$CA_CERT" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$FULL_CHAIN"
-    info "Certificate saved in $CERT_FILE"
+    awk -v CERT_FILE="$gc_certfile" -v CA_CERT="$gc_cafile" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$FULL_CHAIN"
+    info "Certificate saved in $gc_certfile"
   fi
 }
 
@@ -934,6 +1215,9 @@ get_os() { # function to get the current Operating System
     os="unknown"
   fi
   debug "detected os type = $os"
+  if [[ -f /etc/issue ]]; then
+    debug "Running $(cat /etc/issue)"
+  fi
 }
 
 get_signing_params() { # get signing parameters from key
@@ -976,18 +1260,14 @@ get_signing_params() { # get signing parameters from key
                | awk '/^pub:/{p=1;next}/^ASN1 OID:/{p=0}p' \
                | tr -d ": \n\r")"
     mid=$(( (${#pubtext} -2) / 2 + 2 ))
-    debug "pubtext = $pubtext"
     x64=$(echo "$pubtext" | cut -b 3-$mid | hex2bin | urlbase64)
     y64=$(echo "$pubtext" | cut -b $((mid+1))-${#pubtext} | hex2bin | urlbase64)
     jwk='{"crv":"'"$crv"'","kty":"EC","x":"'"$x64"'","y":"'"$y64"'"}'
-    debug "jwk $jwk"
   else
     error_exit "Invalid key file"
   fi
   thumbprint="$(printf "%s" "$jwk" | openssl dgst -sha256 -binary | urlbase64)"
   debug "jwk alg = $jwkalg"
-  debug "jwk = $jwk"
-  debug "thumbprint $thumbprint"
 }
 
 graceful_exit() { # normal exit function.
@@ -1409,8 +1689,6 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   nonceproblem="true"
   while [[ "$nonceproblem" == "true" ]]; do
 
-    debug nonce "$nonce"
-
     # Build header with just our public key and algorithm information
     header='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"'}'
 
@@ -1434,23 +1712,17 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     sign_string "$(printf '%s' "${protected64}.${payload64}")"  "${ACCOUNT_KEY}" "$signalg"
 
     # Send header + extended header + payload + signature to the acme-server
+    debug "payload = $payload"
     if [[ $API -eq 1 ]]; then
-      debug "header = $header"
-      debug "protected = $protected"
-      debug "payload = $payload"
       body="{\"header\": ${header},"
       body="${body}\"protected\": \"${protected64}\","
       body="${body}\"payload\": \"${payload64}\","
       body="${body}\"signature\": \"${signed64}\"}"
-      debug "header, payload and signature = $body"
     else
-      debug "protected = $protected"
-      debug "payload = $payload"
       body="{"
       body="${body}\"protected\": \"${protected64}\","
       body="${body}\"payload\": \"${payload64}\","
       body="${body}\"signature\": \"${signed64}\"}"
-      debug "header, payload and signature = $body"
     fi
 
     code="500"
@@ -1479,6 +1751,11 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       debug response  "$response"
       code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
       debug code "$code"
+      if [[ "$code" == 4* && $response != *"error:badNonce"* ]]; then
+        detail=$(echo "$response" | grep "detail")
+        error_exit "ACME server returned error: ${code}: ${detail}"
+      fi
+
       if [[ $API -eq 1 ]]; then
         response_status=$(json_get "$response" status \
                         | head -1| awk -F'"' '{print $2}')
@@ -1501,9 +1778,6 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         if [[ $loop_limit -lt 1 ]]; then
           error_exit "500 error from ACME server:  $response"
         fi
-      fi
-      if [[ "$code" -eq 429 ]]; then
-        error_exit "429 rate limited error from ACME server"
       fi
     done
     if [[ $response == *"error:badNonce"* ]]; then
@@ -2134,7 +2408,7 @@ if [[ "$REUSE_PRIVATE_KEY" != "true" ]]; then
    rm -f "$DOMAIN_DIR/${DOMAIN}.key"
   fi
   if [[ -s "$DOMAIN_DIR/${DOMAIN}.ec.key" ]]; then
-   rm -f "$DOMAIN_DIR/${DOMAIN}.ecs.key"
+   rm -f "$DOMAIN_DIR/${DOMAIN}.ec.key"
   fi
 fi
 # create new domain keys if they don't already exist
@@ -2218,285 +2492,12 @@ else
 fi
 
 if [[ $API -eq 2 ]]; then
-  dstring="["
-  for d in $alldomains; do
-    dstring="${dstring}{\"type\":\"dns\",\"value\":\"$d\"},"
-  done
-  dstring="${dstring::${#dstring}-1}]"
-  # request NewOrder currently seems to ignore the dates ....
-  #  dstring="${dstring},\"notBefore\": \"$(date -d "-1 hour" --utc +%FT%TZ)\""
-  #  dstring="${dstring},\"notAfter\": \"$(date -d "2 days" --utc +%FT%TZ)\""
-  request="{\"identifiers\": $dstring}"
-  send_signed_request "$URL_newOrder" "$request"
-  OrderLink=$(echo "$responseHeaders" | grep -i location | awk '{print $2}'| tr -d '\r\n ')
-  debug "Order link $OrderLink"
-  FinalizeLink=$(json_get "$response" "finalize")
-  debug "finalise link $FinalizeLink"
-  dn=0
-  for d in $alldomains; do
-    # get authorizations link
-    AuthLink[$dn]=$(json_get "$response" "identifiers" "value" "$d" "authorizations" "x")
-    debug "authorizations link for $d - ${AuthLink[$dn]}"
-    ((dn++))
-  done
+  create_order
 fi
 
-dn=0
-for d in $alldomains; do
-  # $d is domain in current loop, which is number $dn for ACL
-  info "Verifying $d"
-  if [[ "$USE_SINGLE_ACL" == "true" ]]; then
-    DOMAIN_ACL="${ACL[0]}"
-  else
-    DOMAIN_ACL="${ACL[$dn]}"
-  fi
+fulfill_challenges
 
-  # request a challenge token from ACME server
-  if [[ $API -eq 1 ]]; then
-    request="{\"resource\":\"new-authz\",\"identifier\":{\"type\":\"dns\",\"value\":\"$d\"}}"
-    send_signed_request "$URL_new_authz" "$request"
-    debug "completed send_signed_request"
-
-    # check if we got a valid response and token, if not then error exit
-    if [[ -n "$code" ]] && [[ ! "$code" == '201' ]] ; then
-      error_exit "new-authz error: $response"
-    fi
-  else
-    send_signed_request "${AuthLink[$dn]}" ""
-  fi
-
-  if [[ $response_status == "valid" ]]; then
-    info "$d is already validated"
-    if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
-      deactivate_url="$(echo "$responseHeaders" | awk ' $1 ~ "^Location" {print $2}' | tr -d "\r")"
-      deactivate_url_list+=" $deactivate_url "
-      debug "url added to deactivate list ${deactivate_url}"
-      debug "deactivate list is now $deactivate_url_list"
-    fi
-    # increment domain-counter
-    ((dn++))
-  else
-    PREVIOUSLY_VALIDATED="false"
-    if [[ $VALIDATE_VIA_DNS == "true" ]]; then # set up the correct DNS token for verification
-      if [[ $API -eq 1 ]]; then
-        # get the dns component of the ACME response
-        # get the token from the dns component
-        token=$(json_get "$response" "token" "dns-01")
-        debug token "$token"
-        # get the uri from the dns component
-        uri=$(json_get "$response" "uri" "dns-01")
-        debug uri "$uri"
-      else # APIv2
-        debug "authlink response = $response"
-        # get the token from the http-01 component
-        token=$(json_get "$response" "challenges" "type" "dns-01" "token")
-        debug token "$token"
-        # get the uri from the http component
-        uri=$(json_get "$response" "challenges" "type" "dns-01" "url")
-        debug uri "$uri"
-      fi
-
-      keyauthorization="$token.$thumbprint"
-      debug keyauthorization "$keyauthorization"
-
-      #create signed authorization key from token.
-      auth_key=$(printf '%s' "$keyauthorization" | openssl dgst -sha256 -binary \
-                 | openssl base64 -e \
-                 | tr -d '\n\r' \
-                 | sed -e 's:=*$::g' -e 'y:+/:-_:')
-      debug auth_key "$auth_key"
-
-      debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
-      if ! eval "$DNS_ADD_COMMAND" "$d" "$auth_key" ; then
-        error_exit "DNS_ADD_COMMAND failed for domain $d"
-      fi
-
-      # find a primary / authoritative DNS server for the domain
-      if [[ -z "$AUTH_DNS_SERVER" ]]; then
-        get_auth_dns "$d"
-      else
-        primary_ns="$AUTH_DNS_SERVER"
-      fi
-      debug primary_ns "$primary_ns"
-
-      # make a directory to hold pending dns-challenges
-      if [[ ! -d "$TEMP_DIR/dns_verify" ]]; then
-        mkdir "$TEMP_DIR/dns_verify"
-      fi
-
-      # generate a file with the current variables for the dns-challenge
-      cat > "$TEMP_DIR/dns_verify/$d" <<- _EOF_
-			token="${token}"
-			uri="${uri}"
-			keyauthorization="${keyauthorization}"
-			d="${d}"
-			primary_ns="${primary_ns}"
-			auth_key="${auth_key}"
-			_EOF_
-
-    else      # set up the correct http token for verification
-      if [[ $API -eq 1 ]]; then
-        # get the token from the http component
-        token=$(json_get "$response" "token" "http-01")
-        debug token "$token"
-        # get the uri from the http component
-        uri=$(json_get "$response" "uri" "http-01")
-        debug uri "$uri"
-      else # APIv2
-        send_signed_request "${AuthLink[$dn]}" ""
-        debug "authlink response = $response"
-        # get the token from the http-01 component
-        token=$(json_get "$response" "challenges" "type" "http-01" "token")
-        debug token "$token"
-        # get the uri from the http component
-        uri=$(json_get "$response" "challenges" "type" "http-01" "url" | head -n1)
-        debug uri "$uri"
-      fi
-
-      #create signed authorization key from token.
-      keyauthorization="$token.$thumbprint"
-      debug keyauthorization "$keyauthorization"
-
-      # save variable into temporary file
-      echo -n "$keyauthorization" > "$TEMP_DIR/$token"
-      chmod 644 "$TEMP_DIR/$token"
-
-      # copy to token to acme challenge location
-      umask 0022
-      IFS=\; read -r -a token_locations <<<"$DOMAIN_ACL"
-      for t_loc in "${token_locations[@]}"; do
-        debug "copying file from $TEMP_DIR/$token to ${t_loc}"
-        copy_file_to_location "challenge token" \
-                              "$TEMP_DIR/$token" \
-                              "${t_loc}/$token"
-      done
-      umask "$ORIG_UMASK"
-
-      wellknown_url="${CHALLENGE_CHECK_TYPE}://${d}/.well-known/acme-challenge/$token"
-      debug wellknown_url "$wellknown_url"
-
-      if [[ "$SKIP_HTTP_TOKEN_CHECK" == "true" ]]; then
-        info "SKIP_HTTP_TOKEN_CHECK=true so not checking that token is working correctly"
-      else
-        sleep "$HTTP_TOKEN_CHECK_WAIT"
-        # check that we can reach the challenge ourselves, if not, then error
-        if [[ ! "$(curl --user-agent "$CURL_USERAGENT" -k --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
-          error_exit "for some reason could not reach $wellknown_url - please check it manually"
-        fi
-      fi
-
-      check_challenge_completion "$uri" "$d" "$keyauthorization"
-
-      debug "remove token from ${DOMAIN_ACL}"
-      IFS=\; read -r -a token_locations <<<"$DOMAIN_ACL"
-      for t_loc in "${token_locations[@]}"; do
-        if [[ "${t_loc:0:4}" == "ssh:" ]] ; then
-          sshhost=$(echo "${t_loc}"| awk -F: '{print $2}')
-          command="rm -f ${t_loc:(( ${#sshhost} + 5))}/${token:?}"
-          debug "running following command to remove token"
-          debug "ssh $SSH_OPTS $sshhost ${command}"
-          # shellcheck disable=SC2029
-          # shellcheck disable=SC2086
-          ssh $SSH_OPTS "$sshhost" "${command}" 1>/dev/null 2>&1
-          rm -f "${TEMP_DIR:?}/${token:?}"
-        elif [[ "${t_loc:0:4}" == "ftp:" ]] ; then
-          debug "using ftp to remove token file"
-          ftpuser=$(echo "${t_loc}"| awk -F: '{print $2}')
-          ftppass=$(echo "${t_loc}"| awk -F: '{print $3}')
-          ftphost=$(echo "${t_loc}"| awk -F: '{print $4}')
-          ftplocn=$(echo "${t_loc}"| awk -F: '{print $5}')
-          debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost location=$ftplocn"
-          ftp -n <<- EOF
-					open $ftphost
-					user $ftpuser $ftppass
-					cd $ftplocn
-					delete ${token:?}
-					EOF
-        else
-          rm -f "${t_loc:?}/${token:?}"
-        fi
-      done
-    fi
-    # increment domain-counter
-    ((dn++))
-  fi
-done # end of ... loop through domains for cert ( from SANS list)
-
-# perform validation if via DNS challenge
-if [[ $VALIDATE_VIA_DNS == "true" ]]; then
-  # loop through dns-variable files to check if dns has been changed
-  for dnsfile in "$TEMP_DIR"/dns_verify/*; do
-    if [[ -e "$dnsfile" ]]; then
-      debug "loading DNSfile: $dnsfile"
-      # shellcheck source=/dev/null
-      . "$dnsfile"
-
-      # check for token at public dns server, waiting for a valid response.
-      for ns in $primary_ns; do
-        debug "checking dns at $ns"
-        ntries=0
-        check_dns="fail"
-        while [[ "$check_dns" == "fail" ]]; do
-          if [[ "$os" == "cygwin" ]]; then
-            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
-                           | grep ^_acme -A2\
-                           | grep '"'|awk -F'"' '{ print $2}')
-          elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-            check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${d}" "@${ns}" \
-                           | grep '300 IN TXT'|awk -F'"' '{ print $2}')
-          elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
-            check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${d}" "${ns}" \
-                           | grep 'descriptive text'|awk -F'"' '{ print $2}')
-          else
-            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
-                           | grep 'text ='|awk -F'"' '{ print $2}')
-          fi
-          debug "expecting  $auth_key"
-          debug "${ns} gave ... $check_result"
-
-          if [[ "$check_result" == *"$auth_key"* ]]; then
-            check_dns="success"
-          else
-            if [[ $ntries -lt 100 ]]; then
-              ntries=$(( ntries + 1 ))
-              info "checking DNS at ${ns} for ${d}. Attempt $ntries/100 gave wrong result, "\
-                "waiting $DNS_WAIT secs before checking again"
-              sleep $DNS_WAIT
-            else
-              debug "dns check failed - removing existing value"
-              error_exit "checking _acme-challenge.${d} gave $check_result not $auth_key"
-            fi
-          fi
-        done
-      done
-    fi
-  done
-
-  if [[ "$DNS_EXTRA_WAIT" -gt 0 && "$PREVIOUSLY_VALIDATED" != "true" ]]; then
-    info "sleeping $DNS_EXTRA_WAIT seconds before asking the ACME-server to check the dns"
-    sleep "$DNS_EXTRA_WAIT"
-  fi
-
-  # loop through dns-variable files to let the ACME server check the challenges
-  for dnsfile in "$TEMP_DIR"/dns_verify/*; do
-    if [[ -e "$dnsfile" ]]; then
-      debug "loading DNSfile: $dnsfile"
-      # shellcheck source=/dev/null
-      . "$dnsfile"
-
-      check_challenge_completion "$uri" "$d" "$keyauthorization"
-
-      debug "remove DNS entry"
-      eval "$DNS_DEL_COMMAND" "$d" "$auth_key"
-      # remove $dnsfile after each loop.
-      rm -f "$dnsfile"
-    fi
-  done
-fi
-# end of ... perform validation if via DNS challenge
-#end of varify each domain.
-
-# Verification has been completed for all SANS, so  request certificate.
+# Verification has been completed for all SANS, so request certificate.
 info "Verification completed, obtaining certificate."
 
 #obtain the certificate.
@@ -2504,6 +2505,12 @@ get_certificate "$DOMAIN_DIR/${DOMAIN}.csr" \
                 "$CERT_FILE" \
                 "$CA_CERT"
 if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+  info "Creating order for EC certificate"
+  if [[ $API -eq 2 ]]; then
+    create_order
+    fulfill_challenges
+  fi
+  info "obtaining EC certificate."
   get_certificate "$DOMAIN_DIR/${DOMAIN}.ec.csr" \
                   "${CERT_FILE%.*}.ec.crt" \
                   "${CA_CERT%.*}.ec.crt"
@@ -2549,7 +2556,7 @@ if [[ -n "$DOMAIN_CHAIN_LOCATION" ]]; then
   copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
     cat "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_chain.pem.ec"
-    copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem.ec"  "${to_location}.ec"
+    copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem.ec"  "${to_location%.*}.ec.${to_location##*.}"
   fi
 fi
 # if DOMAIN_KEY_CERT_LOCATION is not blank, then create and copy file.
@@ -2563,7 +2570,7 @@ if [[ -n "$DOMAIN_KEY_CERT_LOCATION" ]]; then
   copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
   cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"
-  copy_file_to_location "private ec key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"  "${to_location}.ec"
+  copy_file_to_location "private ec key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"  "${to_location%.*}.ec.${to_location##*.}"
   fi
 fi
 # if DOMAIN_PEM_LOCATION is not blank, then create and copy file.
@@ -2577,7 +2584,7 @@ if [[ -n "$DOMAIN_PEM_LOCATION" ]]; then
   copy_file_to_location "full key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
     cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}.pem.ec"
-    copy_file_to_location "full ec key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem.ec"  "${to_location}.ec"
+    copy_file_to_location "full ec key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem.ec"  "${to_location%.*}.ec.${to_location##*.}"
   fi
 fi
 # end of copying certs.
