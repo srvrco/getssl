@@ -1801,20 +1801,27 @@ sign_string() { # sign a string with a given key and algorithm and return urlbas
   elif openssl ec -in "${skey}" -noout 2>/dev/null ; then # Elliptic curve key.
     signed=$(printf '%s' "${str}" | openssl dgst -"$signalg" -sign "$key" -hex | awk '{print $2}')
     debug "EC signature $signed"
-    if [[ "${signed:4:4}" == "0220" ]]; then #sha256
+    if [[ "${signed:4:4}" == "021f" ]]; then #sha256 which needs padding
+      R=$(echo -n 00;echo "$signed" | cut -c 9-70)
+      part2=$(echo "$signed" | cut -c 71-)
+    elif [[ "${signed:4:4}" == "0220" ]]; then #sha256
       R=$(echo "$signed" | cut -c 9-72)
       part2=$(echo "$signed" | cut -c 73-)
-    elif [[ "${signed:4:4}" == "0221" ]]; then #sha256
+    elif [[ "${signed:4:4}" == "0221" ]]; then #sha256 which needs trimming
       R=$(echo "$signed" | cut -c 11-74)
       part2=$(echo "$signed" | cut -c 75-)
+    elif [[ "${signed:4:4}" == "022f" ]]; then #sha384 which needs padding
+      info "Padding sha384"
+      R=$(echo -n 00;echo "$signed" | cut -c 9-102)
+      part2=$(echo "$signed" | cut -c 103-)
     elif [[ "${signed:4:4}" == "0230" ]]; then #sha384
       R=$(echo "$signed" | cut -c 9-104)
       part2=$(echo "$signed" | cut -c 105-)
-    elif [[ "${signed:4:4}" == "0231" ]]; then #sha384
+    elif [[ "${signed:4:4}" == "0231" ]]; then #sha384 which needs trimming
       R=$(echo "$signed" | cut -c 11-106)
       part2=$(echo "$signed" | cut -c 107-)
-    elif [[ "${signed:6:4}" == "0241" ]]; then #sha512
-      R=$(echo "$signed" | cut -c 11-140)
+    elif [[ "${signed:6:4}" == "0241" ]]; then #sha512 which needs padding
+      R=$(echo -n 00;echo "$signed" | cut -c 11-140)
       part2=$(echo "$signed" | cut -c 141-)
     elif [[ "${signed:6:4}" == "0242" ]]; then #sha512
       R=$(echo "$signed" | cut -c 11-142)
@@ -1824,18 +1831,22 @@ sign_string() { # sign a string with a given key and algorithm and return urlbas
     fi
     debug "R $R"
 
-    if [[ "${part2:0:4}" == "0220" ]]; then #sha256
+    if [[ "${part2:0:4}" == "021f" ]]; then #sha256 with padding
+      S=$(echo -n 00;echo "$part2" | cut -c 5-)
+    elif [[ "${part2:0:4}" == "0220" ]]; then #sha256
       S=$(echo "$part2" | cut -c 5-68)
     elif [[ "${part2:0:4}" == "0221" ]]; then #sha256
       S=$(echo "$part2" | cut -c 7-70)
+    elif [[ "${part2:0:4}" == "022f" ]]; then #sha384 with padding
+      S=$(echo -n 00;echo "$part2" | cut -c 5-)
     elif [[ "${part2:0:4}" == "0230" ]]; then #sha384
       S=$(echo "$part2" | cut -c 5-100)
     elif [[ "${part2:0:4}" == "0231" ]]; then #sha384
       S=$(echo "$part2" | cut -c 7-102)
-    elif [[ "${part2:0:4}" == "0241" ]]; then #sha512
-      S=$(echo "$part2" | cut -c 5-136)
+    elif [[ "${part2:0:4}" == "0241" ]]; then #sha512 with padding
+      S=$(echo -n 00;echo "$part2" | cut -c 5-)
     elif [[ "${part2:0:4}" == "0242" ]]; then #sha512
-      S=$(echo "$part2" | cut -c 5-136)
+      S=$(echo "$part2" | cut -c 5-)
     else
       error_exit "error in EC signing couldn't get S from $signed"
     fi
