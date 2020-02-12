@@ -208,10 +208,12 @@
 # 2020-02-05 Fix epoch_date for busybox
 # 2020-02-06 Bugfixes for json_awk and nslookup to support old awk versions (2.17)
 # 2020-02-11 Add SCP_OPTS and SFTP_OPTS
+# 2020-02-12 Fix for DUAL_RSA_ECDSA not working with ACMEv2 (#334, #474, #502)
+# 2020-02-12 Fix #424 - Sporadic "error in EC signing couldn't get R from ..." (2.18)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.17"
+VERSION="2.18"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
