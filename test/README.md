@@ -35,6 +35,6 @@ docker exec -it getssl-ubuntu18 /getssl/test/debug-test.sh getssl-http01.cfg
 
 ## TODO
 
-1. Test RHEL6, Debian as well
-2. Test SSH, SFTP
-3. Test wildcards
+1. Test wildcards
+2. Test SSH, SFTP, SCP
+3. Test change of key algorithm
