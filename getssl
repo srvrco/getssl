@@ -211,10 +211,11 @@
 # 2020-02-12 Fix for DUAL_RSA_ECDSA not working with ACMEv2 (#334, #474, #502)
 # 2020-02-12 Fix #424 - Sporadic "error in EC signing couldn't get R from ..." (2.18)
 # 2020-02-12 Fix "Registration key already in use" (2.19)
+# 2020-02-13 Fix bug with copying to all locations when creating RSA and ECDSA certs (2.20)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.19"
+VERSION="2.20"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -549,8 +550,12 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
   cert=$1   # descriptive name, just used for display
   from=$2   # current file location
   to=$3     # location to move file to.
+  suffix=$4 # (optional) optional suffix for DUAL_RSA_ECDSA, i.e. save to private.key becomes save to private.ec.key
   IFS=\; read -r -a copy_locations <<<"$3"
   for to in "${copy_locations[@]}"; do
+    if [[ -n "$suffix" ]]; then
+      to="${to%.*}.${suffix}.${to##*.}"
+    fi
     info "copying $cert to $to"
     if [[ "${to:0:4}" == "ssh:" ]] ; then
       debug "using scp -q $SCP_OPTS $from ${to:4}"
@@ -1823,6 +1828,9 @@ sign_string() { # sign a string with a given key and algorithm and return urlbas
     elif [[ "${signed:4:4}" == "0231" ]]; then #sha384 which needs trimming
       R=$(echo "$signed" | cut -c 11-106)
       part2=$(echo "$signed" | cut -c 107-)
+    elif [[ "${signed:6:4}" == "0240" ]]; then #sha512 which needs padding
+      R=$(echo -n 00;echo "$signed" | cut -c 9-138)
+      part2=$(echo "$signed" | cut -c 141-)
     elif [[ "${signed:6:4}" == "0241" ]]; then #sha512 which needs padding
       R=$(echo -n 00;echo "$signed" | cut -c 11-140)
       part2=$(echo "$signed" | cut -c 141-)
@@ -1846,6 +1854,8 @@ sign_string() { # sign a string with a given key and algorithm and return urlbas
       S=$(echo "$part2" | cut -c 5-100)
     elif [[ "${part2:0:4}" == "0231" ]]; then #sha384
       S=$(echo "$part2" | cut -c 7-102)
+    elif [[ "${part2:0:4}" == "0240" ]]; then #sha512 with padding
+      S=$(echo -n 00;echo "$part2" | cut -c 5-)
     elif [[ "${part2:0:4}" == "0241" ]]; then #sha512 with padding
       S=$(echo -n 00;echo "$part2" | cut -c 5-)
     elif [[ "${part2:0:4}" == "0242" ]]; then #sha512
@@ -2545,17 +2555,20 @@ if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
   if [[ -n "$DOMAIN_CERT_LOCATION" ]]; then
     copy_file_to_location "ec domain certificate" \
                           "${CERT_FILE%.*}.ec.crt" \
-                          "${DOMAIN_CERT_LOCATION%.*}.ec.crt"
+                          "${DOMAIN_CERT_LOCATION}" \
+                          "ec"
   fi
   if [[ -n "$DOMAIN_KEY_LOCATION" ]]; then
-  copy_file_to_location "ec private key" \
-                        "$DOMAIN_DIR/${DOMAIN}.ec.key" \
-                        "${DOMAIN_KEY_LOCATION%.*}.ec.key"
+    copy_file_to_location "ec private key" \
+                          "$DOMAIN_DIR/${DOMAIN}.ec.key" \
+                          "${DOMAIN_KEY_LOCATION}" \
+                          "ec"
   fi
   if [[ -n "$CA_CERT_LOCATION" ]]; then
-  copy_file_to_location "ec CA certificate" \
-                        "${CA_CERT%.*}.ec.crt" \
-                        "${CA_CERT_LOCATION%.*}.ec.crt"
+    copy_file_to_location "ec CA certificate" \
+                          "${CA_CERT%.*}.ec.crt" \
+                          "${CA_CERT_LOCATION%.*}.crt" \
+                          "ec"
   fi
 fi
 
@@ -2570,7 +2583,7 @@ if [[ -n "$DOMAIN_CHAIN_LOCATION" ]]; then
   copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
     cat "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_chain.pem.ec"
-    copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem.ec"  "${to_location%.*}.ec.${to_location##*.}"
+    copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem.ec"  "${to_location}" "ec"
   fi
 fi
 # if DOMAIN_KEY_CERT_LOCATION is not blank, then create and copy file.
@@ -2583,8 +2596,8 @@ if [[ -n "$DOMAIN_KEY_CERT_LOCATION" ]]; then
   cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
   copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-  cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"
-  copy_file_to_location "private ec key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"  "${to_location%.*}.ec.${to_location##*.}"
+    cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"
+    copy_file_to_location "private ec key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem.ec" "${to_location}" "ec"
   fi
 fi
 # if DOMAIN_PEM_LOCATION is not blank, then create and copy file.
@@ -2598,7 +2611,7 @@ if [[ -n "$DOMAIN_PEM_LOCATION" ]]; then
   copy_file_to_location "full key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem"  "$to_location"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
     cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}.pem.ec"
-    copy_file_to_location "full ec key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem.ec"  "${to_location%.*}.ec.${to_location##*.}"
+    copy_file_to_location "full ec key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem.ec"  "${to_location}" "ec"
   fi
 fi
 # end of copying certs.
