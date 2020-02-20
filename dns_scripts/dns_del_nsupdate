@@ -23,7 +23,7 @@ fi
 
 # Note that blank line is a "send" command to nsupdate
 
-nsupdate "${options}" -v <<EOF
+nsupdate ${options} -v <<EOF
 update delete  "_acme-challenge.${fulldomain}." 300 in TXT "${token}"
 
 EOF
