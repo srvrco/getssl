@@ -21,12 +21,14 @@ if [ -n "${DNS_NSUPDATE_KEYFILE}" ]; then
   options="-k ${DNS_NSUPDATE_KEYFILE}"
 fi
 
-# Note that blank line is a "send" command to nsupdate
+if [ -n "${DNS_SERVER}" ]; then
+        cmd+="server ${DNS_SERVER}\n"
+fi
 
-nsupdate ${options} -v <<EOF
-update add  _acme-challenge.${fulldomain}. 300 in TXT "${token}"
+cmd+="update add  ${DNS_ZONE:-"_acme-challenge.${fulldomain}."} 300 in TXT \"${token}\"\n"
+cmd+="\n" # blank line is a "send" command to nsupdate
 
-EOF
+printf "$cmd" | nsupdate ${options} -v
 
 sts=$?
 
