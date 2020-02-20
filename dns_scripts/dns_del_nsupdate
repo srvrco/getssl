@@ -14,11 +14,11 @@ token="$2"
 #                          'open" / 'close'
 
 if [ -n "${DNS_NSUPDATE_KEYFILE}" ]; then
-    if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! "${DNS_NSUPDATE_KEY_HOOK}" 'del' 'open' "${fulldomain}" ; then
-        exit $(( $? + 128 ))
-    fi
+  if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! "${DNS_NSUPDATE_KEY_HOOK}" 'del' 'open' "${fulldomain}" ; then
+    exit $(( $? + 128 ))
+  fi
 
-    options="-k ${DNS_NSUPDATE_KEYFILE}"
+  options="-k ${DNS_NSUPDATE_KEYFILE}"
 fi
 
 # Note that blank line is a "send" command to nsupdate
@@ -31,9 +31,9 @@ EOF
 sts=$?
 
 if [ -n "${DNS_NSUPDATE_KEYFILE}" ]; then
-    if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! "${DNS_NSUPDATE_KEY_HOOK}" 'del' 'close'  "${fulldomain}" ; then
-        exit $(( sts + ( $? * 10 ) ))
-    fi
+  if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! "${DNS_NSUPDATE_KEY_HOOK}" 'del' 'close'  "${fulldomain}" ; then
+      exit $(( sts + ( $? * 10 ) ))
+  fi
 fi
 
 exit ${sts}
