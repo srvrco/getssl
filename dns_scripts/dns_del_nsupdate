@@ -14,16 +14,16 @@ token="$2"
 #                          'open" / 'close'
 
 if [ -n "${DNS_NSUPDATE_KEYFILE}" ]; then
-    if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! "${DNS_NSUPDATE_KEY_HOOK}" 'del' 'open' "${fulldomain}" ; then
-        exit $(( $? + 128 ))
-    fi
+  if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! "${DNS_NSUPDATE_KEY_HOOK}" 'del' 'open' "${fulldomain}" ; then
+    exit $(( $? + 128 ))
+  fi
 
-    options="-k ${DNS_NSUPDATE_KEYFILE}"
+  options="-k ${DNS_NSUPDATE_KEYFILE}"
 fi
 
 # Note that blank line is a "send" command to nsupdate
 
-nsupdate "${options}" -v <<EOF
+nsupdate ${options} -v <<EOF
 update delete  "_acme-challenge.${fulldomain}." 300 in TXT "${token}"
 
 EOF
@@ -31,9 +31,9 @@ EOF
 sts=$?
 
 if [ -n "${DNS_NSUPDATE_KEYFILE}" ]; then
-    if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! "${DNS_NSUPDATE_KEY_HOOK}" 'del' 'close'  "${fulldomain}" ; then
-        exit $(( sts + ( $? * 10 ) ))
-    fi
+  if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! "${DNS_NSUPDATE_KEY_HOOK}" 'del' 'close'  "${fulldomain}" ; then
+      exit $(( sts + ( $? * 10 ) ))
+  fi
 fi
 
 exit ${sts}
