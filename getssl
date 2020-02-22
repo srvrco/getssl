@@ -212,6 +212,7 @@
 # 2020-02-12 Fix #424 - Sporadic "error in EC signing couldn't get R from ..." (2.18)
 # 2020-02-12 Fix "Registration key already in use" (2.19)
 # 2020-02-13 Fix bug with copying to all locations when creating RSA and ECDSA certs (2.20)
+# 2020-02-22 Change sign_string to use openssl asn1parse (better fix for #424)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
