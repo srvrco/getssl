@@ -212,6 +212,7 @@
 # 2020-02-12 Fix #424 - Sporadic "error in EC signing couldn't get R from ..." (2.18)
 # 2020-02-12 Fix "Registration key already in use" (2.19)
 # 2020-02-13 Fix bug with copying to all locations when creating RSA and ECDSA certs (2.20)
+# 2020-02-22 Change sign_string to use openssl asn1parse (better fix for #424)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -339,7 +340,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 
     # if ACME response is that their check gave an invalid response, error exit
     if [[ "$status" == "invalid" ]] ; then
-      err_detail=$(json_get "$response" detail)
+      err_detail=$(echo "$response" | grep "detail")
       error_exit "$domain:Verify error:$err_detail"
     fi
 
@@ -347,7 +348,8 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
     if [[ "$status" == "pending" ]] ; then
       info "Pending"
     else
-      error_exit "$domain:Verify error:$response"
+      err_detail=$(echo "$response" | grep "detail")
+      error_exit "$domain:Verify error:$status:$err_detail"
     fi
     debug "sleep 5 secs before testing verify again"
     sleep 5
@@ -431,7 +433,7 @@ check_config() { # check the config files for all obvious errors
         info "${DOMAIN}: ACL location not specified for domain $d in $DOMAIN_DIR/getssl.cfg"
         config_errors=true
       fi
-      # check domain exist
+      # check domain exists
       if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
         if [[ "$($DNS_CHECK_FUNC "${d}" |grep -c "${d}")" -ge 1 ]]; then
           debug "found IP for ${d}"
@@ -1807,65 +1809,28 @@ sign_string() { # sign a string with a given key and algorithm and return urlbas
   if openssl rsa -in "${skey}" -noout 2>/dev/null ; then # RSA key
     signed64="$(printf '%s' "${str}" | openssl dgst -"$signalg" -sign "$key" | urlbase64)"
   elif openssl ec -in "${skey}" -noout 2>/dev/null ; then # Elliptic curve key.
-    signed=$(printf '%s' "${str}" | openssl dgst -"$signalg" -sign "$key" -hex | awk '{print $2}')
-    debug "EC signature $signed"
-    if [[ "${signed:4:4}" == "021f" ]]; then #sha256 which needs padding
-      R=$(echo -n 00;echo "$signed" | cut -c 9-70)
-      part2=$(echo "$signed" | cut -c 71-)
-    elif [[ "${signed:4:4}" == "0220" ]]; then #sha256
-      R=$(echo "$signed" | cut -c 9-72)
-      part2=$(echo "$signed" | cut -c 73-)
-    elif [[ "${signed:4:4}" == "0221" ]]; then #sha256 which needs trimming
-      R=$(echo "$signed" | cut -c 11-74)
-      part2=$(echo "$signed" | cut -c 75-)
-    elif [[ "${signed:4:4}" == "022f" ]]; then #sha384 which needs padding
-      info "Padding sha384"
-      R=$(echo -n 00;echo "$signed" | cut -c 9-102)
-      part2=$(echo "$signed" | cut -c 103-)
-    elif [[ "${signed:4:4}" == "0230" ]]; then #sha384
-      R=$(echo "$signed" | cut -c 9-104)
-      part2=$(echo "$signed" | cut -c 105-)
-    elif [[ "${signed:4:4}" == "0231" ]]; then #sha384 which needs trimming
-      R=$(echo "$signed" | cut -c 11-106)
-      part2=$(echo "$signed" | cut -c 107-)
-    elif [[ "${signed:6:4}" == "0240" ]]; then #sha512 which needs padding
-      R=$(echo -n 00;echo "$signed" | cut -c 9-138)
-      part2=$(echo "$signed" | cut -c 141-)
-    elif [[ "${signed:6:4}" == "0241" ]]; then #sha512 which needs padding
-      R=$(echo -n 00;echo "$signed" | cut -c 11-140)
-      part2=$(echo "$signed" | cut -c 141-)
-    elif [[ "${signed:6:4}" == "0242" ]]; then #sha512
-      R=$(echo "$signed" | cut -c 11-142)
-      part2=$(echo "$signed" | cut -c 143-)
+    # ECDSA signature width
+    # e.g. 521 bits requires 66 bytes to express, a signature consists of 2 integers so 132 bytes
+    # https://crypto.stackexchange.com/questions/12299/ecc-key-size-and-signature-size/
+    if [ "$signalg" = "sha256" ]; then
+      w=64
+    elif [ "$signalg" = "sha384" ]; then
+      w=96
+    elif [ "$signalg" = "sha512" ]; then
+      w=132
     else
-      error_exit "error in EC signing couldn't get R from $signed"
+      error_exit "Unknown signing algorithm $signalg"
     fi
+    asn1parse=$(printf '%s' "${str}" | openssl dgst -"$signalg" -sign "$key" | openssl asn1parse -inform DER)
+    #shellcheck disable=SC2086
+    R=$(echo $asn1parse | awk '{ print $13 }' | cut -c2-)
     debug "R $R"
-
-    if [[ "${part2:0:4}" == "021f" ]]; then #sha256 with padding
-      S=$(echo -n 00;echo "$part2" | cut -c 5-)
-    elif [[ "${part2:0:4}" == "0220" ]]; then #sha256
-      S=$(echo "$part2" | cut -c 5-68)
-    elif [[ "${part2:0:4}" == "0221" ]]; then #sha256
-      S=$(echo "$part2" | cut -c 7-70)
-    elif [[ "${part2:0:4}" == "022f" ]]; then #sha384 with padding
-      S=$(echo -n 00;echo "$part2" | cut -c 5-)
-    elif [[ "${part2:0:4}" == "0230" ]]; then #sha384
-      S=$(echo "$part2" | cut -c 5-100)
-    elif [[ "${part2:0:4}" == "0231" ]]; then #sha384
-      S=$(echo "$part2" | cut -c 7-102)
-    elif [[ "${part2:0:4}" == "0240" ]]; then #sha512 with padding
-      S=$(echo -n 00;echo "$part2" | cut -c 5-)
-    elif [[ "${part2:0:4}" == "0241" ]]; then #sha512 with padding
-      S=$(echo -n 00;echo "$part2" | cut -c 5-)
-    elif [[ "${part2:0:4}" == "0242" ]]; then #sha512
-      S=$(echo "$part2" | cut -c 5-)
-    else
-      error_exit "error in EC signing couldn't get S from $signed"
-    fi
-
+    #shellcheck disable=SC2086
+    S=$(echo $asn1parse | awk '{ print $20 }' | cut -c2-)
     debug "S $S"
-    signed64=$(printf '%s' "${R}${S}" | hex2bin | urlbase64 )
+
+    # pad R and S to the correct length for the signing algorithm
+    signed64=$(printf "%${w}s%${w}s" "${R}" "${S}" | tr ' ' '0' | hex2bin | urlbase64 )
     debug "encoded RS $signed64"
   fi
 }

@@ -156,7 +156,24 @@ services:
           - i.ubuntu18.getssl.test
           - j.ubuntu18.getssl.test
           - k.ubuntu18.getssl.test
-
+  getssl-duckdns:
+    build:
+      context: .
+      dockerfile: test/Dockerfile-ubuntu
+    container_name: getssl-duckdns
+    volumes:
+      - .:/getssl
+    environment:
+      GETSSL_HOST: getssl.duckdns.org
+      GETSSL_IP: 10.30.50.15
+      NGINX_CONFIG: /etc/nginx/sites-enabled/default
+      DUCKDNS_TOKEN: $DUCKDNS_TOKEN
+      STAGING: "true"
+    networks:
+      acmenet:
+        ipv4_address: 10.30.50.15
+        aliases:
+           - getssl.duckdns.org
 
 
 networks:

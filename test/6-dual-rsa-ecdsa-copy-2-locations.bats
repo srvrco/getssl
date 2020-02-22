@@ -7,17 +7,24 @@ load '/getssl/test/test_helper.bash'
 
 # These are run for every test, not once per file
 setup() {
-    export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
-    curl --silent -X POST -d '{"host":"'a.$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
+    if [ -z "$STAGING" ]; then
+        export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+        curl --silent -X POST -d '{"host":"'a.$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
+    fi
 }
 
 
 teardown() {
-    curl --silent -X POST -d '{"host":"'a.$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/del-a
+    if [ -z "$STAGING" ]; then
+        curl --silent -X POST -d '{"host":"'a.$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/del-a
+    fi
 }
 
 
 @test "Create dual certificates and copy RSA and ECDSA chain and key to two locations" {
+    if [ -n "$STAGING" ]; then
+        skip "Using staging server, skipping internal test"
+    fi
     CONFIG_FILE="getssl-http01-dual-rsa-ecdsa-2-locations.cfg"
     setup_environment
     mkdir -p /root/a.${GETSSL_HOST}
