@@ -1870,6 +1870,8 @@ usage() { # echos out the program usage
 
 write_domain_template() { # write out a template file for a domain.
   cat > "$1" <<- _EOF_domain_
+	# vim: filetype=sh
+	#
 	# This file is read second (and per domain if running with the -a option)
 	# and overwrites any settings from the first file
 	#
@@ -1938,6 +1940,8 @@ write_domain_template() { # write out a template file for a domain.
 
 write_getssl_template() { # write out the main template file
   cat > "$1" <<- _EOF_getssl_
+	# vim: filetype=sh
+	#
 	# This file is read first and is common to all domains
 	#
 	# Uncomment and modify any variables you need
