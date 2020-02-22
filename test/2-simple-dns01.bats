@@ -12,6 +12,10 @@ setup() {
 
 
 @test "Create new certificate using DNS-01 verification" {
+    if [ -n "$STAGING" ]; then
+        skip "Using staging server, skipping internal test"
+    fi
+
     CONFIG_FILE="getssl-dns01.cfg"
     setup_environment
     init_getssl
@@ -24,7 +28,9 @@ setup() {
 
 
 @test "Force renewal of certificate using DNS-01" {
-    #!FIXME test certificate has been updated
+    if [ -n "$STAGING" ]; then
+        skip "Using staging server, skipping internal test"
+    fi
     run ${CODE_DIR}/getssl -f $GETSSL_HOST
     assert_success
     refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
