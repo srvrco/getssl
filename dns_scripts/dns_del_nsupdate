@@ -1,15 +1,41 @@
 #!/bin/bash
 
-# example of script to add token to local dns using nsupdate
+# example of script to remove token from local dns using nsupdate
 
-dnskeyfile="path/to/bla.key"
 fulldomain="$1"
 token="$2"
 
-updatefile=$(mktemp)
+# VARIABLES:
+#
+# DNS_NSUPDATE_KEYFILE - path to a TSIG key file, if required
+# DNS_NSUPDATE_GETKEY  - command to execute if access to the key file requires
+#                        some special action: dismounting a disk, encrypting a
+#                         file... Called with the operation 'del' and action
+#                          'open" / 'close'
 
-printf "update delete _acme-challenge.%s. 300 in TXT \"%s\"\n\n" "${fulldomain}" "${token}" > "${updatefile}"
+if [ -n "${DNS_NSUPDATE_KEYFILE}" ]; then
+  if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! "${DNS_NSUPDATE_KEY_HOOK}" 'del' 'open' "${fulldomain}" ; then
+    exit $(( $? + 128 ))
+  fi
 
-nsupdate -k "${dnskeyfile}" -v "${updatefile}"
+  options="-k ${DNS_NSUPDATE_KEYFILE}"
+fi
 
-rm -f "${updatefile}"
+if [ -n "${DNS_SERVER}" ]; then
+        cmd+="server ${DNS_SERVER}\n"
+fi
+
+cmd+="update delete  ${DNS_ZONE:-"_acme-challenge.${fulldomain}."} 300 in TXT \"${token}\"\n"
+cmd+="\n" # blank line is a "send" command to nsupdate
+
+printf "$cmd" | nsupdate ${options} -v
+
+sts=$?
+
+if [ -n "${DNS_NSUPDATE_KEYFILE}" ]; then
+  if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! "${DNS_NSUPDATE_KEY_HOOK}" 'del' 'close'  "${fulldomain}" ; then
+      exit $(( sts + ( $? * 10 ) ))
+  fi
+fi
+
+exit ${sts}

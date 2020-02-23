@@ -32,7 +32,7 @@ for zone in response['HostedZones']:
         zone_list[zone['Name']] = zone['Id']
 
 for key in sorted(zone_list.iterkeys(), key=len, reverse=True):
-    if key in "{z}.".format(z=fqdn):
+    if ".{z}".format(z=key) in ".{z}.".format(z=fqdn):
        zone_id = zone_list[key]
 
 if zone_id == "":

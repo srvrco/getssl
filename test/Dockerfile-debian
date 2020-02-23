@@ -1,0 +1,20 @@
+FROM debian:latest
+
+# Note this image uses mawk 1.3
+
+# Update and install required software
+RUN apt-get update --fix-missing
+RUN apt-get install -y git curl dnsutils wget nginx-light
+
+WORKDIR /root
+RUN mkdir /etc/nginx/pki
+RUN mkdir /etc/nginx/pki/private
+
+# BATS (Bash Automated Testings)
+RUN git clone https://github.com/bats-core/bats-core.git /bats-core
+RUN git clone https://github.com/jasonkarns/bats-support /bats-support
+RUN git clone https://github.com/jasonkarns/bats-assert-1 /bats-assert
+RUN /bats-core/install.sh /usr/local
+
+# Run eternal loop - for testing
+CMD tail -f /dev/null

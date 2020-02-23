@@ -1,0 +1,30 @@
+# Default server configuration
+#
+server {
+	listen 80 default_server;
+	listen 5002 default_server;
+	listen [::]:5002 default_server;
+
+	# SSL configuration
+	#
+	listen 443 default_server;
+	listen [::]:443 default_server;
+
+	listen 5001 default_server;
+	listen [::]:5001 default_server;
+
+	root /var/www/html;
+
+	# Add index.php to the list if you are using PHP
+	index index.html index.htm index.nginx-debian.html;
+
+	server_name _;
+    # ssl_certificate /etc/nginx/pki/server.crt;
+    # ssl_certificate_key /etc/nginx/pki/private/server.key;
+
+	location / {
+		# First attempt to serve request as file, then
+		# as directory, then fall back to displaying a 404.
+		try_files $uri $uri/ =404;
+	}
+}

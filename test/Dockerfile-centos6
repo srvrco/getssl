@@ -1,0 +1,24 @@
+FROM centos:centos6
+
+# Note this image uses gawk
+
+# Update and install required software
+RUN yum -y update
+RUN yum -y install epel-release
+RUN yum -y install git curl dnsutils wget nginx
+
+WORKDIR /root
+RUN mkdir /etc/nginx/pki
+RUN mkdir /etc/nginx/pki/private
+COPY ./test/test-config/nginx-ubuntu-no-ssl /etc/nginx/conf.d/default.conf
+
+# BATS (Bash Automated Testings)
+RUN git clone https://github.com/bats-core/bats-core.git /bats-core
+RUN git clone https://github.com/jasonkarns/bats-support /bats-support
+RUN git clone https://github.com/jasonkarns/bats-assert-1 /bats-assert
+RUN /bats-core/install.sh /usr/local
+
+EXPOSE 80 443
+
+# Run eternal loop - for testing
+CMD tail -f /dev/null
