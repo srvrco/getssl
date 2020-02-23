@@ -213,6 +213,7 @@
 # 2020-02-12 Fix "Registration key already in use" (2.19)
 # 2020-02-13 Fix bug with copying to all locations when creating RSA and ECDSA certs (2.20)
 # 2020-02-22 Change sign_string to use openssl asn1parse (better fix for #424)
+# 2020-02-23 Add dig to config check for systems without drill (ubuntu)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -433,9 +434,9 @@ check_config() { # check the config files for all obvious errors
         info "${DOMAIN}: ACL location not specified for domain $d in $DOMAIN_DIR/getssl.cfg"
         config_errors=true
       fi
-      # check domain exist
+      # check domain exists
       if [[ "$DNS_CHECK_FUNC" == "drill" ]]; then
-        if [[ "$($DNS_CHECK_FUNC "${d}" SOA|grep -c "^${d}")" -ge 1 ]]; then
+        if [[ "$($DNS_CHECK_FUNC "${d}" |grep -c "${d}")" -ge 1 ]]; then
           debug "found IP for ${d}"
         else
           info "${DOMAIN}: DNS lookup failed for ${d}"
