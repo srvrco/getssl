@@ -20,7 +20,7 @@ source /getssl/test/test_helper.bash
 setup_environment 3>&1
 
 # Only add the pebble CA to the cert bundle if using pebble
-if [ "$(grep -q pebble "${CONFIG_FILE}")" = 0 ]; then
+if grep -q pebble "${CONFIG_FILE}"; then
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
 fi
 
