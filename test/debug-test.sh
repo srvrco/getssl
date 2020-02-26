@@ -9,13 +9,13 @@ if [ $# -eq 2 ]; then
     shift
 fi
 
+#shellcheck disable=SC1091
+source /getssl/test/test_helper.bash
+
 CONFIG_FILE=$1
 if [ ! -e "$CONFIG_FILE" ]; then
     CONFIG_FILE=${CODE_DIR}/test/test-config/${CONFIG_FILE}
 fi
-
-#shellcheck disable=SC1091
-source /getssl/test/test_helper.bash
 
 setup_environment 3>&1
 
