@@ -23,8 +23,9 @@ jobs:
           STALE_ISSUE_MESSAGE: 'This issue will be closed as no response'
           CLOSE_MESSAGE: 'Closing stale issue'
           EXEMPT_ISSUE_LABELS: |
-            enhancement
             bug
+            documentation
+            enhancement
             feature
             help wanted
-            documentation
+            rfc
