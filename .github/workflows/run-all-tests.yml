@@ -15,4 +15,4 @@ jobs:
       - name: Check running containers
         run: docker ps
       - name: Run test suite
-        run: docker exec ubuntu bats /getssl/test
+        run: docker exec getssl-ubuntu bats /getssl/test
