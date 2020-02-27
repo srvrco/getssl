@@ -12,6 +12,9 @@ setup() {
 
 
 @test "Create certificates for more than 10 hosts using HTTP-01 verification" {
+    if [ -n "$STAGING" ]; then
+        skip "Using staging server, skipping internal test"
+    fi
     CONFIG_FILE="getssl-http01-10-hosts.cfg"
     setup_environment
 
@@ -30,7 +33,9 @@ setup() {
 
 
 @test "Force renewal of more than 10 certificates using HTTP-01" {
-    #!FIXME test certificate has been updated
+    if [ -n "$STAGING" ]; then
+        skip "Using staging server, skipping internal test"
+    fi
     run ${CODE_DIR}/getssl -f $GETSSL_HOST
     assert_success
     refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
