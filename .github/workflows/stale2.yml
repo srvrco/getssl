@@ -1,20 +1,30 @@
-name: Mark stale issues and pull requests
-
 on:
   schedule:
-  - cron: "0 0 * * *"
+    - cron: "0 0 * * *"
+
+name: Run Stale Bot on Issue Comments
 
 jobs:
-  stale:
-  
+  build:
+    name: stale
     runs-on: ubuntu-latest
-    
     steps:
-    - uses: actions/stale@v1
-      with:
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
-        stale-issue-message: 'This issue will be closed as no response'
-        stale-issue-label: 'needs more information'
-        exempt-issue-label: 'enhancement'
-        days-before-stale: 60
-        days-before-close: 30
+      - uses: actions/checkout@master
+      - name: stale
+        uses: gatsbyjs/stale@master
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: true
+          DAYS_BEFORE_STALE: 60
+          DAYS_BEFORE_CLOSE: 30
+          STALE_ISSUE_LABEL: 'stale'
+          STALE_PR_LABEL: 'stale'
+          OPERATIONS_PER_RUN: 30
+          STALE_ISSUE_MESSAGE: 'This issue will be closed as no response'
+          CLOSE_MESSAGE: 'Closing stale issue'
+          EXEMPT_ISSUE_LABELS: |
+            enhancement
+            bug
+            feature
+            help wanted
+            documentation
