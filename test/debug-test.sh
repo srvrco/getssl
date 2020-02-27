@@ -9,18 +9,18 @@ if [ $# -eq 2 ]; then
     shift
 fi
 
+#shellcheck disable=SC1091
+source /getssl/test/test_helper.bash
+
 CONFIG_FILE=$1
 if [ ! -e "$CONFIG_FILE" ]; then
     CONFIG_FILE=${CODE_DIR}/test/test-config/${CONFIG_FILE}
 fi
 
-#shellcheck disable=SC1091
-source /getssl/test/test_helper.bash
-
 setup_environment 3>&1
 
 # Only add the pebble CA to the cert bundle if using pebble
-if [ "$(grep -q pebble "${CONFIG_FILE}")" = 0 ]; then
+if grep -q pebble "${CONFIG_FILE}"; then
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
 fi
 
