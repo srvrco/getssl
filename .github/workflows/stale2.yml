@@ -20,8 +20,8 @@ jobs:
           STALE_ISSUE_LABEL: 'stale'
           STALE_PR_LABEL: 'stale'
           OPERATIONS_PER_RUN: 30
-          STALE_ISSUE_MESSAGE: 'This issue will be closed as no response'
-          CLOSE_MESSAGE: 'Closing stale issue'
+          STALE_ISSUE_MESSAGE: 'This issue will be closed as no updates for 60 days'
+          CLOSE_MESSAGE: 'Closing stale issue after 90 days of inactivity'
           EXEMPT_ISSUE_LABELS: |
             bug
             documentation
