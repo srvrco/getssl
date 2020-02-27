@@ -14,7 +14,8 @@ jobs:
           time: '60s'
       - name: Check running containers
         run: docker ps
-      - name: Run test suite
-        run: docker exec getssl-ubuntu bats /getssl/test
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v1
+      - name: Run test suite
+        run: docker exec getssl-ubuntu bats /getssl/test
+
