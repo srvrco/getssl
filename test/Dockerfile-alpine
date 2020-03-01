@@ -19,4 +19,4 @@ RUN /bats-core/install.sh /usr/local
 
 # Use supervisord to run nginx in the background
 COPY ./test/alpine-supervisord.conf /etc/supervisord.conf
-ENTRYPOINT /usr/bin/supervisord -c /etc/supervisord.conf
+CMD tail -f /dev/null
