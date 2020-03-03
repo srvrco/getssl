@@ -214,10 +214,11 @@
 # 2020-02-13 Fix bug with copying to all locations when creating RSA and ECDSA certs (2.20)
 # 2020-02-22 Change sign_string to use openssl asn1parse (better fix for #424)
 # 2020-02-23 Add dig to config check for systems without drill (ubuntu)
+# 2020-03-03 Fix a *() pattern bug with ACMEv2 when extglob is on in send_signed_request (2.20.1)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.20"
+VERSION="2.20.1"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -1707,6 +1708,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   fi
 
   nonceproblem="true"
+  # Avoid problems with *() patterns in variable substition
+  trap "$(shopt -p extglob)" RETURN
+  shopt -u extglob
   while [[ "$nonceproblem" == "true" ]]; do
 
     # Build header with just our public key and algorithm information
