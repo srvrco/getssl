@@ -25,7 +25,7 @@ docker run -it \
   --env GETSSL_HOST="$OS.getssl.test" \
   -v .:/getssl \
   --rm \
-  --network getssl-timkimber_acmenet \
+  --network getssl_acmenet\
   --network-alias $ALIAS \
   --network-alias "a.$OS.getssl.test" \
   --network-alias "b.$OS.getssl.test" \
