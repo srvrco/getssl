@@ -23,7 +23,7 @@ fi
 docker build --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" .
 docker run \
   --env GETSSL_HOST="$OS.getssl.test" \
-  -v .:/getssl \
+  -v $(pwd):/getssl \
   --rm \
   --network getssl_acmenet\
   --network-alias $ALIAS \
