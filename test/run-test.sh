@@ -21,7 +21,7 @@ else
 fi
 
 docker build --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" .
-docker run -it \
+docker run \
   --env GETSSL_HOST="$OS.getssl.test" \
   -v .:/getssl \
   --rm \
