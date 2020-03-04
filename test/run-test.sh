@@ -20,7 +20,7 @@ else
     ALIAS="$OS.getssl.test"
 fi
 
-docker build --rm -f "test\Dockerfile-$OS" -t "getssl-$OS" .
+docker build --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" .
 docker run -it \
   --env GETSSL_HOST="$OS.getssl.test" \
   -v .:/getssl \
