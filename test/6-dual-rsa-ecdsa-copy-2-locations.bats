@@ -16,7 +16,7 @@ setup() {
 
 teardown() {
     if [ -z "$STAGING" ]; then
-        curl --silent -X POST -d '{"host":"'a.$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/del-a
+        curl --silent -X POST -d '{"host":"'a.$GETSSL_HOST'"}' http://10.30.50.3:8055/clear-a
     fi
 }
 

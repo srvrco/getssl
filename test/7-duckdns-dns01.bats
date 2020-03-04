@@ -38,5 +38,5 @@ setup() {
     refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
     refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
     cleanup_environment
-    curl --silent -X POST -d '{"host":"getssl.duckdns.org", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/del-a
+    curl --silent -X POST -d '{"host":"getssl.duckdns.org"}' http://10.30.50.3:8055/clear-a
 }
