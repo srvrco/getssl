@@ -12,8 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Build the docker-compose stack
-        env:
-          DUCKDNS_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
         run: docker-compose up -d --build
-      - name: Run test suite
-        run: test/run-all-tests.sh
+  test-alpine:
+    needs: build
+    steps:
+      - name: Run test suite on Alpine
+        run: test/run-test.sh alpine

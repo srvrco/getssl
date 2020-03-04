@@ -34,10 +34,15 @@ create_certificate() {
     run ${CODE_DIR}/getssl $1 "$GETSSL_HOST"
 }
 
-
+# start nginx in background on alpine via supervisord
+if [[ -f /usr/bin/supervisord && -f /etc/supervisord.conf ]]; then
+    if [[ ! $(pgrep supervisord) ]]; then
+        /usr/bin/supervisord -c /etc/supervisord.conf >&3-
+    fi
+fi
 
 # Find NGINX configuration directory for HTTP-01 testing (need to add SSL to config)
-if [[ -d /etc/nginx/conf.d/default.conf ]]; then
+if [[ -f /etc/nginx/conf.d/default.conf ]]; then
     export NGINX_CONFIG=/etc/nginx/conf.d/default.conf
 elif [[ -f /etc/nginx/sites-enabled/default ]]; then
     export NGINX_CONFIG=/etc/nginx/sites-enabled/default
@@ -47,7 +52,8 @@ else
 fi
 
 # Find IP address
-export GETSSL_IP=$(ip address | awk '/10.30.50/ { print $2 }' | awk -F/ '{ print $1 }')
+GETSSL_IP=$(ip address | awk '/10.30.50/ { print $2 }' | awk -F/ '{ print $1 }')
+export GETSSL_IP
 
 if [ ! -f ${INSTALL_DIR}/pebble.minica.pem ]; then
     wget --quiet --no-clobber https://raw.githubusercontent.com/letsencrypt/pebble/master/test/certs/pebble.minica.pem 2>&1

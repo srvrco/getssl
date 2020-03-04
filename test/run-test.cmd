@@ -16,7 +16,8 @@ set OS=ubuntu
 GOTO CheckCommand
 
 :NoCmd
-set COMMAND=/getssl/test/run-bats.sh
+REM set COMMAND=/getssl/test/run-bats.sh
+set COMMAND=bats /getssl/test
 GOTO CheckAlias
 
 :duckdns
@@ -29,6 +30,7 @@ docker build --rm -f "test\Dockerfile-%OS%" -t getssl-%OS% .
 docker run -it ^
   --env GETSSL_HOST=%OS%.getssl.test ^
   -v %cd%:/getssl ^
+  --rm ^
   --network getssl-timkimber_acmenet ^
   --network-alias %ALIAS% ^
   --network-alias a.%OS%.getssl.test ^
@@ -42,5 +44,6 @@ docker run -it ^
   --network-alias i.%OS%.getssl.test ^
   --network-alias j.%OS%.getssl.test ^
   --network-alias k.%OS%.getssl.test ^
+  --name getssl-%OS% ^
   getssl-%OS% ^
   %COMMAND%
