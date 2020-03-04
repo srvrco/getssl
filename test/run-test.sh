@@ -15,18 +15,20 @@ else
 fi
 
 if [ "$OS" == "duckdns" ]; then
-    ALIAS="$OS.duckdns.org"
+    ALIAS="getssl.duckdns.org"
+    STAGING="--env STAGING=true"
 else
     ALIAS="$OS.getssl.test"
+    STAGING=""
 fi
 
 docker build --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" .
 # shellcheck disable=SC2086
 docker run \
-  --env GETSSL_HOST="$OS.getssl.test" \
+  --env GETSSL_HOST="$OS.getssl.test" $STAGING \
   -v "$(pwd)":/getssl \
   --rm \
-  --network getssl_acmenet\
+  --network ${PWD##*/}_acmenet \
   --network-alias $ALIAS \
   --network-alias "a.$OS.getssl.test" \
   --network-alias "b.$OS.getssl.test" \

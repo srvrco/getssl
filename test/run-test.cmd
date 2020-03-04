@@ -9,6 +9,7 @@ set COMMAND=%2 %3
 :CheckAlias
 IF %OS%==duckdns GOTO duckdns
 set ALIAS=%OS%.getssl.test
+set STAGING=
 GOTO Run
 
 :NoOS
@@ -21,17 +22,19 @@ set COMMAND=bats /getssl/test
 GOTO CheckAlias
 
 :duckdns
-set ALIAS=%OS%.duckdns.org
+set ALIAS=getssl.duckdns.org
+set STAGING=--env STAGING=true
 
 :Run
+for %%I in (.) do set CurrDirName=%%~nxI
 
 docker build --rm -f "test\Dockerfile-%OS%" -t getssl-%OS% .
 @echo on
 docker run -it ^
-  --env GETSSL_HOST=%OS%.getssl.test ^
+  --env GETSSL_HOST=%ALIAS% %STAGING% ^
   -v %cd%:/getssl ^
   --rm ^
-  --network getssl-timkimber_acmenet ^
+  --network %CurrDirName%_acmenet ^
   --network-alias %ALIAS% ^
   --network-alias a.%OS%.getssl.test ^
   --network-alias b.%OS%.getssl.test ^
