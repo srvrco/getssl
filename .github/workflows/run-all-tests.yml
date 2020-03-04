@@ -30,7 +30,7 @@ jobs:
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on Debian
-      run: test/run-test.sh debian
+        run: test/run-test.sh debian
   test-duckdns:
     runs-on: ubuntu-latest
     steps:

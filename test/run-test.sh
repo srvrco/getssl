@@ -21,9 +21,10 @@ else
 fi
 
 docker build --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" .
+# shellcheck disable=SC2086
 docker run \
   --env GETSSL_HOST="$OS.getssl.test" \
-  -v $(pwd):/getssl \
+  -v "$(pwd)":/getssl \
   --rm \
   --network getssl_acmenet\
   --network-alias $ALIAS \
