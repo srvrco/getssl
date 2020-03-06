@@ -1,3 +1,4 @@
+![Run all tests](https://github.com/srvrco/getssl/workflows/Run%20all%20tests/badge.svg) ![shellcheck](https://github.com/srvrco/getssl/workflows/shellcheck/badge.svg)
 # getssl
 
 Obtain SSL certificates from the letsencrypt.org ACME server. Suitable
