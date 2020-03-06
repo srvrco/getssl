@@ -5,12 +5,6 @@ load '/bats-assert/load.bash'
 load '/getssl/test/test_helper.bash'
 
 
-# These are run for every test, not once per file
-setup() {
-    if [ -n "$STAGING" ]; then
-        export GETSSL_HOST=getssl.duckdns.org
-    fi
-}
 
 
 @test "Create new certificate using staging server and prime256v1" {
@@ -18,7 +12,6 @@ setup() {
         skip "Running internal tests, skipping external test"
     fi
     CONFIG_FILE="getssl-duckdns01.cfg"
-    GETSSL_HOST=getssl.duckdns.org
 
     setup_environment
     init_getssl
@@ -49,7 +42,6 @@ setup() {
         skip "Running internal tests, skipping external test"
     fi
     CONFIG_FILE="getssl-duckdns01.cfg"
-    GETSSL_HOST=getssl.duckdns.org
 
     setup_environment
     init_getssl

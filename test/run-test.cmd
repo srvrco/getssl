@@ -7,7 +7,8 @@ IF %2.==. GOTO NoCmd
 set COMMAND=%2 %3
 
 :CheckAlias
-IF %OS%==duckdns GOTO duckdns
+REM check if OS *contains* duckdns
+IF NOT x%OS:duckdns=%==x%OS% GOTO duckdns
 set ALIAS=%OS%.getssl.test
 set STAGING=
 GOTO Run
@@ -22,7 +23,7 @@ set COMMAND=bats /getssl/test
 GOTO CheckAlias
 
 :duckdns
-set ALIAS=getssl.duckdns.org
+set ALIAS=%OS:-duckdns=%-getssl.duckdns.org
 set STAGING=--env STAGING=true
 
 :Run
@@ -32,6 +33,7 @@ docker build --rm -f "test\Dockerfile-%OS%" -t getssl-%OS% .
 @echo on
 docker run -it ^
   --env GETSSL_HOST=%ALIAS% %STAGING% ^
+  --env GETSSL_OS=%OS:-duckdns=% ^
   -v %cd%:/getssl ^
   --rm ^
   --network %CurrDirName%_acmenet ^

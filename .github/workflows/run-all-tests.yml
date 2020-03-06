@@ -23,6 +23,14 @@ jobs:
         run: docker-compose up -d --build
       - name: Run test suite on centos6
         run: test/run-test.sh centos6
+  test-centos7-duckdns:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on CentOS7 against Staging using DuckDNS
+        run: test/run-test.sh centos7-duckdns
   test-debian:
     runs-on: ubuntu-latest
     steps:
@@ -31,14 +39,6 @@ jobs:
         run: docker-compose up -d --build
       - name: Run test suite on Debian
         run: test/run-test.sh debian
-  test-duckdns:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v1
-      - name: Build the docker-compose stack
-        run: docker-compose up -d --build
-      - name: Run test suite on Ubuntu using DuckDNS
-        run: test/run-test.sh duckdns
   test-ubuntu:
     runs-on: ubuntu-latest
     steps:
@@ -63,3 +63,11 @@ jobs:
         run: docker-compose up -d --build
       - name: Run test suite on Ubuntu18
         run: test/run-test.sh ubuntu18
+  test-ubuntu-duckdns:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on Ubuntu against Staging using DuckDNS
+        run: test/run-test.sh ubuntu-duckdns
