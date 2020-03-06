@@ -25,7 +25,7 @@ fi
 docker build --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" .
 # shellcheck disable=SC2086
 docker run \
-  --env GETSSL_HOST="$OS.getssl.test" $STAGING \
+  --env GETSSL_HOST=$ALIAS $STAGING \
   --env GETSSL_OS=${OS%-duckdns} \
   -v "$(pwd)":/getssl \
   --rm \
