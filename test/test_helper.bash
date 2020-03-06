@@ -35,9 +35,14 @@ create_certificate() {
 }
 
 # start nginx in background on alpine via supervisord
+# shellcheck disable=SC2153 # Ignore GETSSL_OS looks like typo of GETSSL_IP
 if [[ -f /usr/bin/supervisord && -f /etc/supervisord.conf ]]; then
     if [[ ! $(pgrep supervisord) ]]; then
         /usr/bin/supervisord -c /etc/supervisord.conf >&3-
+    fi
+elif [ "$GETSSL_OS" == "centos7" ]; then
+    if [ -z "$(pgrep nginx)" ]; then
+        nginx >&3-
     fi
 fi
 
@@ -52,7 +57,16 @@ else
 fi
 
 # Find IP address
-GETSSL_IP=$(ip address | awk '/10.30.50/ { print $2 }' | awk -F/ '{ print $1 }')
+if [[ -n "$(command -v ip)" ]]; then
+    IP=$(ip address)
+elif [[ -n "$(command -v hostname)" ]]; then
+    IP=$(hostname -I)
+else
+    echo "Cannot find IP address"
+    exit 1
+fi
+
+GETSSL_IP=$(echo "$IP" | awk '/10.30.50/ { print $2 }' | awk -F/ '{ print $1 }')
 export GETSSL_IP
 
 if [ ! -f ${INSTALL_DIR}/pebble.minica.pem ]; then

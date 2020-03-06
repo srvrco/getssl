@@ -5,13 +5,6 @@ load '/bats-assert/load.bash'
 load '/getssl/test/test_helper.bash'
 
 
-# These are run for every test, not once per file
-setup() {
-    if [ -n "$STAGING" ]; then
-        export GETSSL_HOST=getssl.duckdns.org
-    fi
-}
-
 
 @test "Create new certificate using staging server and DuckDNS" {
     if [ -z "$STAGING" ]; then
@@ -38,5 +31,4 @@ setup() {
     refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
     refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
     cleanup_environment
-    curl --silent -X POST -d '{"host":"getssl.duckdns.org"}' http://10.30.50.3:8055/clear-a
 }
