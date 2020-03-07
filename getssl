@@ -997,8 +997,9 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
                            | grep ^_acme -A2\
                            | grep '"'|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
+            debug "$DNS_CHECK_FUNC" TXT "_acme-challenge.${d}" "@${ns}"
             check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${d}" "@${ns}" \
-                           | grep 'IN TXT'|awk -F'"' '{ print $2}')
+                           | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
             check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${d}" "${ns}" \
                            | grep 'descriptive text'|awk -F'"' '{ print $2}')
