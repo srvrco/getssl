@@ -1069,10 +1069,10 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
   fi
 
   if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-    if [[ -z "$gad_s" ]]; then #checking for CNAMEs
-      res=$($DNS_CHECK_FUNC CNAME "$gad_d"| grep "^$gad_d")
+    if [[ -z "$gad_s" ]]; then #checking for CNAMEs (grep for CNAME required because if no CNAME then dig returns SOA record)
+      res=$($DNS_CHECK_FUNC CNAME "$gad_d"| grep "^$gad_d" | grep CNAME)
     else
-      res=$($DNS_CHECK_FUNC CNAME "$gad_d" "@$gad_s"| grep "^$gad_d")
+      res=$($DNS_CHECK_FUNC CNAME "$gad_d" "@$gad_s"| grep "^$gad_d" | grep CNAME)
     fi
     if [[ -n "$res" ]]; then # domain is a CNAME so get main domain
       gad_d=$(echo "$res"| awk '{print $5}' |sed 's/\.$//g')
