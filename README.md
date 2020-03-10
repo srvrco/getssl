@@ -4,6 +4,16 @@
 Obtain SSL certificates from the letsencrypt.org ACME server. Suitable
 for automating the process on remote servers.
 
+## Upgrading from ACME v01 to ACME v02
+
+Find the following line in your `getssl.cfg` file:
+
+```CA="https://acme-v01.api.letsencrypt.org"```
+
+and change it to:
+
+```CA="https://acme-v02.api.letsencrypt.org"```
+
 ## Features
 
 * **Bash** - It runs on virtually all unix machines, including BSD, most
@@ -177,9 +187,9 @@ simple bash file containing variables, an example of which is:
 ```getssl
 # Uncomment and modify any variables you need
 # The staging server is best for testing (hence set as default)
-CA="https://acme-staging.api.letsencrypt.org"
+CA="https://acme-staging-v02.api.letsencrypt.org"
 # This server issues full certificates, however has rate limits
-#CA="https://acme-v01.api.letsencrypt.org"
+#CA="https://acme-v02.api.letsencrypt.org"
 
 AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 
@@ -206,9 +216,9 @@ config file (again called `getssl.cfg`). An example of which is:
 # see https://github.com/srvrco/getssl/wiki/Example-config-files for example configs
 #
 # The staging server is best for testing
-#CA="https://acme-staging.api.letsencrypt.org"
+#CA="https://acme-staging-v02.api.letsencrypt.org"
 # This server issues full certificates, however has rate limits
-#CA="https://acme-v01.api.letsencrypt.org"
+#CA="https://acme-v02.api.letsencrypt.org"
 
 #AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.1.1-August-1-2016.pdf"
 
@@ -273,9 +283,9 @@ same server would be:
 ```getssl
 # uncomment and modify any variables you need
 # The staging server is best for testing
-CA="https://acme-staging.api.letsencrypt.org"
+CA="https://acme-staging-v02.api.letsencrypt.org"
 # This server issues full certificates, however has rate limits
-#CA="https://acme-v01.api.letsencrypt.org"
+#CA="https://acme-v02.api.letsencrypt.org"
 
 # additional domains - this could be multiple domains / subdomains in a comma separated list
 SANS="www.example.com"
