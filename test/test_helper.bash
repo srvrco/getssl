@@ -58,15 +58,14 @@ fi
 
 # Find IP address
 if [[ -n "$(command -v ip)" ]]; then
-    IP=$(ip address)
+    GETSSL_IP=$(ip address | awk '/10.30.50/ { print $2 }' | awk -F/ '{ print $1 }')
 elif [[ -n "$(command -v hostname)" ]]; then
-    IP=$(hostname -I)
+    GETSSL_IP=$(hostname -I | sed -e 's/[[:space:]]*$//')
 else
     echo "Cannot find IP address"
     exit 1
 fi
 
-GETSSL_IP=$(echo "$IP" | awk '/10.30.50/ { print $2 }' | awk -F/ '{ print $1 }')
 export GETSSL_IP
 
 if [ ! -f ${INSTALL_DIR}/pebble.minica.pem ]; then
