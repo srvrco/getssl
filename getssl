@@ -1069,18 +1069,35 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
   fi
 
   if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-    if [[ -z "$gad_s" ]]; then #checking for CNAMEs (grep for CNAME required because if no CNAME then dig returns SOA record)
-      res=$($DNS_CHECK_FUNC CNAME "$gad_d"| grep "^$gad_d" | grep CNAME)
+    # Use SOA +trace to find the name server
+    if [[ -z "$gad_s" ]]; then
+        res=$($DNS_CHECK_FUNC SOA +trace +nocomments "$gad_d" 2>/dev/null | grep "IN\WNS\W" | tail -1)
     else
-      res=$($DNS_CHECK_FUNC CNAME "$gad_d" "@$gad_s"| grep "^$gad_d" | grep CNAME)
+        res=$($DNS_CHECK_FUNC SOA +trace +nocomments "$gad_d" "@$gad_s" 2>/dev/null | grep "IN\WNS\W" | tail -1)
     fi
-    if [[ -n "$res" ]]; then # domain is a CNAME so get main domain
-      gad_d=$(echo "$res"| awk '{print $5}' |sed 's/\.$//g')
-    fi
-    if [[ -z "$gad_s" ]]; then #checking for CNAMEs
-      res=$($DNS_CHECK_FUNC NS "$gad_d"| grep "^$gad_d")
-    else
-      res=$($DNS_CHECK_FUNC NS "$gad_d" "@$gad_s"| grep "^$gad_d")
+
+    # fallback to existing code
+    if [[ -z "$res" ]]; then
+      if [[ -z "$gad_s" ]]; then #checking for CNAMEs
+        res=$($DNS_CHECK_FUNC CNAME "$gad_d"| grep "^$gad_d" )
+      else
+        res=$($DNS_CHECK_FUNC CNAME "$gad_d" "@$gad_s"| grep "^$gad_d" )
+      fi
+      if [[ -n "$res" ]]; then # domain is a CNAME so get main domain
+        gad_d=$(echo "$res"| awk '{print $5}' |sed 's/\.$//g')
+      fi
+      # If gad_d is an A record then this returns the SOA for the root domain, e.g. without the www
+      #   dig NS ubuntu.getssl.text
+      #   > getssl.test.      IN   SOA ns1.duckdns.org
+      # If gad_d is a CNAME record then this returns the NS for the domain pointed to by $gad_d
+      #   dig NS www.getssl.text
+      #   > www.getssl.test.  IN CNAME getssl.test
+      #   > getssl.test.      IN    NS ns1.duckdns.org
+      if [[ -z "$gad_s" ]]; then
+        res=$($DNS_CHECK_FUNC NS "$gad_d"| grep -E "IN\W(NS|SOA)\W" | tail -1)
+      else
+        res=$($DNS_CHECK_FUNC NS "$gad_d" "@$gad_s"| grep -E "IN\W(NS|SOA)\W" | tail -1)
+      fi
     fi
     if [[ -z "$res" ]]; then
       error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
