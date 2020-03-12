@@ -750,13 +750,37 @@ create_order() {
   OrderLink=$(echo "$responseHeaders" | grep -i location | awk '{print $2}'| tr -d '\r\n ')
   debug "Order link $OrderLink"
   FinalizeLink=$(json_get "$response" "finalize")
-  dn=0
-  for d in $alldomains; do
-    # get authorizations link
-    AuthLink[$dn]=$(json_get "$response" "identifiers" "value" "$d" "authorizations" "x")
-    debug "authorizations link for $d - ${AuthLink[$dn]}"
-    ((dn++))
-  done
+
+  if [[ $API -eq 1 ]]; then
+    dn=0
+    for d in $alldomains; do
+      # get authorizations link
+      AuthLink[$dn]=$(json_get "$response" "identifiers" "value" "$d" "authorizations" "x")
+      debug "authorizations link for $d - ${AuthLink[$dn]}"
+      ((dn++))
+    done
+  else
+    # Authorization links are unsorted, so fetch the authorization link, find the domain, save response in the correct array position
+    AuthLinks=$(json_get "$response" "authorizations")
+    AuthLinkResponse=()
+    AuthLinkResponseHeader=()
+    for l in $AuthLinks; do
+      debug "Requesting authorizations link for $l"
+      send_signed_request "$l" ""
+      # Get domain from response
+      authdomain=$(json_get "$response" "identifier" "value")
+      # find array position (This is O(n2) but that doubt we'll see performance issues)
+      dn=0
+      for d in $alldomains; do
+        if [ "$d" == "$authdomain" ]; then
+          debug "Saving authorization response for $authdomain for domain alldomains[$dn]"
+          AuthLinkResponse[$dn]=$response
+          AuthLinkResponseHeader[$dn]=$responseHeaders
+        fi
+        ((dn++))
+      done
+    done
+  fi
 }
 
 date_epoc() { # convert the date into epoch time
@@ -823,7 +847,9 @@ for d in $alldomains; do
       error_exit "new-authz error: $response"
     fi
   else
-    send_signed_request "${AuthLink[$dn]}" ""
+    response=${AuthLinkResponse[$dn]}
+    responseHeaders=${AuthLinkResponseHeader[$dn]}
+    response_status=$(json_get "$response" status)
   fi
 
   if [[ $response_status == "valid" ]]; then
@@ -841,16 +867,14 @@ for d in $alldomains; do
     if [[ $VALIDATE_VIA_DNS == "true" ]]; then # set up the correct DNS token for verification
       if [[ $API -eq 1 ]]; then
         # get the dns component of the ACME response
-        # get the token from the dns component
+        # get the token and uri from the dns component
         token=$(json_get "$response" "token" "dns-01")
-        # get the uri from the dns component
         uri=$(json_get "$response" "uri" "dns-01")
         debug uri "$uri"
       else # APIv2
         debug "authlink response = $response"
-        # get the token from the http-01 component
+        # get the token and uri from the dns-01 component
         token=$(json_get "$response" "challenges" "type" "dns-01" "token")
-        # get the uri from the http component
         uri=$(json_get "$response" "challenges" "type" "dns-01" "url")
         debug uri "$uri"
       fi
@@ -901,7 +925,6 @@ for d in $alldomains; do
         uri=$(json_get "$response" "uri" "http-01")
         debug uri "$uri"
       else # APIv2
-        send_signed_request "${AuthLink[$dn]}" ""
         debug "authlink response = $response"
         # get the token from the http-01 component
         token=$(json_get "$response" "challenges" "type" "http-01" "token")
