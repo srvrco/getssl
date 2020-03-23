@@ -1890,7 +1890,7 @@ write_domain_template() { # write out a template file for a domain.
 	# see https://github.com/srvrco/getssl/wiki/Example-config-files for example configs
 	#
 	# The staging server is best for testing
-	#CA="https://acme-staging-v02.api.letsencrypt.org/"
+	#CA="https://acme-staging-v02.api.letsencrypt.org"
 	# This server issues full certificates, however has rate limits
 	#CA="https://acme-v02.api.letsencrypt.org"
 
