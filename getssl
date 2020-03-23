@@ -214,10 +214,11 @@
 # 2020-02-13 Fix bug with copying to all locations when creating RSA and ECDSA certs (2.20)
 # 2020-02-22 Change sign_string to use openssl asn1parse (better fix for #424)
 # 2020-02-23 Add dig to config check for systems without drill (ubuntu)
+# 2020-03-23 Fix staging server URL in domain template
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
-VERSION="2.20"
+VERSION="2.21"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
