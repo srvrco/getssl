@@ -214,7 +214,8 @@
 # 2020-02-13 Fix bug with copying to all locations when creating RSA and ECDSA certs (2.20)
 # 2020-02-22 Change sign_string to use openssl asn1parse (better fix for #424)
 # 2020-02-23 Add dig to config check for systems without drill (ubuntu)
-# 2020-03-11 Use dig +trace to find primary name server and improve dig parsing of CNAME (2.21)
+# 2020-03-11 Use dig +trace to find primary name server and improve dig parsing of CNAME
+# 2020-03-24 Find primary ns using all dns utils (dig, host, nslookup) (2.21)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -234,7 +235,7 @@ CSR_SUBJECT="/"
 CURL_USERAGENT="${PROGNAME}/${VERSION}"
 DEACTIVATE_AUTH="false"
 DEFAULT_REVOKE_CA="https://acme-v02.api.letsencrypt.org"
-DNS_EXTRA_WAIT=""
+DNS_EXTRA_WAIT=60
 DNS_WAIT=10
 DOMAIN_KEY_LENGTH=4096
 DUAL_RSA_ECDSA="false"
@@ -825,6 +826,29 @@ error_exit() { # give error message on error exit
   exit 1
 }
 
+find_dns_utils() {
+    HAS_NSLOOKUP=false
+    HAS_DIG_OR_DRILL=""
+    HAS_HOST=false
+    if [[ -n "$(command -v nslookup)" ]]; then
+        debug "HAS NSLOOKUP=true"
+        HAS_NSLOOKUP=true
+    fi
+
+    if [[ -n "$(command -v drill)" ]]; then
+        debug "HAS DIG_OR_DRILL=drill"
+        HAS_DIG_OR_DRILL="drill"
+    elif [[ -n "$(command -v dig)" ]]; then
+        debug "HAS DIG_OR_DRILL=dig"
+        HAS_DIG_OR_DRILL="dig"
+    fi
+
+    if [[ -n "$(command -v host)" ]]; then
+        debug "HAS HOST=true"
+        HAS_HOST=true
+    fi
+}
+
 fulfill_challenges() {
 dn=0
 for d in $alldomains; do
@@ -1078,10 +1102,11 @@ fi
 }
 
 get_auth_dns() { # get the authoritative dns server for a domain (sets primary_ns )
-  gad_d="$1" # domain name
+  orig_gad_d="$1" # domain name
   gad_s="$PUBLIC_DNS_SERVER" # start with PUBLIC_DNS_SERVER
 
   if [[ "$os" == "cygwin" ]]; then
+    gad_d="$orig_gad_d"
     all_auth_dns_servers=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} 2>/dev/null \
                           | grep "primary name server" \
                           | awk '{print $NF}')
@@ -1092,23 +1117,27 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     return
   fi
 
-  if [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
+  if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
+    gad_d="$orig_gad_d"
+    debug Using "$HAS_DIG_OR_DRILL SOA +trace +nocomments $gad_d @$gad_s" to find primary nameserver
     # Use SOA +trace to find the name server
     if [[ -z "$gad_s" ]]; then
-        res=$($DNS_CHECK_FUNC SOA +trace +nocomments "$gad_d" 2>/dev/null | grep "IN\WNS\W" | tail -1)
+        res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" 2>/dev/null | grep "IN\WNS\W" | tail -1)
     else
-        res=$($DNS_CHECK_FUNC SOA +trace +nocomments "$gad_d" "@$gad_s" 2>/dev/null | grep "IN\WNS\W" | tail -1)
+        res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" "@$gad_s" 2>/dev/null | grep "IN\WNS\W" | tail -1)
     fi
 
     # fallback to existing code
     if [[ -z "$res" ]]; then
-      if [[ -z "$gad_s" ]]; then #checking for CNAMEs
-        res=$($DNS_CHECK_FUNC CNAME "$gad_d"| grep "^$gad_d" )
+      debug Checking for CNAME using "$HAS_DIG_OR_DRILL CNAME $gad_d @$gad_s"
+      if [[ -z "$gad_s" ]]; then #checking for CNAMEs (need grep as dig 9.11 sometimes returns everything not just CNAME entries)
+        res=$($HAS_DIG_OR_DRILL CNAME "$gad_d"| grep "^$gad_d" | grep CNAME)
       else
-        res=$($DNS_CHECK_FUNC CNAME "$gad_d" "@$gad_s"| grep "^$gad_d" )
+        res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" "@$gad_s"| grep "^$gad_d" | grep CNAME)
       fi
       if [[ -n "$res" ]]; then # domain is a CNAME so get main domain
         gad_d=$(echo "$res"| awk '{print $5}' |sed 's/\.$//g')
+        debug Domain is a CNAME, actual domain is "$gad_d"
       fi
       # If gad_d is an A record then this returns the SOA for the root domain, e.g. without the www
       #   dig NS ubuntu.getssl.text
@@ -1117,77 +1146,96 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
       #   dig NS www.getssl.text
       #   > www.getssl.test.  IN CNAME getssl.test
       #   > getssl.test.      IN    NS ns1.duckdns.org
+      debug Using "$HAS_DIG_OR_DRILL NS $gad_d @$gad_s" to find primary nameserver
       if [[ -z "$gad_s" ]]; then
-        res=$($DNS_CHECK_FUNC NS "$gad_d"| grep -E "IN\W(NS|SOA)\W" | tail -1)
+        res=$($HAS_DIG_OR_DRILL NS "$gad_d"| grep -E "IN\W(NS|SOA)\W" | tail -1)
       else
-        res=$($DNS_CHECK_FUNC NS "$gad_d" "@$gad_s"| grep -E "IN\W(NS|SOA)\W" | tail -1)
+        res=$($HAS_DIG_OR_DRILL NS "$gad_d" "@$gad_s"| grep -E "IN\W(NS|SOA)\W" | tail -1)
       fi
     fi
-    if [[ -z "$res" ]]; then
-      error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
-    else
+    if [[ -n "$res" ]]; then
       all_auth_dns_servers=$(echo "$res" | awk '$4 ~ "NS" {print $5}' | sed 's/\.$//g'|tr '\n' ' ')
+      if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
+        primary_ns="$all_auth_dns_servers"
+      else
+        primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
+      fi
+      return
     fi
-    if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
-      primary_ns="$all_auth_dns_servers"
-    else
-      primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
-    fi
-    return
   fi
 
-  if [[ "$DNS_CHECK_FUNC" == "host" ]]; then
+  if [[ "$HAS_HOST" == true ]]; then
+    gad_d="$orig_gad_d"
+    debug Using "host -t NS" to find primary name server for "$gad_d"
     if [[ -z "$gad_s" ]]; then
-      res=$($DNS_CHECK_FUNC -t NS "$gad_d"| grep "name server")
+      res=$(host -t NS "$gad_d"| grep "name server")
     else
-      res=$($DNS_CHECK_FUNC -t NS "$gad_d" "$gad_s"| grep "name server")
+      res=$(host -t NS "$gad_d" "$gad_s"| grep "name server")
     fi
-    if [[ -z "$res" ]]; then
-      error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
-    else
+    if [[ -n "$res" ]]; then
       all_auth_dns_servers=$(echo "$res" | awk '{print $4}' | sed 's/\.$//g'|tr '\n' ' ')
-    fi
-    if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
-      primary_ns="$all_auth_dns_servers"
-    else
-      primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
-    fi
-    return
-  fi
-
-  res=$(nslookup -debug -type=soa -type=ns "$gad_d" ${gad_s})
-
-  if [[ "$(echo "$res" | grep -c "Non-authoritative")" -gt 0 ]]; then
-    # this is a Non-authoritative server, need to check for an authoritative one.
-    gad_s=$(echo "$res" | awk '$2 ~ "nameserver" {print $4; exit }' |sed 's/\.$//g')
-    if [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
-      # if domain name doesn't exist, then find auth servers for next level up
-      gad_s=$(echo "$res" | awk '$1 ~ "origin" {print $3; exit }')
-      gad_d=$(echo "$res" | awk '$1 ~ "->" {print $2; exit}')
+      if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
+        primary_ns="$all_auth_dns_servers"
+      else
+        primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
+      fi
+      return
     fi
   fi
 
-  if [[ -z "$gad_s" ]]; then
-    res=$(nslookup -debug -type=soa -type=ns "$gad_d")
-  else
-    res=$(nslookup -debug -type=soa -type=ns "$gad_d" "${gad_s}")
+  if [[ "$HAS_NSLOOKUP" == true ]]; then
+    gad_d="$orig_gad_d"
+    debug Using "nslookup -debug -type=soa -type=ns $gad_d $gad_s" to find primary name server
+    res=$(nslookup -debug -type=soa -type=ns "$gad_d" ${gad_s})
+
+    if [[ "$(echo "$res" | grep -c "Non-authoritative")" -gt 0 ]]; then
+      # this is a Non-authoritative server, need to check for an authoritative one.
+      gad_s=$(echo "$res" | awk '$2 ~ "nameserver" {print $4; exit }' |sed 's/\.$//g')
+      if [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
+        # if domain name doesn't exist, then find auth servers for next level up
+        gad_s=$(echo "$res" | awk '$1 ~ "origin" {print $3; exit }')
+        gad_d=$(echo "$res" | awk '$1 ~ "->" {print $2; exit}')
+        # handle scenario where awk returns nothing
+        if [[ -z "$gad_d" ]]; then
+          gad_d="$orig_gad_d"
+        fi
+      fi
+
+      # shellcheck disable=SC2086
+      res=$(nslookup -debug -type=soa -type=ns "$gad_d" ${gad_s})
+    fi
+
+    if [[ "$(echo "$res" | grep -c "canonical name")" -gt 0 ]]; then
+      gad_d=$(echo "$res" | awk ' $2 ~ "canonical" {print $5; exit }' |sed 's/\.$//g')
+    elif [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
+      gad_s=$(echo "$res" | awk ' $1 ~ "origin" {print $3; exit }')
+      gad_d=$(echo "$res"| awk '$1 ~ "->" {print $2; exit}')
+      # handle scenario where awk returns nothing
+      if [[ -z "$gad_d" ]]; then
+        gad_d="$orig_gad_d"
+      fi
+    fi
+
+    # shellcheck disable=SC2086
+    # not quoting gad_s fixes the nslookup: couldn't get address for '': not found warning (#332)
+    all_auth_dns_servers=$(nslookup -debug -type=soa -type=ns "$gad_d" $gad_s \
+                          | awk '$1 ~ "nameserver" {print $3}' \
+                          | sed 's/\.$//g'| tr '\n' ' ')
+
+    if [[ -n "$all_auth_dns_servers" ]]; then
+      if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
+        primary_ns="$all_auth_dns_servers"
+      else
+        primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
+      fi
+      return
+    fi
   fi
 
-  if [[ "$(echo "$res" | grep -c "canonical name")" -gt 0 ]]; then
-    gad_d=$(echo "$res" | awk ' $2 ~ "canonical" {print $5; exit }' |sed 's/\.$//g')
-  elif [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
-    gad_s=$(echo "$res" | awk ' $1 ~ "origin" {print $3; exit }')
-    gad_d=$(echo "$res"| awk '$1 ~ "->" {print $2; exit}')
-  fi
-
-  all_auth_dns_servers=$(nslookup -type=soa -type=ns "$gad_d" "$gad_s" \
-                        | awk ' $2 ~ "nameserver" {print $4}' \
-                        | sed 's/\.$//g'| tr '\n' ' ')
-  if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
-    primary_ns="$all_auth_dns_servers"
-  else
-    primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
-  fi
+  # nslookup on alpine/ubuntu containers doesn't support -debug, print a warning in this case
+  # This means getssl cannot check that the DNS record has been updated on the primary name server
+  info "Warning: Couldn't find primary DNS server - please set PUBLIC_DNS_SERVER or AUTH_DNS_SERVER in config"
+  info "This means getssl cannot check the DNS entry has been updated"
 }
 
 get_certificate() { # get certificate for csr, if all domains validated.
@@ -2288,6 +2336,9 @@ set_server_type
 
 # check config for typical errors.
 check_config
+
+# check what dns utils are installed
+find_dns_utils
 
 if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
   rm -f "$DOMAIN_DIR/FORCE_RENEWAL" || error_exit "problem deleting file $DOMAIN_DIR/FORCE_RENEWAL"
