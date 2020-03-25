@@ -4,4 +4,4 @@
 fulldomain="${1}"
 token="${2}"
 
-curl -X POST -d "{\"host\":\"_acme-challenge.${fulldomain}.\", \"value\": \"${token}\"}" http://10.30.50.3:8055/set-txt
+curl --silent -X POST -d "{\"host\":\"_acme-challenge.${fulldomain}.\", \"value\": \"${token}\"}" http://10.30.50.3:8055/set-txt

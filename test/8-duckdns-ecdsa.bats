@@ -20,7 +20,7 @@ load '/getssl/test/test_helper.bash'
     assert_success
     refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
     refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg][^:]' # ignore nslookup warnings
 }
 
 
@@ -32,7 +32,7 @@ load '/getssl/test/test_helper.bash'
     assert_success
     refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
     refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg][^:]' # ignore nslookup warnings
     cleanup_environment
 }
 
@@ -50,7 +50,7 @@ load '/getssl/test/test_helper.bash'
     assert_success
     refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
     refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg][^:]'
 }
 
 
@@ -62,7 +62,7 @@ load '/getssl/test/test_helper.bash'
     assert_success
     refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
     refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg][^:]'
     cleanup_environment
 }
 

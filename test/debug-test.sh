@@ -10,7 +10,7 @@ if [ $# -eq 2 ]; then
 fi
 
 #shellcheck disable=SC1091
-source /getssl/test/test_helper.bash
+source /getssl/test/test_helper.bash 3>&1
 
 CONFIG_FILE=$1
 if [ ! -e "$CONFIG_FILE" ]; then
