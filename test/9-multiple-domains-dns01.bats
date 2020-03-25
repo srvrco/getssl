@@ -45,3 +45,22 @@ setup() {
     cleanup_environment
     curl --silent -X POST -d '{"host":"getssl.tst"}' http://10.30.50.3:8055/clear-a
 }
+
+@test "Test IGNORE_DIRECTORY_DOMAIN using DNS-01 verification" {
+    # This tests we can create a certificate for getssl.test and <os>.getssl.test (*both* in SANS)
+    if [ -n "$STAGING" ]; then
+        skip "Using staging server, skipping internal test"
+    fi
+    CONFIG_FILE="getssl-ignore-directory-domain.cfg"
+    setup_environment
+
+    # Add top level domain from SANS to DNS
+    curl --silent -X POST -d '{"host":"getssl.test", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
+
+    init_getssl
+    create_certificate
+    assert_success
+    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
+    refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
+    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+}
