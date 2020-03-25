@@ -8,12 +8,16 @@ load '/getssl/test/test_helper.bash'
 # This is run for every test
 setup() {
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
-    mv /usr/bin/dig /usr/bin/dig.getssl.bak
+    if [ -f /usr/bin/dig ]; then
+        mv /usr/bin/dig /usr/bin/dig.getssl.bak
+    fi
 }
 
 
 teardown() {
-    mv /usr/bin/dig.getssl.bak /usr/bin/dig
+    if [ -f /usr/bin/dig.getssl.bak ]; then
+        mv /usr/bin/dig.getssl.bak /usr/bin/dig
+    fi
 }
 
 
@@ -30,5 +34,6 @@ teardown() {
     assert_output --partial "nslookup"
     refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
     refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'  # don't fail for :error:badNonce
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    # don't check for "Warnings:" as there might be a warning message if nslookup doesn't support -debug (alpine/ubuntu)
+    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg][^:]'
 }
