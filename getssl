@@ -216,7 +216,8 @@
 # 2020-02-23 Add dig to config check for systems without drill (ubuntu)
 # 2020-03-11 Use dig +trace to find primary name server and improve dig parsing of CNAME
 # 2020-03-12 Fix bug with DNS validation and multiple domains (#524)
-# 2020-03-24 Find primary ns using all dns utils (dig, host, nslookup) (2.21)
+# 2020-03-24 Find primary ns using all dns utils (dig, host, nslookup)
+# 2020-03-23 Fix staging server URL in domain template (2.21)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -1981,7 +1982,7 @@ write_domain_template() { # write out a template file for a domain.
 	# see https://github.com/srvrco/getssl/wiki/Example-config-files for example configs
 	#
 	# The staging server is best for testing
-	#CA="https://acme-staging-v02.api.letsencrypt.org/"
+	#CA="https://acme-staging-v02.api.letsencrypt.org"
 	# This server issues full certificates, however has rate limits
 	#CA="https://acme-v02.api.letsencrypt.org"
 
