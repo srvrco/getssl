@@ -773,6 +773,9 @@ create_order() {
       # find array position (This is O(n2) but that doubt we'll see performance issues)
       dn=0
       for d in $alldomains; do
+        # Convert domain to lowercase as response from server will be in lowercase
+        # shellcheck disable=SC2018,SC2019
+        d=$(echo "$d" | tr A-Z a-z)
         if [ "$d" == "$authdomain" ]; then
           debug "Saving authorization response for $authdomain for domain alldomains[$dn]"
           AuthLinkResponse[$dn]=$response
@@ -913,8 +916,10 @@ for d in $alldomains; do
                  | sed -e 's:=*$::g' -e 'y:+/:-_:')
       debug auth_key "$auth_key"
 
-      debug "adding dns via command: $DNS_ADD_COMMAND $d $auth_key"
-      if ! eval "$DNS_ADD_COMMAND" "$d" "$auth_key" ; then
+      # shellcheck disable=SC2018,SC2019
+      lower_d=$(echo "$d" | tr A-Z a-z)
+      debug "adding dns via command: $DNS_ADD_COMMAND $lower_d $auth_key"
+      if ! eval "$DNS_ADD_COMMAND" "$lower_d" "$auth_key" ; then
         error_exit "DNS_ADD_COMMAND failed for domain $d"
       fi
 
@@ -1091,7 +1096,9 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
       check_challenge_completion "$uri" "$d" "$keyauthorization"
 
       debug "remove DNS entry"
-      eval "$DNS_DEL_COMMAND" "$d" "$auth_key"
+      # shellcheck disable=SC2018,SC2019
+      lower_d=$(echo "$d" | tr A-Z a-z)
+      eval "$DNS_DEL_COMMAND" "$lower_d" "$auth_key"
       # remove $dnsfile after each loop.
       rm -f "$dnsfile"
     fi
