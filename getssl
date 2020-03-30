@@ -833,20 +833,20 @@ find_dns_utils() {
     HAS_NSLOOKUP=false
     HAS_DIG_OR_DRILL=""
     HAS_HOST=false
-    if [[ -n "$(command -v nslookup)" ]]; then
+    if [[ -n "$(command -v nslookup 2>/dev/null)" ]]; then
         debug "HAS NSLOOKUP=true"
         HAS_NSLOOKUP=true
     fi
 
-    if [[ -n "$(command -v drill)" ]]; then
+    if [[ -n "$(command -v drill 2>/dev/null)" ]]; then
         debug "HAS DIG_OR_DRILL=drill"
         HAS_DIG_OR_DRILL="drill"
-    elif [[ -n "$(command -v dig)" ]]; then
+    elif [[ -n "$(command -v dig 2>/dev/null)" ]]; then
         debug "HAS DIG_OR_DRILL=dig"
         HAS_DIG_OR_DRILL="dig"
     fi
 
-    if [[ -n "$(command -v host)" ]]; then
+    if [[ -n "$(command -v host 2>/dev/null)" ]]; then
         debug "HAS HOST=true"
         HAS_HOST=true
     fi
