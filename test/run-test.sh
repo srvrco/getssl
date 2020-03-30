@@ -14,8 +14,8 @@ else
     COMMAND="bats /getssl/test"
 fi
 
-if [[ "$OS" == *"duckdns"* ]]; then
-    ALIAS="${OS%-duckdns}-getssl.duckdns.org"
+if [[ "$OS" == *"staging"* ]]; then
+    ALIAS="${OS%-staging}-getssl.duckdns.org"
     STAGING="--env STAGING=true"
 else
     ALIAS="$OS.getssl.test"
@@ -26,7 +26,7 @@ docker build --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" .
 # shellcheck disable=SC2086
 docker run \
   --env GETSSL_HOST=$ALIAS $STAGING \
-  --env GETSSL_OS=${OS%-duckdns} \
+  --env GETSSL_OS=${OS%-staging} \
   -v "$(pwd)":/getssl \
   --rm \
   --network ${PWD##*/}_acmenet \
