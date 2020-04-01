@@ -24,7 +24,7 @@ teardown() {
     if [ -z "$STAGING" ]; then
         skip "Running internal tests, skipping external test"
     fi
-    CONFIG_FILE="getssl-duckdns01.cfg"
+    CONFIG_FILE="getssl-staging-dns01.cfg"
 
     setup_environment
     init_getssl

@@ -21,7 +21,7 @@ cleanup_environment() {
 
 init_getssl() {
     # Run initialisation (create account key, etc)
-    run ${CODE_DIR}/getssl -c "$GETSSL_HOST"
+    run ${CODE_DIR}/getssl -c "$GETSSL_CMD_HOST"
     assert_success
     [ -d "$INSTALL_DIR/.getssl" ]
 }
@@ -29,9 +29,9 @@ init_getssl() {
 
 create_certificate() {
     # Create certificate
-    cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_HOST}/getssl.cfg"
+    cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg"
     # shellcheck disable=SC2086
-    run ${CODE_DIR}/getssl $1 "$GETSSL_HOST"
+    run ${CODE_DIR}/getssl $1 "$GETSSL_CMD_HOST"
 }
 
 # start nginx in background on alpine via supervisord
@@ -67,6 +67,9 @@ else
 fi
 
 export GETSSL_IP
+
+GETSSL_CMD_HOST=$GETSSL_HOST
+export GETSSL_CMD_HOST
 
 if [ ! -f ${INSTALL_DIR}/pebble.minica.pem ]; then
     wget --quiet --no-clobber https://raw.githubusercontent.com/letsencrypt/pebble/master/test/certs/pebble.minica.pem 2>&1
