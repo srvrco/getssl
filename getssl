@@ -440,39 +440,42 @@ check_config() { # check the config files for all obvious errors
         info "${DOMAIN}: ACL location not specified for domain $d in $DOMAIN_DIR/getssl.cfg"
         config_errors=true
       fi
-      # check domain exists
-      if [[ "$DNS_CHECK_FUNC" == "drill" ]]; then
-        if [[ "$($DNS_CHECK_FUNC "${d}" |grep -c -i "${d}")" -ge 1 ]]; then
-          debug "found IP for ${d}"
-        else
-          info "${DOMAIN}: DNS lookup failed for ${d}"
-          config_errors=true
+
+      # check domain exists using all DNS utilities
+      found_ip=false
+      if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
+        debug "DNS lookup using $HAS_DIG_OR_DRILL ${d}"
+        if [[ "$($HAS_DIG_OR_DRILL -t SOA "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
+          found_ip=true
+        elif [[ "$($HAS_DIG_OR_DRILL -t A "${d}"|grep -c -i "^${d}")" -ge 1 ]]; then
+          found_ip=true
+        elif [[ "$($HAS_DIG_OR_DRILL -t AAAA "${d}"|grep -c -i "^${d}")" -ge 1 ]]; then
+          found_ip=true
         fi
-      elif [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-        if [[ "$($DNS_CHECK_FUNC "${d}" -t SOA|grep -c -i "^${d}")" -ge 1 ]]; then
-          debug "found SOA IP for ${d}"
-        elif [[ "$($DNS_CHECK_FUNC "${d}" -t A|grep -c -i "^${d}")" -ge 1 ]]; then
-          debug "found A IP for ${d}"
-        else
-          info "${DOMAIN}: DNS lookup failed for ${d}"
-          config_errors=true
+      fi
+
+      if [[ -n "$HAS_HOST" ]]; then
+        debug "DNS lookup using host ${d}"
+        if [[ "$(host "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
+          found_ip=true
         fi
-      elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
-        if [[ "$($DNS_CHECK_FUNC "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
-          debug "found IP for ${d}"
-        else
-          info "${DOMAIN}: DNS lookup failed for ${d}"
-          config_errors=true
+      fi
+
+      if [[ -n "$HAS_NSLOOKUP" ]]; then
+        debug "DNS lookup using nslookup -query AAAA ${d}"
+        if [[ "$(nslookup -query=AAAA "${d}"|grep -c -i "^${d}.*has AAAA address")" -ge 1 ]]; then
+          debug "found IPv6 record for ${d}"
+          found_ip=true
+        elif [[ "$(nslookup "${d}"| grep -c ^Name)" -ge 1 ]]; then
+          debug "found IPv4 record for ${d}"
         fi
-      elif [[ "$(nslookup -query=AAAA "${d}"|grep -c -i "^${d}.*has AAAA address")" -ge 1 ]]; then
-        debug "found IPv6 record for ${d}"
-      elif [[ "$(nslookup "${d}"| grep -c ^Name)" -ge 1 ]]; then
-        debug "found IPv4 record for ${d}"
-      else
+      fi
+
+      if [[ "$found_ip" == "false" ]]; then
         info "${DOMAIN}: DNS lookup failed for $d"
         config_errors=true
       fi
-    fi # end using http-01 challenge
+    fi # end using dns-01 challenge
     ((dn++))
   done
 
@@ -2345,11 +2348,11 @@ fi
 # from SERVER_TYPE set REMOTE_PORT and REMOTE_EXTRA
 set_server_type
 
-# check config for typical errors.
-check_config
-
 # check what dns utils are installed
 find_dns_utils
+
+# check config for typical errors.
+check_config
 
 if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
   rm -f "$DOMAIN_DIR/FORCE_RENEWAL" || error_exit "problem deleting file $DOMAIN_DIR/FORCE_RENEWAL"
