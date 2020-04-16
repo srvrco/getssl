@@ -221,6 +221,7 @@
 # 2020-03-30 Fix error message find_dns_utils from over version of "command"
 # 2020-03-30 Fix problems if domain name isn't in lowercase (2.22)
 # 2020-04-16 Add alternative working dirs '/etc/getssl/' '${SCRIPTDIR}/conf' '${SCRIPTDIR}/.getssl'
+# 2020-04-16 Add -i|--install command line option
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -303,6 +304,79 @@ cert_archive() {  # Archive certificate file by copying files to dated archive d
   umask "$ORIG_UMASK"
   debug "purging old GetSSL archives"
   purge_archive "$DOMAIN_DIR"
+}
+
+cert_install() {  # copy certs to the correct location (creating concatenated files as required)
+  umask 077
+
+  copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
+  copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
+  copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
+  if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+    if [[ -n "$DOMAIN_CERT_LOCATION" ]]; then
+      copy_file_to_location "ec domain certificate" \
+                            "${CERT_FILE%.*}.ec.crt" \
+                            "${DOMAIN_CERT_LOCATION}" \
+                            "ec"
+    fi
+    if [[ -n "$DOMAIN_KEY_LOCATION" ]]; then
+      copy_file_to_location "ec private key" \
+                            "$DOMAIN_DIR/${DOMAIN}.ec.key" \
+                            "${DOMAIN_KEY_LOCATION}" \
+                            "ec"
+    fi
+    if [[ -n "$CA_CERT_LOCATION" ]]; then
+      copy_file_to_location "ec CA certificate" \
+                            "${CA_CERT%.*}.ec.crt" \
+                            "${CA_CERT_LOCATION%.*}.crt" \
+                            "ec"
+    fi
+  fi
+
+  # if DOMAIN_CHAIN_LOCATION is not blank, then create and copy file.
+  if [[ -n "$DOMAIN_CHAIN_LOCATION" ]]; then
+    if [[ "$(dirname "$DOMAIN_CHAIN_LOCATION")" == "." ]]; then
+      to_location="${DOMAIN_DIR}/${DOMAIN_CHAIN_LOCATION}"
+    else
+      to_location="${DOMAIN_CHAIN_LOCATION}"
+    fi
+    cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
+    copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$to_location"
+    if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+      cat "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_chain.pem.ec"
+      copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem.ec"  "${to_location}" "ec"
+    fi
+  fi
+  # if DOMAIN_KEY_CERT_LOCATION is not blank, then create and copy file.
+  if [[ -n "$DOMAIN_KEY_CERT_LOCATION" ]]; then
+    if [[ "$(dirname "$DOMAIN_KEY_CERT_LOCATION")" == "." ]]; then
+      to_location="${DOMAIN_DIR}/${DOMAIN_KEY_CERT_LOCATION}"
+    else
+      to_location="${DOMAIN_KEY_CERT_LOCATION}"
+    fi
+    cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
+    copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem"  "$to_location"
+    if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+      cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"
+      copy_file_to_location "private ec key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem.ec" "${to_location}" "ec"
+    fi
+  fi
+  # if DOMAIN_PEM_LOCATION is not blank, then create and copy file.
+  if [[ -n "$DOMAIN_PEM_LOCATION" ]]; then
+    if [[ "$(dirname "$DOMAIN_PEM_LOCATION")" == "." ]]; then
+      to_location="${DOMAIN_DIR}/${DOMAIN_PEM_LOCATION}"
+    else
+      to_location="${DOMAIN_PEM_LOCATION}"
+    fi
+    cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
+    copy_file_to_location "full key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem"  "$to_location"
+    if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+      cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}.pem.ec"
+      copy_file_to_location "full ec key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem.ec"  "${to_location}" "ec"
+    fi
+  fi
+  # end of copying certs.
+  umask "$ORIG_UMASK"
 }
 
 check_challenge_completion() { # checks with the ACME server if our challenge is OK
@@ -1410,6 +1484,7 @@ help_message() { # print out the help message
 	  -c, --create       Create default config files
 	  -f, --force        Force renewal of cert (overrides expiry checks)
 	  -h, --help         Display this help message and exit
+	  -i, --install      Install certificates and reload service
 	  -q, --quiet        Quiet mode (only outputs on error, success of new cert, or getssl was upgraded)
 	  -Q, --mute         Like -q, but also mute notification about successful upgrade
 	  -r, --revoke   "cert" "key" [CA_server] Revoke a certificate (the cert and key are required)
@@ -2146,6 +2221,8 @@ while [[ -n ${1+defined} ]]; do
      _UPGRADE=1 ;;
     -U | --nocheck)
       _UPGRADE_CHECK=0 ;;
+    -i | --install)
+      _CERT_INSTALL=1 ;;
     -w)
       shift; WORKING_DIR="$1" ;;
     -*)
@@ -2368,6 +2445,14 @@ check_config
 
 # check what dns utils are installed
 find_dns_utils
+
+# if -i|--install install certs, reload and exit
+if [ "0${_CERT_INSTALL}" -eq 1 ]
+then
+  cert_install
+  reload_service
+  graceful_exit
+fi
 
 if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
   rm -f "$DOMAIN_DIR/FORCE_RENEWAL" || error_exit "problem deleting file $DOMAIN_DIR/FORCE_RENEWAL"
@@ -2647,76 +2732,8 @@ cert_archive
 debug "Certificates obtained and archived locally, will now copy to specified locations"
 
 # copy certs to the correct location (creating concatenated files as required)
-umask 077
+cert_install
 
-copy_file_to_location "domain certificate" "$CERT_FILE" "$DOMAIN_CERT_LOCATION"
-copy_file_to_location "private key" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LOCATION"
-copy_file_to_location "CA certificate" "$CA_CERT" "$CA_CERT_LOCATION"
-if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-  if [[ -n "$DOMAIN_CERT_LOCATION" ]]; then
-    copy_file_to_location "ec domain certificate" \
-                          "${CERT_FILE%.*}.ec.crt" \
-                          "${DOMAIN_CERT_LOCATION}" \
-                          "ec"
-  fi
-  if [[ -n "$DOMAIN_KEY_LOCATION" ]]; then
-    copy_file_to_location "ec private key" \
-                          "$DOMAIN_DIR/${DOMAIN}.ec.key" \
-                          "${DOMAIN_KEY_LOCATION}" \
-                          "ec"
-  fi
-  if [[ -n "$CA_CERT_LOCATION" ]]; then
-    copy_file_to_location "ec CA certificate" \
-                          "${CA_CERT%.*}.ec.crt" \
-                          "${CA_CERT_LOCATION%.*}.crt" \
-                          "ec"
-  fi
-fi
-
-# if DOMAIN_CHAIN_LOCATION is not blank, then create and copy file.
-if [[ -n "$DOMAIN_CHAIN_LOCATION" ]]; then
-  if [[ "$(dirname "$DOMAIN_CHAIN_LOCATION")" == "." ]]; then
-    to_location="${DOMAIN_DIR}/${DOMAIN_CHAIN_LOCATION}"
-  else
-    to_location="${DOMAIN_CHAIN_LOCATION}"
-  fi
-  cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
-  copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$to_location"
-  if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    cat "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_chain.pem.ec"
-    copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem.ec"  "${to_location}" "ec"
-  fi
-fi
-# if DOMAIN_KEY_CERT_LOCATION is not blank, then create and copy file.
-if [[ -n "$DOMAIN_KEY_CERT_LOCATION" ]]; then
-  if [[ "$(dirname "$DOMAIN_KEY_CERT_LOCATION")" == "." ]]; then
-    to_location="${DOMAIN_DIR}/${DOMAIN_KEY_CERT_LOCATION}"
-  else
-    to_location="${DOMAIN_KEY_CERT_LOCATION}"
-  fi
-  cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
-  copy_file_to_location "private key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem"  "$to_location"
-  if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_K_C.pem.ec"
-    copy_file_to_location "private ec key and domain cert pem" "$TEMP_DIR/${DOMAIN}_K_C.pem.ec" "${to_location}" "ec"
-  fi
-fi
-# if DOMAIN_PEM_LOCATION is not blank, then create and copy file.
-if [[ -n "$DOMAIN_PEM_LOCATION" ]]; then
-  if [[ "$(dirname "$DOMAIN_PEM_LOCATION")" == "." ]]; then
-    to_location="${DOMAIN_DIR}/${DOMAIN_PEM_LOCATION}"
-  else
-    to_location="${DOMAIN_PEM_LOCATION}"
-  fi
-  cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
-  copy_file_to_location "full key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem"  "$to_location"
-  if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    cat "$DOMAIN_DIR/${DOMAIN}.ec.key" "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}.pem.ec"
-    copy_file_to_location "full ec key, cert and chain pem" "$TEMP_DIR/${DOMAIN}.pem.ec"  "${to_location}" "ec"
-  fi
-fi
-# end of copying certs.
-umask "$ORIG_UMASK"
 # Run reload command to restart apache / nginx or whatever system
 reload_service
 
