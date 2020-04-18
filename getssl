@@ -220,11 +220,12 @@
 # 2020-03-23 Fix staging server URL in domain template (2.21)
 # 2020-03-30 Fix error message find_dns_utils from over version of "command"
 # 2020-03-30 Fix problems if domain name isn't in lowercase (2.22)
-# 2020-04-16 Add alternative working dirs '/etc/getssl/' '${SCRIPTDIR}/conf' '${SCRIPTDIR}/.getssl'
+# 2020-04-16 Add alternative working dirs '/etc/getssl/' '${PROGDIR}/conf' '${PROGDIR}/.getssl'
 # 2020-04-16 Add -i|--install command line option (2.23)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
+PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
 VERSION="2.23"
 
 # defaults
@@ -263,7 +264,7 @@ TEMP_UPGRADE_FILE=""
 TOKEN_USER_ID=""
 USE_SINGLE_ACL="false"
 VALIDATE_VIA_DNS=""
-WORKING_DIR_CANDIDATES=('/etc/getssl/' '${SCRIPTDIR}/conf' '${SCRIPTDIR}/.getssl' '~/.getssl')
+WORKING_DIR_CANDIDATES=("/etc/getssl/" "${PROGDIR}/conf" "${PROGDIR}/.getssl" "${HOME}/.getssl")
 _CHECK_ALL=0
 _CREATE_CONFIG=0
 _FORCE_RENEW=0
@@ -2298,7 +2299,6 @@ fi
 # Test working directory candidates if unset. Last candidate defaults (~/getssl/)
 if [[ -z "${WORKING_DIR}" ]]
 then
-  SCRIPTDIR="$(cd "$(dirname "$0")"; pwd -P;)"
   for WDCC in $(seq 0 $((${#WORKING_DIR_CANDIDATES[@]}-1)) )
   do
     WORKING_DIR="$(eval echo "${WORKING_DIR_CANDIDATES[$WDCC]}")"
