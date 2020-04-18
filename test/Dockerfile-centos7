@@ -15,6 +15,6 @@ COPY ./test/test-config/nginx-centos7.conf /etc/nginx/nginx.conf
 
 # BATS (Bash Automated Testings)
 RUN git clone https://github.com/bats-core/bats-core.git /bats-core
-RUN git clone https://github.com/jasonkarns/bats-support /bats-support
-RUN git clone https://github.com/jasonkarns/bats-assert-1 /bats-assert
+RUN git clone https://github.com/bats-core/bats-support /bats-support
+RUN git clone https://github.com/bats-core/bats-assert /bats-assert
 RUN /bats-core/install.sh /usr/local
