@@ -222,11 +222,12 @@
 # 2020-03-30 Fix problems if domain name isn't in lowercase (2.22)
 # 2020-04-16 Add alternative working dirs '/etc/getssl/' '${PROGDIR}/conf' '${PROGDIR}/.getssl'
 # 2020-04-16 Add -i|--install command line option (2.23)
+# 2020-04-19 Remove dependency on seq, ensure clean_up doesn't try to delete /tmp (2.24)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.23"
+VERSION="2.24"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -633,7 +634,11 @@ clean_up() { # Perform pre-exit housekeeping
     shopt -u nullglob
   fi
   if [[ -n "$DOMAIN_DIR" ]]; then
-    rm -rf "${TEMP_DIR:?}"
+    if [ "${TEMP_DIR}" -ef "/tmp" ]; then
+        info "Not going to delete TEMP_DIR ${TEMP_DIR} as it appears to be /tmp"
+    else
+        rm -rf "${TEMP_DIR:?}"
+    fi
   fi
   if [[ -n "$TEMP_UPGRADE_FILE" ]] && [[ -f "$TEMP_UPGRADE_FILE" ]]; then
     rm -f "$TEMP_UPGRADE_FILE"
@@ -2299,10 +2304,8 @@ fi
 # Test working directory candidates if unset. Last candidate defaults (~/getssl/)
 if [[ -z "${WORKING_DIR}" ]]
 then
-  for WDCC in $(seq 0 $((${#WORKING_DIR_CANDIDATES[@]}-1)) )
+  for WORKING_DIR in "${WORKING_DIR_CANDIDATES[@]}"
   do
-    WORKING_DIR="$(eval echo "${WORKING_DIR_CANDIDATES[$WDCC]}")"
-
     debug "Testing working dir location '${WORKING_DIR}'"
     if [[ -s "$WORKING_DIR/getssl.cfg" ]]
     then
