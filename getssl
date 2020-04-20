@@ -223,11 +223,12 @@
 # 2020-04-16 Add alternative working dirs '/etc/getssl/' '${PROGDIR}/conf' '${PROGDIR}/.getssl'
 # 2020-04-16 Add -i|--install command line option (2.23)
 # 2020-04-19 Remove dependency on seq, ensure clean_up doesn't try to delete /tmp (2.24)
+# 2020-04-20 Check for domain using all DNS utilities (2.25)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.24"
+VERSION="2.25"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
