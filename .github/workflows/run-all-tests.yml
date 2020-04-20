@@ -72,6 +72,7 @@ jobs:
       - name: Run test suite on Ubuntu18
         run: test/run-test.sh ubuntu18
   test-ubuntu-staging:
+    needs: test-centos7-staging
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
