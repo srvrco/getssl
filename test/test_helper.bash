@@ -1,6 +1,38 @@
 INSTALL_DIR=/root
 CODE_DIR=/getssl
 
+check_output_for_errors() {
+    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
+    # less strict tests if running with debug output
+    if [ -n "$1" ]; then
+        # don't fail for :error:badNonce
+        refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'
+        # don't check for "Warnings:" as there might be a warning message if nslookup doesn't support -debug (alpine/ubuntu)
+        refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg][^:]'
+    else
+        refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
+        refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    fi
+    refute_output --partial 'not found'
+}
+
+cleanup_environment() {
+    curl --silent -X POST -d '{"host":"'"$GETSSL_HOST"'"}' http://10.30.50.3:8055/clear-a
+}
+
+create_certificate() {
+    # Create certificate
+    cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg"
+    # shellcheck disable=SC2086
+    run ${CODE_DIR}/getssl $1 "$GETSSL_CMD_HOST"
+}
+
+init_getssl() {
+    # Run initialisation (create account key, etc)
+    run ${CODE_DIR}/getssl -c "$GETSSL_CMD_HOST"
+    assert_success
+    [ -d "$INSTALL_DIR/.getssl" ]
+}
 
 setup_environment() {
     # One-off test setup
@@ -11,27 +43,6 @@ setup_environment() {
     curl --silent -X POST -d '{"host":"'"$GETSSL_HOST"'", "addresses":["'"$GETSSL_IP"'"]}' http://10.30.50.3:8055/add-a
     cp ${CODE_DIR}/test/test-config/nginx-ubuntu-no-ssl "${NGINX_CONFIG}"
     /getssl/test/restart-nginx
-}
-
-
-cleanup_environment() {
-    curl --silent -X POST -d '{"host":"'"$GETSSL_HOST"'"}' http://10.30.50.3:8055/clear-a
-}
-
-
-init_getssl() {
-    # Run initialisation (create account key, etc)
-    run ${CODE_DIR}/getssl -c "$GETSSL_CMD_HOST"
-    assert_success
-    [ -d "$INSTALL_DIR/.getssl" ]
-}
-
-
-create_certificate() {
-    # Create certificate
-    cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg"
-    # shellcheck disable=SC2086
-    run ${CODE_DIR}/getssl $1 "$GETSSL_CMD_HOST"
 }
 
 # start nginx in background on alpine via supervisord

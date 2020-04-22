@@ -25,9 +25,7 @@ setup() {
     init_getssl
     create_certificate
     assert_success
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    check_output_for_errors
 }
 
 
@@ -38,9 +36,7 @@ setup() {
     fi
     run ${CODE_DIR}/getssl -f $GETSSL_HOST
     assert_success
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    check_output_for_errors
     # Remove all the dns aliases
     cleanup_environment
     curl --silent -X POST -d '{"host":"getssl.tst"}' http://10.30.50.3:8055/clear-a
@@ -60,7 +56,5 @@ setup() {
     init_getssl
     create_certificate
     assert_success
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    check_output_for_errors
 }

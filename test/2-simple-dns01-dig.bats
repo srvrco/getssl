@@ -22,9 +22,7 @@ setup() {
     create_certificate -d
     assert_success
     assert_output --partial "dig"
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'  # don't fail for :error:badNonce
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    check_output_for_errors "debug"
 }
 
 
@@ -35,8 +33,6 @@ setup() {
     run ${CODE_DIR}/getssl -d -f $GETSSL_HOST
     assert_success
     assert_output --partial "dig"
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'  # don't fail for :error:badNonce
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    check_output_for_errors "debug"
     cleanup_environment
 }

@@ -23,9 +23,7 @@ setup() {
     create_certificate
 
     assert_success
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    check_output_for_errors
 }
 
 @test "Check that DNS-01 verification works if the domain is not lowercase" {
@@ -39,7 +37,5 @@ setup() {
     init_getssl
     create_certificate
     assert_success
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    check_output_for_errors
 }

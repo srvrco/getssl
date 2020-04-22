@@ -20,6 +20,7 @@ setup() {
     init_getssl
     create_certificate
     assert_success
+    check_output_for_errors
 }
 
 
@@ -29,6 +30,7 @@ setup() {
     fi
     run ${CODE_DIR}/getssl -f $GETSSL_HOST
     assert_success
+    check_output_for_errors
 }
 
 @test "Create dual certificates using DNS-01 verification" {
@@ -40,6 +42,7 @@ setup() {
     init_getssl
     create_certificate
     assert_success
+    check_output_for_errors
 }
 
 
@@ -49,5 +52,6 @@ setup() {
     fi
     run ${CODE_DIR}/getssl -f $GETSSL_HOST
     assert_success
+    check_output_for_errors
     cleanup_environment
 }

@@ -32,6 +32,7 @@ teardown() {
     init_getssl
     create_certificate
     assert_success
+    check_output_for_errors
 
     # Check that the RSA chain and key have been copied to both locations
     assert [ -e "/etc/nginx/pki/domain-chain.crt" ]

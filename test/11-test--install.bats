@@ -32,9 +32,7 @@ setup() {
     run ${CODE_DIR}/getssl "$GETSSL_CMD_HOST"
 
     assert_success
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    check_output_for_errors
     assert_line 'Verification completed, obtaining certificate.'
     assert_line 'Requesting certificate'
     refute [ -d '$HOME/.getssl' ]
@@ -53,9 +51,7 @@ setup() {
     run ${CODE_DIR}/getssl --install "$GETSSL_CMD_HOST"
 
     assert_success
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    check_output_for_errors
     refute_line 'Verification completed, obtaining certificate.'
     refute_line 'Requesting certificate'
     assert_line --partial 'copying domain certificate to'
