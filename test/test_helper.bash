@@ -13,7 +13,7 @@ check_output_for_errors() {
         refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
         refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
     fi
-    refute_output --partial 'not found'
+    refute_line --partial 'command not found'
 }
 
 cleanup_environment() {
