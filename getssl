@@ -532,14 +532,14 @@ check_config() { # check the config files for all obvious errors
         fi
       fi
 
-      if [[ -n "$HAS_HOST" ]]; then
+      if [[ "$HAS_HOST" == true ]]; then
         debug "DNS lookup using host ${d}"
         if [[ "$(host "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
           found_ip=true
         fi
       fi
 
-      if [[ -n "$HAS_NSLOOKUP" ]]; then
+      if [[ "$HAS_NSLOOKUP" == true ]]; then
         debug "DNS lookup using nslookup -query AAAA ${d}"
         if [[ "$(nslookup -query=AAAA "${d}"|grep -c -i "^${d}.*has AAAA address")" -ge 1 ]]; then
           debug "found IPv6 record for ${d}"
