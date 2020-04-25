@@ -32,8 +32,5 @@ teardown() {
     create_certificate -d
     assert_success
     assert_output --partial "nslookup"
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'  # don't fail for :error:badNonce
-    # don't check for "Warnings:" as there might be a warning message if nslookup doesn't support -debug (alpine/ubuntu)
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg][^:]'
+    check_output_for_errors "debug"
 }

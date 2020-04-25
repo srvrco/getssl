@@ -224,11 +224,13 @@
 # 2020-04-16 Add -i|--install command line option (2.23)
 # 2020-04-19 Remove dependency on seq, ensure clean_up doesn't try to delete /tmp (2.24)
 # 2020-04-20 Check for domain using all DNS utilities (2.25)
+# 2020-04-22 Fix HAS_HOST and HAS_NSLOOKUP checks - wolfaba
+# 2020-04-22 Fix domain case conversion for different locales (2.26) - glynge
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.25"
+VERSION="2.26"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -532,14 +534,14 @@ check_config() { # check the config files for all obvious errors
         fi
       fi
 
-      if [[ "$HAS_HOST" == true ]]; then
+      if [[ "$HAS_HOST" == "true" ]]; then
         debug "DNS lookup using host ${d}"
         if [[ "$(host "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
           found_ip=true
         fi
       fi
 
-      if [[ "$HAS_NSLOOKUP" == true ]]; then
+      if [[ "$HAS_NSLOOKUP" == "true" ]]; then
         debug "DNS lookup using nslookup -query AAAA ${d}"
         if [[ "$(nslookup -query=AAAA "${d}"|grep -c -i "^${d}.*has AAAA address")" -ge 1 ]]; then
           debug "found IPv6 record for ${d}"
@@ -863,8 +865,7 @@ create_order() {
       dn=0
       for d in $alldomains; do
         # Convert domain to lowercase as response from server will be in lowercase
-        # shellcheck disable=SC2018,SC2019
-        d=$(echo "$d" | tr A-Z a-z)
+        d=$(echo "$d" | tr "[:upper:]" "[:lower:]")
         if [ "$d" == "$authdomain" ]; then
           debug "Saving authorization response for $authdomain for domain alldomains[$dn]"
           AuthLinkResponse[$dn]=$response
@@ -1260,7 +1261,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     fi
   fi
 
-  if [[ "$HAS_HOST" == true ]]; then
+  if [[ "$HAS_HOST" == "true" ]]; then
     gad_d="$orig_gad_d"
     debug Using "host -t NS" to find primary name server for "$gad_d"
     if [[ -z "$gad_s" ]]; then
@@ -1279,7 +1280,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     fi
   fi
 
-  if [[ "$HAS_NSLOOKUP" == true ]]; then
+  if [[ "$HAS_NSLOOKUP" == "true" ]]; then
     gad_d="$orig_gad_d"
     debug Using "nslookup -debug -type=soa -type=ns $gad_d $gad_s" to find primary name server
     res=$(nslookup -debug -type=soa -type=ns "$gad_d" ${gad_s})

@@ -20,6 +20,7 @@ setup() {
     init_getssl
     create_certificate
     assert_success
+    check_output_for_errors
 }
 
 
@@ -29,6 +30,7 @@ setup() {
     fi
     run ${CODE_DIR}/getssl -f $GETSSL_HOST
     assert_success
+    check_output_for_errors
 }
 
 
@@ -41,6 +43,7 @@ setup() {
     init_getssl
     create_certificate
     assert_success
+    check_output_for_errors
 }
 
 
@@ -50,4 +53,5 @@ setup() {
     fi
     run ${CODE_DIR}/getssl -f $GETSSL_HOST
     assert_success
+    check_output_for_errors
 }

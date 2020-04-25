@@ -18,9 +18,7 @@ load '/getssl/test/test_helper.bash'
     sed -e 's/rsa/prime256v1/g' < "${CODE_DIR}/test/test-config/${CONFIG_FILE}" > "${INSTALL_DIR}/.getssl/${GETSSL_HOST}/getssl.cfg"
     run ${CODE_DIR}/getssl -d "$GETSSL_HOST"
     assert_success
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg][^:]' # ignore nslookup warnings
+    check_output_for_errors "debug"
 }
 
 
@@ -30,9 +28,7 @@ load '/getssl/test/test_helper.bash'
     fi
     run ${CODE_DIR}/getssl -d -f $GETSSL_HOST
     assert_success
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg][^:]' # ignore nslookup warnings
+    check_output_for_errors "debug"
     cleanup_environment
 }
 
@@ -48,9 +44,7 @@ load '/getssl/test/test_helper.bash'
     sed -e 's/rsa/secp384r1/g' < "${CODE_DIR}/test/test-config/${CONFIG_FILE}" > "${INSTALL_DIR}/.getssl/${GETSSL_HOST}/getssl.cfg"
     run ${CODE_DIR}/getssl -d "$GETSSL_HOST"
     assert_success
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg][^:]'
+    check_output_for_errors "debug"
 }
 
 
@@ -60,9 +54,7 @@ load '/getssl/test/test_helper.bash'
     fi
     run ${CODE_DIR}/getssl -d -f $GETSSL_HOST
     assert_success
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg][^:]'
+    check_output_for_errors "debug"
     cleanup_environment
 }
 
