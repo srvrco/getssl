@@ -548,6 +548,7 @@ check_config() { # check the config files for all obvious errors
           found_ip=true
         elif [[ "$(nslookup "${d}"| grep -c ^Name)" -ge 1 ]]; then
           debug "found IPv4 record for ${d}"
+          found_ip=true
         fi
       fi
 
