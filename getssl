@@ -225,7 +225,7 @@
 # 2020-04-19 Remove dependency on seq, ensure clean_up doesn't try to delete /tmp (2.24)
 # 2020-04-20 Check for domain using all DNS utilities (2.25)
 # 2020-04-22 Fix HAS_HOST and HAS_NSLOOKUP checks - wolfaba
-# 2020-04-22 Fix domain case conversion for different locales (2.26) - glynge
+# 2020-04-22 Fix domain case conversion for different locales - glynge (2.26)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
