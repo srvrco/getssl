@@ -11,7 +11,7 @@ setup() {
 }
 
 
-@test "Create new certificate using HTTP-01 verification" {
+@test "Create new certificate using HTTP-01 verification (any dns tool)" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
@@ -24,7 +24,7 @@ setup() {
 }
 
 
-@test "Force renewal of certificate using HTTP-01" {
+@test "Force renewal of certificate using HTTP-01 (any dns tool)" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
