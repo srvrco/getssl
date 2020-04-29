@@ -226,6 +226,8 @@
 # 2020-04-20 Check for domain using all DNS utilities (2.25)
 # 2020-04-22 Fix HAS_HOST and HAS_NSLOOKUP checks - wolfaba
 # 2020-04-22 Fix domain case conversion for different locales - glynge (2.26)
+# 2020-04-26 Fixed ipv4 confirmation with nslookup - Cyber1000
+# 2020-04-29 Fix ftp/sftp problems if challenge starts with a dash
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
