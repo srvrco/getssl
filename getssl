@@ -700,7 +700,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
 			user $ftpuser $ftppass
 			cd $ftpdirn
 			lcd $fromdir
-			put $fromfile
+			put ./$fromfile
 			_EOF
     elif [[ "${to:0:5}" == "sftp:" ]] ; then
       debug "using sftp to copy the file from $from"
@@ -718,7 +718,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       sshpass -p "$ftppass" sftp $SFTP_OPTS "$ftpuser@$ftphost" <<- _EOF
 			cd $ftpdirn
 			lcd $fromdir
-			put $fromfile
+			put ./$fromfile
 			_EOF
     elif [[ "${to:0:5}" == "davs:" ]] ; then
       debug "using davs to copy the file from $from"
