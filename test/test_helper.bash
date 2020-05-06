@@ -1,6 +1,13 @@
 INSTALL_DIR=/root
 CODE_DIR=/getssl
 
+check_certificates()
+{
+    assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/chain.crt" ]
+    assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" ]
+    assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt" ]
+}
+
 check_output_for_errors() {
     refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
     # less strict tests if running with debug output
