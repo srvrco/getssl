@@ -31,7 +31,7 @@ for zone in response['HostedZones']:
     if not zone['Config']['PrivateZone']:
         zone_list[zone['Name']] = zone['Id']
 
-for key in sorted(zone_list.iterkeys(), key=len, reverse=True):
+for key in sorted(zone_list.keys(), key=len, reverse=True):
     if ".{z}".format(z=key) in ".{z}.".format(z=fqdn):
        zone_id = zone_list[key]
 
