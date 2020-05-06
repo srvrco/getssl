@@ -1342,6 +1342,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
   gc_csr=$1         # the csr file
   gc_certfile=$2    # The filename for the certificate
   gc_cafile=$3      # The filename for the CA certificate
+  gc_fullchain=$4   # The filename for the fullchain
 
   der=$(openssl req -in "$gc_csr" -outform DER | urlbase64)
   if [[ $API -eq 1 ]]; then
@@ -1388,9 +1389,9 @@ get_certificate() { # get certificate for csr, if all domains validated.
     done
     info "Requesting certificate"
     CertData=$(json_get "$response" "certificate")
-    send_signed_request "$CertData" "" "" "$FULL_CHAIN"
-    info "Full certificate saved in $FULL_CHAIN"
-    awk -v CERT_FILE="$gc_certfile" -v CA_CERT="$gc_cafile" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$FULL_CHAIN"
+    send_signed_request "$CertData" "" "" "$gc_fullchain"
+    info "Full certificate saved in $gc_fullchain"
+    awk -v CERT_FILE="$gc_certfile" -v CA_CERT="$gc_cafile" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$gc_fullchain"
     info "Certificate saved in $gc_certfile"
   fi
 }
@@ -1892,7 +1893,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   # get nonce from ACME server
   if [[ $API -eq 1 ]]; then
     nonceurl="$CA/directory"
-    nonce=$($CURL -I $nonceurl | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
+    nonce=$($CURL -I "$nonceurl" | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
   else # APIv2
     nonce=$($CURL -I "$URL_newNonce" | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
   fi
@@ -2458,8 +2459,7 @@ find_dns_utils
 check_config
 
 # if -i|--install install certs, reload and exit
-if [ "0${_CERT_INSTALL}" -eq 1 ]
-then
+if [ "0${_CERT_INSTALL}" -eq 1 ]; then
   cert_install
   reload_service
   graceful_exit
@@ -2724,7 +2724,8 @@ info "Verification completed, obtaining certificate."
 #obtain the certificate.
 get_certificate "$DOMAIN_DIR/${DOMAIN}.csr" \
                 "$CERT_FILE" \
-                "$CA_CERT"
+                "$CA_CERT" \
+                "$FULL_CHAIN"
 if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
   info "Creating order for EC certificate"
   if [[ $API -eq 2 ]]; then
@@ -2734,7 +2735,8 @@ if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
   info "obtaining EC certificate."
   get_certificate "$DOMAIN_DIR/${DOMAIN}.ec.csr" \
                   "${CERT_FILE%.*}.ec.crt" \
-                  "${CA_CERT%.*}.ec.crt"
+                  "${CA_CERT%.*}.ec.crt" \
+                  "${FULL_CHAIN%.*}.ec.crt"
 fi
 
 # create Archive of new certs and keys.
