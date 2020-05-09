@@ -1,0 +1,82 @@
+name: Run all tests
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+jobs:
+  test-alpine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on Alpine
+        run: test/run-test.sh alpine
+  test-centos6:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on CentOS6
+        run: test/run-test.sh centos6
+  test-centos7:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v1
+        - name: Build the docker-compose stack
+          run: docker-compose up -d --build
+        - name: Run test suite on CentOS7
+          run: test/run-test.sh centos7
+  test-centos7-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on CentOS7 against Staging using DuckDNS
+        run: test/run-test.sh centos7-staging
+  test-debian:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on Debian
+        run: test/run-test.sh debian
+  test-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on Ubuntu
+        run: test/run-test.sh ubuntu
+  test-ubuntu16:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on Ubuntu16
+        run: test/run-test.sh ubuntu16
+  test-ubuntu18:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on Ubuntu18
+        run: test/run-test.sh ubuntu18
+  test-ubuntu-staging:
+    needs: test-centos7-staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on Ubuntu against Staging using DuckDNS
+        run: test/run-test.sh ubuntu-staging

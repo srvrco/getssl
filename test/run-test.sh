@@ -1,43 +1,47 @@
-#! /bin/bash
+#! /usr/bin/env bash
 
-set -e
+if [ $# -eq 0 ]; then
+    echo "Usage: $(basename "$0") <os> [<command>]"
+    echo "e.g. $(basename "$0") alpine bats /getssl/test"
+    exit 1
+fi
+OS=$1
 
-# Test setup
-if [[ -d /root/.getssl ]]; then
-    rm -r /root/.getssl
+if [ $# -gt 1 ]; then
+    shift
+    COMMAND=$*
+else
+    COMMAND="bats /getssl/test"
 fi
 
-wget --no-clobber https://raw.githubusercontent.com/letsencrypt/pebble/master/test/certs/pebble.minica.pem
-# cat /etc/pki/tls/certs/ca-bundle.crt /root/pebble.minica.pem > /root/pebble-ca-bundle.crt
-cat /etc/ssl/certs/ca-certificates.crt /root/pebble.minica.pem > /root/pebble-ca-bundle.crt
-export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+if [[ "$OS" == *"staging"* ]]; then
+    ALIAS="${OS%-staging}-getssl.duckdns.org"
+    STAGING="--env STAGING=true"
+else
+    ALIAS="$OS.getssl.test"
+    STAGING=""
+fi
 
-curl -X POST -d '{"host":"getssl", "addresses":["10.30.50.4"]}' http://10.30.50.3:8055/add-a
-
-# Test #1 - http-01 verification
-echo Test \#1 - http-01 verification
-
-cp /getssl/test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
-service nginx restart
-/getssl/getssl -c getssl
-cp /getssl/test/test-config/getssl-http01.cfg /root/.getssl/getssl/getssl.cfg
-/getssl/getssl -f getssl
-
-# Test #2 - http-01 forced renewal
-echo Test \#2 - http-01 forced renewal
-/getssl/getssl getssl -f
-
-# Test cleanup
-rm -r /root/.getssl
-
-# Test #3 - dns-01 verification
-echo Test \#3 - dns-01 verification
-cp /getssl/test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
-service nginx restart
-/getssl/getssl -c getssl
-cp /getssl/test/test-config/getssl-dns01.cfg /root/.getssl/getssl/getssl.cfg
-/getssl/getssl getssl
-
-# Test #4 - dns-01 forced renewal
-echo Test \#4 - dns-01 forced renewal
-/getssl/getssl getssl -f
+docker build --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" .
+# shellcheck disable=SC2086
+docker run \
+  --env GETSSL_HOST=$ALIAS $STAGING \
+  --env GETSSL_OS=${OS%-staging} \
+  -v "$(pwd)":/getssl \
+  --rm \
+  --network ${PWD##*/}_acmenet \
+  --network-alias $ALIAS \
+  --network-alias "a.$OS.getssl.test" \
+  --network-alias "b.$OS.getssl.test" \
+  --network-alias "c.$OS.getssl.test" \
+  --network-alias "d.$OS.getssl.test" \
+  --network-alias "e.$OS.getssl.test" \
+  --network-alias "f.$OS.getssl.test" \
+  --network-alias "g.$OS.getssl.test" \
+  --network-alias "h.$OS.getssl.test" \
+  --network-alias "i.$OS.getssl.test" \
+  --network-alias "j.$OS.getssl.test" \
+  --network-alias "k.$OS.getssl.test" \
+  --name "getssl-$OS" \
+  "getssl-$OS" \
+  $COMMAND
