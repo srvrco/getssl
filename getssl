@@ -2072,72 +2072,77 @@ usage() { # echos out the program usage
 
 write_domain_template() { # write out a template file for a domain.
   if [[ -s "$WORKING_DIR/getssl_default.cfg" ]]; then
-	export DOMAIN="$DOMAIN"
-	export EX_SANS="$EX_SANS"
-	envsubst < $WORKING_DIR/getssl_default.cfg  > "$1"
+  	export DOMAIN="$DOMAIN"
+  	export EX_SANS="$EX_SANS"
+  	envsubst < "$WORKING_DIR/getssl_default.cfg"  > "$1"
   else
     cat > "$1" <<- _EOF_domain_
-    # Uncomment and modify any variables you need
+		# vim: filetype=sh
+		#
+		# This file is read second (and per domain if running with the -a option)
+		# and overwrites any settings from the first file
+		#
+		# Uncomment and modify any variables you need
 		# see https://github.com/srvrco/getssl/wiki/Config-variables for details
 		# see https://github.com/srvrco/getssl/wiki/Example-config-files for example configs
 		#
 		# The staging server is best for testing
-		#CA="https://acme-staging.api.letsencrypt.org"
+		#CA="https://acme-staging-v02.api.letsencrypt.org"
 		# This server issues full certificates, however has rate limits
-		#CA="https://acme-v01.api.letsencrypt.org"
+		#CA="https://acme-v02.api.letsencrypt.org"
 
-	# Private key types - can be rsa, prime256v1, secp384r1 or secp521r1
-	#PRIVATE_KEY_ALG="rsa"
+		# Private key types - can be rsa, prime256v1, secp384r1 or secp521r1
+		#PRIVATE_KEY_ALG="rsa"
 
-	# Additional domains - this could be multiple domains / subdomains in a comma separated list
-	# Note: this is Additional domains - so should not include the primary domain.
-	SANS="${EX_SANS}"
+		# Additional domains - this could be multiple domains / subdomains in a comma separated list
+		# Note: this is Additional domains - so should not include the primary domain.
+		SANS="${EX_SANS}"
 
-	# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
-	# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
-	# An ssh key will be needed to provide you with access to the remote server.
-	# Optionally, you can specify a different userid for ssh/scp to use on the remote server before the @ sign.
-	# If left blank, the username on the local server will be used to authenticate against the remote server.
-	# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
-	# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
-	# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
-	# You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
-	# password, host, port (explicitly needed even if using default port 443) and path on the server.
-	#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-	#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-	#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
-	#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
-	#     'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge')
+		# Acme Challenge Location. The first line for the domain, the following ones for each additional domain.
+		# If these start with ssh: then the next variable is assumed to be the hostname and the rest the location.
+		# An ssh key will be needed to provide you with access to the remote server.
+		# Optionally, you can specify a different userid for ssh/scp to use on the remote server before the @ sign.
+		# If left blank, the username on the local server will be used to authenticate against the remote server.
+		# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
+		# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
+		# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
+		# You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
+		# password, host, port (explicitly needed even if using default port 443) and path on the server.
+		#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+		#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+		#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
+		#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
+		#     'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge')
 
-	# Specify SSH options, e.g. non standard port in SSH_OPTS
-	# (Can also use SCP_OPTS and SFTP_OPTS)
-	# SSH_OPTS=-p 12345
+		# Specify SSH options, e.g. non standard port in SSH_OPTS
+		# (Can also use SCP_OPTS and SFTP_OPTS)
+		# SSH_OPTS=-p 12345
 
-	# Set USE_SINGLE_ACL="true" to use a single ACL for all checks
-	#USE_SINGLE_ACL="false"
+		# Set USE_SINGLE_ACL="true" to use a single ACL for all checks
+		#USE_SINGLE_ACL="false"
 
-	# Location for all your certs, these can either be on the server (full path name)
-	# or using ssh /sftp as for the ACL
-	#DOMAIN_CERT_LOCATION="/etc/ssl/${DOMAIN}.crt" # this is domain cert
-	#DOMAIN_KEY_LOCATION="/etc/ssl/${DOMAIN}.key" # this is domain key
-	#CA_CERT_LOCATION="/etc/ssl/chain.crt" # this is CA cert
-	#DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
-	#DOMAIN_PEM_LOCATION="" # this is the domain key, domain cert and CA cert
+		# Location for all your certs, these can either be on the server (full path name)
+		# or using ssh /sftp as for the ACL
+		#DOMAIN_CERT_LOCATION="/etc/ssl/${DOMAIN}.crt" # this is domain cert
+		#DOMAIN_KEY_LOCATION="/etc/ssl/${DOMAIN}.key" # this is domain key
+		#CA_CERT_LOCATION="/etc/ssl/chain.crt" # this is CA cert
+		#DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
+		#DOMAIN_PEM_LOCATION="" # this is the domain key, domain cert and CA cert
 
-	# The command needed to reload apache / nginx or whatever you use
-	#RELOAD_CMD=""
+		# The command needed to reload apache / nginx or whatever you use
+		#RELOAD_CMD=""
 
-	# Uncomment the following line to prevent non-interactive renewals of certificates
-	#PREVENT_NON_INTERACTIVE_RENEWAL="true"
+		# Uncomment the following line to prevent non-interactive renewals of certificates
+		#PREVENT_NON_INTERACTIVE_RENEWAL="true"
 
-	# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
-	# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
-	# will be checked for certificate expiry and also will be checked after
-	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
-	#SERVER_TYPE="https"
-	#CHECK_REMOTE="true"
-	#CHECK_REMOTE_WAIT="2" # wait 2 seconds before checking the remote server
-	_EOF_domain_
+		# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
+		# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
+		# will be checked for certificate expiry and also will be checked after
+		# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+		#SERVER_TYPE="https"
+		#CHECK_REMOTE="true"
+		#CHECK_REMOTE_WAIT="2" # wait 2 seconds before checking the remote server
+		_EOF_domain_
   fi
 }
 
