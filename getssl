@@ -228,11 +228,12 @@
 # 2020-04-22 Fix domain case conversion for different locales - glynge (2.26)
 # 2020-04-26 Fixed ipv4 confirmation with nslookup - Cyber1000
 # 2020-04-29 Fix ftp/sftp problems if challenge starts with a dash
+# 2020-05-06 Fix missing fullchain.ec.crt when creating dual certificates (2.27)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.26"
+VERSION="2.27"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
