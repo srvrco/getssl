@@ -283,6 +283,7 @@ _REVOKE=0
 _UPGRADE=0
 _UPGRADE_CHECK=1
 _USE_DEBUG=0
+_ONLY_CHECK_CONFIG=0
 config_errors="false"
 LANG=C
 API=1
@@ -291,6 +292,18 @@ API=1
 ORIGCMD="$0 $*"
 
 # Define all functions (in alphabetical order)
+
+auto_upgrade_v2() {  # Automatically update clients to v2
+  if [[ "${CA}" == *"acme-v01."* ]] || [[ "${CA}" == *"acme-staging."* ]]; then
+    OLDCA=${CA}
+    # shellcheck disable=SC2001
+    CA=$(echo "${OLDCA}" | sed "s/v01/v02/g")
+    # shellcheck disable=SC2001
+    CA=$(echo "${CA}" | sed "s/staging/staging-v02/g")
+    info "Upgraded to v2 (changed ${OLDCA} to ${CA})"
+  fi
+  debug "Using certificate issuer: ${CA}"
+}
 
 cert_archive() {  # Archive certificate file by copying files to dated archive dir.
   debug "creating an archive copy of current new certs"
@@ -2245,6 +2258,8 @@ while [[ -n ${1+defined} ]]; do
       _UPGRADE_CHECK=0 ;;
     -i | --install)
       _CERT_INSTALL=1 ;;
+    --check-config)
+      _ONLY_CHECK_CONFIG=1 ;;
     -w)
       shift; WORKING_DIR="$1" ;;
     -*)
@@ -2462,8 +2477,17 @@ set_server_type
 # check what dns utils are installed
 find_dns_utils
 
+# auto upgrade clients to v2
+auto_upgrade_v2
+
 # check config for typical errors.
 check_config
+
+# exit if just checking config (used for testing)
+if [ "${_ONLY_CHECK_CONFIG}" -eq 1 ]; then
+  info "Configuration check successful"
+  graceful_exit
+fi
 
 # if -i|--install install certs, reload and exit
 if [ "0${_CERT_INSTALL}" -eq 1 ]; then
