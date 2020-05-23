@@ -1743,6 +1743,45 @@ json_get() { # get values from json
   fi
 }
 
+obtain_ca_resource_locations()
+{
+  # Obtain CA resource locations
+  ca_all_loc=$(curl --user-agent "$CURL_USERAGENT" "${CA}" 2>/dev/null)
+  debug "ca_all_loc from ${CA} gives $ca_all_loc"
+  # APIv1
+  URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
+  URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
+  URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
+  #API v2
+  URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
+  URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
+  URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
+  URL_revoke=$(echo "$ca_all_loc" | grep "revokeCert" | awk -F'"' '{print $4}')
+
+  if [[ -z "$URL_new_reg" ]] && [[ -z "$URL_newAccount" ]]; then
+    ca_all_loc=$(curl --user-agent "$CURL_USERAGENT" "${CA}/directory" 2>/dev/null)
+    debug "ca_all_loc from ${CA}/directory gives $ca_all_loc"
+    # APIv1
+    URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
+    URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
+    URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
+    #API v2
+    URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
+    URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
+    URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
+  fi
+
+  if [[ -n "$URL_new_reg" ]]; then
+    API=1
+  elif [[ -n "$URL_newAccount" ]]; then
+    API=2
+  else
+    info "unknown API version"
+    graceful_exit
+  fi
+  debug "Using API v$API"
+}
+
 os_esed() { # Use different sed version for different os types (extended regex)
   if [[ "$os" == "bsd" ]]; then # BSD requires -E flag for extended regex
     sed -E "${@}"
@@ -1807,9 +1846,9 @@ revoke_certificate() { # revoke a certificate
   # need to set the revoke key as "account_key" since it's used in send_signed_request.
   get_signing_params "$REVOKE_KEY"
   TEMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t getssl)
-  debug "revoking from $CA"
-  rcertdata=$(openssl x509 -in "$REVOKE_CERT" -inform PEM -outform DER | urlbase64)
-  send_signed_request "$URL_revoke" "{\"resource\": \"revoke-cert\", \"certificate\": \"$rcertdata\"}"
+  debug "revoking from $URL_revoke"
+  rcertdata=$(sed '1d;$d' "$REVOKE_CERT" | tr -d "\r\n" | tr '/+' '_-' | tr -d '= ')
+  send_signed_request "$URL_revoke" "{\"certificate\": \"$rcertdata\",\"reason\": $REVOKE_REASON}"
   if [[ $code -eq "200" ]]; then
     info "certificate revoked"
   else
@@ -1959,15 +1998,18 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     while [[ "$code" -eq 500 ]]; do
       if [[ "$outfile" ]] ; then
         $CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" > "$outfile"
+        errcode=$?
         response=$(cat "$outfile")
       elif [[ "$needbase64" ]] ; then
         response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" | urlbase64)
+        errcode=$?
       else
         response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url")
+        errcode=$?
       fi
 
-      if [[ "$response" == "" ]]; then
-        error_exit "ERROR curl \"$url\" returned nothing"
+      if [[ $errcode -gt 0 || ( "$response" == "" && $url != *"revoke"* ) ]]; then
+        error_exit "ERROR curl \"$url\" failed with $errcode and returned $response"
       fi
 
       responseHeaders=$(cat "$CURL_HEADER")
@@ -2257,7 +2299,9 @@ while [[ -n ${1+defined} ]]; do
       shift
       REVOKE_KEY="$1"
       shift
-      REVOKE_CA="$1" ;;
+      CA="$1"
+      REVOKE_CA="$1"
+      REVOKE_REASON=0 ;;
     -u | --upgrade)
       _UPGRADE=1 ;;
     -U | --nocheck)
@@ -2324,7 +2368,8 @@ if [[ $_REVOKE -eq 1 ]]; then
   else
     CA=$REVOKE_CA
   fi
-  URL_revoke=$(curl --user-agent "$CURL_USERAGENT" "${CA}/directory" 2>/dev/null | grep "revoke-cert" | awk -F'"' '{print $4}')
+
+  obtain_ca_resource_locations
   revoke_certificate
   graceful_exit
 fi
@@ -2508,39 +2553,7 @@ if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
   info "${DOMAIN}: forcing renewal (due to FORCE_RENEWAL file)"
 fi
 
-# Obtain CA resource locations
-ca_all_loc=$(curl --user-agent "$CURL_USERAGENT" "${CA}" 2>/dev/null)
-debug "ca_all_loc from ${CA} gives $ca_all_loc"
-# APIv1
-URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
-URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
-URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
-#API v2
-URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
-URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
-URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
-if [[ -z "$URL_new_reg" ]]  && [[ -z "$URL_newAccount" ]]; then
-  ca_all_loc=$(curl --user-agent "$CURL_USERAGENT" "${CA}/directory" 2>/dev/null)
-  debug "ca_all_loc from ${CA}/directory gives $ca_all_loc"
-  # APIv1
-  URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
-  URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
-  URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
-  #API v2
-  URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
-  URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
-  URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
-fi
-
-if [[ -n "$URL_new_reg" ]]; then
-  API=1
-elif [[ -n "$URL_newAccount" ]]; then
-  API=2
-else
-  info "unknown API version"
-  graceful_exit
-fi
-debug "Using API v$API"
+obtain_ca_resource_locations
 
 # Check if awk supports json_awk (required for ACMEv2)
 if [[ $API -eq 2 ]]; then
