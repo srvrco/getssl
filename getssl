@@ -229,11 +229,13 @@
 # 2020-04-26 Fixed ipv4 confirmation with nslookup - Cyber1000
 # 2020-04-29 Fix ftp/sftp problems if challenge starts with a dash
 # 2020-05-06 Fix missing fullchain.ec.crt when creating dual certificates (2.27)
+# 2020-05-14 Add --notify-valid option (exit 2 if certificate is valid)
+# 2020-05-23 Fix --revoke (didn't work with ACMEv02) (2.28)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.27"
+VERSION="2.28"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -277,6 +279,7 @@ _CREATE_CONFIG=0
 _FORCE_RENEW=0
 _KEEP_VERSIONS=""
 _MUTE=0
+_NOTIFY_VALID=0
 _QUIET=0
 _RECREATE_CSR=0
 _REVOKE=0
@@ -1496,8 +1499,10 @@ get_signing_params() { # get signing parameters from key
 }
 
 graceful_exit() { # normal exit function.
+  exit_code=$1
   clean_up
-  exit
+  # shellcheck disable=SC2086
+  exit $exit_code
 }
 
 help_message() { # print out the help message
@@ -1740,6 +1745,45 @@ json_get() { # get values from json
   fi
 }
 
+obtain_ca_resource_locations()
+{
+  # Obtain CA resource locations
+  ca_all_loc=$(curl --user-agent "$CURL_USERAGENT" "${CA}" 2>/dev/null)
+  debug "ca_all_loc from ${CA} gives $ca_all_loc"
+  # APIv1
+  URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
+  URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
+  URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
+  #API v2
+  URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
+  URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
+  URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
+  URL_revoke=$(echo "$ca_all_loc" | grep "revokeCert" | awk -F'"' '{print $4}')
+
+  if [[ -z "$URL_new_reg" ]] && [[ -z "$URL_newAccount" ]]; then
+    ca_all_loc=$(curl --user-agent "$CURL_USERAGENT" "${CA}/directory" 2>/dev/null)
+    debug "ca_all_loc from ${CA}/directory gives $ca_all_loc"
+    # APIv1
+    URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
+    URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
+    URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
+    #API v2
+    URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
+    URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
+    URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
+  fi
+
+  if [[ -n "$URL_new_reg" ]]; then
+    API=1
+  elif [[ -n "$URL_newAccount" ]]; then
+    API=2
+  else
+    info "unknown API version"
+    graceful_exit
+  fi
+  debug "Using API v$API"
+}
+
 os_esed() { # Use different sed version for different os types (extended regex)
   if [[ "$os" == "bsd" ]]; then # BSD requires -E flag for extended regex
     sed -E "${@}"
@@ -1804,9 +1848,9 @@ revoke_certificate() { # revoke a certificate
   # need to set the revoke key as "account_key" since it's used in send_signed_request.
   get_signing_params "$REVOKE_KEY"
   TEMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t getssl)
-  debug "revoking from $CA"
-  rcertdata=$(openssl x509 -in "$REVOKE_CERT" -inform PEM -outform DER | urlbase64)
-  send_signed_request "$URL_revoke" "{\"resource\": \"revoke-cert\", \"certificate\": \"$rcertdata\"}"
+  debug "revoking from $URL_revoke"
+  rcertdata=$(sed '1d;$d' "$REVOKE_CERT" | tr -d "\r\n" | tr '/+' '_-' | tr -d '= ')
+  send_signed_request "$URL_revoke" "{\"certificate\": \"$rcertdata\",\"reason\": $REVOKE_REASON}"
   if [[ $code -eq "200" ]]; then
     info "certificate revoked"
   else
@@ -1956,15 +2000,18 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     while [[ "$code" -eq 500 ]]; do
       if [[ "$outfile" ]] ; then
         $CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" > "$outfile"
+        errcode=$?
         response=$(cat "$outfile")
       elif [[ "$needbase64" ]] ; then
         response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" | urlbase64)
+        errcode=$?
       else
         response=$($CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url")
+        errcode=$?
       fi
 
-      if [[ "$response" == "" ]]; then
-        error_exit "ERROR curl \"$url\" returned nothing"
+      if [[ $errcode -gt 0 || ( "$response" == "" && $url != *"revoke"* ) ]]; then
+        error_exit "ERROR curl \"$url\" failed with $errcode and returned $response"
       fi
 
       responseHeaders=$(cat "$CURL_HEADER")
@@ -2230,30 +2277,35 @@ while [[ -n ${1+defined} ]]; do
     -h | --help)
       help_message; graceful_exit ;;
     -d | --debug)
-     _USE_DEBUG=1 ;;
+      _USE_DEBUG=1 ;;
     -c | --create)
-     _CREATE_CONFIG=1 ;;
+      _CREATE_CONFIG=1 ;;
     -f | --force)
-     _FORCE_RENEW=1 ;;
+      _FORCE_RENEW=1 ;;
+    --notify-valid)
+      # Exit 2 if certificate is valid and doesn't need renewing
+      _NOTIFY_VALID=2 ;;
     -a | --all)
-     _CHECK_ALL=1 ;;
+      _CHECK_ALL=1 ;;
     -k | --keep)
-     shift; _KEEP_VERSIONS="$1";;
+      shift; _KEEP_VERSIONS="$1";;
     -q | --quiet)
-     _QUIET=1 ;;
+      _QUIET=1 ;;
     -Q | --mute)
-     _QUIET=1
-     _MUTE=1 ;;
+      _QUIET=1
+      _MUTE=1 ;;
     -r | --revoke)
-     _REVOKE=1
-     shift
-     REVOKE_CERT="$1"
-     shift
-     REVOKE_KEY="$1"
-     shift
-     REVOKE_CA="$1" ;;
+      _REVOKE=1
+      shift
+      REVOKE_CERT="$1"
+      shift
+      REVOKE_KEY="$1"
+      shift
+      CA="$1"
+      REVOKE_CA="$1"
+      REVOKE_REASON=0 ;;
     -u | --upgrade)
-     _UPGRADE=1 ;;
+      _UPGRADE=1 ;;
     -U | --nocheck)
       _UPGRADE_CHECK=0 ;;
     -i | --install)
@@ -2318,7 +2370,8 @@ if [[ $_REVOKE -eq 1 ]]; then
   else
     CA=$REVOKE_CA
   fi
-  URL_revoke=$(curl --user-agent "$CURL_USERAGENT" "${CA}/directory" 2>/dev/null | grep "revoke-cert" | awk -F'"' '{print $4}')
+
+  obtain_ca_resource_locations
   revoke_certificate
   graceful_exit
 fi
@@ -2502,39 +2555,7 @@ if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
   info "${DOMAIN}: forcing renewal (due to FORCE_RENEWAL file)"
 fi
 
-# Obtain CA resource locations
-ca_all_loc=$(curl --user-agent "$CURL_USERAGENT" "${CA}" 2>/dev/null)
-debug "ca_all_loc from ${CA} gives $ca_all_loc"
-# APIv1
-URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
-URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
-URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
-#API v2
-URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
-URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
-URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
-if [[ -z "$URL_new_reg" ]]  && [[ -z "$URL_newAccount" ]]; then
-  ca_all_loc=$(curl --user-agent "$CURL_USERAGENT" "${CA}/directory" 2>/dev/null)
-  debug "ca_all_loc from ${CA}/directory gives $ca_all_loc"
-  # APIv1
-  URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
-  URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
-  URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
-  #API v2
-  URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
-  URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
-  URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
-fi
-
-if [[ -n "$URL_new_reg" ]]; then
-  API=1
-elif [[ -n "$URL_newAccount" ]]; then
-  API=2
-else
-  info "unknown API version"
-  graceful_exit
-fi
-debug "Using API v$API"
+obtain_ca_resource_locations
 
 # Check if awk supports json_awk (required for ACMEv2)
 if [[ $API -eq 2 ]]; then
@@ -2630,8 +2651,8 @@ if [[ -s "$CERT_FILE" ]]; then
         debug "upgrading from fake cert to real"
       else
         info "${DOMAIN}: certificate is valid for more than $RENEW_ALLOW days (until $enddate)"
-        # everything is OK, so exit.
-        graceful_exit
+        # everything is OK, so exit, if requested with the --notify-valid, exit with code 2
+        graceful_exit $_NOTIFY_VALID
       fi
     else
       debug "${DOMAIN}: certificate needs renewal"
