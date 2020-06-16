@@ -11,7 +11,7 @@ fi
 domain="$1"
 txtvalue="$2"
 
-response=$(curl --silent "https://www.duckdns.org/update?domains=${domain}&token=${token}&txt=${txtvalue}")
+response=$(curl --retry 5 --silent "https://www.duckdns.org/update?domains=${domain}&token=${token}&txt=${txtvalue}")
 if [ "$response" != "OK" ]; then
     echo "Failed to update TXT record for ${domain} at duckdns.org (is the TOKEN valid?)"
     echo "Response: $response"
