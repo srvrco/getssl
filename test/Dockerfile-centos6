@@ -1,6 +1,9 @@
 FROM centos:centos6
 
 # Note this image uses gawk
+# Note if you are running this using WSL2 you need to put the following lines in %userprofile%\.wslconfig
+# [wsl2]
+# kernelCommandLine = vsyscall=emulate
 
 # Update and install required software
 RUN yum -y update

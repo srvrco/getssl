@@ -42,6 +42,8 @@ server {
 	# Add index.php to the list if you are using PHP
 	index index.html index.htm index.nginx-debian.html;
 
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+
 	server_name _;
     ssl_certificate /etc/nginx/pki/server.crt;
     ssl_certificate_key /etc/nginx/pki/private/server.key;
