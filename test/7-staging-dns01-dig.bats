@@ -7,6 +7,7 @@ load '/getssl/test/test_helper.bash'
 
 
 @test "Create new certificate using staging server, dig and DuckDNS" {
+    skip
     if [ -z "$STAGING" ]; then
         skip "Running internal tests, skipping external test"
     fi
@@ -20,6 +21,7 @@ load '/getssl/test/test_helper.bash'
 }
 
 @test "Force renewal of certificate using staging server, dig and DuckDNS" {
+    skip
     if [ -z "$STAGING" ]; then
         skip "Running internal tests, skipping external test"
     fi

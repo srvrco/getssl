@@ -27,11 +27,11 @@ teardown() {
 
 
 @test "Create new certificate using DNS-01 verification (dig)" {
+    CONFIG_FILE="getssl-dns01.cfg"
     if [ -n "$STAGING" ]; then
-        skip "Using staging server, skipping internal test"
+        CONFIG_FILE="getssl-staging-dns01.cfg"
     fi
 
-    CONFIG_FILE="getssl-dns01.cfg"
     setup_environment
     init_getssl
     create_certificate -d
@@ -42,9 +42,6 @@ teardown() {
 
 
 @test "Force renewal of certificate using DNS-01 (dig)" {
-    if [ -n "$STAGING" ]; then
-        skip "Using staging server, skipping internal test"
-    fi
     run ${CODE_DIR}/getssl -d -f $GETSSL_HOST
     assert_success
     assert_output --partial "dig"
