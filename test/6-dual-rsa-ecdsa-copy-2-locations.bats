@@ -25,7 +25,14 @@ teardown() {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
-    CONFIG_FILE="getssl-http01-dual-rsa-ecdsa-2-locations.cfg"
+
+    check_nginx
+    if [ "$OLD_NGINX" = "false" ]; then
+        CONFIG_FILE="getssl-http01-dual-rsa-ecdsa-2-locations.cfg"
+    else
+        CONFIG_FILE="getssl-http01-dual-rsa-ecdsa-2-locations-old-nginx.cfg"
+    fi
+
     setup_environment
     mkdir -p /root/a.${GETSSL_HOST}
 

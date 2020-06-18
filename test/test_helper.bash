@@ -8,6 +8,20 @@ check_certificates()
     assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt" ]
 }
 
+# Only nginx > 1.11.0 support dual certificates in a single configuration file
+# https://unix.stackexchange.com/questions/285924/how-to-compare-a-programs-version-in-a-shell-script
+check_nginx() {
+    requiredver="1.11.0"
+    currentver="$(nginx -v)"
+    if [ "$(printf '%s\n' "$requiredver" "$currentver" | sort -V | head -n1)" = "$requiredver" ]; then
+        export OLD_NGINX="false"
+    else
+        echo "INFO: Running nginx version $currentver which doesn't support dual certificates" >&3
+        echo "INFO: not checking that certificate is installed correctly" >&3
+        export OLD_NGINX="true"
+    fi
+}
+
 check_output_for_errors() {
     refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
     # less strict tests if running with debug output

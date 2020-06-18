@@ -2561,9 +2561,14 @@ fi
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
   debug "getting certificate for $DOMAIN from remote server"
+if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+    CIPHER="-cipher RSA"
+else
+    CIPHER=""
+fi
   # shellcheck disable=SC2086
   EX_CERT=$(echo \
-    | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null \
+    | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} ${CIPHER} 2>/dev/null \
     | openssl x509 2>/dev/null)
   if [[ -n "$EX_CERT" ]]; then # if obtained a cert
     if [[ -s "$CERT_FILE" ]]; then # if local exists
@@ -2817,16 +2822,30 @@ fi
 # Check if the certificate is installed correctly
 if [[ ${CHECK_REMOTE} == "true" ]]; then
   sleep "$CHECK_REMOTE_WAIT"
-  # shellcheck disable=SC2086
-  CERT_REMOTE=$(echo \
-    | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} 2>/dev/null \
-    | openssl x509 -noout -fingerprint 2>/dev/null)
-  CERT_LOCAL=$(openssl x509 -noout -fingerprint < "$CERT_FILE" 2>/dev/null)
-  if [[ "$CERT_LOCAL" == "$CERT_REMOTE" ]]; then
-    info "${DOMAIN} - certificate installed OK on server"
+  if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+    PARAMS=("-cipher RSA" "-cipher ECDSA")
+    CERTS=("$CERT_FILE" "${CERT_FILE%.*}.ec.crt")
+    TYPES=("rsa" "$PRIVATE_KEY_ALG")
   else
-    error_exit "${DOMAIN} - certificate obtained but certificate on server is different from the new certificate"
+    PARAMS=("")
+    CERTS=("$CERT_FILE")
+    TYPES=("$PRIVATE_KEY_ALG")
   fi
+
+  for ((i=0; i<${#PARAMS[@]};++i)); do
+    debug "Checking ${CERTS[i]}"
+    # shellcheck disable=SC2086
+    CERT_REMOTE=$(echo \
+        | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} ${PARAMS[i]} 2>/dev/null \
+        | openssl x509 -noout -fingerprint 2>/dev/null)
+    CERT_LOCAL=$(openssl x509 -noout -fingerprint < "${CERTS[i]}" 2>/dev/null)
+    if [[ "$CERT_LOCAL" == "$CERT_REMOTE" ]]; then
+        info "${DOMAIN} - ${TYPES[i]} certificate installed OK on server"
+    else
+        info "${CERTS[i]} didn't match server"
+        error_exit "${DOMAIN} - ${TYPES[i]} certificate obtained but certificate on server is different from the new certificate"
+    fi
+  done
 fi
 # end of Check if the certificate is installed correctly
 
