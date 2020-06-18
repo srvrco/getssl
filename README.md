@@ -4,16 +4,6 @@
 Obtain SSL certificates from the letsencrypt.org ACME server. Suitable
 for automating the process on remote servers.
 
-## Upgrading from ACME v01 to ACME v02
-
-Find the following line in your `getssl.cfg` file:
-
-```CA="https://acme-v01.api.letsencrypt.org"```
-
-and change it to:
-
-```CA="https://acme-v02.api.letsencrypt.org"```
-
 ## Features
 
 * **Bash** - It runs on virtually all unix machines, including BSD, most
@@ -43,7 +33,7 @@ and change it to:
   debug information is available.
 * **Reload services** - After a new certificate is obtained then the
   relevant services (e.g. apache/nginx/postfix) can be reloaded.
-* **ACME v1 and V2** - Supports both ACME versions 1 and 2
+* **ACME v1 and V2** - Supports both ACME versions 1 and 2 (note ACMEv1 is deprecated and clients will automatically use v2)
 
 ## Installation
 
