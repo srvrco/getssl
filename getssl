@@ -231,11 +231,14 @@
 # 2020-05-06 Fix missing fullchain.ec.crt when creating dual certificates (2.27)
 # 2020-05-14 Add --notify-valid option (exit 2 if certificate is valid)
 # 2020-05-23 Fix --revoke (didn't work with ACMEv02) (2.28)
+# 2020-06-06 Fix missing URL_revoke definition when no CA directory suffix (#566)
+# 2020-06-18 Fix CHECK_REMOTE for DUAL_RSA_ECDSA (#570)
+# 2020-07-14 Support space separated SANS (#574) (2.29)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.28"
+VERSION="2.29"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -497,7 +500,7 @@ check_config() { # check the config files for all obvious errors
 
   # get all domains
   if [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
-    alldomains=${SANS//,/ }
+    alldomains=${SANS//[, ]/ }
   else
     alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
   fi
@@ -784,7 +787,7 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
     if [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
       alldomains=$(echo "$SANS" | sed -e 's/ //g; s/,$//; y/,/\n/' | sort -u)
     else
-      alldomains=$(echo "$DOMAIN,$SANS" | sed -e 's/ //g; s/,$//; y/,/\n/' | sort -u)
+      alldomains=$(echo "$DOMAIN,$SANS" | sed -e 's/,/ /g; s/ $//; y/ /\n/' | sort -u)
     fi
     domains_in_csr=$(openssl req -text -noout -in "$csr_file" \
         | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' \
@@ -2695,9 +2698,9 @@ fi
 if [[ -z "$SANS" ]]; then
   SANLIST="subjectAltName=DNS:${DOMAIN}"
 elif [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
-  SANLIST="subjectAltName=DNS:${SANS//,/,DNS:}"
+  SANLIST="subjectAltName=DNS:${SANS//[, ]/,DNS:}"
 else
-  SANLIST="subjectAltName=DNS:${DOMAIN},DNS:${SANS//,/,DNS:}"
+  SANLIST="subjectAltName=DNS:${DOMAIN},DNS:${SANS//[, ]/,DNS:}"
 fi
 debug "created SAN list = $SANLIST"
 
@@ -2757,7 +2760,7 @@ info "Verify each domain"
 
 # loop through domains for cert ( from SANS list)
 if [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
-  alldomains=${SANS//,/ }
+  alldomains=${SANS//[, ]/ }
 else
   alldomains=$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")
 fi
