@@ -72,7 +72,7 @@ if [[ -f /usr/bin/supervisord && -f /etc/supervisord.conf ]]; then
     if [[ ! $(pgrep supervisord) ]]; then
         /usr/bin/supervisord -c /etc/supervisord.conf >&3-
     fi
-elif [ "$GETSSL_OS" == "centos7" ]; then
+elif [[ "$GETSSL_OS" == "centos"[78] ]]; then
     if [ -z "$(pgrep nginx)" ]; then
         nginx >&3-
     fi

@@ -3,7 +3,7 @@
 if [ "$GETSSL_OS" = "alpine" ]; then
     killall -HUP nginx >&3-
     sleep 5
-elif [ "$GETSSL_OS" == "centos7" ]; then
+elif [[ "$GETSSL_OS" == "centos"[78] ]]; then
     pgrep nginx | head -1 | xargs kill -HUP
     sleep 5
 else
