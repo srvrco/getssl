@@ -11,7 +11,7 @@ setup() {
 }
 
 
-@test "Test behaviour if SANS line is space separated instead of comma separated" {
+@test "Test behaviour if SANS line is space separated instead of comma separated (http01)" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
@@ -30,7 +30,7 @@ setup() {
 }
 
 
-@test "Test renewal if SANS line is space separated instead of comma separated" {
+@test "Test renewal if SANS line is space separated instead of comma separated (http01)" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
@@ -41,7 +41,7 @@ setup() {
 }
 
 
-@test "Test behaviour if SANS line is space separated and IGNORE_DIRECTORY_DOMAIN" {
+@test "Test behaviour if SANS line is space separated and IGNORE_DIRECTORY_DOMAIN (http01)" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
@@ -60,7 +60,7 @@ setup() {
 }
 
 
-@test "Test renewal if SANS line is space separated and IGNORE_DIRECTORY_DOMAIN" {
+@test "Test renewal if SANS line is space separated and IGNORE_DIRECTORY_DOMAIN (http01)" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
