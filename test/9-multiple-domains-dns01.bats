@@ -16,7 +16,7 @@ setup() {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
-    CONFIG_FILE="getssl-multiple-domains-dns01.cfg"
+    CONFIG_FILE="getssl-dns01-multiple-domains.cfg"
     setup_environment
 
     # Add top level domain from SANS to DNS
@@ -47,7 +47,7 @@ setup() {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
-    CONFIG_FILE="getssl-ignore-directory-domain.cfg"
+    CONFIG_FILE="getssl-dns01-ignore-directory-domain.cfg"
     setup_environment
 
     # Add top level domain from SANS to DNS

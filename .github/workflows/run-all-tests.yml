@@ -39,6 +39,14 @@ jobs:
         run: docker-compose up -d --build
       - name: Run test suite on CentOS7 against Staging using DuckDNS
         run: test/run-test.sh centos7-staging
+  test-centos8:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on CentOS8
+        run: test/run-test.sh centos8
   test-debian:
     runs-on: ubuntu-latest
     steps:

@@ -11,7 +11,7 @@ setup() {
 }
 
 
-@test "Create certificate to check revoke" {
+@test "Create certificate to check revoke (no suffix)" {
     if [ -n "$STAGING" ]; then
         CONFIG_FILE="getssl-staging-dns01-no-suffix.cfg"
     else
@@ -26,7 +26,7 @@ setup() {
 }
 
 
-@test "Check we can revoke a certificate" {
+@test "Check we can revoke a certificate (no suffix)" {
     if [ -n "$STAGING" ]; then
         CONFIG_FILE="getssl-staging-dns01.cfg"
     else
