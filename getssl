@@ -2842,6 +2842,8 @@ if [[ ${CHECK_REMOTE} == "true" ]]; then
         | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} ${PARAMS[i]} 2>/dev/null \
         | openssl x509 -noout -fingerprint 2>/dev/null)
     CERT_LOCAL=$(openssl x509 -noout -fingerprint < "${CERTS[i]}" 2>/dev/null)
+    debug CERT_LOCAL="${CERT_LOCAL}"
+    debug CERT_REMOTE="${CERT_REMOTE}"
     if [[ "$CERT_LOCAL" == "$CERT_REMOTE" ]]; then
         info "${DOMAIN} - ${TYPES[i]} certificate installed OK on server"
     else
