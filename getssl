@@ -234,6 +234,7 @@
 # 2020-06-06 Fix missing URL_revoke definition when no CA directory suffix (#566)
 # 2020-06-18 Fix CHECK_REMOTE for DUAL_RSA_ECDSA (#570)
 # 2020-07-14 Support space separated SANS (#574) (2.29)
+# 2020-08-06 Use -sigalgs instead of -cipher when checking remote for tls1.3 (#570)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -2565,7 +2566,7 @@ fi
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
   debug "getting certificate for $DOMAIN from remote server"
 if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    CIPHER="-cipher RSA"
+    CIPHER="-sigalgs RSA-PSS+SHA256"
 else
     CIPHER=""
 fi
@@ -2826,7 +2827,7 @@ fi
 if [[ ${CHECK_REMOTE} == "true" ]]; then
   sleep "$CHECK_REMOTE_WAIT"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    PARAMS=("-sigalgs RSA-PSS+SHA256:RSA-PSS+SHA512" "-sigalgs ECDSA+SHA256:ECDSA+SHA512")
+    PARAMS=("-sigalgs RSA-PSS+SHA256" "-sigalgs ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512")
     CERTS=("$CERT_FILE" "${CERT_FILE%.*}.ec.crt")
     TYPES=("rsa" "$PRIVATE_KEY_ALG")
   else
