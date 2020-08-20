@@ -2565,11 +2565,11 @@ fi
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
   debug "getting certificate for $DOMAIN from remote server"
-if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    CIPHER="-sigalgs RSA-PSS+SHA256"
-else
+  if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+    CIPHER="-sigalgs RSA-PSS+SHA256:RSA-PSS+SHA512:RSA+SHA256:RSA+SHA384:RSA+SHA512"
+  else
     CIPHER=""
-fi
+  fi
   # shellcheck disable=SC2086
   EX_CERT=$(echo \
     | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} ${CIPHER} 2>/dev/null \
@@ -2827,7 +2827,7 @@ fi
 if [[ ${CHECK_REMOTE} == "true" ]]; then
   sleep "$CHECK_REMOTE_WAIT"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    PARAMS=("-sigalgs RSA-PSS+SHA256" "-sigalgs ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512")
+    PARAMS=("-sigalgs RSA-PSS+SHA256:RSA-PSS+SHA512:RSA+SHA256:RSA+SHA384:RSA+SHA512" "-sigalgs ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512")
     CERTS=("$CERT_FILE" "${CERT_FILE%.*}.ec.crt")
     TYPES=("rsa" "$PRIVATE_KEY_ALG")
   else
@@ -2847,6 +2847,9 @@ if [[ ${CHECK_REMOTE} == "true" ]]; then
     debug CERT_REMOTE="${CERT_REMOTE}"
     if [[ "$CERT_LOCAL" == "$CERT_REMOTE" ]]; then
         info "${DOMAIN} - ${TYPES[i]} certificate installed OK on server"
+    elif [[ "$CERT_REMOTE" == "" ]]; then
+        info "${CERTS[i]} not returned by server"
+        error_exit "${DOMAIN} - ${TYPES[i]} certificate obtained but not installed on server"
     else
         info "${CERTS[i]} didn't match server"
         error_exit "${DOMAIN} - ${TYPES[i]} certificate obtained but certificate on server is different from the new certificate"
