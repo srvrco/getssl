@@ -40,8 +40,10 @@ teardown() {
     create_certificate
     assert_success
     check_output_for_errors
-    assert_line --partial "rsa certificate installed OK on server"
-    assert_line --partial "prime256v1 certificate installed OK on server"
+    if [ "$OLD_NGINX" = "false" ]; then
+        assert_line --partial "rsa certificate installed OK on server"
+        assert_line --partial "prime256v1 certificate installed OK on server"
+    fi
 
     # Check that the RSA chain and key have been copied to both locations
     assert [ -e "/etc/nginx/pki/domain-chain.crt" ]
