@@ -38,5 +38,5 @@ setup() {
 
     run ${CODE_DIR}/getssl -d --revoke $CERT $KEY $CA
     assert_success
-    check_output_for_errors
+    check_output_for_errors "debug"
 }
