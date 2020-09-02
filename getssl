@@ -2566,7 +2566,13 @@ fi
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
   debug "getting certificate for $DOMAIN from remote server"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    CIPHER="-sigalgs RSA-PSS+SHA256:RSA-PSS+SHA512:RSA+SHA256:RSA+SHA384:RSA+SHA512"
+    # shellcheck disable=SC2086
+    # check if openssl supports RSA-PSS
+    if [[ $(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} -sigalgs RSA-PSS 2>/dev/null) ]]; then
+        CIPHER="-sigalgs RSA+SHA256:RSA+SHA384:RSA+SHA512:RSA-PSS+SHA256:RSA-PSS+SHA512"
+    else
+        CIPHER="-sigalgs RSA+SHA256:RSA+SHA384:RSA+SHA512"
+    fi
   else
     CIPHER=""
   fi
@@ -2827,7 +2833,14 @@ fi
 if [[ ${CHECK_REMOTE} == "true" ]]; then
   sleep "$CHECK_REMOTE_WAIT"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    PARAMS=("-sigalgs RSA-PSS+SHA256:RSA-PSS+SHA512:RSA+SHA256:RSA+SHA384:RSA+SHA512" "-sigalgs ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512")
+    # shellcheck disable=SC2086
+    # check if openssl supports RSA-PSS
+    if [[ $(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} -sigalgs RSA-PSS 2>/dev/null) ]]; then
+        PARAMS=("-sigalgs RSA-PSS+SHA256:RSA-PSS+SHA512:RSA+SHA256:RSA+SHA384:RSA+SHA512" "-sigalgs ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512")
+    else
+        PARAMS=("-sigalgs RSA+SHA256:RSA+SHA384:RSA+SHA512" "-sigalgs ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512")
+    fi
+
     CERTS=("$CERT_FILE" "${CERT_FILE%.*}.ec.crt")
     TYPES=("rsa" "$PRIVATE_KEY_ALG")
   else
