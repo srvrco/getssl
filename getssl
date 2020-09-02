@@ -2521,6 +2521,10 @@ if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
   . "$DOMAIN_DIR/getssl.cfg"
 fi
 
+# Ensure SANS is comma separated by replacing any number of commas or spaces with a single comma
+# shellcheck disable=SC2001
+SANS=$(echo "$SANS" | sed 's/[, ]\+/,/g')
+
 # from SERVER_TYPE set REMOTE_PORT and REMOTE_EXTRA
 set_server_type
 
