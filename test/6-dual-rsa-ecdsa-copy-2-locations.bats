@@ -40,6 +40,10 @@ teardown() {
     create_certificate
     assert_success
     check_output_for_errors
+    if [ "$OLD_NGINX" = "false" ]; then
+        assert_line --partial "rsa certificate installed OK on server"
+        assert_line --partial "prime256v1 certificate installed OK on server"
+    fi
 
     # Check that the RSA chain and key have been copied to both locations
     assert [ -e "/etc/nginx/pki/domain-chain.crt" ]
@@ -52,4 +56,26 @@ teardown() {
     assert [ -e "/root/a.${GETSSL_HOST}/domain-chain.ec.crt" ]
     assert [ -e "/etc/nginx/pki/private/server.ec.key" ]
     assert [ -e "/root/a.${GETSSL_HOST}/server.ec.key" ]
+}
+
+
+@test "Create dual certificates and copy to two locations but not returned by server" {
+    if [ -n "$STAGING" ]; then
+        skip "Using staging server, skipping internal test"
+    fi
+
+    check_nginx
+    if [ "$OLD_NGINX" = "false" ]; then
+        CONFIG_FILE="getssl-http01-dual-rsa-ecdsa-2-locations-wrong-nginx.cfg"
+    else
+        skip "Skipping as old nginx servers cannot return both certificates"
+    fi
+
+    setup_environment
+    mkdir -p /root/a.${GETSSL_HOST}
+
+    init_getssl
+    create_certificate
+    assert_failure
+    assert_line --partial "prime256v1 certificate obtained but not installed on server"
 }
