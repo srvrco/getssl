@@ -235,6 +235,8 @@
 # 2020-06-18 Fix CHECK_REMOTE for DUAL_RSA_ECDSA (#570)
 # 2020-07-14 Support space separated SANS (#574) (2.29)
 # 2020-08-06 Use -sigalgs instead of -cipher when checking remote for tls1.3 (#570)
+# 2020-08-31 Fix slow fork bomb when directory containing getssl isn't writeable (#440)
+# 2020-09-01 Use RSA-PSS when checking remote for DUAL_RSA_ECDSA (#570)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -609,8 +611,12 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
   # use a default of 0 for cases where the latest code has not been obtained.
   if [[ "${latestvdec:-0}" -gt "$localvdec" ]]; then
     if [[ ${_UPGRADE} -eq 1 ]]; then
-      install "$0" "${0}.v${VERSION}"
-      install -m 700 "$TEMP_UPGRADE_FILE" "$0"
+      if ! install "$0" "${0}.v${VERSION}"; then
+	 error_exit "problem renaming old version while updating, check permissions"
+      fi
+      if ! install -m 700 "$TEMP_UPGRADE_FILE" "$0"; then
+	 error_exit "problem installing new version while updating, check permissions"
+      fi
       if [[ ${_MUTE} -eq 0 ]]; then
         echo "Updated getssl from v${VERSION} to v${latestversion}"
         echo "these update notification can be turned off using the -Q option"
@@ -2570,7 +2576,13 @@ fi
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
   debug "getting certificate for $DOMAIN from remote server"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    CIPHER="-sigalgs RSA-PSS+SHA256:RSA-PSS+SHA512:RSA+SHA256:RSA+SHA384:RSA+SHA512"
+    # shellcheck disable=SC2086
+    # check if openssl supports RSA-PSS
+    if [[ $(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} -sigalgs RSA-PSS+SHA256 2>/dev/null) ]]; then
+        CIPHER="-sigalgs RSA+SHA256:RSA+SHA384:RSA+SHA512:RSA-PSS+SHA256:RSA-PSS+SHA512"
+    else
+        CIPHER="-sigalgs RSA+SHA256:RSA+SHA384:RSA+SHA512"
+    fi
   else
     CIPHER=""
   fi
@@ -2831,7 +2843,14 @@ fi
 if [[ ${CHECK_REMOTE} == "true" ]]; then
   sleep "$CHECK_REMOTE_WAIT"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    PARAMS=("-sigalgs RSA-PSS+SHA256:RSA-PSS+SHA512:RSA+SHA256:RSA+SHA384:RSA+SHA512" "-sigalgs ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512")
+    # shellcheck disable=SC2086
+    # check if openssl supports RSA-PSS
+    if [[ $(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} -sigalgs RSA-PSS+SHA256 2>/dev/null) ]]; then
+        PARAMS=("-sigalgs RSA-PSS+SHA256:RSA-PSS+SHA512:RSA+SHA256:RSA+SHA384:RSA+SHA512" "-sigalgs ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512")
+    else
+        PARAMS=("-sigalgs RSA+SHA256:RSA+SHA384:RSA+SHA512" "-sigalgs ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512")
+    fi
+
     CERTS=("$CERT_FILE" "${CERT_FILE%.*}.ec.crt")
     TYPES=("rsa" "$PRIVATE_KEY_ALG")
   else
