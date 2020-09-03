@@ -234,6 +234,7 @@
 # 2020-06-06 Fix missing URL_revoke definition when no CA directory suffix (#566)
 # 2020-06-18 Fix CHECK_REMOTE for DUAL_RSA_ECDSA (#570)
 # 2020-07-14 Support space separated SANS (#574) (2.29)
+# 2020-08-06 Use -sigalgs instead of -cipher when checking remote for tls1.3 (#570)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -2564,11 +2565,17 @@ fi
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
 if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
   debug "getting certificate for $DOMAIN from remote server"
-if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    CIPHER="-cipher RSA"
-else
+  if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
+    # shellcheck disable=SC2086
+    # check if openssl supports RSA-PSS
+    if [[ $(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} -sigalgs RSA-PSS+SHA256 2>/dev/null) ]]; then
+        CIPHER="-sigalgs RSA+SHA256:RSA+SHA384:RSA+SHA512:RSA-PSS+SHA256:RSA-PSS+SHA512"
+    else
+        CIPHER="-sigalgs RSA+SHA256:RSA+SHA384:RSA+SHA512"
+    fi
+  else
     CIPHER=""
-fi
+  fi
   # shellcheck disable=SC2086
   EX_CERT=$(echo \
     | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} ${CIPHER} 2>/dev/null \
@@ -2826,7 +2833,14 @@ fi
 if [[ ${CHECK_REMOTE} == "true" ]]; then
   sleep "$CHECK_REMOTE_WAIT"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
-    PARAMS=("-cipher RSA" "-cipher ECDSA")
+    # shellcheck disable=SC2086
+    # check if openssl supports RSA-PSS
+    if [[ $(echo | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} -sigalgs RSA-PSS+SHA256 2>/dev/null) ]]; then
+        PARAMS=("-sigalgs RSA-PSS+SHA256:RSA-PSS+SHA512:RSA+SHA256:RSA+SHA384:RSA+SHA512" "-sigalgs ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512")
+    else
+        PARAMS=("-sigalgs RSA+SHA256:RSA+SHA384:RSA+SHA512" "-sigalgs ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512")
+    fi
+
     CERTS=("$CERT_FILE" "${CERT_FILE%.*}.ec.crt")
     TYPES=("rsa" "$PRIVATE_KEY_ALG")
   else
@@ -2842,8 +2856,13 @@ if [[ ${CHECK_REMOTE} == "true" ]]; then
         | openssl s_client -servername "${DOMAIN}" -connect "${DOMAIN}:${REMOTE_PORT}" ${REMOTE_EXTRA} ${PARAMS[i]} 2>/dev/null \
         | openssl x509 -noout -fingerprint 2>/dev/null)
     CERT_LOCAL=$(openssl x509 -noout -fingerprint < "${CERTS[i]}" 2>/dev/null)
+    debug CERT_LOCAL="${CERT_LOCAL}"
+    debug CERT_REMOTE="${CERT_REMOTE}"
     if [[ "$CERT_LOCAL" == "$CERT_REMOTE" ]]; then
         info "${DOMAIN} - ${TYPES[i]} certificate installed OK on server"
+    elif [[ "$CERT_REMOTE" == "" ]]; then
+        info "${CERTS[i]} not returned by server"
+        error_exit "${DOMAIN} - ${TYPES[i]} certificate obtained but not installed on server"
     else
         info "${CERTS[i]} didn't match server"
         error_exit "${DOMAIN} - ${TYPES[i]} certificate obtained but certificate on server is different from the new certificate"

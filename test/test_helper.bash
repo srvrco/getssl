@@ -12,7 +12,7 @@ check_certificates()
 # https://unix.stackexchange.com/questions/285924/how-to-compare-a-programs-version-in-a-shell-script
 check_nginx() {
     requiredver="1.11.0"
-    currentver="$(nginx -v)"
+    currentver=$(nginx -v 2>&1 | awk -F"/" '{print $2}')
     if [ "$(printf '%s\n' "$requiredver" "$currentver" | sort -V | head -n1)" = "$requiredver" ]; then
         export OLD_NGINX="false"
     else
