@@ -237,11 +237,12 @@
 # 2020-08-06 Use -sigalgs instead of -cipher when checking remote for tls1.3 (#570)
 # 2020-08-31 Fix slow fork bomb when directory containing getssl isn't writeable (#440)
 # 2020-09-01 Use RSA-PSS when checking remote for DUAL_RSA_ECDSA (#570)
+# 2020-09-02 Fix issue when SANS is space and comma separated (#579)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.29"
+VERSION="2.30"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
