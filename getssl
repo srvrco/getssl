@@ -258,8 +258,10 @@ CSR_SUBJECT="/"
 CURL_USERAGENT="${PROGNAME}/${VERSION}"
 DEACTIVATE_AUTH="false"
 DEFAULT_REVOKE_CA="https://acme-v02.api.letsencrypt.org"
-DNS_EXTRA_WAIT=60
-DNS_WAIT=10
+DNS_EXTRA_WAIT=60          # How long to wait after the DNS has updated before telling the ACME server to check.
+DNS_WAIT_RETRY_ADD="false" # Try the dns_add_command again if the DNS record hasn't updated
+DNS_WAIT=10                # How long to wait before checking the DNS record again
+DNS_WAIT_COUNT=100         # How many times to wait for the DNS record to update
 DOMAIN_KEY_LENGTH=4096
 DUAL_RSA_ECDSA="false"
 GETSSL_IGNORE_CP_PRESERVE="false"
@@ -454,6 +456,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
     # if ACME response is that their check gave an invalid response, error exit
     if [[ "$status" == "invalid" ]] ; then
       err_detail=$(echo "$response" | grep "detail")
+      #! FIXME need to check for "DNS problem: SERVFAIL looking up CAA ..." and retry
       error_exit "$domain:Verify error:$err_detail"
     fi
 
@@ -1187,13 +1190,29 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
           if [[ "$check_result" == *"$auth_key"* ]]; then
             check_dns="success"
           else
-            if [[ $ntries -lt 100 ]]; then
+            if [[ $ntries -lt $DNS_WAIT_COUNT ]]; then
               ntries=$(( ntries + 1 ))
+
+              if [[ $DNS_WAIT_RETRY_ADD == "true" && $(( ntries % 10 == 0 )) ]]; then
+                # shellcheck disable=SC2018,SC2019
+                lower_d=$(echo "$d" | tr A-Z a-z)
+                debug "Retrying adding dns via command: $DNS_ADD_COMMAND $lower_d $auth_key"
+                if ! eval "$DNS_ADD_COMMAND" "$lower_d" "$auth_key" ; then
+                  error_exit "DNS_ADD_COMMAND failed for domain $d"
+                fi
+
+              fi
               info "checking DNS at ${ns} for ${d}. Attempt $ntries/100 gave wrong result, "\
                 "waiting $DNS_WAIT secs before checking again"
               sleep $DNS_WAIT
             else
               debug "dns check failed - removing existing value"
+              # shellcheck disable=SC2018,SC2019
+              lower_d=$(echo "$d" | tr A-Z a-z)
+              eval "$DNS_DEL_COMMAND" "$lower_d" "$auth_key"
+              # remove $dnsfile after each loop.
+              rm -f "$dnsfile"
+
               error_exit "checking _acme-challenge.${d} gave $check_result not $auth_key"
             fi
           fi
@@ -1235,6 +1254,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
   if [[ "$os" == "cygwin" ]]; then
     gad_d="$orig_gad_d"
+    # shellcheck disable=SC2086
     all_auth_dns_servers=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} 2>/dev/null \
                           | grep "primary name server" \
                           | awk '{print $NF}')
@@ -1314,6 +1334,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
   if [[ "$HAS_NSLOOKUP" == "true" ]]; then
     gad_d="$orig_gad_d"
     debug Using "nslookup -debug -type=soa -type=ns $gad_d $gad_s" to find primary name server
+    # shellcheck disable=SC2086
     res=$(nslookup -debug -type=soa -type=ns "$gad_d" ${gad_s})
 
     if [[ "$(echo "$res" | grep -c "Non-authoritative")" -gt 0 ]]; then
