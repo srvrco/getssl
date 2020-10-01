@@ -1285,9 +1285,15 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     gad_d="$orig_gad_d"
     # Use SOA +trace to find the name server
     if [[ $_TEST_SKIP_SOA_CALL == 0 ]]; then
-      debug Using "$HAS_DIG_OR_DRILL SOA +trace +nocomments $gad_d $gad_s" to find primary nameserver
-      test_output "Using $HAS_DIG_OR_DRILL SOA"
-      res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" "$gad_s" 2>/dev/null | grep "IN\WNS\W")
+      if [[ "$HAS_DIG_OR_DRILL" == "dig" ]]; then
+        debug Using "$HAS_DIG_OR_DRILL SOA +trace +nocomments $gad_d $gad_s" to find primary nameserver
+        test_output "Using $HAS_DIG_OR_DRILL SOA"
+        res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" "$gad_s" 2>/dev/null | grep "IN\WNS\W")
+      else
+        debug Using "$HAS_DIG_OR_DRILL -T $gad_d $gad_s" to find primary nameserver
+        test_output "Using $HAS_DIG_OR_DRILL SOA"
+        res=$($HAS_DIG_OR_DRILL -T SOA "$gad_d" "$gad_s" 2>/dev/null | grep "IN\WNS\W")
+      fi
     fi
 
     # Check if domain is a CNAME
