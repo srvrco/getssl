@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 # Update and install required software
 RUN apt-get update --fix-missing
-RUN apt-get install -y git curl dnsutils wget nginx-light
+RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light
 RUN apt-get install -y vim dos2unix # for debugging
 # TODO test with drill, dig, host
 

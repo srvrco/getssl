@@ -4,7 +4,7 @@ FROM debian:latest
 
 # Update and install required software
 RUN apt-get update --fix-missing
-RUN apt-get install -y git curl dnsutils wget nginx-light
+RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light
 
 WORKDIR /root
 RUN mkdir /etc/nginx/pki
