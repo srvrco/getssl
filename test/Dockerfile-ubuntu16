@@ -5,15 +5,12 @@ FROM ubuntu:xenial
 
 # Update and install required software
 RUN apt-get update --fix-missing
-RUN apt-get install -y git curl dnsutils wget nginx-light
+RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light
 
 WORKDIR /root
 RUN mkdir /etc/nginx/pki
 RUN mkdir /etc/nginx/pki/private
 COPY ./test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
-
-# Prevent "Can't load /root/.rnd into RNG" error from openssl
-# RUN touch /root/.rnd
 
 # BATS (Bash Automated Testings)
 RUN git clone https://github.com/bats-core/bats-core.git /bats-core

@@ -8,7 +8,7 @@ FROM centos:centos6
 # Update and install required software
 RUN yum -y update
 RUN yum -y install epel-release
-RUN yum -y install git curl dnsutils wget nginx
+RUN yum -y install git curl dnsutils ldns wget nginx
 
 WORKDIR /root
 RUN mkdir /etc/nginx/pki

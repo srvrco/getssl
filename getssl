@@ -237,7 +237,8 @@
 # 2020-08-06 Use -sigalgs instead of -cipher when checking remote for tls1.3 (#570)
 # 2020-08-31 Fix slow fork bomb when directory containing getssl isn't writeable (#440)
 # 2020-09-01 Use RSA-PSS when checking remote for DUAL_RSA_ECDSA (#570)
-# 2020-09-02 Fix issue when SANS is space and comma separated (#579)
+# 2020-09-02 Fix issue when SANS is space and comma separated (#579) (2.30)
+# 2020-10-02 Various fixes to get_auth_dns and changes to support unit tests (#308)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -292,6 +293,9 @@ _NOTIFY_VALID=0
 _QUIET=0
 _RECREATE_CSR=0
 _REVOKE=0
+_RUNNING_TEST=0
+_TEST_SKIP_CNAME_CALL=0
+_TEST_SKIP_SOA_CALL=0
 _UPGRADE=0
 _UPGRADE_CHECK=1
 _USE_DEBUG=0
@@ -942,8 +946,19 @@ date_renew() { # calculates the renewal time in epoch
 
 debug() { # write out debug info if the debug flag has been set
   if [[ ${_USE_DEBUG} -eq 1 ]]; then
-    echo " "
-    echo "$@"
+    # If running tests then output in TAP format (for debugging tests)
+    if [[ ${_RUNNING_TEST} -eq 1 ]]; then
+      echo "#" "$@" >&3
+    else
+      echo " "
+      echo "$@"
+    fi
+  fi
+}
+
+test_output() { # write out debug output for testing
+  if [[ ${_RUNNING_TEST} -eq 1 ]]; then
+    echo "#" "$@"
   fi
 }
 
@@ -1127,8 +1142,7 @@ for d in $alldomains; do
           command="rm -f ${t_loc:(( ${#sshhost} + 5))}/${token:?}"
           debug "running following command to remove token"
           debug "ssh $SSH_OPTS $sshhost ${command}"
-          # shellcheck disable=SC2029
-          # shellcheck disable=SC2086
+          # shellcheck disable=SC2029 disable=SC2086
           ssh $SSH_OPTS "$sshhost" "${command}" 1>/dev/null 2>&1
           rm -f "${TEMP_DIR:?}/${token:?}"
         elif [[ "${t_loc:0:4}" == "ftp:" ]] ; then
@@ -1163,6 +1177,10 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
       # shellcheck source=/dev/null
       . "$dnsfile"
 
+      # Always use lowercase domain name when querying DNS servers
+      # shellcheck disable=SC2018,SC2019
+      lower_d=$(echo "$d" | tr A-Z a-z)
+
       # check for token at public dns server, waiting for a valid response.
       for ns in $primary_ns; do
         debug "checking dns at $ns"
@@ -1170,18 +1188,18 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
         check_dns="fail"
         while [[ "$check_dns" == "fail" ]]; do
           if [[ "$os" == "cygwin" ]]; then
-            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
+            check_result=$(nslookup -type=txt "_acme-challenge.${lower_d}" "${ns}" \
                            | grep ^_acme -A2\
                            | grep '"'|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-            debug "$DNS_CHECK_FUNC" TXT "_acme-challenge.${d}" "@${ns}"
-            check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${d}" "@${ns}" \
+            debug "$DNS_CHECK_FUNC" TXT "_acme-challenge.${lower_d}" "@${ns}"
+            check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${lower_d}" "@${ns}" \
                            | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
-            check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${d}" "${ns}" \
+            check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${lower_d}" "${ns}" \
                            | grep 'descriptive text'|awk -F'"' '{ print $2}')
           else
-            check_result=$(nslookup -type=txt "_acme-challenge.${d}" "${ns}" \
+            check_result=$(nslookup -type=txt "_acme-challenge.${lower_d}" "${ns}" \
                            | grep 'text ='|awk -F'"' '{ print $2}')
           fi
           debug "expecting  $auth_key"
@@ -1194,26 +1212,22 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
               ntries=$(( ntries + 1 ))
 
               if [[ $DNS_WAIT_RETRY_ADD == "true" && $(( ntries % 10 == 0 )) ]]; then
-                # shellcheck disable=SC2018,SC2019
-                lower_d=$(echo "$d" | tr A-Z a-z)
                 debug "Retrying adding dns via command: $DNS_ADD_COMMAND $lower_d $auth_key"
                 if ! eval "$DNS_ADD_COMMAND" "$lower_d" "$auth_key" ; then
                   error_exit "DNS_ADD_COMMAND failed for domain $d"
                 fi
 
               fi
-              info "checking DNS at ${ns} for ${d}. Attempt $ntries/100 gave wrong result, "\
+              info "checking DNS at ${ns} for ${lower_d}. Attempt $ntries/${DNS_WAIT_COUNT} gave wrong result, "\
                 "waiting $DNS_WAIT secs before checking again"
               sleep $DNS_WAIT
             else
               debug "dns check failed - removing existing value"
-              # shellcheck disable=SC2018,SC2019
-              lower_d=$(echo "$d" | tr A-Z a-z)
               eval "$DNS_DEL_COMMAND" "$lower_d" "$auth_key"
               # remove $dnsfile after each loop.
               rm -f "$dnsfile"
 
-              error_exit "checking _acme-challenge.${d} gave $check_result not $auth_key"
+              error_exit "checking _acme-challenge.${lower_d} gave $check_result not $auth_key"
             fi
           fi
         done
@@ -1222,7 +1236,7 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
   done
 
   if [[ "$DNS_EXTRA_WAIT" -gt 0 && "$PREVIOUSLY_VALIDATED" != "true" ]]; then
-    info "sleeping $DNS_EXTRA_WAIT seconds before asking the ACME-server to check the dns"
+    info "sleeping $DNS_EXTRA_WAIT seconds before asking the ACME server to check the dns"
     sleep "$DNS_EXTRA_WAIT"
   fi
 
@@ -1251,6 +1265,9 @@ fi
 get_auth_dns() { # get the authoritative dns server for a domain (sets primary_ns )
   orig_gad_d="$1" # domain name
   gad_s="$PUBLIC_DNS_SERVER" # start with PUBLIC_DNS_SERVER
+  if [[ -n "$gad_s" ]]; then
+    gad_s="@$gad_s"
+  fi
 
   if [[ "$os" == "cygwin" ]]; then
     gad_d="$orig_gad_d"
@@ -1267,47 +1284,69 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
   if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
     gad_d="$orig_gad_d"
-    debug Using "$HAS_DIG_OR_DRILL SOA +trace +nocomments $gad_d @$gad_s" to find primary nameserver
     # Use SOA +trace to find the name server
-    if [[ -z "$gad_s" ]]; then
-        res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" 2>/dev/null | grep "IN\WNS\W" | tail -1)
-    else
-        res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" "@$gad_s" 2>/dev/null | grep "IN\WNS\W" | tail -1)
+    if [[ $_TEST_SKIP_SOA_CALL == 0 ]]; then
+      if [[ "$HAS_DIG_OR_DRILL" == "dig" ]]; then
+        debug Using "$HAS_DIG_OR_DRILL SOA +trace +nocomments $gad_d $gad_s" to find primary nameserver
+        test_output "Using $HAS_DIG_OR_DRILL SOA"
+        res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" "$gad_s" 2>/dev/null | grep "IN\WNS\W")
+      else
+        debug Using "$HAS_DIG_OR_DRILL -T $gad_d $gad_s" to find primary nameserver
+        test_output "Using $HAS_DIG_OR_DRILL SOA"
+        res=$($HAS_DIG_OR_DRILL -T SOA "$gad_d" "$gad_s" 2>/dev/null | grep "IN\WNS\W")
+      fi
     fi
 
-    # fallback to existing code
+    # Check if domain is a CNAME
     if [[ -z "$res" ]]; then
-      debug Checking for CNAME using "$HAS_DIG_OR_DRILL CNAME $gad_d @$gad_s"
-      if [[ -z "$gad_s" ]]; then #checking for CNAMEs (need grep as dig 9.11 sometimes returns everything not just CNAME entries)
-        res=$($HAS_DIG_OR_DRILL CNAME "$gad_d"| grep "^$gad_d" | grep CNAME)
+      test_output "Using $HAS_DIG_OR_DRILL CNAME"
+
+      # Two options here; either dig CNAME will return the CNAME and the NS or just the CNAME
+      debug Checking for CNAME using "$HAS_DIG_OR_DRILL CNAME $gad_d $gad_s"
+      res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" "$gad_s"| grep "^$gad_d")
+      cname=$(echo "$res"| awk '$4 ~ "CNAME" {print $5}' |sed 's/\.$//g')
+
+      if [[ $_TEST_SKIP_CNAME_CALL == 0 ]]; then
+        debug Checking if CNAME result contains NS records
+        res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" "$gad_s"| grep -E "IN\W(NS|SOA)\W")
       else
-        res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" "@$gad_s"| grep "^$gad_d" | grep CNAME)
+        res=""
       fi
-      if [[ -n "$res" ]]; then # domain is a CNAME so get main domain
-        gad_d=$(echo "$res"| awk '{print $5}' |sed 's/\.$//g')
-        debug Domain is a CNAME, actual domain is "$gad_d"
-      fi
-      # If gad_d is an A record then this returns the SOA for the root domain, e.g. without the www
-      #   dig NS ubuntu.getssl.text
-      #   > getssl.test.      IN   SOA ns1.duckdns.org
-      # If gad_d is a CNAME record then this returns the NS for the domain pointed to by $gad_d
-      #   dig NS www.getssl.text
-      #   > www.getssl.test.  IN CNAME getssl.test
-      #   > getssl.test.      IN    NS ns1.duckdns.org
-      debug Using "$HAS_DIG_OR_DRILL NS $gad_d @$gad_s" to find primary nameserver
-      if [[ -z "$gad_s" ]]; then
-        res=$($HAS_DIG_OR_DRILL NS "$gad_d"| grep -E "IN\W(NS|SOA)\W" | tail -1)
-      else
-        res=$($HAS_DIG_OR_DRILL NS "$gad_d" "@$gad_s"| grep -E "IN\W(NS|SOA)\W" | tail -1)
+
+      if [[ -n "$cname" ]]; then # domain is a CNAME so get main domain
+        debug Domain is a CNAME, actual domain is "$cname"
       fi
     fi
+
+    # Query for NS records
+    if [[ -z "$res" ]]; then
+      test_output "Using $HAS_DIG_OR_DRILL NS"
+      debug Using "$HAS_DIG_OR_DRILL NS $gad_d $gad_s" to find primary nameserver
+      res=$($HAS_DIG_OR_DRILL NS "$gad_d" $gad_s | grep -E "IN\W(NS|SOA)\W")
+    fi
+
     if [[ -n "$res" ]]; then
-      all_auth_dns_servers=$(echo "$res" | awk '$4 ~ "NS" {print $5}' | sed 's/\.$//g'|tr '\n' ' ')
+      # Convert dig output into an array of nameservers
+      IFS=$'\n' read -r -d '' -a ns_servers < <(echo "$res" | awk '$4 ~ "(NS|SOA)" {print $5}' | sed 's/\.$//g')
+
+      # Nameservers from SOA +trace includes root and all intermediate servers, so just use all the ones with the same domain as the last name server
+      # i.e. if we have root, google, duckdns1, duckdns2 then return all the duckdns servers
+      ns_domain=${ns_servers[${#ns_servers[@]} -1 ]#*.}
+      all_auth_dns_servers=""
+      for i in "${ns_servers[@]}"; do
+        if [[ $i =~ $ns_domain ]]; then
+          all_auth_dns_servers="$all_auth_dns_servers $i"
+        fi
+      done
+
       if [[ $CHECK_ALL_AUTH_DNS == "true" ]]; then
         primary_ns="$all_auth_dns_servers"
       else
-        primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
+        primary_ns=$(echo "$all_auth_dns_servers" | awk '{print " " $1}')
       fi
+
+      debug set primary_ns = "$primary_ns"
+      test_output set primary_ns ="$primary_ns"
       return
     fi
   fi
@@ -2194,6 +2233,7 @@ write_domain_template() { # write out a template file for a domain.
 		# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
 		# You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
 		# password, host, port (explicitly needed even if using default port 443) and path on the server.
+        # Multiple locations can be defined for a file by separating the locations with a semi-colon.
 		#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 		#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 		#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
@@ -2339,6 +2379,8 @@ while [[ -n ${1+defined} ]]; do
       _ONLY_CHECK_CONFIG=1 ;;
     -w)
       shift; WORKING_DIR="$1" ;;
+    --source)
+      return ;;
     -*)
       usage
       error_exit "Unknown option $1" ;;

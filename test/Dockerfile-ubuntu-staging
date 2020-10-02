@@ -11,9 +11,8 @@ ENV DUCKDNS_TOKEN 1d616aa9-b8e4-4bb4-b312-3289de82badb
 
 # Update and install required software
 RUN apt-get update --fix-missing
-RUN apt-get install -y git curl dnsutils wget nginx-light
+RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light
 RUN apt-get install -y vim dos2unix # for debugging
-# TODO test with drill, dig, host
 
 WORKDIR /root
 

@@ -5,7 +5,7 @@ FROM ubuntu:bionic
 
 # Update and install required software
 RUN apt-get update --fix-missing
-RUN apt-get install -y git curl dnsutils wget gawk nginx-light
+RUN apt-get install -y git curl dnsutils ldnsutils wget gawk nginx-light
 
 WORKDIR /root
 RUN mkdir /etc/nginx/pki

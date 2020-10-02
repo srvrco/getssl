@@ -1,11 +1,9 @@
 FROM centos:centos7
 
-# Note this image uses drill, does not have dig or nslookup installed
-
 # Update and install required software
 RUN yum -y update
 RUN yum -y install epel-release
-RUN yum -y install git curl ldns wget which nginx
+RUN yum -y install git curl ldns bind-utils wget which nginx
 
 WORKDIR /root
 RUN mkdir /etc/nginx/pki
