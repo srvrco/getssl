@@ -7,29 +7,27 @@ load '/getssl/test/test_helper.bash'
 
 # This is run for every test
 setup() {
+    for app in drill host nslookup
+    do
+        if [ -f /usr/bin/${app} ]; then
+            mv /usr/bin/${app} /usr/bin/${app}.getssl.bak
+        fi
+    done
+
     . /getssl/getssl --source
     find_dns_utils
     _RUNNING_TEST=1
     _USE_DEBUG=0
-    echo "       " >&3
-    echo "       " >&3
-
-    if [ -f /usr/bin/host ]; then
-        mv /usr/bin/host /usr/bin/host.getssl.bak
-    fi
-    if [ -f /usr/bin/nslookup ]; then
-        mv /usr/bin/nslookup /usr/bin/nslookup.getssl.bak
-    fi
 }
 
 
 teardown() {
-    if [ -f /usr/bin/host.getssl.bak ]; then
-        mv /usr/bin/host.getssl.bak /usr/bin/host
-    fi
-    if [ -f /usr/bin/nslookup.getssl.bak ]; then
-        mv /usr/bin/nslookup.getssl.bak /usr/bin/nslookup
-    fi
+    for app in drill host nslookup
+    do
+        if [ -f /usr/bin/${app}.getssl.bak ]; then
+            mv /usr/bin/${app}.getssl.bak /usr/bin/${app}
+        fi
+    done
 }
 
 
