@@ -237,7 +237,8 @@
 # 2020-08-06 Use -sigalgs instead of -cipher when checking remote for tls1.3 (#570)
 # 2020-08-31 Fix slow fork bomb when directory containing getssl isn't writeable (#440)
 # 2020-09-01 Use RSA-PSS when checking remote for DUAL_RSA_ECDSA (#570)
-# 2020-09-02 Fix issue when SANS is space and comma separated (#579)
+# 2020-09-02 Fix issue when SANS is space and comma separated (#579) (2.30)
+# 2020-10-02 Various fixes to get_auth_dns and changes to support unit tests (#308)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
