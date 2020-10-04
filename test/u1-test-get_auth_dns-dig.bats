@@ -31,7 +31,7 @@ teardown() {
 }
 
 
- @test "Check get_auth_dns using dig NS" {
+@test "Check get_auth_dns using dig NS" {
     # Test that get_auth_dns() handles scenario where NS query returns Authority section
     #
     # ************** EXAMPLE DIG OUTPUT **************
@@ -53,6 +53,7 @@ teardown() {
     _TEST_SKIP_CNAME_CALL=1
 
     PUBLIC_DNS_SERVER=ns1.duckdns.org
+    CHECK_PUBLIC_DNS_SERVER=false
     CHECK_ALL_AUTH_DNS=false
 
     run get_auth_dns ubuntu-getssl.duckdns.org
@@ -79,6 +80,7 @@ teardown() {
 
     # DuckDNS server returns nothing for SOA, so use public dns instead
     PUBLIC_DNS_SERVER=1.0.0.1
+    CHECK_PUBLIC_DNS_SERVER=false
     CHECK_ALL_AUTH_DNS=false
 
     run get_auth_dns ubuntu-getssl.duckdns.org
@@ -94,6 +96,11 @@ teardown() {
     CHECK_ALL_AUTH_DNS=true
     run get_auth_dns ubuntu-getssl.duckdns.org
     assert_output --regexp 'set primary_ns = ns[1-3]+\.duckdns\.org ns[1-3]+\.duckdns\.org ns[1-3]+\.duckdns\.org'
+
+    # Check that we also check the public DNS server if requested
+    CHECK_PUBLIC_DNS_SERVER=true
+    run get_auth_dns ubuntu-getssl.duckdns.org
+    assert_output --regexp 'set primary_ns = ns[1-3]+\.duckdns\.org ns[1-3]+\.duckdns\.org ns[1-3]+\.duckdns\.org 1\.0\.0\.1'
 }
 
 
@@ -109,6 +116,7 @@ teardown() {
     _TEST_SKIP_SOA_CALL=1
 
     PUBLIC_DNS_SERVER=1.0.0.1
+    CHECK_PUBLIC_DNS_SERVER=false
     CHECK_ALL_AUTH_DNS=false
 
     run get_auth_dns www.duckdns.org
@@ -121,9 +129,14 @@ teardown() {
     assert_line --partial 'Using dig NS'
 
     # Check all Authoritive DNS servers are returned if requested
-    CHECK_ALL_AUTH_DNS=false
+    CHECK_ALL_AUTH_DNS=true
     run get_auth_dns www.duckdns.org
     assert_output --regexp 'set primary_ns = ns.*\.awsdns.*\.com'
+
+    # Check that we also check the public DNS server if requested
+    CHECK_PUBLIC_DNS_SERVER=true
+    run get_auth_dns www.duckdns.org
+    assert_output --regexp 'set primary_ns = ns.*\.awsdns.*\.com 1\.0\.0\.1'
 }
 
 
@@ -146,6 +159,7 @@ teardown() {
     # ns3.duckdns.org.        600     IN      A       52.26.169.94
 
     PUBLIC_DNS_SERVER=ns1.duckdns.org
+    CHECK_PUBLIC_DNS_SERVER=false
     CHECK_ALL_AUTH_DNS=false
 
     run get_auth_dns www.duckdns.org

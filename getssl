@@ -239,6 +239,7 @@
 # 2020-09-01 Use RSA-PSS when checking remote for DUAL_RSA_ECDSA (#570)
 # 2020-09-02 Fix issue when SANS is space and comma separated (#579) (2.30)
 # 2020-10-02 Various fixes to get_auth_dns and changes to support unit tests (#308)
+# 2020-10-04 Add CHECK_PUBLIC_DNS_SERVER to check the DNS challenge has been updated there
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -251,7 +252,6 @@ ACCOUNT_KEY_TYPE="rsa"
 CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 CA_CERT_LOCATION=""
 CHALLENGE_CHECK_TYPE="http"
-CHECK_ALL_AUTH_DNS="false"
 CHECK_REMOTE="true"
 CHECK_REMOTE_WAIT=0
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -259,10 +259,6 @@ CSR_SUBJECT="/"
 CURL_USERAGENT="${PROGNAME}/${VERSION}"
 DEACTIVATE_AUTH="false"
 DEFAULT_REVOKE_CA="https://acme-v02.api.letsencrypt.org"
-DNS_EXTRA_WAIT=60          # How long to wait after the DNS has updated before telling the ACME server to check.
-DNS_WAIT_RETRY_ADD="false" # Try the dns_add_command again if the DNS record hasn't updated
-DNS_WAIT=10                # How long to wait before checking the DNS record again
-DNS_WAIT_COUNT=100         # How many times to wait for the DNS record to update
 DOMAIN_KEY_LENGTH=4096
 DUAL_RSA_ECDSA="false"
 GETSSL_IGNORE_CP_PRESERVE="false"
@@ -271,7 +267,6 @@ IGNORE_DIRECTORY_DOMAIN="false"
 ORIG_UMASK=$(umask)
 PREVIOUSLY_VALIDATED="true"
 PRIVATE_KEY_ALG="rsa"
-PUBLIC_DNS_SERVER=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
 REUSE_PRIVATE_KEY="true"
@@ -282,8 +277,22 @@ OCSP_MUST_STAPLE="false"
 TEMP_UPGRADE_FILE=""
 TOKEN_USER_ID=""
 USE_SINGLE_ACL="false"
-VALIDATE_VIA_DNS=""
 WORKING_DIR_CANDIDATES=("/etc/getssl/" "${PROGDIR}/conf" "${PROGDIR}/.getssl" "${HOME}/.getssl")
+
+# Variables used when validating using a DNS entry
+VALIDATE_VIA_DNS=""             # Set this to "true" to enable DNS validation
+AUTH_DNS_SERVER=""              # Use this DNS server to check the challenge token has been set
+PUBLIC_DNS_SERVER=""            # Use this DNS server to find the authoritative DNS servers for the domain
+CHECK_ALL_AUTH_DNS="false"      # Check the challenge token has been set on all authoritative DNS servers
+CHECK_PUBLIC_DNS_SERVER="true"  # Check the public DNS server as well as the authoritative DNS servers
+DNS_ADD_COMMAND=""              # Use this command/script to add the challenge token to the DNS entries for the domain
+DNS_DEL_COMMAND=""              # Use this command/script to remove the challenge token from the DNS entries for the domain
+DNS_WAIT_COUNT=100              # How many times to wait for the DNS record to update
+DNS_WAIT=10                     # How long to wait before checking the DNS record again
+DNS_EXTRA_WAIT=60               # How long to wait after the DNS entries are visible to us before telling the ACME server to check.
+DNS_WAIT_RETRY_ADD="false"      # Try the dns_add_command again if the DNS record hasn't updated
+
+# Private variables
 _CHECK_ALL=0
 _CREATE_CONFIG=0
 _FORCE_RENEW=0
@@ -1278,7 +1287,11 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     if [[ -z "$all_auth_dns_servers" ]]; then
       error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
     fi
-    primary_ns="$all_auth_dns_servers"
+    if [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
+      primary_ns="$all_auth_dns_servers $PUBLIC_DNS_SERVER"
+    else
+      primary_ns="$all_auth_dns_servers"
+    fi
     return
   fi
 
@@ -1345,6 +1358,10 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         primary_ns=$(echo "$all_auth_dns_servers" | awk '{print " " $1}')
       fi
 
+      if [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
+        primary_ns="$primary_ns $PUBLIC_DNS_SERVER"
+      fi
+
       debug set primary_ns = "$primary_ns"
       test_output set primary_ns ="$primary_ns"
       return
@@ -1366,6 +1383,11 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
       else
         primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
       fi
+
+      if [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
+        primary_ns="$primary_ns $PUBLIC_DNS_SERVER"
+      fi
+
       return
     fi
   fi
@@ -1415,6 +1437,10 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         primary_ns="$all_auth_dns_servers"
       else
         primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
+      fi
+
+      if [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
+        primary_ns="$primary_ns $PUBLIC_DNS_SERVER"
       fi
       return
     fi
