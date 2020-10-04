@@ -239,6 +239,7 @@
 # 2020-09-01 Use RSA-PSS when checking remote for DUAL_RSA_ECDSA (#570)
 # 2020-09-02 Fix issue when SANS is space and comma separated (#579) (2.30)
 # 2020-10-02 Various fixes to get_auth_dns and changes to support unit tests (#308)
+# 2020-10-04 Add CHECK_PUBLIC_DNS_SERVER to check the DNS challenge has been updated there
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
@@ -272,6 +273,7 @@ ORIG_UMASK=$(umask)
 PREVIOUSLY_VALIDATED="true"
 PRIVATE_KEY_ALG="rsa"
 PUBLIC_DNS_SERVER=""
+CHECK_PUBLIC_DNS_SERVER="true"
 RELOAD_CMD=""
 RENEW_ALLOW="30"
 REUSE_PRIVATE_KEY="true"
@@ -1278,7 +1280,11 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     if [[ -z "$all_auth_dns_servers" ]]; then
       error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
     fi
-    primary_ns="$all_auth_dns_servers"
+    if [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
+      primary_ns="$all_auth_dns_servers $PUBLIC_DNS_SERVER"
+    else
+      primary_ns="$all_auth_dns_servers"
+    fi
     return
   fi
 
@@ -1345,6 +1351,10 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         primary_ns=$(echo "$all_auth_dns_servers" | awk '{print " " $1}')
       fi
 
+      if [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
+        primary_ns="$primary_ns $PUBLIC_DNS_SERVER"
+      fi
+
       debug set primary_ns = "$primary_ns"
       test_output set primary_ns ="$primary_ns"
       return
@@ -1366,6 +1376,11 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
       else
         primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
       fi
+
+      if [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
+        primary_ns="$primary_ns $PUBLIC_DNS_SERVER"
+      fi
+
       return
     fi
   fi
@@ -1415,6 +1430,10 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         primary_ns="$all_auth_dns_servers"
       else
         primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
+      fi
+
+      if [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
+        primary_ns="$primary_ns $PUBLIC_DNS_SERVER"
       fi
       return
     fi
