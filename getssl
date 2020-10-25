@@ -916,7 +916,7 @@ create_order() {
         d=$(echo "$d" | tr "[:upper:]" "[:lower:]")
         if [ "$d" == "$authdomain" ]; then
           debug "Saving authorization response for $authdomain for domain alldomains[$dn]"
-          debug "Response = ${response//['\t\r\n']}"
+          debug "Response = ${response//[$'\t\r\n']}"
           AuthLinkResponse[$dn]=$response
           AuthLinkResponseHeader[$dn]=$responseHeaders
         fi
@@ -1049,7 +1049,7 @@ for d in $alldomains; do
         uri=$(json_get "$response" "uri" "dns-01")
         debug uri "$uri"
       else # APIv2
-        debug "authlink response = ${response//['\t\r\n']}"
+        debug "authlink response = ${response//[$'\t\r\n']}"
         # get the token and uri from the dns-01 component
         token=$(json_get "$response" "challenges" "type" "dns-01" "token")
         uri=$(json_get "$response" "challenges" "type" "dns-01" "url")
@@ -1105,7 +1105,7 @@ for d in $alldomains; do
         uri=$(json_get "$response" "uri" "http-01")
         debug uri "$uri"
       else # APIv2
-        debug "authlink response = ${response//['\t\r\n']}"
+        debug "authlink response = ${response//[$'\t\r\n']}"
         # get the token from the http-01 component
         token=$(json_get "$response" "challenges" "type" "http-01" "token")
         # get the uri from the http component
@@ -1224,8 +1224,9 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
             if [[ $ntries -lt $DNS_WAIT_COUNT ]]; then
               ntries=$(( ntries + 1 ))
 
-              if [[ $DNS_WAIT_RETRY_ADD == "true" && $(( ntries % 10 == 0 )) ]]; then
+              if [[ $DNS_WAIT_RETRY_ADD == "true" && $(( ntries % 10 )) == 0 ]]; then
                 debug "Retrying adding dns via command: $DNS_ADD_COMMAND $lower_d $auth_key"
+                eval "$DNS_DEL_COMMAND" "$lower_d" "$auth_key"
                 if ! eval "$DNS_ADD_COMMAND" "$lower_d" "$auth_key" ; then
                   error_exit "DNS_ADD_COMMAND failed for domain $d"
                 fi
