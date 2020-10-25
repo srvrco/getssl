@@ -629,10 +629,10 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
   if [[ "${latestvdec:-0}" -gt "$localvdec" ]]; then
     if [[ ${_UPGRADE} -eq 1 ]]; then
       if ! install "$0" "${0}.v${VERSION}"; then
-	 error_exit "problem renaming old version while updating, check permissions"
+        error_exit "problem renaming old version while updating, check permissions"
       fi
       if ! install -m 700 "$TEMP_UPGRADE_FILE" "$0"; then
-	 error_exit "problem installing new version while updating, check permissions"
+        error_exit "problem installing new version while updating, check permissions"
       fi
       if [[ ${_MUTE} -eq 0 ]]; then
         echo "Updated getssl from v${VERSION} to v${latestversion}"
@@ -819,7 +819,7 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
     for d in $alldomains; do
       if [[ "$(echo "${domains_in_csr}"| grep "^${d}$")" != "${d}" ]]; then
         info "existing csr at $csr_file does not contain ${d} - re-create-csr"\
-             ".... $(echo "${domains_in_csr}"| grep "^${d}$")"
+          ".... $(echo "${domains_in_csr}"| grep "^${d}$")"
         _RECREATE_CSR=1
       fi
     done
@@ -889,6 +889,7 @@ create_order() {
   OrderLink=$(echo "$responseHeaders" | grep -i location | awk '{print $2}'| tr -d '\r\n ')
   debug "Order link $OrderLink"
   FinalizeLink=$(json_get "$response" "finalize")
+  debug "Finalize link $FinalizeLink"
 
   if [[ $API -eq 1 ]]; then
     dn=0
@@ -915,6 +916,7 @@ create_order() {
         d=$(echo "$d" | tr "[:upper:]" "[:lower:]")
         if [ "$d" == "$authdomain" ]; then
           debug "Saving authorization response for $authdomain for domain alldomains[$dn]"
+          debug "Response = ${response//[$'\t\r\n']}"
           AuthLinkResponse[$dn]=$response
           AuthLinkResponseHeader[$dn]=$responseHeaders
         fi
@@ -957,7 +959,7 @@ debug() { # write out debug info if the debug flag has been set
   if [[ ${_USE_DEBUG} -eq 1 ]]; then
     # If running tests then output in TAP format (for debugging tests)
     if [[ ${_RUNNING_TEST} -eq 1 ]]; then
-      echo "#" "$@" >&3
+      echo "# $(date "+%b %d %T") ${FUNCNAME[1]}:${BASH_LINENO[1]}" "$@" >&3
     else
       echo " "
       echo "$@"
@@ -1047,7 +1049,7 @@ for d in $alldomains; do
         uri=$(json_get "$response" "uri" "dns-01")
         debug uri "$uri"
       else # APIv2
-        debug "authlink response = $response"
+        debug "authlink response = ${response//[$'\t\r\n']}"
         # get the token and uri from the dns-01 component
         token=$(json_get "$response" "challenges" "type" "dns-01" "token")
         uri=$(json_get "$response" "challenges" "type" "dns-01" "url")
@@ -1058,10 +1060,11 @@ for d in $alldomains; do
       debug keyauthorization "$keyauthorization"
 
       #create signed authorization key from token.
-      auth_key=$(printf '%s' "$keyauthorization" | openssl dgst -sha256 -binary \
-                 | openssl base64 -e \
-                 | tr -d '\n\r' \
-                 | sed -e 's:=*$::g' -e 'y:+/:-_:')
+      auth_key=$(printf '%s' "$keyauthorization" \
+        | openssl dgst -sha256 -binary \
+        | openssl base64 -e \
+        | tr -d '\n\r' \
+        | sed -e 's:=*$::g' -e 'y:+/:-_:')
       debug auth_key "$auth_key"
 
       # shellcheck disable=SC2018,SC2019
@@ -1102,7 +1105,7 @@ for d in $alldomains; do
         uri=$(json_get "$response" "uri" "http-01")
         debug uri "$uri"
       else # APIv2
-        debug "authlink response = $response"
+        debug "authlink response = ${response//[$'\t\r\n']}"
         # get the token from the http-01 component
         token=$(json_get "$response" "challenges" "type" "http-01" "token")
         # get the uri from the http component
@@ -1198,19 +1201,19 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
         while [[ "$check_dns" == "fail" ]]; do
           if [[ "$os" == "cygwin" ]]; then
             check_result=$(nslookup -type=txt "_acme-challenge.${lower_d}" "${ns}" \
-                           | grep ^_acme -A2\
-                           | grep '"'|awk -F'"' '{ print $2}')
+                          | grep ^_acme -A2\
+                          | grep '"'|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
             debug "$DNS_CHECK_FUNC" TXT "_acme-challenge.${lower_d}" "@${ns}"
             check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${lower_d}" "@${ns}" \
-                           | grep -i "^_acme-challenge.${lower_d}" \
-                           | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
+                          | grep -i "^_acme-challenge.${lower_d}" \
+                          | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
           elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
             check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${lower_d}" "${ns}" \
-                           | grep 'descriptive text'|awk -F'"' '{ print $2}')
+                          | grep 'descriptive text'|awk -F'"' '{ print $2}')
           else
             check_result=$(nslookup -type=txt "_acme-challenge.${lower_d}" "${ns}" \
-                           | grep 'text ='|awk -F'"' '{ print $2}')
+                          | grep 'text ='|awk -F'"' '{ print $2}')
           fi
           debug "expecting  $auth_key"
           debug "${ns} gave ... $check_result"
@@ -1221,8 +1224,9 @@ if [[ $VALIDATE_VIA_DNS == "true" ]]; then
             if [[ $ntries -lt $DNS_WAIT_COUNT ]]; then
               ntries=$(( ntries + 1 ))
 
-              if [[ $DNS_WAIT_RETRY_ADD == "true" && $(( ntries % 10 == 0 )) ]]; then
+              if [[ $DNS_WAIT_RETRY_ADD == "true" && $(( ntries % 10 )) == 0 ]]; then
                 debug "Retrying adding dns via command: $DNS_ADD_COMMAND $lower_d $auth_key"
+                eval "$DNS_DEL_COMMAND" "$lower_d" "$auth_key"
                 if ! eval "$DNS_ADD_COMMAND" "$lower_d" "$auth_key" ; then
                   error_exit "DNS_ADD_COMMAND failed for domain $d"
                 fi
@@ -1516,7 +1520,7 @@ get_cr() { # get curl response
   debug url "$url"
   response=$(curl --user-agent "$CURL_USERAGENT" --silent "$url")
   ret=$?
-  debug response  "$response"
+  debug response "${response//[$'\t\r\n']}"
   code=$(json_get "$response" status)
   debug code "$code"
   debug "get_cr return code $ret"
@@ -1567,8 +1571,8 @@ get_signing_params() { # get signing parameters from key
     crv="$(openssl ec -in  "$skey" -noout -text 2>/dev/null | awk '$2 ~ "CURVE:" {print $3}')"
     if [[ -z "$crv" ]]; then
       gsp_keytype="$(openssl ec -in  "$skey" -noout -text 2>/dev/null \
-                     | grep "^ASN1 OID:" \
-                     | awk '{print $3}')"
+                    | grep "^ASN1 OID:" \
+                    | awk '{print $3}')"
       case "$gsp_keytype" in
         prime256v1) crv="P-256" ;;
         secp384r1) crv="P-384" ;;
@@ -1583,8 +1587,8 @@ get_signing_params() { # get signing parameters from key
       *) error_exit "invalid curve algorithm type $crv";;
     esac
     pubtext="$(openssl ec  -in "$skey"  -noout -text 2>/dev/null \
-               | awk '/^pub:/{p=1;next}/^ASN1 OID:/{p=0}p' \
-               | tr -d ": \n\r")"
+              | awk '/^pub:/{p=1;next}/^ASN1 OID:/{p=0}p' \
+              | tr -d ": \n\r")"
     mid=$(( (${#pubtext} -2) / 2 + 2 ))
     x64=$(echo "$pubtext" | cut -b 3-$mid | hex2bin | urlbase64)
     y64=$(echo "$pubtext" | cut -b $((mid+1))-${#pubtext} | hex2bin | urlbase64)
@@ -1635,6 +1639,11 @@ hex2bin() { # Remove spaces, add leading zero, escape as hex string ensuring no 
 
 info() { # write out info as long as the quiet flag has not been set.
   if [[ ${_QUIET} -eq 0 ]]; then
+    # If running tests then output in TAP format as well (for debugging tests)
+    if [[ ${_RUNNING_TEST} -eq 1 ]]; then
+      echo "# $(date "+%b %d %T") ${FUNCNAME[1]}:${BASH_LINENO[1]}" "$@" >&3
+    fi
+
     echo "$@"
   fi
 }
@@ -2112,7 +2121,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       fi
 
       debug responseHeaders "$responseHeaders"
-      debug response  "$response"
+      debug response "${response//[$'\t\r\n']}"
       code=$(awk ' $1 ~ "^HTTP" {print $2}' "$CURL_HEADER" | tail -1)
       debug code "$code"
       if [[ "$code" == 4* && $response != *"error:badNonce"* && "$code" != 409 ]]; then
@@ -2224,9 +2233,9 @@ usage() { # echos out the program usage
 
 write_domain_template() { # write out a template file for a domain.
   if [[ -s "$WORKING_DIR/getssl_default.cfg" ]]; then
-  	export DOMAIN="$DOMAIN"
-  	export EX_SANS="$EX_SANS"
-  	envsubst < "$WORKING_DIR/getssl_default.cfg"  > "$1"
+    export DOMAIN="$DOMAIN"
+    export EX_SANS="$EX_SANS"
+    envsubst < "$WORKING_DIR/getssl_default.cfg"  > "$1"
   else
     cat > "$1" <<- _EOF_domain_
 		# vim: filetype=sh
@@ -2787,10 +2796,10 @@ fi
 # if not reusing private key, then remove the old keys
 if [[ "$REUSE_PRIVATE_KEY" != "true" ]]; then
   if [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
-   rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+    rm -f "$DOMAIN_DIR/${DOMAIN}.key"
   fi
   if [[ -s "$DOMAIN_DIR/${DOMAIN}.ec.key" ]]; then
-   rm -f "$DOMAIN_DIR/${DOMAIN}.ec.key"
+    rm -f "$DOMAIN_DIR/${DOMAIN}.ec.key"
   fi
 fi
 # create new domain keys if they don't already exist
