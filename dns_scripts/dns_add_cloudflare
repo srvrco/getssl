@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# need to add your email address and API key to cloudflare below or set as env variables
+# either configure here or export environment variables in getssl.cfg
 email=${CF_EMAIL:-''}
 key=${CF_KEY:-''}
+api_token=${CF_API_TOKEN:-''}
+zone_id=${CF_ZONE_ID:-''}
 
-# This script adds a token to cloudflare DNS for the ACME challenge
+# This script adds a TXT record to cloudflare DNS for the ACME challenge
 # usage dns_add_cloudflare "domain name"  "token"
 # return codes are;
 # 0 - success
@@ -14,7 +16,11 @@ key=${CF_KEY:-''}
 fulldomain="${1}"
 token="${2}"
 API='https://api.cloudflare.com/client/v4/zones'
-curl_params=( -H "X-Auth-Email: $email" -H "X-Auth-Key: $key" -H 'Content-Type: application/json' )
+if [[ -z "$api_token" ]]; then
+  curl_params=( -H "X-Auth-Email: $email" -H "X-Auth-Key: $key" -H 'Content-Type: application/json' )
+else
+  curl_params=( -H "Authorization: Bearer $api_token" -H 'Content-Type: application/json' )
+fi
 
 # check initial parameters
 
@@ -28,84 +34,88 @@ if [[ -z "$token" ]]; then
   exit 1
 fi
 
-if [[ -z "$email" ]]; then
-  echo "CF_EMAIL (email) parameter not set"
-  exit 1
+if [[ -z "$api_token" ]]; then
+  if [[ -z "$email" ]]; then
+    echo "CF_EMAIL (email) parameter not set"
+    exit 1
+  fi
+
+  if [[ -z "$key" ]]; then
+    echo "CF_KEY (key) parameter not set"
+    exit 1
+  fi
 fi
 
-if [[ -z "$key" ]]; then
-  echo "CF_KEY (key) parameter not set"
-  exit 1
-fi
 
-
-# get a list of all domain names from cloudflare
-# If you have a lot, you may need add "&page=1&per_page=1000" and/or "&status=active"
-resp=$(curl --silent "${curl_params[@]}" -X GET "$API")
-re='"result":\[(([^][]*\[[^][]*])*[^][]*)]' # find result section
-if [[ "${resp// }" =~ $re ]]; then
-  resp="${BASH_REMATCH[1]}"
-fi
-
-# iterate through all sections to obtain a list of domains
-while [[ "$resp" ]]; do
-  re='[^}{]*\{(([^}{]*\{[^}{]*})*[^}{]*)}(.*)'
-  if [[ "$resp" =~ $re ]]; then
-    first="${BASH_REMATCH[1]}"
-    resp="${BASH_REMATCH[3]}"
+if [[ -z "$zone_id" ]]; then
+  # get a list of all domain names from cloudflare
+  # If you have a lot, you may need add "&page=1&per_page=1000" and/or "&status=active"
+  resp=$(curl --silent "${curl_params[@]}" -X GET "$API")
+  re='"result":\[(([^][]*\[[^][]*])*[^][]*)]' # find result section
+  if [[ "${resp// }" =~ $re ]]; then
+    resp="${BASH_REMATCH[1]}"
   fi
-  # remove subsections - leave only domain level
-  while [[ "$first" =~ (.*)[\[\{][^]\{\}[]*[\]\}](.*) ]]; do
-    first="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
-  done
-  re='"name":"([^"]*)"'
-  if [[ "$first" =~ $re ]]; then
-    domains=( "${domains[@]}" "${BASH_REMATCH[1]}" )
-  else
-    echo "Error getting domain name"
-    exit 2
-  fi
-  re='"id":"([^"]*)"'
-  if [[ "$first" =~ $re ]]; then
-    ids=( "${ids[@]}" "${BASH_REMATCH[1]}" )
-  else
-    echo "Error getting domain id"
-    exit 2
-  fi
-done
 
-# split required domain name into an array
-dnarray=(${fulldomain//./ })
-# get number of parts in required domain name
-NumParts=${#dnarray[@]}
-# build a test domain name, starting with the largest, and reduce it
-# until a match is found, set domain = first ( longest) match.
-domain=""
-i=1
-while [ $i -lt "$NumParts" ]; do
-  testdomain="${dnarray[i-1]}"
-  for ((j=i; j<NumParts; j++)); do
-    testdomain+=".${dnarray[j]}"
-  done
-  # loop through domains at cloudflare
-  for k in "${!domains[@]}"; do
-    # if match found, then set domain and domain_id
-    if [[ "$testdomain" == "${domains[k]}" ]]; then
-      domain="$testdomain"
-      domain_id=${ids[k]}
-      i="$NumParts"
+  # iterate through all sections to obtain a list of domains
+  while [[ "$resp" ]]; do
+    re='[^}{]*\{(([^}{]*\{[^}{]*})*[^}{]*)}(.*)'
+    if [[ "$resp" =~ $re ]]; then
+      first="${BASH_REMATCH[1]}"
+      resp="${BASH_REMATCH[3]}"
+    fi
+    # remove subsections - leave only domain level
+    while [[ "$first" =~ (.*)[\[\{][^]\{\}[]*[\]\}](.*) ]]; do
+      first="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+    done
+    re='"name":"([^"]*)"'
+    if [[ "$first" =~ $re ]]; then
+      domains=( "${domains[@]}" "${BASH_REMATCH[1]}" )
+    else
+      echo "Error getting domain name"
+      exit 2
+    fi
+    re='"id":"([^"]*)"'
+    if [[ "$first" =~ $re ]]; then
+      ids=( "${ids[@]}" "${BASH_REMATCH[1]}" )
+    else
+      echo "Error getting domain id"
+      exit 2
     fi
   done
-  ((i++))
-done
 
-if [[ -z "$domain" ]]; then
-  echo 'domain name not found on your cloudflare account'
-  exit 3
+  # split required domain name into an array
+  dnarray=(${fulldomain//./ })
+  # get number of parts in required domain name
+  NumParts=${#dnarray[@]}
+  # build a test domain name, starting with the largest, and reduce it
+  # until a match is found, set domain = first ( longest) match.
+  domain=""
+  i=1
+  while [ $i -lt "$NumParts" ]; do
+    testdomain="${dnarray[i-1]}"
+    for ((j=i; j<NumParts; j++)); do
+      testdomain+=".${dnarray[j]}"
+    done
+    # loop through domains at cloudflare
+    for k in "${!domains[@]}"; do
+      # if match found, then set domain and zone_id
+      if [[ "$testdomain" == "${domains[k]}" ]]; then
+        domain="$testdomain"
+        zone_id=${ids[k]}
+        i="$NumParts"
+      fi
+    done
+    ((i++))
+  done
+
+  if [[ -z "$domain" ]]; then
+    echo 'domain name not found on your cloudflare account'
+    exit 3
+  fi
 fi
 
 txt_record="_acme-challenge.${fulldomain%.$domain}"
-resp=$(curl --silent "${curl_params[@]}" -X POST "$API/$domain_id/dns_records" \
+resp=$(curl --silent "${curl_params[@]}" -X POST "$API/$zone_id/dns_records" \
   --data "{\"type\":\"TXT\",\"name\":\"${txt_record}\",\"content\":\"$token\",\"ttl\":300}")
 
 # if it failed (success:false) then give error message
