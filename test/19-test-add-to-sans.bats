@@ -7,16 +7,19 @@ load '/getssl/test/test_helper.bash'
 
 # This is run for every test
 setup() {
-    export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
-    curl --silent -X POST -d '{"host":"a.'$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
-    curl --silent -X POST -d '{"host":"b.'$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
+    if [ -z "$STAGING" ]; then
+        export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+        curl --silent -X POST -d '{"host":"a.'$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
+        curl --silent -X POST -d '{"host":"b.'$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
+    fi
 }
 
 teardown() {
-    curl --silent -X POST -d '{"host":"a.'$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/clear-a
-    curl --silent -X POST -d '{"host":"b.'$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/clear-a
+    if [ -z "$STAGING" ]; then
+        curl --silent -X POST -d '{"host":"a.'$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/clear-a
+        curl --silent -X POST -d '{"host":"b.'$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/clear-a
+    fi
 }
-
 
 
 @test "Create certificate to check can add to SANS" {

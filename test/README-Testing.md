@@ -8,7 +8,7 @@ For continuous integration testing we have the following:
 
 1. Uses `docker-compose` to start `pebble` (letsencrypt test server) and `challtestsrv` (minimal dns client for pebble)
 2. Then runs the `bats` test scripts (all the files with a ".bats" extension) for each OS (alpine, centos6, debian, ubuntu)
-3. Runs the `bats` test script against the staging server (using nn ubuntu docker image and duckdns.org)
+3. Runs the `bats` test script against the staging server (using ubuntu docker image and duckdns.org)
 
 ## To run all the tests on a single OS
 

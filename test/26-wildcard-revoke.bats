@@ -13,13 +13,14 @@ setup() {
 }
 
 
-@test "Create certificate to check revoke" {
+@test "Create certificate to check wildcard revoke" {
     if [ -n "$STAGING" ]; then
         CONFIG_FILE="getssl-staging-dns01.cfg"
     else
-        CONFIG_FILE="getssl-http01.cfg"
+        CONFIG_FILE="getssl-dns01.cfg"
     fi
-    . "${CODE_DIR}/test/test-config/${CONFIG_FILE}"
+
+    GETSSL_CMD_HOST="*.${GETSSL_HOST}"
     setup_environment
     init_getssl
     create_certificate
@@ -28,17 +29,21 @@ setup() {
 }
 
 
-@test "Check we can revoke a certificate" {
+@test "Check we can revoke a wildcard certificate" {
     if [ -n "$STAGING" ]; then
         CONFIG_FILE="getssl-staging-dns01.cfg"
     else
-        CONFIG_FILE="getssl-http01.cfg"
+        CONFIG_FILE="getssl-dns01.cfg"
     fi
     . "${CODE_DIR}/test/test-config/${CONFIG_FILE}"
+
+    GETSSL_CMD_HOST="*.${GETSSL_HOST}"
+
     CERT=${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt
     KEY=${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key
 
     run ${CODE_DIR}/getssl -d --revoke $CERT $KEY $CA
+    assert_line "certificate revoked"
     assert_success
     check_output_for_errors "debug"
 }

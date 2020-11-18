@@ -42,6 +42,7 @@ docker run \
   --network-alias "i.$OS.getssl.test" \
   --network-alias "j.$OS.getssl.test" \
   --network-alias "k.$OS.getssl.test" \
+  --network-alias "wild-$OS.getssl.test" \
   --name "getssl-$OS" \
   "getssl-$OS" \
   $COMMAND
