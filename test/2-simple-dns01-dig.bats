@@ -6,7 +6,9 @@ load '/getssl/test/test_helper.bash'
 
 
 setup() {
-    export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+    if [ -z "$STAGING" ]; then
+        export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+    fi
     if [ -f /usr/bin/host ]; then
         mv /usr/bin/host /usr/bin/host.getssl.bak
     fi

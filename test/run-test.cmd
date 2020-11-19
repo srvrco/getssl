@@ -49,6 +49,7 @@ docker run -it ^
   --network-alias i.%OS%.getssl.test ^
   --network-alias j.%OS%.getssl.test ^
   --network-alias k.%OS%.getssl.test ^
+  --network-alias wild-%ALIAS% ^
   --name getssl-%OS% ^
   getssl-%OS% ^
   %COMMAND%
