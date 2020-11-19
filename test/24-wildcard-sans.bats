@@ -35,6 +35,9 @@ teardown() {
     init_getssl
 
     echo 'SANS="${GETSSL_HOST}"' > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
+    if [ -n "$STAGING" ]; then
+        echo 'CHECK_REMOTE="false"' >> ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
+    fi
 
     create_certificate
     assert_success
