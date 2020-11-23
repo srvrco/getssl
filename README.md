@@ -174,7 +174,7 @@ command line).
 Within the **working directory** is a config file `getssl.cfg` which is a
 simple bash file containing variables, an example of which is:
 
-```getssl
+```sh
 # Uncomment and modify any variables you need
 # The staging server is best for testing (hence set as default)
 CA="https://acme-staging-v02.api.letsencrypt.org"
@@ -200,7 +200,7 @@ then, within the **working directory** there will be a folder for each
 certificate (based on its domain name). Within that folder will be a
 config file (again called `getssl.cfg`). An example of which is:
 
-```getssl
+```sh
 # Uncomment and modify any variables you need
 # see https://github.com/srvrco/getssl/wiki/Config-variables for details
 # see https://github.com/srvrco/getssl/wiki/Example-config-files for example configs
@@ -270,7 +270,7 @@ Multiple locations can be defined for a file by separating the locations with a 
 A typical config file for `example.com` and `www.example.com` on the
 same server would be:
 
-```getssl
+```sh
 # uncomment and modify any variables you need
 # The staging server is best for testing
 CA="https://acme-staging-v02.api.letsencrypt.org"
