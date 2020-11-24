@@ -4,6 +4,19 @@
 Obtain SSL certificates from the letsencrypt.org ACME server. Suitable
 for automating the process on remote servers.
 
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Overview](#overview)
+- [Getting started](#getting-started)
+- [Automating updates](#automating-updates)
+- [Structure](#structure)
+- [Server-Types](#server-types)
+- [Revoke a certificate](#revoke-a-certificate)
+- [Elliptic curve keys](#elliptic-curve-keys)
+- [Issues / problems / help](#issues--problems--help)
+
 ## Features
 
 * **Bash** - It runs on virtually all unix machines, including BSD, most
