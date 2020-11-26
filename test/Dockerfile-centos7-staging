@@ -11,8 +11,7 @@ ENV staging "true"
 ENV DUCKDNS_TOKEN 1d616aa9-b8e4-4bb4-b312-3289de82badb
 
 WORKDIR /root
-RUN mkdir /etc/nginx/pki
-RUN mkdir /etc/nginx/pki/private
+RUN mkdir -p /etc/nginx/pki/private
 COPY ./test/test-config/nginx-ubuntu-no-ssl /etc/nginx/conf.d/default.conf
 COPY ./test/test-config/nginx-centos7.conf /etc/nginx/nginx.conf
 

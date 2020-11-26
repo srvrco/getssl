@@ -8,8 +8,7 @@ RUN apt-get update --fix-missing
 RUN apt-get install -y git curl dnsutils ldnsutils wget gawk nginx-light
 
 WORKDIR /root
-RUN mkdir /etc/nginx/pki
-RUN mkdir /etc/nginx/pki/private
+RUN mkdir -p /etc/nginx/pki/private
 COPY ./test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
 
 # Prevent "Can't load /root/.rnd into RNG" error from openssl

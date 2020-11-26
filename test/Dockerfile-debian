@@ -7,8 +7,7 @@ RUN apt-get update --fix-missing
 RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light
 
 WORKDIR /root
-RUN mkdir /etc/nginx/pki
-RUN mkdir /etc/nginx/pki/private
+RUN mkdir -p /etc/nginx/pki/private
 
 # BATS (Bash Automated Testings)
 RUN git clone --depth 1 https://github.com/bats-core/bats-core.git /bats-core --branch v1.2.1
