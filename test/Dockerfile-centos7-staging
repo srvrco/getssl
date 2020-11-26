@@ -24,4 +24,4 @@ RUN /bats-core/install.sh /usr/local
 EXPOSE 80 443
 
 # Run eternal loop - for testing
-CMD tail -f /dev/null
+CMD [ "tail", "-f", "/dev/null" ]

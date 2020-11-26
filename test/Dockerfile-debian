@@ -16,4 +16,4 @@ RUN git clone --depth 1 https://github.com/bats-core/bats-assert /bats-assert
 RUN /bats-core/install.sh /usr/local
 
 # Run eternal loop - for testing
-CMD tail -f /dev/null
+CMD [ "tail", "-f", "/dev/null" ]
