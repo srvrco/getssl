@@ -241,12 +241,12 @@
 # 2020-10-02 Various fixes to get_auth_dns and changes to support unit tests (#308)
 # 2020-10-04 Add CHECK_PUBLIC_DNS_SERVER to check the DNS challenge has been updated there
 # 2020-10-13 Bugfix: strip comments in drill/dig output (mhameed)
-# 2020-11-18 Wildcard support (#347)(#400)
+# 2020-11-18 Wildcard support (#347)(#400)(2.31)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.30"
+VERSION="2.31"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -1255,13 +1255,11 @@ done # end of ... loop through domains for cert ( from SANS list)
 
 get_auth_dns() { # get the authoritative dns server for a domain (sets primary_ns )
   orig_gad_d="$1" # domain name
-  gad_s="$PUBLIC_DNS_SERVER" # start with PUBLIC_DNS_SERVER
-  if [[ -n "$gad_s" ]]; then
-    gad_s="@$gad_s"
-  fi
+  orig_gad_s="$PUBLIC_DNS_SERVER" # start with PUBLIC_DNS_SERVER
+  gad_d="$orig_gad_d"
+  gad_s="$orig_gad_s"
 
   if [[ "$os" == "cygwin" ]]; then
-    gad_d="$orig_gad_d"
     # shellcheck disable=SC2086
     all_auth_dns_servers=$(nslookup -type=soa "${d}" ${PUBLIC_DNS_SERVER} 2>/dev/null \
                           | grep "primary name server" \
@@ -1278,7 +1276,10 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
   fi
 
   if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
-    gad_d="$orig_gad_d"
+    if [[ -n "$gad_s" ]]; then
+      gad_s="@$gad_s"
+    fi
+
     # Use SOA +trace to find the name server
     if [[ $_TEST_SKIP_SOA_CALL == 0 ]]; then
       if [[ "$HAS_DIG_OR_DRILL" == "dig" ]]; then
@@ -1349,6 +1350,9 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
       return
     fi
   fi
+
+  # Remove leading '@' if we tried using dig/drill
+  gad_s="$orig_gad_s"
 
   if [[ "$HAS_HOST" == "true" ]]; then
     gad_d="$orig_gad_d"
