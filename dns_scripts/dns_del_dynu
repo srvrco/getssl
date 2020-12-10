@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Need to add your API key below or set as env variable
+apikey=${DYNU_API_KEY:-''}
+
+# This script deletes the _acme-challenge TXT record from the dynu.com DNS entry for the domain
+# usage dns_del_dynu "domain name"
+# return codes are;
+# 0 - success
+# 1 - error in input
+# 2 - error within internal processing
+# 3 - error in result ( domain not found in dynu.com etc)
+
+fulldomain="${1}"
+
+API='https://api.dynu.com/v2/dns'
+
+# Check initial parameters
+if [[ -z "$fulldomain" ]]; then
+  echo "DNS script requires full domain name as first parameter"
+  exit 1
+fi
+if [[ -z "$apikey" ]]; then
+  echo "DNS script requires an apikey to be set"
+  exit 1
+fi
+
+curl_params=( -H "accept: application/json" -H "API-Key: $apikey" -H 'Content-Type: application/json' )
+
+# Get domain id
+resp=$(curl --silent "${curl_params[@]}" -X GET "$API")
+
+# Match domain id
+re="\"id\":([^,]*),\"name\":\"getssl-testing.freeddns.org\""
+if [[ "$resp" =~ $re ]]; then
+  domain_id="${BASH_REMATCH[1]}"
+fi
+
+if [[ -z "$domain_id" ]]; then
+  echo 'Domain name not found on your Dynu account'
+  exit 3
+fi
+
+# Find existing _acme-challenge TXT record
+resp=$(curl --silent "${curl_params[@]}" -X GET "${API}/record/_acme-challenge.${fulldomain}?recordType=TXT")
+re="\"id\":([^,]*)"
+if [[ "$resp" =~ $re ]]; then
+  record_id="${BASH_REMATCH[1]}"
+fi
+
+if [[ -z "$record_id" ]]; then
+  echo "No _acme-challenge TXT record found for $fulldomain"
+  exit 3
+fi
+
+resp=$(curl --silent \
+  "${curl_params[@]}" \
+  -X DELETE "${API}/${domain_id}/record/${record_id}")
+
+# If adding record failed (exception:) then print error message
+if [[ "${resp// }" == *'"exception"'* ]]; then
+  echo "Error: DNS challenge not added: unknown error - ${resp}"
+  exit 3
+fi
