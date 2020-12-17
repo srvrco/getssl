@@ -15,7 +15,8 @@ else
 fi
 
 if [[ "$OS" == *"staging"* ]]; then
-    ALIAS="${OS%-staging}-getssl.duckdns.org"
+    #ALIAS="${OS%-staging}-getssl.duckdns.org"
+    ALIAS="${OS%-staging}-getssl.freeddns.org"
     STAGING="--env STAGING=true"
 else
     ALIAS="$OS.getssl.test"
