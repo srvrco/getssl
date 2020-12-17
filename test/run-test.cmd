@@ -23,7 +23,7 @@ set COMMAND=bats /getssl/test
 GOTO CheckAlias
 
 :staging
-set ALIAS=%OS:-staging=%-getssl.duckdns.org
+set ALIAS=%OS:-staging=%-getssl.freeddns.org
 set STAGING=--env STAGING=true
 
 :Run
