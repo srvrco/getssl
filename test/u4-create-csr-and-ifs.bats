@@ -16,8 +16,8 @@ setup() {
 
 @test "Check create_csr works for multiple domains" {
     # Create a key
-    csr_key=$(mktemp -t getssl.XXXXXX.key) || error_exit "mktemp failed"
-    csr_file=$(mktemp -t getssl.XXXXXX.csr) || error_exit "mktemp failed"
+    csr_key=$(mktemp -t getssl.key.XXXXXX) || error_exit "mktemp failed"
+    csr_file=$(mktemp -t getssl.csr.XXXXXX) || error_exit "mktemp failed"
     SANS="a.getssl.test,b.getssl.test"
     SANLIST="subjectAltName=DNS:${SANS//[, ]/,DNS:}"
     create_key "$ACCOUNT_KEY_TYPE" "$csr_key" "$ACCOUNT_KEY_LENGTH"
