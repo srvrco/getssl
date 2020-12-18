@@ -913,6 +913,8 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
     if [[ "$(IFS=$'\n'; echo -n "${alldomains[*]}")" != "$domains_in_csr" ]]; then
       info "existing csr at $csr_file does not have the same domains as the config - re-create-csr"
       _RECREATE_CSR=1
+    else
+      test_output "Existing csr at $csr_file contains same domains as the config"
     fi
   fi
   # end of ... check if domain csr exists - if not then create it
