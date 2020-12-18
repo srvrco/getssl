@@ -2578,11 +2578,10 @@ if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
       | openssl x509 2>/dev/null)
     EX_SANS="www.${DOMAIN##\*.}"
     if [[ -n "${EX_CERT}" ]]; then
-      # Putting this inside the EX_SANS line below doesn't work on Centos7
       escaped_d=${DOMAIN/\*/\\\*}
       EX_SANS=$(echo "$EX_CERT" \
         | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
-        | grep -Eo "DNS:[a-zA-Z 0-9.-\*]*" | sed "s@DNS:${escaped_d}@@g" | grep -v '^$' | cut -c 5-)
+        | grep -Eo "DNS:[a-zA-Z 0-9.\*-]*" | sed "s@DNS:${escaped_d}@@g" | grep -v '^$' | cut -c 5-)
       EX_SANS=${EX_SANS//$'\n'/','}
     fi
     if [[ -n "${EX_SANS}" ]]; then
