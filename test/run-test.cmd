@@ -12,6 +12,7 @@ IF NOT x%OS:duck=%==x%OS% GOTO duckdns
 IF NOT x%OS:dynu=%==x%OS% GOTO dynu
 set ALIAS=%OS%.getssl.test
 set STAGING=
+set GETSSL_OS=%OS%
 GOTO Run
 
 :NoOS

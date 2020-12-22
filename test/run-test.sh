@@ -25,6 +25,7 @@ elif [[ "$OS" == *"dynu"* ]]; then
 else
     ALIAS="$OS.getssl.test"
     STAGING=""
+    GETSSL_OS=$OS
 fi
 
 docker build --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" .
