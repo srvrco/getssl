@@ -11,7 +11,7 @@ if [ $# -gt 1 ]; then
     shift
     COMMAND=$*
 else
-    COMMAND="bats /getssl/test"
+    COMMAND="bats /getssl/test --timing"
 fi
 
 if [[ "$OS" == *"duckdns"* ]]; then

@@ -507,7 +507,7 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
 
   # check for token at public dns server, waiting for a valid response.
   for ns in $primary_ns; do
-    debug "checking dns at $ns"
+    info "checking dns at $ns"
     ntries=0
     check_dns="fail"
     while [[ "$check_dns" == "fail" ]]; do

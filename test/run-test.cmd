@@ -21,7 +21,7 @@ GOTO CheckCommand
 
 :NoCmd
 REM set COMMAND=/getssl/test/run-bats.sh
-set COMMAND=bats /getssl/test
+set COMMAND=bats /getssl/test --timing
 GOTO CheckAlias
 
 :duckdns
