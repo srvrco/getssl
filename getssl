@@ -1094,7 +1094,7 @@ find_dns_utils() {
     if [[ -n "$(command -v drill 2>/dev/null)" ]]; then
         debug "HAS DIG_OR_DRILL=drill"
         HAS_DIG_OR_DRILL="drill"
-    elif [[ -n "$(command -v dig 2>/dev/null)" ]]; then
+    elif [[ -n "$(command -v dig 2>/dev/null)" ]] && dig >/dev/null 2>&1; then
         debug "HAS DIG_OR_DRILL=dig"
         HAS_DIG_OR_DRILL="dig"
     fi
