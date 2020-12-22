@@ -8,9 +8,11 @@ set COMMAND=%2 %3
 
 :CheckAlias
 REM check if OS *contains* staging
-IF NOT x%OS:staging=%==x%OS% GOTO staging
+IF NOT x%OS:duck=%==x%OS% GOTO duckdns
+IF NOT x%OS:dynu=%==x%OS% GOTO dynu
 set ALIAS=%OS%.getssl.test
 set STAGING=
+set GETSSL_OS=%OS%
 GOTO Run
 
 :NoOS
@@ -19,12 +21,19 @@ GOTO CheckCommand
 
 :NoCmd
 REM set COMMAND=/getssl/test/run-bats.sh
-set COMMAND=bats /getssl/test
+set COMMAND=bats /getssl/test --timing
 GOTO CheckAlias
 
-:staging
-set ALIAS=%OS:-staging=%-getssl.duckdns.org
-set STAGING=--env STAGING=true
+:duckdns
+set ALIAS=%OS:-duckdns=%-getssl.duckdns.org
+set STAGING=--env STAGING=true --env dynamic_dns=duckdns
+set GETSSL_OS=%OS:-duckdns=%
+GOTO Run
+
+:dynu
+set ALIAS=%OS:-dynu=%-getssl.freeddns.org
+set STAGING=--env STAGING=true --env dynamic_dns=dynu
+set GETSSL_OS=%OS:-dynu=%
 
 :Run
 for %%I in (.) do set CurrDirName=%%~nxI
@@ -33,7 +42,7 @@ docker build --rm -f "test\Dockerfile-%OS%" -t getssl-%OS% .
 @echo on
 docker run -it ^
   --env GETSSL_HOST=%ALIAS% %STAGING% ^
-  --env GETSSL_OS=%OS:-staging=% ^
+  --env GETSSL_OS=%GETSSL_OS% ^
   -v %cd%:/getssl ^
   --rm ^
   --network %CurrDirName%_acmenet ^

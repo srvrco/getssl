@@ -507,7 +507,7 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
 
   # check for token at public dns server, waiting for a valid response.
   for ns in $primary_ns; do
-    debug "checking dns at $ns"
+    info "checking dns at $ns"
     ntries=0
     check_dns="fail"
     while [[ "$check_dns" == "fail" ]]; do
@@ -520,12 +520,24 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
         check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${lower_d}" "@${ns}" \
                       | grep -i "^_acme-challenge.${lower_d}" \
                       | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
+        debug "check_result=$check_result"
+        if [[ -z "$check_result" ]]; then
+          debug "$DNS_CHECK_FUNC" ANY "_acme-challenge.${lower_d}" "@${ns}"
+          check_result=$($DNS_CHECK_FUNC ANY "_acme-challenge.${lower_d}" "@${ns}" \
+                      | grep -i "^_acme-challenge.${lower_d}" \
+                      | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
+          debug "check_result=$check_result"
+        fi
       elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
         check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${lower_d}" "${ns}" \
                       | grep 'descriptive text'|awk -F'"' '{ print $2}')
       else
         check_result=$(nslookup -type=txt "_acme-challenge.${lower_d}" "${ns}" \
                       | grep 'text ='|awk -F'"' '{ print $2}')
+        if [[ -z "$check_result" ]]; then
+          check_result=$(nslookup -type=any "_acme-challenge.${lower_d}" "${ns}" \
+                      | grep 'text ='|awk -F'"' '{ print $2}')
+        fi
       fi
       debug "expecting  $auth_key"
       debug "${ns} gave ... $check_result"
@@ -538,6 +550,7 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
 
           if [[ $DNS_WAIT_RETRY_ADD == "true" && $(( ntries % 10 )) == 0 ]]; then
             debug "Retrying adding dns via command: $DNS_ADD_COMMAND $lower_d $auth_key"
+            test_output "Retrying adding dns via command: $DNS_ADD_COMMAND"
             eval "$DNS_DEL_COMMAND" "$lower_d" "$auth_key"
             if ! eval "$DNS_ADD_COMMAND" "$lower_d" "$auth_key" ; then
               error_exit "DNS_ADD_COMMAND failed for domain $d"
@@ -1167,10 +1180,12 @@ for d in "${alldomains[@]}"; do
       # find a primary / authoritative DNS server for the domain
       if [[ -z "$AUTH_DNS_SERVER" ]]; then
         get_auth_dns "$d"
+      elif [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
+        primary_ns="$AUTH_DNS_SERVER $PUBLIC_DNS_SERVER"
       else
         primary_ns="$AUTH_DNS_SERVER"
       fi
-      debug primary_ns "$primary_ns"
+      debug set primary_ns = "$primary_ns"
 
       check_challenge_completion_dns "${token}" "${uri}" "${keyauthorization}" "${d}" "${primary_ns}" "${auth_key}"
     else      # set up the correct http token for verification
@@ -1272,11 +1287,11 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     if [[ -z "$all_auth_dns_servers" ]]; then
       error_exit "couldn't find primary DNS server - please set AUTH_DNS_SERVER in config"
     fi
+    primary_ns="$all_auth_dns_servers"
     if [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
-      primary_ns="$all_auth_dns_servers $PUBLIC_DNS_SERVER"
-    else
-      primary_ns="$all_auth_dns_servers"
+      primary_ns="$primary_ns $PUBLIC_DNS_SERVER"
     fi
+
     return
   fi
 
@@ -1350,8 +1365,8 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         primary_ns="$primary_ns $PUBLIC_DNS_SERVER"
       fi
 
-      debug set primary_ns = "$primary_ns"
       test_output set primary_ns ="$primary_ns"
+
       return
     fi
   fi
@@ -1430,9 +1445,6 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
       fi
 
-      if [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
-        primary_ns="$primary_ns $PUBLIC_DNS_SERVER"
-      fi
       return
     fi
   fi

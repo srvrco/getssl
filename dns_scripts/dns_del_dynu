@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Need to add your API key below or set as env variable
+apikey=${DYNU_API_KEY:-''}
+
+# This script deletes the _acme-challenge TXT record from the dynu.com DNS entry for the domain
+# usage dns_del_dynu "domain name"
+# return codes are;
+# 0 - success
+# 1 - error in input
+# 2 - error within internal processing
+# 3 - error in result ( domain not found in dynu.com etc)
+
+# After deleting the TXT record from Dynu.com it takes over 30 minutes to add a new TXT record!
+# This doesn't happen when updating the TXT record, just for delete then add
+# As this is used for testing, changed the delete to a no-op.
+
+exit 0
+
+fulldomain="${1}"
+
+API='https://api.dynu.com/v2/dns'
+
+# Check initial parameters
+if [[ -z "$fulldomain" ]]; then
+  echo "DNS script requires full domain name as first parameter"
+  exit 1
+fi
+if [[ -z "$apikey" ]]; then
+  echo "DNS script requires apikey environment variable to be set"
+  exit 1
+fi
+
+curl_params=( -H "accept: application/json" -H "API-Key: $apikey" -H 'Content-Type: application/json' )
+
+# Get domain id
+# curl -X GET https://api.dynu.com/v2/dns/getroot/ubuntu-getssl.freeddns.org
+resp=$(curl --silent "${curl_params[@]}" -X GET "$API/getroot/${fulldomain}")
+
+# Match domain id
+re="\"id\":([^,]*),\"domainName\":\"${fulldomain}\""
+if [[ "$resp" =~ $re ]]; then
+  domain_id="${BASH_REMATCH[1]}"
+fi
+
+if [[ -z "$domain_id" ]]; then
+  echo 'Domain name not found on your Dynu account'
+  exit 3
+fi
+
+# Check for existing _acme-challenge TXT record
+# curl -X GET "https://api.dynu.com/v2/dns/record/_acme-challenge.ubuntu-getssl.freeddns.org?recordType=TXT"
+resp=$(curl --silent "${curl_params[@]}" -X GET "${API}/record/_acme-challenge.${fulldomain}?recordType=TXT")
+re="\"id\":([^,]*)"
+if [[ "$resp" =~ $re ]]; then
+  record_id="${BASH_REMATCH[1]}"
+fi
+
+if [[ -z "$record_id" ]]; then
+  echo "No _acme-challenge.${fulldomain} TXT record found"
+  exit 0
+fi
+
+resp=$(curl --silent \
+  "${curl_params[@]}" \
+  -X DELETE "${API}/${domain_id}/record/${record_id}")
+
+# If adding record failed (exception:) then print error message
+if [[ "$resp" != *"\"statusCode\":200"* ]]; then
+  echo "Error: DNS challenge not added: unknown error - ${resp}"
+  exit 3
+fi
