@@ -908,9 +908,9 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
     debug "domain csr exists at - $csr_file"
     # check all domains in config are in csr
     if [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
-      read -r -a alldomains <<< "$(echo "$SANS" | sed -e 's/ //g; s/,$//; y/,/\n/' | sort -u)"
+      read -d '\n' -r -a alldomains <<< "$(echo "$SANS" | sed -e 's/ //g; s/,$//; y/,/\n/' | sort -u)"
     else
-      read -r -a alldomains <<< "$(echo "$DOMAIN,$SANS" | sed -e 's/,/ /g; s/ $//; y/ /\n/' | sort -u)"
+      read -d '\n' -r -a alldomains <<< "$(echo "$DOMAIN,$SANS" | sed -e 's/,/ /g; s/ $//; y/ /\n/' | sort -u)"
     fi
     domains_in_csr=$(openssl req -text -noout -in "$csr_file" \
         | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' \
@@ -923,9 +923,11 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
       fi
     done
     # check all domains in csr are in config
-    if [[ "${alldomains[*]}" != "$domains_in_csr" ]]; then
+    if [[ "$(IFS=$'\n'; echo -n "${alldomains[*]}")" != "$domains_in_csr" ]]; then
       info "existing csr at $csr_file does not have the same domains as the config - re-create-csr"
       _RECREATE_CSR=1
+    else
+      test_output "Existing csr at $csr_file contains same domains as the config"
     fi
   fi
   # end of ... check if domain csr exists - if not then create it
