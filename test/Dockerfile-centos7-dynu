@@ -8,7 +8,7 @@ RUN yum -y install epel-release
 RUN yum -y install git curl bind-utils ldns wget which nginx
 
 ENV staging "true"
-ENV DUCKDNS_TOKEN 1d616aa9-b8e4-4bb4-b312-3289de82badb
+ENV dynamic_dns "duckdns"
 ENV DYNU_API_KEY 65cXefd35XbYf36546eg5dYcZT6X52Y2
 
 WORKDIR /root
