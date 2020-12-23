@@ -12,7 +12,7 @@ setup() {
         mv /usr/bin/drill /usr/bin/drill.getssl.bak
     fi
     if [ -f /usr/bin/dig ]; then
-        chmod +x /usr/bin/dig
+        chmod -x /usr/bin/dig
     fi
 }
 
@@ -22,7 +22,7 @@ teardown() {
         mv /usr/bin/drill.getssl.bak /usr/bin/drill
     fi
     if [ -f /usr/bin/dig ]; then
-        chmod -x /usr/bin/dig
+        chmod +x /usr/bin/dig
     fi
 }
 
