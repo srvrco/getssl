@@ -242,11 +242,16 @@
 # 2020-10-04 Add CHECK_PUBLIC_DNS_SERVER to check the DNS challenge has been updated there
 # 2020-10-13 Bugfix: strip comments in drill/dig output (mhameed)
 # 2020-11-18 Wildcard support (#347)(#400)(2.31)
+# 2020-12-08 Fix mktemp template on alpine (#612)
+# 2020-12-17 Fix delimiter issues with ${alldomains[]} in create_csr (#614)(vietw)
+# 2020-12-18 Wrong SANS when domain contains a minus character (atisne)
+# 2020-12-22 Fixes to get_auth_dns
+# 2020-12-22 Check that dig doesn't return an error (#611)(2.32)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.31"
+VERSION="2.32"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -1094,7 +1099,7 @@ find_dns_utils() {
     if [[ -n "$(command -v drill 2>/dev/null)" ]]; then
         debug "HAS DIG_OR_DRILL=drill"
         HAS_DIG_OR_DRILL="drill"
-    elif [[ -n "$(command -v dig 2>/dev/null)" ]]; then
+    elif [[ -n "$(command -v dig 2>/dev/null)" ]] && dig >/dev/null 2>&1; then
         debug "HAS DIG_OR_DRILL=dig"
         HAS_DIG_OR_DRILL="dig"
     fi
