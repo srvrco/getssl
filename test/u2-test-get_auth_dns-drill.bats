@@ -31,19 +31,6 @@ teardown() {
 }
 
 
-teardown() {
-    if [ -f /usr/bin/host.getssl.bak ]; then
-        mv /usr/bin/host.getssl.bak /usr/bin/host
-    fi
-    if [ -f /usr/bin/nslookup.getssl.bak ]; then
-        mv /usr/bin/nslookup.getssl.bak /usr/bin/nslookup
-    fi
-    if [ -f /usr/bin/dig.getssl.bak ]; then
-        mv /usr/bin/dig.getssl.bak /usr/bin/dig
-    fi
-}
-
-
 @test "Check get_auth_dns using drill NS" {
     if [ ! -f /usr/bin/drill ]; then
         # Can't find drill package for centos8
