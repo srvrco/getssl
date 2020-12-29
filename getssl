@@ -247,11 +247,12 @@
 # 2020-12-18 Wrong SANS when domain contains a minus character (atisne)
 # 2020-12-22 Fixes to get_auth_dns
 # 2020-12-22 Check that dig doesn't return an error (#611)(2.32)
+# 2020-12-29 Fix dig SOA lookup (#617)(2.33)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.32"
+VERSION="2.33"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
