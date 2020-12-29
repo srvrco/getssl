@@ -7,6 +7,12 @@ load '/getssl/test/test_helper.bash'
 
 # This is run for every test
 setup() {
+    cp /etc/resolv.conf /etc/resolv.conf.getssl
+    cat <<- EOF > /etc/resolv.conf
+nameserver 8.8.8.8
+options ndots:0
+EOF
+
     for app in drill host nslookup
     do
         if [ -f /usr/bin/${app} ]; then
@@ -22,6 +28,7 @@ setup() {
 
 
 teardown() {
+    cat /etc/resolv.conf.getssl > /etc/resolv.conf
     for app in drill host nslookup
     do
         if [ -f /usr/bin/${app}.getssl.bak ]; then
@@ -44,7 +51,7 @@ teardown() {
     _TEST_SKIP_CNAME_CALL=1
     _TEST_SKIP_SOA_CALL=1
 
-    PUBLIC_DNS_SERVER=8.8.8.8
+    PUBLIC_DNS_SERVER=
     CHECK_PUBLIC_DNS_SERVER=false
     CHECK_ALL_AUTH_DNS=true
 
@@ -56,7 +63,7 @@ teardown() {
     assert_line --partial 'Using dig NS'
 
     # Check we didn't include any root servers
-    refute_line --partial 'IN\WNS\W\.root-servers\.net\.'
+    refute_line --partial 'root-servers.net'
 }
 
 
@@ -73,7 +80,7 @@ teardown() {
     _TEST_SKIP_CNAME_CALL=1
     _TEST_SKIP_SOA_CALL=0
 
-    PUBLIC_DNS_SERVER=8.8.8.8
+    PUBLIC_DNS_SERVER=
     CHECK_PUBLIC_DNS_SERVER=false
     CHECK_ALL_AUTH_DNS=true
 
@@ -85,5 +92,5 @@ teardown() {
     assert_line --partial 'Using dig SOA'
 
     # Check we didn't include any root servers
-    refute_line --partial 'IN\WNS\W\.root-servers\.net\.'
+    refute_line --partial 'root-servers.net'
 }
