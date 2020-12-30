@@ -1,27 +1,29 @@
 #! /usr/bin/env bash
 
 if [ $# -eq 0 ]; then
-    echo "Usage: $(basename "$0") <os> [<command>]"
-    echo "e.g. $(basename "$0") alpine bats /getssl/test"
-    exit 1
+  echo "Usage: $(basename "$0") <os> [<command>]"
+  echo "e.g. $(basename "$0") alpine bats /getssl/test"
+  exit 1
 fi
 OS=$1
 
 if [ $# -gt 1 ]; then
-    shift
-    COMMAND=$*
+  shift
+  COMMAND=$*
 else
-    COMMAND="bats /getssl/test --timing"
+  COMMAND="bats /getssl/test --timing"
 fi
 
 if [[ "$OS" == *"duckdns"* ]]; then
-    ALIAS="${OS%-duckdns}-getssl.duckdns.org"
-    STAGING="--env STAGING=true --env dynamic_dns=duckdns"
-    GETSSL_OS="${OS%-duckdns}"
+  ALIAS="${OS%-duckdns}-getssl.duckdns.org"
+  STAGING="--env STAGING=true --env dynamic_dns=duckdns"
+  GETSSL_OS="${OS%-duckdns}"
 elif [[ "$OS" == *"dynu"* ]]; then
-    ALIAS="${OS%-dynu}-getssl.freeddns.org"
-    STAGING="--env STAGING=true --env dynamic_dns=dynu"
-    GETSSL_OS="${OS%-dynu}"
+  ALIAS="${OS%-dynu}-getssl.freeddns.org"
+  STAGING="--env STAGING=true --env dynamic_dns=dynu"
+  GETSSL_OS="${OS%-dynu}"
+elif [[ "$OS" == "bash"* ]]; then
+  GETSSL_OS="alpine"
 else
     ALIAS="$OS.getssl.test"
     STAGING=""

@@ -10,6 +10,7 @@ set COMMAND=%2 %3
 REM check if OS *contains* staging
 IF NOT x%OS:duck=%==x%OS% GOTO duckdns
 IF NOT x%OS:dynu=%==x%OS% GOTO dynu
+IF NOT x%OS:bash=%==x%OS% GOTO bash
 set ALIAS=%OS%.getssl.test
 set STAGING=
 set GETSSL_OS=%OS%
@@ -34,6 +35,12 @@ GOTO Run
 set ALIAS=%OS:-dynu=%-getssl.freeddns.org
 set STAGING=--env STAGING=true --env dynamic_dns=dynu
 set GETSSL_OS=%OS:-dynu=%
+GOTO Run
+
+:bash
+set ALIAS=%OS%.getssl.test
+set STAGING=
+set GETSSL_OS=alpine
 
 :Run
 for %%I in (.) do set CurrDirName=%%~nxI
