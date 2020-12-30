@@ -39,7 +39,7 @@ jobs:
         run: docker-compose up -d --build
       - name: Run test suite on Alpine using Bash 5
         run: test/run-test.sh bash5-0
-  test-centos76
+  test-centos6:
       runs-on: ubuntu-latest
       steps:
         - uses: actions/checkout@v1
