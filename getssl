@@ -247,11 +247,12 @@
 # 2020-12-18 Wrong SANS when domain contains a minus character (atisne)
 # 2020-12-22 Fixes to get_auth_dns
 # 2020-12-22 Check that dig doesn't return an error (#611)(2.32)
+# 2020-12-29 Fix dig SOA lookup (#617)(2.33)
 # ----------------------------------------------------------------------------------------
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.32"
+VERSION="2.33"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -1310,11 +1311,11 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
       if [[ "$HAS_DIG_OR_DRILL" == "dig" ]]; then
         debug Using "$HAS_DIG_OR_DRILL SOA +trace +nocomments $gad_d $gad_s" to find primary nameserver
         test_output "Using $HAS_DIG_OR_DRILL SOA"
-        res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" "$gad_s" 2>/dev/null | grep "IN\WNS\W")
+        res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
       else
         debug Using "$HAS_DIG_OR_DRILL -T $gad_d $gad_s" to find primary nameserver
         test_output "Using $HAS_DIG_OR_DRILL SOA"
-        res=$($HAS_DIG_OR_DRILL -T SOA "$gad_d" "$gad_s" 2>/dev/null | grep "IN\WNS\W")
+        res=$($HAS_DIG_OR_DRILL -T SOA "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
       fi
     fi
 
@@ -1324,12 +1325,12 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
       # Two options here; either dig CNAME will return the CNAME and the NS or just the CNAME
       debug Checking for CNAME using "$HAS_DIG_OR_DRILL CNAME $gad_d $gad_s"
-      res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" "$gad_s"| grep "^$gad_d")
+      res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" $gad_s| grep "^$gad_d")
       cname=$(echo "$res"| awk '$4 ~ "CNAME" {print $5}' |sed 's/\.$//g')
 
       if [[ $_TEST_SKIP_CNAME_CALL == 0 ]]; then
         debug Checking if CNAME result contains NS records
-        res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" "$gad_s"| grep -E "IN\W(NS|SOA)\W")
+        res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" $gad_s| grep -E "IN\W(NS|SOA)\W")
       else
         res=""
       fi
@@ -1385,7 +1386,8 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     if [[ -z "$gad_s" ]]; then
       res=$(host -t NS "$gad_d"| grep "name server")
     else
-      res=$(host -t NS "$gad_d" "$gad_s"| grep "name server")
+      # shellcheck disable=SC2086
+      res=$(host -t NS "$gad_d" $gad_s| grep "name server")
     fi
     if [[ -n "$res" ]]; then
       all_auth_dns_servers=$(echo "$res" | awk '{print $4}' | sed 's/\.$//g'|tr '\n' ' ')
