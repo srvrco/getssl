@@ -14,6 +14,10 @@ else
   COMMAND="bats /getssl/test --timing"
 fi
 
+ALIAS="$OS.getssl.test"
+STAGING=""
+GETSSL_OS=$OS
+
 if [[ "$OS" == *"duckdns"* ]]; then
   ALIAS="${OS%-duckdns}-getssl.duckdns.org"
   STAGING="--env STAGING=true --env dynamic_dns=duckdns"
@@ -24,10 +28,6 @@ elif [[ "$OS" == *"dynu"* ]]; then
   GETSSL_OS="${OS%-dynu}"
 elif [[ "$OS" == "bash"* ]]; then
   GETSSL_OS="alpine"
-else
-    ALIAS="$OS.getssl.test"
-    STAGING=""
-    GETSSL_OS=$OS
 fi
 
 docker build --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" .
