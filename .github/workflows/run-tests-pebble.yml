@@ -15,6 +15,38 @@ jobs:
         run: docker-compose up -d --build
       - name: Run test suite on Alpine
         run: test/run-test.sh alpine
+  test-bash-4-0:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on Alpine using Bash 4.0
+        run: test/run-test.sh bash4-0
+  test-bash-4-2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on Alpine using Bash 4.2
+        run: test/run-test.sh bash4-2
+  test-bash-5-0:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on Alpine using Bash 5
+        run: test/run-test.sh bash5-0
+  test-centos6:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v1
+        - name: Build the docker-compose stack
+          run: docker-compose up -d --build
+        - name: Run test suite on CentOS6
+          run: test/run-test.sh centos6
   test-centos7:
       runs-on: ubuntu-latest
       steps:
