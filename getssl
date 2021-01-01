@@ -250,6 +250,10 @@
 # 2020-12-29 Fix dig SOA lookup (#617)(2.33)
 # ----------------------------------------------------------------------------------------
 
+case :$SHELLOPTS: in
+  *:posix:*)   echo -e "${0##*/}: Running with POSIX mode enabled is not supported" >&2; exit 1;;
+esac
+
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
 VERSION="2.33"
