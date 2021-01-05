@@ -771,7 +771,9 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
           getssl_versions=("${getssl_versions[@]:1}")
         done
       fi
-      eval "$ORIGCMD"
+      if ! eval "$ORIGCMD"; then
+        error_exit "Running upgraded getssl failed"
+      fi
       graceful_exit
     else
       info ""
