@@ -248,6 +248,7 @@
 # 2020-12-22 Fixes to get_auth_dns
 # 2020-12-22 Check that dig doesn't return an error (#611)(2.32)
 # 2020-12-29 Fix dig SOA lookup (#617)(2.33)
+# 2021-01-05 Show error if running in POSIX mode (#611)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
