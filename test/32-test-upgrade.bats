@@ -9,7 +9,7 @@ load '/getssl/test/test_helper.bash'
 setup() {
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
     CURRENT_VERSION=$(awk -F '"' '$1 == "VERSION=" {print $2}' ${CODE_DIR}/getssl)
-    PREVIOUS_VERSION=$(echo ${CURRENT_VERSION} | awk -F. '{ print $1 "." --$2}')
+    PREVIOUS_VERSION=$(echo ${CURRENT_VERSION} | awk -F. '{ print $1 "." $2-1}')
     run git clone https://github.com/srvrco/getssl.git "$INSTALL_DIR/upgrade-getssl"
 }
 
