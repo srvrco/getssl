@@ -248,7 +248,12 @@
 # 2020-12-22 Fixes to get_auth_dns
 # 2020-12-22 Check that dig doesn't return an error (#611)(2.32)
 # 2020-12-29 Fix dig SOA lookup (#617)(2.33)
+# 2021-01-05 Show error if running in POSIX mode (#611)
 # ----------------------------------------------------------------------------------------
+
+case :$SHELLOPTS: in
+  *:posix:*)   echo -e "${0##*/}: Running with POSIX mode enabled is not supported" >&2; exit 1;;
+esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
@@ -767,7 +772,9 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
           getssl_versions=("${getssl_versions[@]:1}")
         done
       fi
-      eval "$ORIGCMD"
+      if ! eval "$ORIGCMD"; then
+        error_exit "Running upgraded getssl failed"
+      fi
       graceful_exit
     else
       info ""
