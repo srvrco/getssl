@@ -859,6 +859,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
 			cd $ftpdirn
 			lcd $fromdir
 			put ./$fromfile
+      chmod 644 $fromfile
 			_EOF
     elif [[ "${to:0:5}" == "sftp:" ]] ; then
       debug "using sftp to copy the file from $from"
