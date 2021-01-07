@@ -9,6 +9,16 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update --fix-missing
 RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light
 RUN apt-get install -y vim dos2unix # for debugging
+RUN apt-get install -y ftp vsftpd
+RUN apt-get install -y openssh-server
+
+RUN echo "write_enable=YES" >> /etc/vsftpd.conf
+RUN adduser ftpuser
+RUN echo 'ftpuser:ftpuser' | chpasswd
+RUN adduser ftpuser www-data
+RUN adduser root www-data
+RUN chown -R www-data.www-data /var/www
+RUN chmod g+w -R /var/www
 
 WORKDIR /root
 

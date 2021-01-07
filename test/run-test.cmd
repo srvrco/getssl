@@ -45,7 +45,7 @@ set GETSSL_OS=alpine
 :Run
 for %%I in (.) do set CurrDirName=%%~nxI
 
-docker build --rm -f "test\Dockerfile-%OS%" -t getssl-%OS% .
+docker build --pull --rm -f "test\Dockerfile-%OS%" -t getssl-%OS% .
 @echo on
 docker run -it ^
   --env GETSSL_HOST=%ALIAS% %STAGING% ^
