@@ -29,9 +29,10 @@ setup() {
 
     cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
 ACL="ftp:ftpuser:ftpuser:${GETSSL_CMD_HOST}:/var/www/html/.well-known/acme-challenge"
+FTP_OPTIONS="chmod 644 \\\$fromfile"
 EOF
 
-    create_certificate -d
+    create_certificate
     assert_success
     check_output_for_errors
 }
