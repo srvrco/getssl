@@ -863,7 +863,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
         debug "FTP_OPTIONS=$FTP_OPTIONS"
       fi
       $FTP_COMMAND <<- _EOF
-			connect $ftphost
+			open $ftphost
       user $ftpuser $ftppass
 			cd $ftpdirn
 			lcd $fromdir
