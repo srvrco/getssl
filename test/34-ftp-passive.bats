@@ -13,7 +13,10 @@ setup() {
     # enable passive and disable active mode
     # https://www.pixelstech.net/article/1364817664-FTP-active-mode-and-passive-mode
     cat <<- _FTP >> $VSFTPD_CONF
-pasv_enable=NO
+pasv_enable=YES
+pasv_max_port=10100
+pasv_min_port=10090
+connect_from_port_20=NO
 _FTP
 
     ${CODE_DIR}/test/restart-ftpd
@@ -26,7 +29,7 @@ teardown() {
 }
 
 
-@test "Use FTP to create challenge file" {
+@test "Use Passive FTP to create challenge file" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
@@ -46,12 +49,7 @@ teardown() {
     cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
 ACL="ftp:ftpuser:ftpuser:${GETSSL_CMD_HOST}:/var/www/html/.well-known/acme-challenge"
 EOF
-
-    if [[ "$GETSSL_OS" = "alpine" ]]; then
-        cat <<- EOF2 >> ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
-FTP_OPTIONS="set ftp:passive-mode off"
-EOF2
-    elif [[ "$FTP_PASSIVE_DEFAULT" == "true" ]]; then
+    if [[ "$FTP_PASSIVE_DEFAULT" == "false" ]]; then
         cat <<- EOF3 >> ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
 FTP_OPTIONS="passive"
 EOF3
@@ -60,8 +58,10 @@ EOF3
     create_certificate
     assert_success
     assert_line --partial "ftp:ftpuser:ftpuser:"
-    if [[ "$GETSSL_OS" != "alpine" ]] && [[ "$FTP_PASSIVE_DEFAULT" == "true" ]]; then
-        assert_line --partial "Passive mode off"
+    if [[ "$FTP_PASSIVE_DEFAULT" == "false" ]]; then
+        assert_line --partial "Passive mode on"
+    else
+        refute_line --partial "Passive mode off"
     fi
     check_output_for_errors
 }

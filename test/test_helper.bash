@@ -70,15 +70,20 @@ setup_environment() {
   /getssl/test/restart-nginx
 }
 
-# start nginx in background on alpine via supervisord
+# start nginx and vsftpd in background on alpine via supervisord
 # shellcheck disable=SC2153 # Ignore GETSSL_OS looks like typo of GETSSL_IP
 if [[ -f /usr/bin/supervisord && -f /etc/supervisord.conf ]]; then
   if [[ ! $(pgrep supervisord) ]]; then
     /usr/bin/supervisord -c /etc/supervisord.conf >&3-
+    # Give supervisord time to start
+    sleep 1
   fi
 elif [[ "$GETSSL_OS" == "centos"[78] ]]; then
   if [ -z "$(pgrep nginx)" ]; then
     nginx >&3-
+  fi
+  if [ -z "$(pgrep vsftpd)" ]; then
+    vsftpd >&3-
   fi
 fi
 

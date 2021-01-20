@@ -12,7 +12,10 @@ RUN apt-get install -y vim dos2unix # for debugging
 RUN apt-get install -y ftp vsftpd
 RUN apt-get install -y openssh-server
 
-RUN echo "write_enable=YES" >> /etc/vsftpd.conf
+# Setup ftp
+ENV VSFTPD_CONF=/etc/vsftpd.conf
+ENV FTP_PASSIVE_DEFAULT=false
+COPY test/test-config/vsftpd.conf /etc/vsftpd.conf
 RUN adduser ftpuser
 RUN echo 'ftpuser:ftpuser' | chpasswd
 RUN adduser ftpuser www-data
