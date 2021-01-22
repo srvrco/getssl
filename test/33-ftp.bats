@@ -8,21 +8,25 @@ load '/getssl/test/test_helper.bash'
 # This is run for every test
 setup() {
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
-    cp $VSFTPD_CONF ${VSFTPD_CONF}.getssl
+    if [ -n "${VSFTPD_CONF}" ]; then
+        cp $VSFTPD_CONF ${VSFTPD_CONF}.getssl
 
-    # enable passive and disable active mode
-    # https://www.pixelstech.net/article/1364817664-FTP-active-mode-and-passive-mode
-    cat <<- _FTP >> $VSFTPD_CONF
+        # enable passive and disable active mode
+        # https://www.pixelstech.net/article/1364817664-FTP-active-mode-and-passive-mode
+        cat <<- _FTP >> $VSFTPD_CONF
 pasv_enable=NO
 _FTP
 
-    ${CODE_DIR}/test/restart-ftpd
+        ${CODE_DIR}/test/restart-ftpd
+    fi
 }
 
 
 teardown() {
-    cp ${VSFTPD_CONF}.getssl $VSFTPD_CONF
-    ${CODE_DIR}/test/restart-ftpd
+    if [ -n "${VSFTPD_CONF}" ]; then
+        cp ${VSFTPD_CONF}.getssl $VSFTPD_CONF
+        ${CODE_DIR}/test/restart-ftpd
+    fi
 }
 
 
