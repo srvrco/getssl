@@ -253,7 +253,9 @@ DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
 #DOMAIN_PEM_LOCATION="" this is the domain_key. domain cert and CA cert
 
 
-# The command needed to reload apache / nginx or whatever you use
+# The command needed to reload apache / nginx or whatever you use.
+# Several (ssh) commands may be given using a bash array:
+# RELOAD_CMD=('ssh:sshuserid@server5:systemctl reload httpd' 'logger getssl for server5 efficient.')
 RELOAD_CMD="service apache2 reload"
 
 # Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,

@@ -1957,22 +1957,25 @@ purge_archive() { # purge archive of old, invalid, certificates
 reload_service() {  # Runs a command to reload services ( via ssh if needed)
   if [[ -n "$RELOAD_CMD" ]]; then
     info "reloading SSL services"
-    if [[ "${RELOAD_CMD:0:4}" == "ssh:" ]] ; then
-      sshhost=$(echo "$RELOAD_CMD"| awk -F: '{print $2}')
-      command=${RELOAD_CMD:(( ${#sshhost} + 5))}
-      debug "running following command to reload cert"
-      debug "ssh $SSH_OPTS $sshhost ${command}"
-      # shellcheck disable=SC2029
-      # shellcheck disable=SC2086
-      ssh $SSH_OPTS "$sshhost" "${command}" 1>/dev/null 2>&1
-      # allow 2 seconds for services to restart
-      sleep 2
-    else
-      debug "running reload command $RELOAD_CMD"
-      if ! eval "$RELOAD_CMD" ; then
-        error_exit "error running $RELOAD_CMD"
+    for ARELOAD_CMD in "${RELOAD_CMD[@]}"
+    do
+      if [[ "${ARELOAD_CMD:0:4}" == "ssh:" ]] ; then
+        sshhost=$(echo "$ARELOAD_CMD"| awk -F: '{print $2}')
+        command=${ARELOAD_CMD:(( ${#sshhost} + 5))}
+        debug "running following command to reload cert:"
+        debug "ssh $SSH_OPTS $sshhost ${command}"
+        # shellcheck disable=SC2029
+        # shellcheck disable=SC2086
+        ssh $SSH_OPTS "$sshhost" "${command}" 1>/dev/null 2>&1
+        # allow 2 seconds for services to restart
+        sleep 2
+      else
+        debug "running reload command: $ARELOAD_CMD"
+        if ! eval "$ARELOAD_CMD" ; then
+          error_exit "error running: $ARELOAD_CMD"
+        fi
       fi
-    fi
+    done
   fi
 }
 
@@ -2326,7 +2329,9 @@ write_domain_template() { # write out a template file for a domain.
 		#DOMAIN_CHAIN_LOCATION="" # this is the domain cert and CA cert
 		#DOMAIN_PEM_LOCATION="" # this is the domain key, domain cert and CA cert
 
-		# The command needed to reload apache / nginx or whatever you use
+		# The command needed to reload apache / nginx or whatever you use.
+		# Several (ssh) commands may be given using a bash array:
+		# RELOAD_CMD=('ssh:sshuserid@server5:systemctl reload httpd' 'logger getssl for server5 efficient.')
 		#RELOAD_CMD=""
 
 		# Uncomment the following line to prevent non-interactive renewals of certificates
@@ -2370,7 +2375,9 @@ write_getssl_template() { # write out the main template file
 	PRIVATE_KEY_ALG="rsa"
 	#REUSE_PRIVATE_KEY="true"
 
-	# The command needed to reload apache / nginx or whatever you use
+	# The command needed to reload apache / nginx or whatever you use.
+	# Several (ssh) commands may be given using a bash array:
+	# RELOAD_CMD=('ssh:sshuserid@server5:systemctl reload httpd' 'logger getssl for server5 efficient.')
 	#RELOAD_CMD=""
 
 	# The time period within which you want to allow renewal of a certificate
