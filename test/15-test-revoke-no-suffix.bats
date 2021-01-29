@@ -19,11 +19,13 @@ setup() {
     else
         CONFIG_FILE="getssl-http01-no-suffix.cfg"
     fi
-    echo 'CA="https://acme-staging-v02.api.letsencrypt.org"' >> ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
 
     . "${CODE_DIR}/test/test-config/${CONFIG_FILE}"
     setup_environment
     init_getssl
+
+    echo 'CA="https://acme-staging-v02.api.letsencrypt.org"' > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
+
     create_certificate
     assert_success
     check_output_for_errors
@@ -36,7 +38,7 @@ setup() {
     else
         CONFIG_FILE="getssl-http01.cfg"
     fi
-    echo 'CA="https://acme-staging-v02.api.letsencrypt.org"' >> ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
+    echo 'CA="https://acme-staging-v02.api.letsencrypt.org"' > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
 
     . "${CODE_DIR}/test/test-config/${CONFIG_FILE}"
     CERT=${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt
