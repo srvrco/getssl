@@ -249,6 +249,10 @@
 # 2020-12-22 Check that dig doesn't return an error (#611)(2.32)
 # 2020-12-29 Fix dig SOA lookup (#617)(2.33)
 # 2021-01-05 Show error if running in POSIX mode (#611)
+# 2021-01-16 Fix double slash when using root directory with DAVS (ionos)
+# 2021-01-22 Add FTP_OPTIONS
+# 2021-01-27 Add the ability to set several reload commands (atisne)
+# 2021-01-29 Use dig -r (if supported) to ignore.digrc (#630)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -1119,8 +1123,13 @@ find_dns_utils() {
         debug "HAS DIG_OR_DRILL=drill"
         HAS_DIG_OR_DRILL="drill"
     elif [[ -n "$(command -v dig 2>/dev/null)" ]] && dig >/dev/null 2>&1; then
-        debug "HAS DIG_OR_DRILL=dig"
-        HAS_DIG_OR_DRILL="dig"
+        if [[ $(dig -r >/dev/null 2>&1) ]]; then
+          # use dig -r so ~/.digrc is not used
+          HAS_DIG_OR_DRILL="dig -r"
+        else
+          HAS_DIG_OR_DRILL="dig"
+        fi
+        debug "HAS DIG_OR_DRILL=$HAS_DIG_OR_DRILL"
     fi
 
     if [[ -n "$(command -v host 2>/dev/null)" ]]; then
@@ -1338,14 +1347,14 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
     # Use SOA +trace to find the name server
     if [[ $_TEST_SKIP_SOA_CALL == 0 ]]; then
-      if [[ "$HAS_DIG_OR_DRILL" == "dig" ]]; then
-        debug Using "$HAS_DIG_OR_DRILL SOA +trace +nocomments $gad_d $gad_s" to find primary nameserver
-        test_output "Using $HAS_DIG_OR_DRILL SOA"
-        res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
-      else
+      if [[ "$HAS_DIG_OR_DRILL" == "drill" ]]; then
         debug Using "$HAS_DIG_OR_DRILL -T $gad_d $gad_s" to find primary nameserver
         test_output "Using $HAS_DIG_OR_DRILL SOA"
         res=$($HAS_DIG_OR_DRILL -T SOA "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
+      else
+        debug Using "$HAS_DIG_OR_DRILL SOA +trace +nocomments $gad_d $gad_s" to find primary nameserver
+        test_output "Using $HAS_DIG_OR_DRILL SOA"
+        res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
       fi
     fi
 
