@@ -491,8 +491,9 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
       error_exit "$domain:Verify error:$err_detail"
     fi
 
-    # if ACME response is pending ( they haven't completed checks yet) then wait and try again.
-    if [[ "$status" == "pending" ]] ; then
+    # if ACME response is pending (they haven't completed checks yet)
+    # or valid (completed checks but not created certificate) then wait and try again.
+    if [[ "$status" == "pending" ]] || [[ "$status" == "valid" ]]; then
       info "Pending"
     else
       err_detail=$(echo "$response" | grep "detail")
