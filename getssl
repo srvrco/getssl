@@ -2514,8 +2514,8 @@ requires mktemp
 # Check if upgrades are available (unless they have specified -U to ignore Upgrade checks)
 if [[ $_UPGRADE_CHECK -eq 1 ]]; then
   check_getssl_upgrade
-  # if nothing in command line, then exit after upgrade
-  if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]]; then
+  # if nothing in command line and no revocation, then exit after upgrade
+  if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ ${_REVOKE} -ne 1 ]]; then
     graceful_exit
   fi
 fi
