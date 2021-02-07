@@ -253,6 +253,7 @@
 # 2021-01-22 Add FTP_OPTIONS
 # 2021-01-27 Add the ability to set several reload commands (atisne)
 # 2021-01-29 Use dig -r (if supported) to ignore.digrc (#630)
+# 2021-02-07 Allow -u --upgrade without any domain, so that one can only update the script
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -261,7 +262,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.33"
+VERSION="2.34"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -1669,7 +1670,7 @@ help_message() { # print out the help message
 	  -q, --quiet        Quiet mode (only outputs on error, success of new cert, or getssl was upgraded)
 	  -Q, --mute         Like -q, but also mute notification about successful upgrade
 	  -r, --revoke   "cert" "key" [CA_server] Revoke a certificate (the cert and key are required)
-	  -u, --upgrade      Upgrade getssl if a more recent version is available
+	  -u, --upgrade      Upgrade getssl if a more recent version is available - can be used with or without domain(s)
 	  -k, --keep     "#" Maximum number of old getssl versions to keep when upgrading
 	  -U, --nocheck      Do not check if a more recent version is available
 	  -w working_dir "Working directory"
@@ -2513,6 +2514,10 @@ requires mktemp
 # Check if upgrades are available (unless they have specified -U to ignore Upgrade checks)
 if [[ $_UPGRADE_CHECK -eq 1 ]]; then
   check_getssl_upgrade
+  # if nothing in command line, then exit after upgrade
+  if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]]; then
+    graceful_exit
+  fi
 fi
 
 # Revoke a certificate if requested
