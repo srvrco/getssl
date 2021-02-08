@@ -2516,8 +2516,8 @@ if [[ $_UPGRADE_CHECK -eq 1 ]]; then
   check_getssl_upgrade
   # if nothing in command line and no revocation and not only config check,
   # then exit after upgrade
-  if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ ${_REVOKE} -ne 1 ]] && [ "${_ONLY_CHECK_CONFIG}" -eq 1 ]; then
-    echo graceful_exit
+  if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ ${_REVOKE} -ne 1 ]] && [ "${_ONLY_CHECK_CONFIG}" -ne 1 ]; then
+    graceful_exit
   fi
 fi
 
