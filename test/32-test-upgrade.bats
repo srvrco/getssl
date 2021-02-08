@@ -10,9 +10,11 @@ setup() {
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
     run git clone https://github.com/srvrco/getssl.git "$INSTALL_DIR/upgrade-getssl"
     # Don't do version arithmetics any longer, look what there really is
+    # by getting the last line (starting with v) and the one before of the
+    # list of tags.
     cd "$INSTALL_DIR/upgrade-getssl"
-    CURRENT_VERSION=$(git tag -l|grep -e '^v'|tail -1|cut -b2-)
-    PREVIOUS_VERSION=$(git tag -l|grep -e '^v'|tail -2|head -1|cut -b2-)
+    # This sets CURRENT_VERSION and PREVIOUS_VERSION bash variables
+    eval $(git tag -l | awk 'BEGIN {cur="?.??"};/^v/{prv=cur;cur=substr($1,2)};END{ printf("CURRENT_VERSION=\"%s\";PREVIOUS_VERSION=\"%s\"\n",cur,prv)}')
     # The version in the file, which we will overwrite
     FILE_VERSION=$(awk -F'"' '/^VERSION=/{print $2}' "$CODE_DIR/getssl")
 }
