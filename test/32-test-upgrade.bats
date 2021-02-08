@@ -15,9 +15,6 @@ setup() {
     PREVIOUS_VERSION=$(git tag -l|grep -e '^v'|tail -2|head -1|cut -b2-)
     # The version in the file, which we will overwrite
     FILE_VERSION=$(awk -F'"' '/^VERSION=/{print $2}' "$CODE_DIR/getssl")
-echo "============ FILE_VERSION ==========="
-echo "${FILE_VERSION}"
-echo "============ FILE_VERSION ==========="
 }
 
 
@@ -44,9 +41,6 @@ teardown() {
     # the upgrading of the version in development
     cp "$CODE_DIR/getssl" "$INSTALL_DIR/upgrade-getssl/"
     sed -i -e "s/VERSION=\"${FILE_VERSION}\"/VERSION=\"${PREVIOUS_VERSION}\"/" "$INSTALL_DIR/upgrade-getssl/getssl" 
-echo "============ VERSION ==========="
-egrep '^VERSION='  "$INSTALL_DIR/upgrade-getssl/getssl" 
-echo "============ VERSION ==========="
     run "$INSTALL_DIR/upgrade-getssl/getssl" --check-config ${GETSSL_CMD_HOST}
     assert_success
     #assert_line "Updated getssl from v${PREVIOUS_VERSION} to v${CURRENT_VERSION}"
