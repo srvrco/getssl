@@ -254,6 +254,7 @@
 # 2021-01-27 Add the ability to set several reload commands (atisne)
 # 2021-01-29 Use dig -r (if supported) to ignore.digrc (#630)
 # 2021-02-07 Allow -u --upgrade without any domain, so that one can only update the script (2.34)
+# 2021-02-09 Prevent listing the complete file if version tag missing (#637)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
