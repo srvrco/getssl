@@ -8,15 +8,21 @@ load '/getssl/test/test_helper.bash'
 # This is run for every test
 setup() {
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+
+    # Turn off warning about detached head
+    git config --global advice.detachedHead false
     run git clone https://github.com/srvrco/getssl.git "$INSTALL_DIR/upgrade-getssl"
-    # Don't do version arithmetics any longer, look what there really is
-    # by getting the last line (starting with v) and the one before of the
-    # list of tags.
+
+    # Don't do version arithmetics any longer, look what was the previous version by getting the last
+    # line (starting with v) and the one before that from the list of tags.
     cd "$INSTALL_DIR/upgrade-getssl"
-    # This sets CURRENT_VERSION and PREVIOUS_VERSION bash variables
-    eval $(git tag -l | awk 'BEGIN {cur="?.??"};/^v/{prv=cur;cur=substr($1,2)};END{ printf("CURRENT_VERSION=\"%s\";PREVIOUS_VERSION=\"%s\"\n",cur,prv)}')
+
+    # This sets CURRENT_TAG and PREVIOUS_TAG bash variables
+    eval $(git tag -l | awk 'BEGIN {cur="?.??"};/^v/{prv=cur;cur=substr($1,2)};END{ printf("CURRENT_TAG=\"%s\";PREVIOUS_TAG=\"%s\"\n",cur,prv)}')
+
     # The version in the file, which we will overwrite
     FILE_VERSION=$(awk -F'"' '/^VERSION=/{print $2}' "$CODE_DIR/getssl")
+    # If FILE_VERSION > CURRENT_TAG then either we are testing a push to master or the last version wasn't released
 }
 
 
@@ -31,22 +37,23 @@ teardown() {
     fi
 
     cd "$INSTALL_DIR/upgrade-getssl"
-    git checkout tags/v${PREVIOUS_VERSION}
+    git checkout tags/v${PREVIOUS_TAG}
 
     CONFIG_FILE="getssl-http01.cfg"
     setup_environment
     init_getssl
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg"
-    # Overwrite checked out getssl-script with copy of new one, 
-    # but write the previous version into the copy
-    # Note that this way we actually downgrade getssl, but we are testing
-    # the upgrading of the version in development
+
+    # Overwrite checked out getssl-script with copy of new one, but write the previous version into the copy
+    # Note that this way we mock downgrading getssl and are testing the upgrading of the version in development
     cp "$CODE_DIR/getssl" "$INSTALL_DIR/upgrade-getssl/"
-    sed -i -e "s/VERSION=\"${FILE_VERSION}\"/VERSION=\"${PREVIOUS_VERSION}\"/" "$INSTALL_DIR/upgrade-getssl/getssl" 
+    sed -i -e "s/VERSION=\"${FILE_VERSION}\"/VERSION=\"${PREVIOUS_TAG}\"/" "$INSTALL_DIR/upgrade-getssl/getssl"
+
     run "$INSTALL_DIR/upgrade-getssl/getssl" --check-config ${GETSSL_CMD_HOST}
     assert_success
-    #assert_line "Updated getssl from v${PREVIOUS_VERSION} to v${CURRENT_VERSION}"
-    assert_line "A more recent version (v${CURRENT_VERSION}) of getssl is available, please update"
+
+    # Check for current tag or file version otherwise push to master fails on a new version (or if the tag hasn't been updated)
+    assert_line --regexp "A more recent version \(v(${CURRENT_TAG}|${FILE_VERSION})\) of getssl is available, please update"
     check_output_for_errors
 }
 
@@ -57,22 +64,23 @@ teardown() {
     fi
 
     cd "$INSTALL_DIR/upgrade-getssl"
-    git checkout tags/v${CURRENT_VERSION}
+    git checkout tags/v${CURRENT_TAG}
 
     CONFIG_FILE="getssl-http01.cfg"
     setup_environment
     init_getssl
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg"
-    # Overwrite checked out getssl-script with copy of new one, 
-    # but write the previous version into the copy
-    # Note that this way we actually downgrade getssl, but we are testing
-    # the upgrading of the version in development
+
+    # Overwrite checked out getssl-script with copy of new one, but write the previous version into the copy
+    # Note that this way we mock downgrading getssl and are testing the upgrading of the version in development
     cp "$CODE_DIR/getssl" "$INSTALL_DIR/upgrade-getssl/"
-    sed -i -e "s/VERSION=\"${FILE_VERSION}\"/VERSION=\"${PREVIOUS_VERSION}\"/" "$INSTALL_DIR/upgrade-getssl/getssl" 
+    sed -i -e "s/VERSION=\"${FILE_VERSION}\"/VERSION=\"${PREVIOUS_TAG}\"/" "$INSTALL_DIR/upgrade-getssl/getssl"
+
     run "$INSTALL_DIR/upgrade-getssl/getssl" --check-config --upgrade ${GETSSL_CMD_HOST}
     assert_success
-    assert_line "Updated getssl from v${PREVIOUS_VERSION} to v${CURRENT_VERSION}"
-    check_output_for_errors
+
+    # Check for current tag or file version otherwise push to master fails on a new version (or if the tag hasn't been updated)
+    assert_line --regexp "Updated getssl from v${PREVIOUS_TAG} to v(${CURRENT_TAG}|${FILE_VERSION})"
 }
 
 
@@ -83,20 +91,21 @@ teardown() {
     fi
 
     cd "$INSTALL_DIR/upgrade-getssl"
-    git checkout tags/v${PREVIOUS_VERSION}
+    git checkout tags/v${PREVIOUS_TAG}
 
     CONFIG_FILE="getssl-http01.cfg"
     setup_environment
     init_getssl
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg"
-    # Overwrite checked out getssl-script with copy of new one, 
-    # but write the previous version into the copy
-    # Note that this way we actually downgrade getssl, but we are testing
-    # the upgrading of the version in development
+
+    # Overwrite checked out getssl-script with copy of new one, but write the previous version into the copy
+    # Note that this way we mock downgrading getssl and are testing the upgrading of the version in development
     cp "$CODE_DIR/getssl" "$INSTALL_DIR/upgrade-getssl/"
-    sed -i -e "s/VERSION=\"${FILE_VERSION}\"/VERSION=\"${PREVIOUS_VERSION}\"/" "$INSTALL_DIR/upgrade-getssl/getssl" 
+    sed -i -e "s/VERSION=\"${FILE_VERSION}\"/VERSION=\"${PREVIOUS_TAG}\"/" "$INSTALL_DIR/upgrade-getssl/getssl"
+
     run bash ./getssl --check-config --upgrade ${GETSSL_CMD_HOST}
     assert_success
-    assert_line "Updated getssl from v${PREVIOUS_VERSION} to v${CURRENT_VERSION}"
-    check_output_for_errors
+
+    # Check for current tag or file version otherwise push to master fails on a new version (or if the tag hasn't been updated)
+    assert_line --regexp "Updated getssl from v${PREVIOUS_TAG} to v(${CURRENT_TAG}|${FILE_VERSION})"
 }
