@@ -253,8 +253,9 @@
 # 2021-01-22 Add FTP_OPTIONS
 # 2021-01-27 Add the ability to set several reload commands (atisne)
 # 2021-01-29 Use dig -r (if supported) to ignore.digrc (#630)
-# 2021-02-07 Allow -u --upgrade without any domain, so that one can only update the script (2.34)
-# 2021-02-09 Prevent listing the complete file if version tag missing (#637)
+# 2021-02-07 Allow -u --upgrade without any domain, so that one can only update the script (Benno-K)(2.34)
+# 2021-02-09 Prevent listing the complete file if version tag missing (#637)(softins)
+# 2021-02-12 Add PREFERRED_CHAIN
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -285,6 +286,7 @@ GETSSL_IGNORE_CP_PRESERVE="false"
 HTTP_TOKEN_CHECK_WAIT=0
 IGNORE_DIRECTORY_DOMAIN="false"
 ORIG_UMASK=$(umask)
+PREFERRED_CHAIN=""              # Set this to use an alternative root certificate
 PREVIOUSLY_VALIDATED="true"
 PRIVATE_KEY_ALG="rsa"
 RELOAD_CMD=""
@@ -1556,7 +1558,32 @@ get_certificate() { # get certificate for csr, if all domains validated.
     info "Requesting certificate"
     CertData=$(json_get "$response" "certificate")
     send_signed_request "$CertData" "" "" "$gc_fullchain"
-    info "Full certificate saved in $gc_fullchain"
+    IFS=$'\n' read -r -d '' -a alternate_links < <(echo "$responseHeaders" | grep "^Link" | grep "alternate" | awk -F"[<>]" '{print $2}')
+    debug "Alternate Links are ${alternate_links[*]}"
+    if [[ -n "$PREFERRED_CHAIN" ]]; then
+      cert_to_check=$(mktemp 2>/dev/null || mktemp -t getssl.XXXXXX) || error_exit "mktemp failed"
+      # Check the default certificate to see if that has the required chain
+      cp "$gc_fullchain" "$cert_to_check"
+      i=0
+      while [[ $i -le ${#alternate_links[@]} ]]; do
+        cert_issuer=$(openssl crl2pkcs7 -nocrl -certfile "$cert_to_check" | openssl pkcs7 -print_certs -text -noout | grep 'Issuer:' | tail -1 | cut -d= -f2)
+        debug Certificate issued by "$cert_issuer"
+        if [[ $cert_issuer = *${PREFERRED_CHAIN}* ]]; then
+          debug "Found required certificate"
+          cp "$cert_to_check" "$gc_fullchain"
+          break
+        fi
+
+        if [[ $i -lt ${#alternate_links[@]} ]]; then
+          debug "Fetching next alternate certificate $i ${alternate_links[$i]}"
+          send_signed_request "${alternate_links[$i]}" "" "" "$cert_to_check"
+        fi
+        i=$(( i + 1 ))
+      done
+
+      # tidy up
+      rm -f "$cert_to_check"
+    fi
     awk -v CERT_FILE="$gc_certfile" -v CA_CERT="$gc_cafile" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$gc_fullchain"
     info "Certificate saved in $gc_certfile"
   fi
@@ -1675,6 +1702,7 @@ help_message() { # print out the help message
 	  -k, --keep     "#" Maximum number of old getssl versions to keep when upgrading
 	  -U, --nocheck      Do not check if a more recent version is available
 	  -w working_dir "Working directory"
+    --preferred-chain "chain" Use an alternate chain for the certificate
 
 	_EOF_
 }
@@ -2278,7 +2306,8 @@ urlbase64_decode() {
 
 usage() { # echos out the program usage
   echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet]"\
-       "[-Q|--mute] [-u|--upgrade] [-k|--keep #] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] domain"
+       "[-Q|--mute] [-u|--upgrade] [-k|--keep #] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir]"\
+       "[--preferred-chain chain] domain"
 }
 
 write_domain_template() { # write out a template file for a domain.
@@ -2333,6 +2362,11 @@ write_domain_template() { # write out a template file for a domain.
 		# Set USE_SINGLE_ACL="true" to use a single ACL for all checks
 		#USE_SINGLE_ACL="false"
 
+    # Preferred Chain - use an different certificate root from the default
+    # Staging options are: "Fake LE Root X1" and "Fake LE Root X2"
+    # Production options are: "ISRG Root X1" and "ISRG Root X2"
+    #PREFERRED_CHAIN=""
+
 		# Location for all your certs, these can either be on the server (full path name)
 		# or using ssh /sftp as for the ACL
 		#DOMAIN_CERT_LOCATION="/etc/ssl/${DOMAIN}.crt" # this is domain cert
@@ -2386,6 +2420,11 @@ write_getssl_template() { # write out the main template file
 	#ACCOUNT_KEY_TYPE="rsa"
 	PRIVATE_KEY_ALG="rsa"
 	#REUSE_PRIVATE_KEY="true"
+
+  # Preferred Chain - use an different certificate root from the default
+  # Staging options are: "Fake LE Root X1" and "Fake LE Root X2"
+  # Production options are: "ISRG Root X1" and "ISRG Root X2"
+  #PREFERRED_CHAIN=""
 
 	# The command needed to reload apache / nginx or whatever you use.
 	# Several (ssh) commands may be given using a bash array:
@@ -2469,6 +2508,8 @@ while [[ -n ${1+defined} ]]; do
       _ONLY_CHECK_CONFIG=1 ;;
     -w)
       shift; WORKING_DIR="$1" ;;
+    -preferred-chain)
+      shift; PREFERRED_CHAIN="$1" ;;
     --source)
       return ;;
     -*)
