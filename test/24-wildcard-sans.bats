@@ -22,11 +22,7 @@ teardown() {
 
 
 @test "Check can create certificate for wildcard domain as arg and non-wildcard in SANS" {
-    if [ -n "$STAGING" ]; then
-        CONFIG_FILE="getssl-staging-dns01.cfg"
-    else
-        CONFIG_FILE="getssl-dns01.cfg"
-    fi
+    CONFIG_FILE="getssl-dns01.cfg"
 
     # Staging server generates an error if try to create a certificate for *.domain and a.domain
     # so create for *.wild-domain and a.domain instead
@@ -50,11 +46,7 @@ teardown() {
 
 
 @test "Check can create certificate for non-wildcard domain as arg and wildcard in SANS" {
-    if [ -n "$STAGING" ]; then
-        CONFIG_FILE="getssl-staging-dns01.cfg"
-    else
-        CONFIG_FILE="getssl-dns01.cfg"
-    fi
+    CONFIG_FILE="getssl-dns01.cfg"
 
     GETSSL_CMD_HOST="${GETSSL_HOST}"
     setup_environment

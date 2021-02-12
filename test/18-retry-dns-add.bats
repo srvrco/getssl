@@ -4,14 +4,18 @@ load '/bats-support/load.bash'
 load '/bats-assert/load.bash'
 load '/getssl/test/test_helper.bash'
 
+# This is run for every test
+setup() {
+    export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+}
 
 
 @test "Check retry add dns command if dns isn't updated" {
-    if [ -z "$STAGING" ]; then
+    if [ -n "$STAGING" ]; then
         skip "Running internal tests, skipping external test"
     fi
 
-    CONFIG_FILE="getssl-staging-dns01.cfg"
+    CONFIG_FILE="getssl-dns01.cfg"
 
     setup_environment
     init_getssl
@@ -25,6 +29,7 @@ DNS_WAIT_COUNT=11
 DNS_EXTRA_WAIT=0
 CHECK_ALL_AUTH_DNS="false"
 CHECK_PUBLIC_DNS_SERVER="false"
+DNS_WAIT_RETRY_ADD="true"
 EOF
     create_certificate -d
     assert_failure

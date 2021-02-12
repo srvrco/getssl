@@ -26,7 +26,7 @@ teardown() {
     skip "FIXME: Certificate is not recreated when SANS is updated"
     if [ -n "$STAGING" ]; then
         skip "Not trying on staging server yet"
-        CONFIG_FILE="getssl-staging-dns01.cfg"
+        CONFIG_FILE="getssl-dns01.cfg"
     else
         CONFIG_FILE="getssl-dns01-add-to-sans-1.cfg"
     fi
@@ -45,7 +45,7 @@ teardown() {
     skip "FIXME: Certificate is not recreated when SANS is updated"
     if [ -n "$STAGING" ]; then
         skip "Not trying on staging server yet"
-        CONFIG_FILE="getssl-staging-dns01.cfg"
+        CONFIG_FILE="getssl-dns01.cfg"
     else
         CONFIG_FILE="getssl-dns01-add-to-sans-2.cfg"
     fi

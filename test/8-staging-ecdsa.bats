@@ -9,9 +9,9 @@ load '/getssl/test/test_helper.bash'
 
 @test "Create new certificate using staging server and prime256v1" {
     if [ -z "$STAGING" ]; then
-        skip "Running internal tests, skipping external test"
+        skip "Running external tests, skipping internal testing"
     fi
-    CONFIG_FILE="getssl-staging-dns01.cfg"
+    CONFIG_FILE="getssl-dns01.cfg"
 
     setup_environment
     init_getssl
@@ -35,9 +35,9 @@ load '/getssl/test/test_helper.bash'
 
 @test "Create new certificate using staging server and secp384r1" {
     if [ -z "$STAGING" ]; then
-        skip "Running internal tests, skipping external test"
+        skip "Running external tests, skipping internal testing"
     fi
-    CONFIG_FILE="getssl-staging-dns01.cfg"
+    CONFIG_FILE="getssl-dns01.cfg"
 
     setup_environment
     init_getssl
