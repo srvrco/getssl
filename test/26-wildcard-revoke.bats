@@ -14,11 +14,7 @@ setup() {
 
 
 @test "Create certificate to check wildcard revoke" {
-    if [ -n "$STAGING" ]; then
-        CONFIG_FILE="getssl-staging-dns01.cfg"
-    else
-        CONFIG_FILE="getssl-dns01.cfg"
-    fi
+    CONFIG_FILE="getssl-dns01.cfg"
 
     GETSSL_CMD_HOST="*.${GETSSL_HOST}"
     setup_environment
@@ -30,11 +26,7 @@ setup() {
 
 
 @test "Check we can revoke a wildcard certificate" {
-    if [ -n "$STAGING" ]; then
-        CONFIG_FILE="getssl-staging-dns01.cfg"
-    else
-        CONFIG_FILE="getssl-dns01.cfg"
-    fi
+    CONFIG_FILE="getssl-dns01.cfg"
     . "${CODE_DIR}/test/test-config/${CONFIG_FILE}"
 
     GETSSL_CMD_HOST="*.${GETSSL_HOST}"

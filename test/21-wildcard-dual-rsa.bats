@@ -14,11 +14,7 @@ setup() {
 
 
 @test "Create secp384r1 wildcard certificate" {
-    if [ -n "$STAGING" ]; then
-        CONFIG_FILE="getssl-staging-dns01.cfg"
-    else
-        CONFIG_FILE="getssl-dns01.cfg"
-    fi
+    CONFIG_FILE="getssl-dns01.cfg"
 
     GETSSL_CMD_HOST="*.${GETSSL_HOST}"
 
@@ -40,11 +36,7 @@ EOF
 
 
 @test "Create dual certificates using DNS-01 verification" {
-    if [ -n "$STAGING" ]; then
-        CONFIG_FILE="getssl-staging-dns01.cfg"
-    else
-        CONFIG_FILE="getssl-dns01.cfg"
-    fi
+    CONFIG_FILE="getssl-dns01.cfg"
 
     GETSSL_CMD_HOST="*.${GETSSL_HOST}"
 

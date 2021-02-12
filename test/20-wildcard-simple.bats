@@ -14,11 +14,7 @@ setup() {
 
 
 @test "Create wildcard certificate" {
-    if [ -n "$STAGING" ]; then
-        CONFIG_FILE="getssl-staging-dns01.cfg"
-    else
-        CONFIG_FILE="getssl-dns01.cfg"
-    fi
+    CONFIG_FILE="getssl-dns01.cfg"
 
     GETSSL_CMD_HOST="*.${GETSSL_HOST}"
     setup_environment

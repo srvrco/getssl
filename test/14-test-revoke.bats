@@ -15,7 +15,7 @@ setup() {
 
 @test "Create certificate to check revoke" {
     if [ -n "$STAGING" ]; then
-        CONFIG_FILE="getssl-staging-dns01.cfg"
+        CONFIG_FILE="getssl-dns01.cfg"
     else
         CONFIG_FILE="getssl-http01.cfg"
     fi
@@ -30,7 +30,7 @@ setup() {
 
 @test "Check we can revoke a certificate" {
     if [ -n "$STAGING" ]; then
-        CONFIG_FILE="getssl-staging-dns01.cfg"
+        CONFIG_FILE="getssl-dns01.cfg"
     else
         CONFIG_FILE="getssl-http01.cfg"
     fi

@@ -29,11 +29,7 @@ setup() {
 }
 
 @test "Check that DNS-01 verification works if the domain is not lowercase" {
-    if [ -n "$STAGING" ]; then
-        CONFIG_FILE="getssl-staging-dns01.cfg"
-    else
-        CONFIG_FILE="getssl-dns01.cfg"
-    fi
+    CONFIG_FILE="getssl-dns01.cfg"
 
     GETSSL_CMD_HOST=$(echo $GETSSL_HOST | tr a-z A-Z)
     setup_environment
