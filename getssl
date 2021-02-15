@@ -256,6 +256,7 @@
 # 2021-02-07 Allow -u --upgrade without any domain, so that one can only update the script (Benno-K)(2.34)
 # 2021-02-09 Prevent listing the complete file if version tag missing (#637)(softins)
 # 2021-02-12 Add PREFERRED_CHAIN
+# 2021-02-15 ADD ftp explicit SSL with curl for upload the challenge
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
