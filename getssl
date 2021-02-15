@@ -912,6 +912,19 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       debug "davs user=$davsuser - pass=$davspass - host=$davshost port=$davsport dir=$davsdirn file=$davsfile"
       debug "from dir=$fromdir  file=$fromfile"
       curl -u "${davsuser}:${davspass}" -T "${fromdir}/${fromfile}" "https://${davshost}:${davsport}${davsdirn}${davsfile}"
+    elif [[ "${to:0:6}" == "ftpes:" ]] ; then
+      debug "using ftp to copy the file from $from"
+      ftpuser=$(echo "$to"| awk -F: '{print $2}')
+      ftppass=$(echo "$to"| awk -F: '{print $3}')
+      ftphost=$(echo "$to"| awk -F: '{print $4}')
+      ftplocn=$(echo "$to"| awk -F: '{print $5}')
+      ftpdirn=$(dirname "$ftplocn")
+      ftpfile=$(basename "$ftplocn")
+      fromdir=$(dirname "$from")
+      fromfile=$(basename "$from")
+      debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost dir=$ftpdirn file=$ftpfile"
+      debug "from dir=$fromdir  file=$fromfile"
+      curl --insecure --ftp-ssl -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}/"
     else
       if ! mkdir -p "$(dirname "$to")" ; then
         error_exit "cannot create ACL directory $(basename "$to")"
@@ -2343,7 +2356,7 @@ write_domain_template() { # write out a template file for a domain.
 		# An ssh key will be needed to provide you with access to the remote server.
 		# Optionally, you can specify a different userid for ssh/scp to use on the remote server before the @ sign.
 		# If left blank, the username on the local server will be used to authenticate against the remote server.
-		# If these start with ftp: then the next variables are ftpuserid:ftppassword:servername:ACL_location
+		# If these start with ftp:/ftpes: then the next variables are ftpuserid:ftppassword:servername:ACL_location
 		# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
 		# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
 		# You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
@@ -2353,7 +2366,8 @@ write_domain_template() { # write out a template file for a domain.
 		#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 		#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 		#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
-		#     'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge')
+		#     'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge'
+		#     'ftpes:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
 
 		# Specify SSH options, e.g. non standard port in SSH_OPTS
 		# (Can also use SCP_OPTS and SFTP_OPTS)
