@@ -302,7 +302,7 @@ OCSP_MUST_STAPLE="false"
 TEMP_UPGRADE_FILE=""
 TOKEN_USER_ID=""
 USE_SINGLE_ACL="false"
-WORKING_DIR_CANDIDATES=("/etc/getssl/" "${PROGDIR}/conf" "${PROGDIR}/.getssl" "${HOME}/.getssl")
+WORKING_DIR_CANDIDATES=("/etc/getssl" "${PROGDIR}/conf" "${PROGDIR}/.getssl" "${HOME}/.getssl")
 
 # Variables used when validating using a DNS entry
 VALIDATE_VIA_DNS=""             # Set this to "true" to enable DNS validation
