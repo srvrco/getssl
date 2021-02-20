@@ -31,7 +31,7 @@ setup() {
 PREFERRED_CHAIN="${PREFERRED_CHAIN}"
 EOF
 
-    create_certificate -d
+    create_certificate
     assert_success
     check_output_for_errors
 
