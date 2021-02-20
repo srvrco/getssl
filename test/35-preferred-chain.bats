@@ -18,7 +18,7 @@ setup() {
         PREFERRED_CHAIN="\(STAGING\) Pretend Pear X1"
         CHECK_CHAIN="(STAGING) Pretend Pear X1"
     else
-        PREFERRED_CHAIN=$(curl --silent https://pebble:15000/roots/2 | openssl x509 -text -noout | grep "Issuer:" | awk -F"CN=" '{ print $2 }')
+        PREFERRED_CHAIN=$(curl --silent https://pebble:15000/roots/2 | openssl x509 -text -noout | grep "Issuer:" | awk -F"CN *= *" '{ print $2 }')
         PREFERRED_CHAIN="${PREFERRED_CHAIN# }" # remove leading whitespace
         CHECK_CHAIN=$PREFERRED_CHAIN
     fi
@@ -51,8 +51,9 @@ EOF
         PREFERRED_CHAIN="\(STAGING\) Doctored Durian Root CA X3"
         CHECK_CHAIN="(STAGING) Doctored Durian Root CA X3"
     else
-        PREFERRED_CHAIN=$(curl --silent https://pebble:15000/roots/0 | openssl x509 -text -noout | grep Issuer: | awk -F"CN=" '{ print $2 }')
+        PREFERRED_CHAIN=$(curl --silent https://pebble:15000/roots/0 | openssl x509 -text -noout | grep Issuer: | awk -F"CN *= *" '{ print $2 }')
         PREFERRED_CHAIN="${PREFERRED_CHAIN# }" # remove leading whitespace
+        CHECK_CHAIN=$PREFERRED_CHAIN
     fi
 
     CONFIG_FILE="getssl-dns01.cfg"
@@ -81,7 +82,7 @@ EOF
     if [ -n "$STAGING" ]; then
         FULL_PREFERRED_CHAIN="(STAGING) Pretend Pear X1"
     else
-        FULL_PREFERRED_CHAIN=$(curl --silent https://pebble:15000/roots/2 | openssl x509 -text -noout | grep "Issuer:" | awk -F"CN=" '{ print $2 }')
+        FULL_PREFERRED_CHAIN=$(curl --silent https://pebble:15000/roots/2 | openssl x509 -text -noout | grep "Issuer:" | awk -F"CN *= *" '{ print $2 }')
         FULL_PREFERRED_CHAIN="${FULL_PREFERRED_CHAIN# }" # remove leading whitespace
     fi
 
