@@ -1582,7 +1582,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
       cp "$gc_fullchain" "$cert_to_check"
       i=0
       while [[ $i -le ${#alternate_links[@]} ]]; do
-        cert_issuer=$(openssl crl2pkcs7 -nocrl -certfile "$cert_to_check" | openssl pkcs7 -print_certs -text -noout | grep 'Issuer:' | tail -1 | cut -d= -f2)
+        cert_issuer=$(openssl crl2pkcs7 -nocrl -certfile "$cert_to_check" | openssl pkcs7 -print_certs -text -noout | grep 'Issuer:' | tail -1 | awk -F"CN=" '{ print $2 }')
         debug Certificate issued by "$cert_issuer"
         if [[ $cert_issuer = *${PREFERRED_CHAIN}* ]]; then
           debug "Found required certificate"
@@ -2400,9 +2400,10 @@ write_domain_template() { # write out a template file for a domain.
 		#USE_SINGLE_ACL="false"
 
     # Preferred Chain - use an different certificate root from the default
-    # Staging options are: "Fake LE Root X1" and "Fake LE Root X2"
+    # This uses wildcard matching so requesting "X1" returns the correct certificate - may need to escape characters
+    # Staging options are: "(STAGING) Doctored Durian Root CA X3" and "(STAGING) Pretend Pear X1"
     # Production options are: "ISRG Root X1" and "ISRG Root X2"
-    #PREFERRED_CHAIN=""
+    #PREFERRED_CHAIN="\(STAGING\) Pretend Pear X1"
 
     # Uncomment this if you need the full chain file to include the root certificate (Java keystores, Nutanix Prism)
     #FULL_CHAIN_INCLUDE_ROOT="true"
@@ -2462,9 +2463,10 @@ write_getssl_template() { # write out the main template file
 	#REUSE_PRIVATE_KEY="true"
 
   # Preferred Chain - use an different certificate root from the default
-  # Staging options are: "Fake LE Root X1" and "Fake LE Root X2"
+  # This uses wildcard matching so requesting "X1" returns the correct certificate - may need to escape characters
+  # Staging options are: "(STAGING) Doctored Durian Root CA X3" and "(STAGING) Pretend Pear X1"
   # Production options are: "ISRG Root X1" and "ISRG Root X2"
-  #PREFERRED_CHAIN=""
+  #PREFERRED_CHAIN="\(STAGING\) Pretend Pear X1"
 
   # Uncomment this if you need the full chain file to include the root certificate (Java keystores, Nutanix Prism)
   #FULL_CHAIN_INCLUDE_ROOT="true"

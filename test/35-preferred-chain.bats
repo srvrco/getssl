@@ -15,10 +15,12 @@ setup() {
 
 @test "Use PREFERRED_CHAIN to select an alternate root" {
     if [ -n "$STAGING" ]; then
-        PREFERRED_CHAIN="Fake LE Root X2"
+        PREFERRED_CHAIN="\(STAGING\) Pretend Pear X1"
+        CHECK_CHAIN="(STAGING) Pretend Pear X1"
     else
-        PREFERRED_CHAIN=$(curl --silent https://pebble:15000/roots/2 | openssl x509 -text -noout | grep "Issuer:" | cut -d= -f2)
+        PREFERRED_CHAIN=$(curl --silent https://pebble:15000/roots/2 | openssl x509 -text -noout | grep "Issuer:" | awk -F"CN=" '{ print $2 }')
         PREFERRED_CHAIN="${PREFERRED_CHAIN# }" # remove leading whitespace
+        CHECK_CHAIN=$PREFERRED_CHAIN
     fi
 
     CONFIG_FILE="getssl-dns01.cfg"
@@ -29,21 +31,27 @@ setup() {
 PREFERRED_CHAIN="${PREFERRED_CHAIN}"
 EOF
 
-    create_certificate
+    create_certificate -d
     assert_success
     check_output_for_errors
 
-    issuer=$(openssl crl2pkcs7 -nocrl -certfile "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" | openssl pkcs7 -print_certs -text -noout | grep Issuer: | tail -1 | cut -d= -f2)
+    issuer=$(openssl crl2pkcs7 -nocrl -certfile "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" | openssl pkcs7 -print_certs -text -noout | grep Issuer: | tail -1 | awk -F"CN=" '{ print $2 }')
     # verify certificate is issued by preferred chain root
-    [ "$PREFERRED_CHAIN" = "$issuer" ]
+    if [[ "${CHECK_CHAIN}" != "$issuer" ]]; then
+        echo "# PREFERRED_CHAIN=$PREFERRED_CHAIN"
+        echo "# issuer=$issuer"
+    fi
+
+    [ "${CHECK_CHAIN}" = "$issuer" ]
 }
 
 
 @test "Use PREFERRED_CHAIN to select the default root" {
     if [ -n "$STAGING" ]; then
-        PREFERRED_CHAIN="Fake LE Root X1"
+        PREFERRED_CHAIN="\(STAGING\) Doctored Durian Root CA X3"
+        CHECK_CHAIN="(STAGING) Doctored Durian Root CA X3"
     else
-        PREFERRED_CHAIN=$(curl --silent https://pebble:15000/roots/0 | openssl x509 -text -noout | grep Issuer: | cut -d= -f2 )
+        PREFERRED_CHAIN=$(curl --silent https://pebble:15000/roots/0 | openssl x509 -text -noout | grep Issuer: | awk -F"CN=" '{ print $2 }')
         PREFERRED_CHAIN="${PREFERRED_CHAIN# }" # remove leading whitespace
     fi
 
@@ -59,17 +67,21 @@ EOF
     assert_success
     check_output_for_errors
 
-    issuer=$(openssl crl2pkcs7 -nocrl -certfile "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" | openssl pkcs7 -print_certs -text -noout | grep Issuer: | tail -1 | cut -d= -f2)
+    issuer=$(openssl crl2pkcs7 -nocrl -certfile "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" | openssl pkcs7 -print_certs -text -noout | grep Issuer: | tail -1 | awk -F"CN=" '{ print $2 }')
     # verify certificate is issued by preferred chain root
-    [ "$PREFERRED_CHAIN" = "$issuer" ]
+    if [[ "${CHECK_CHAIN}" != "$issuer" ]]; then
+        echo "# PREFERRED_CHAIN=$PREFERRED_CHAIN"
+        echo "# issuer=$issuer"
+    fi
+    [ "${CHECK_CHAIN}" = "$issuer" ]
 }
 
 
 @test "Use PREFERRED_CHAIN to select an alternate root by suffix" {
     if [ -n "$STAGING" ]; then
-        FULL_PREFERRED_CHAIN="Fake LE Root X2"
+        FULL_PREFERRED_CHAIN="(STAGING) Pretend Pear X1"
     else
-        FULL_PREFERRED_CHAIN=$(curl --silent https://pebble:15000/roots/2 | openssl x509 -text -noout | grep "Issuer:" | cut -d= -f2)
+        FULL_PREFERRED_CHAIN=$(curl --silent https://pebble:15000/roots/2 | openssl x509 -text -noout | grep "Issuer:" | awk -F"CN=" '{ print $2 }')
         FULL_PREFERRED_CHAIN="${FULL_PREFERRED_CHAIN# }" # remove leading whitespace
     fi
 
@@ -87,9 +99,12 @@ EOF
     assert_success
     check_output_for_errors
 
-    issuer=$(openssl crl2pkcs7 -nocrl -certfile "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" | openssl pkcs7 -print_certs -text -noout | grep Issuer: | tail -1 | cut -d= -f2)
+    issuer=$(openssl crl2pkcs7 -nocrl -certfile "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" | openssl pkcs7 -print_certs -text -noout | grep Issuer: | tail -1 | awk -F"CN=" '{ print $2 }')
     # verify certificate is issued by preferred chain root
-    echo "# ${issuer}"
-    echo "# ${FULL_PREFERRED_CHAIN}"
-    [ "$FULL_PREFERRED_CHAIN" = "$issuer" ]
+    if [[ "${FULL_PREFERRED_CHAIN}" != "$issuer" ]]; then
+        echo "# PREFERRED_CHAIN=$PREFERRED_CHAIN"
+        echo "# FULL_PREFERRED_CHAIN=$FULL_PREFERRED_CHAIN"
+        echo "# issuer=$issuer"
+    fi
+    [ "${FULL_PREFERRED_CHAIN}" = "$issuer" ]
 }
