@@ -256,7 +256,8 @@
 # 2021-02-07 Allow -u --upgrade without any domain, so that one can only update the script (Benno-K)(2.34)
 # 2021-02-09 Prevent listing the complete file if version tag missing (#637)(softins)
 # 2021-02-12 Add PREFERRED_CHAIN
-# 2021-02-15 ADD ftp explicit SSL with curl for upload the challenge
+# 2021-02-15 ADD ftp explicit SSL with curl for upload the challenge (CoolMischa)
+# 2021-02-18 Add FULL_CHAIN_INCLUDE_ROOT
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -283,6 +284,7 @@ DEFAULT_REVOKE_CA="https://acme-v02.api.letsencrypt.org"
 DOMAIN_KEY_LENGTH=4096
 DUAL_RSA_ECDSA="false"
 FTP_OPTIONS=""
+FULL_CHAIN_INCLUDE_ROOT="false"
 GETSSL_IGNORE_CP_PRESERVE="false"
 HTTP_TOKEN_CHECK_WAIT=0
 IGNORE_DIRECTORY_DOMAIN="false"
@@ -300,7 +302,7 @@ OCSP_MUST_STAPLE="false"
 TEMP_UPGRADE_FILE=""
 TOKEN_USER_ID=""
 USE_SINGLE_ACL="false"
-WORKING_DIR_CANDIDATES=("/etc/getssl/" "${PROGDIR}/conf" "${PROGDIR}/.getssl" "${HOME}/.getssl")
+WORKING_DIR_CANDIDATES=("/etc/getssl" "${PROGDIR}/conf" "${PROGDIR}/.getssl" "${HOME}/.getssl")
 
 # Variables used when validating using a DNS entry
 VALIDATE_VIA_DNS=""             # Set this to "true" to enable DNS validation
@@ -1580,7 +1582,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
       cp "$gc_fullchain" "$cert_to_check"
       i=0
       while [[ $i -le ${#alternate_links[@]} ]]; do
-        cert_issuer=$(openssl crl2pkcs7 -nocrl -certfile "$cert_to_check" | openssl pkcs7 -print_certs -text -noout | grep 'Issuer:' | tail -1 | cut -d= -f2)
+        cert_issuer=$(openssl crl2pkcs7 -nocrl -certfile "$cert_to_check" | openssl pkcs7 -print_certs -text -noout | grep 'Issuer:' | tail -1 | awk -F"CN=" '{ print $2 }')
         debug Certificate issued by "$cert_issuer"
         if [[ $cert_issuer = *${PREFERRED_CHAIN}* ]]; then
           debug "Found required certificate"
@@ -1598,7 +1600,27 @@ get_certificate() { # get certificate for csr, if all domains validated.
       # tidy up
       rm -f "$cert_to_check"
     fi
+
     awk -v CERT_FILE="$gc_certfile" -v CA_CERT="$gc_cafile" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$gc_fullchain"
+    if [[ "$FULL_CHAIN_INCLUDE_ROOT" = "true" ]]; then
+      # Some of the code below was copied from zakjan/cert-chain-resolver
+
+      # Download the certificate for the issuer using the "CA Issuers" attribute from the AIA x509 extension
+      issuer_url=$(openssl x509 -inform pem -noout -text -in "$gc_certfile" | awk 'BEGIN {FS="CA Issuers - URI:"} NF==2 {print $2; exit}')
+      debug Issuer for "$gc_certfile" is "$issuer_url"
+
+      # Keep downloading issuer certficates until we find the root certificate (which doesn't have a "CA Issuers" attribure)
+      cp "$gc_certfile" "$gc_fullchain"
+      while [[ -n "$issuer_url" ]]; do
+        debug Fetching certificate issuer from "$issuer_url"
+        issuer_cert=$(curl --user-agent "$CURL_USERAGENT" --silent "$issuer_url" | openssl x509 -inform der -outform pem)
+        debug Fetched issuer certificate "$(echo "$issuer_cert" | openssl x509 -inform pem -noout -text | awk 'BEGIN {FS="Subject: "} NF==2 {print $2; exit}')"
+        echo "$issuer_cert" >> "$gc_fullchain"
+
+        # get issuer for the certificate that's just been downloaded
+        issuer_url=$(echo "$issuer_cert" | openssl x509 -inform pem -noout -text | awk 'BEGIN {FS="CA Issuers - URI:"} NF==2 {print $2; exit}')
+      done
+    fi
     info "Certificate saved in $gc_certfile"
   fi
 }
@@ -2378,9 +2400,13 @@ write_domain_template() { # write out a template file for a domain.
 		#USE_SINGLE_ACL="false"
 
     # Preferred Chain - use an different certificate root from the default
-    # Staging options are: "Fake LE Root X1" and "Fake LE Root X2"
+    # This uses wildcard matching so requesting "X1" returns the correct certificate - may need to escape characters
+    # Staging options are: "(STAGING) Doctored Durian Root CA X3" and "(STAGING) Pretend Pear X1"
     # Production options are: "ISRG Root X1" and "ISRG Root X2"
-    #PREFERRED_CHAIN=""
+    #PREFERRED_CHAIN="\(STAGING\) Pretend Pear X1"
+
+    # Uncomment this if you need the full chain file to include the root certificate (Java keystores, Nutanix Prism)
+    #FULL_CHAIN_INCLUDE_ROOT="true"
 
 		# Location for all your certs, these can either be on the server (full path name)
 		# or using ssh /sftp as for the ACL
@@ -2437,9 +2463,13 @@ write_getssl_template() { # write out the main template file
 	#REUSE_PRIVATE_KEY="true"
 
   # Preferred Chain - use an different certificate root from the default
-  # Staging options are: "Fake LE Root X1" and "Fake LE Root X2"
+  # This uses wildcard matching so requesting "X1" returns the correct certificate - may need to escape characters
+  # Staging options are: "(STAGING) Doctored Durian Root CA X3" and "(STAGING) Pretend Pear X1"
   # Production options are: "ISRG Root X1" and "ISRG Root X2"
-  #PREFERRED_CHAIN=""
+  #PREFERRED_CHAIN="\(STAGING\) Pretend Pear X1"
+
+  # Uncomment this if you need the full chain file to include the root certificate (Java keystores, Nutanix Prism)
+  #FULL_CHAIN_INCLUDE_ROOT="true"
 
 	# The command needed to reload apache / nginx or whatever you use.
 	# Several (ssh) commands may be given using a bash array:

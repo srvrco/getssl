@@ -50,11 +50,6 @@ setup() {
     CONFIG_FILE="getssl-dns01-spaces-sans-and-ignore-dir-domain.cfg"
     setup_environment
 
-    # Add hosts to DNS (also need to be added as aliases in docker-compose.yml)
-    for prefix in a b c; do
-        curl --silent -X POST -d '{"host":"'$prefix.$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
-    done
-
     init_getssl
     create_certificate
     assert_success
@@ -70,10 +65,6 @@ setup() {
     assert_success
     check_output_for_errors
     cleanup_environment
-
-    for prefix in a b c; do
-        curl --silent -X POST -d '{"host":"'$prefix.$GETSSL_HOST'"}' http://10.30.50.3:8055/clear-a
-    done
 }
 
 
@@ -84,13 +75,13 @@ setup() {
     CONFIG_FILE="getssl-dns01-spaces-and-commas-sans.cfg"
     setup_environment
 
-    # Add hosts to DNS (also need to be added as aliases in docker-compose.yml)
-    for prefix in a b c; do
-        curl --silent -X POST -d '{"host":"'$prefix.$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
-    done
-
     init_getssl
     create_certificate
     assert_success
     check_output_for_errors
+    cleanup_environment
+
+    for prefix in a b c; do
+        curl --silent -X POST -d '{"host":"'$prefix.$GETSSL_HOST'"}' http://10.30.50.3:8055/clear-a
+    done
 }
