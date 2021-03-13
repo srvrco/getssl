@@ -2073,16 +2073,18 @@ revoke_certificate() { # revoke a certificate
 }
 
 requires() { # check if required function is available
+  args=("${@}")
+  lastarg=${args[${#args[@]}-1]}
   if [[ "$#" -gt 1 ]]; then # if more than 1 value, check list
     for i in "$@"; do
-      if [[ "$i" == "${!#}" ]]; then # if on last variable then exit as not found
+      if [[ "$i" == "$lastarg" ]]; then # if on last variable then exit as not found
         error_exit "this script requires one of: ${*:1:$(($#-1))}"
       fi
       res=$(command -v "$i" 2>/dev/null)
       debug "checking for $i ... $res"
       if [[ -n "$res" ]]; then # if function found, then set variable to function and return
-        debug "function $i found at $res  - setting ${!#} to $i"
-        eval "${!#}=\$i"
+        debug "function $i found at $res  - setting ${lastarg} to $i"
+        eval "${lastarg}=\$i"
         return
       fi
     done
