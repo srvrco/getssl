@@ -17,7 +17,7 @@ for automating the process on remote servers.
 - [Revoke a certificate](#revoke-a-certificate)
 - [Elliptic curve keys](#elliptic-curve-keys)
 - [Preferred Chain](#preferred-chain)
-- [Full chain](#full-chain)
+- [Include Root certificate in full chain](#include-root-certificate-in-full-chain)
 - [Issues / problems / help](#issues--problems--help)
 
 ## Features
@@ -395,7 +395,7 @@ any characters which special characters, e.g.
 * Staging options are: "(STAGING) Doctored Durian Root CA X3" and "(STAGING) Pretend Pear X1"
 * Production options are: "ISRG Root X1" and "ISRG Root X2"
 
-## Full chain
+## Include Root certificate in full chain
 
 Some servers, including those that use Java keystores, will not accept a server certificate if it cannot valid the full chain of signers.
 
