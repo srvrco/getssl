@@ -2401,14 +2401,14 @@ write_domain_template() { # write out a template file for a domain.
 		# Set USE_SINGLE_ACL="true" to use a single ACL for all checks
 		#USE_SINGLE_ACL="false"
 
-    # Preferred Chain - use an different certificate root from the default
-    # This uses wildcard matching so requesting "X1" returns the correct certificate - may need to escape characters
-    # Staging options are: "(STAGING) Doctored Durian Root CA X3" and "(STAGING) Pretend Pear X1"
-    # Production options are: "ISRG Root X1" and "ISRG Root X2"
-    #PREFERRED_CHAIN="\(STAGING\) Pretend Pear X1"
+		# Preferred Chain - use an different certificate root from the default
+		# This uses wildcard matching so requesting "X1" returns the correct certificate - may need to escape characters
+		# Staging options are: "(STAGING) Doctored Durian Root CA X3" and "(STAGING) Pretend Pear X1"
+		# Production options are: "ISRG Root X1" and "ISRG Root X2"
+		#PREFERRED_CHAIN="\(STAGING\) Pretend Pear X1"
 
-    # Uncomment this if you need the full chain file to include the root certificate (Java keystores, Nutanix Prism)
-    #FULL_CHAIN_INCLUDE_ROOT="true"
+		# Uncomment this if you need the full chain file to include the root certificate (Java keystores, Nutanix Prism)
+		#FULL_CHAIN_INCLUDE_ROOT="true"
 
 		# Location for all your certs, these can either be on the server (full path name)
 		# or using ssh /sftp as for the ACL
@@ -2464,14 +2464,14 @@ write_getssl_template() { # write out the main template file
 	PRIVATE_KEY_ALG="rsa"
 	#REUSE_PRIVATE_KEY="true"
 
-  # Preferred Chain - use an different certificate root from the default
-  # This uses wildcard matching so requesting "X1" returns the correct certificate - may need to escape characters
-  # Staging options are: "(STAGING) Doctored Durian Root CA X3" and "(STAGING) Pretend Pear X1"
-  # Production options are: "ISRG Root X1" and "ISRG Root X2"
-  #PREFERRED_CHAIN="\(STAGING\) Pretend Pear X1"
+	# Preferred Chain - use an different certificate root from the default
+	# This uses wildcard matching so requesting "X1" returns the correct certificate - may need to escape characters
+	# Staging options are: "(STAGING) Doctored Durian Root CA X3" and "(STAGING) Pretend Pear X1"
+	# Production options are: "ISRG Root X1" and "ISRG Root X2"
+	#PREFERRED_CHAIN="\(STAGING\) Pretend Pear X1"
 
-  # Uncomment this if you need the full chain file to include the root certificate (Java keystores, Nutanix Prism)
-  #FULL_CHAIN_INCLUDE_ROOT="true"
+	# Uncomment this if you need the full chain file to include the root certificate (Java keystores, Nutanix Prism)
+	#FULL_CHAIN_INCLUDE_ROOT="true"
 
 	# The command needed to reload apache / nginx or whatever you use.
 	# Several (ssh) commands may be given using a bash array:
@@ -2857,7 +2857,7 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
     else
       # check if the certificate is for the right domain
       EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -text \
-        | sed -n -e 's/^ *Subject: .* CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' \
+        | sed -n -e 's/^ *Subject: .*CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' \
         | sort -u | grep "^$DOMAIN\$")
       if [[ "$EX_CERT_DOMAIN" == "$DOMAIN" ]]; then
         # check renew-date on ex_cert and compare to local ( if local exists)
@@ -2901,7 +2901,11 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
           reload_service
         fi
       else
-        info "${DOMAIN}: Certificate on remote domain does not match, ignoring remote certificate"
+        # Get the domain from the existing certificate for the error message
+        EX_CERT_DOMAIN=$(echo "$EX_CERT" | openssl x509 -text \
+          | sed -n -e 's/^ *Subject: .*CN=\([A-Za-z0-9.-]*\).*$/\1/p; /^ *DNS:.../ { s/ *DNS://g; y/,/\n/; p; }' \
+          | sort -u | head -1)
+        info "${DOMAIN}: Certificate on remote domain does not match, ignoring remote certificate ($EX_CERT_DOMAIN != $real_d)"
       fi
     fi
   else
