@@ -37,4 +37,4 @@ fi
 export GODADDY_KEY
 export GODADDY_SECRET
 
-$GODADDY_SCRIPT -q add "${fulldomain}" "_acme-challenge.${fulldomain}." "${token}"
+$GODADDY_SCRIPT -q add "${fulldomain}" "_acme-challenge" "${token}"
