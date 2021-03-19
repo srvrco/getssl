@@ -155,7 +155,6 @@ if [ -z "$name" ]; then
     echo "'name' parameter is required, see -h" >&2
     exit 3
 fi
-! [[ "$name" =~ [.]$ ]] && name="${name}.${domain}."
 data="$4"
 if [ -z "$data" ]; then
     echo "'data' parameter is required, see -h" >&2
@@ -209,7 +208,7 @@ if [ "$op" = "add" ]; then
 
         url="$API/$domain/records/TXT/$name"
 
-        request='{"data":"'$data'","ttl":'$ttl'}'
+        request='[{"data":"'$data'","ttl":'$ttl'}]'
         [ -n "$DEBUG" ] && cat >&2 <<EOF
 Add request to: $url
 --------
@@ -337,7 +336,7 @@ EOF
 
 eval 'name="$''{name%'"'.$domain.'}"'"'
 
-match="$(printf '"name":"%s","data":"%s","ttl":' "$name" "$data")"
+match="$(printf '"data":"%s","name":"%s","ttl":' "$data" "$name")"
 cmd="$(printf 'echo %s%s%s | grep -v %s%s%s' "'" "$current" "'" "'" "$match" "'")"
 eval 'new="$('"$cmd"')"'
 
