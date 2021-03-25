@@ -573,20 +573,18 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
           ntries=$(( ntries + 1 ))
 
           if [[ $DNS_WAIT_RETRY_ADD == "true" && $(( ntries % 10 )) == 0 ]]; then
-            debug "Retrying adding dns via command: $DNS_ADD_COMMAND $lower_d $auth_key"
-            test_output "Retrying adding dns via command: $DNS_ADD_COMMAND"
-            eval "$DNS_DEL_COMMAND" "$lower_d" "$auth_key"
-            if ! eval "$DNS_ADD_COMMAND" "$lower_d" "$auth_key" ; then
-              error_exit "DNS_ADD_COMMAND failed for domain $d"
-            fi
-
+            test_output "Deleting DNS RR via command: ${DNS_DEL_COMMAND}"
+            del_dns_rr "${lower_d}" "${auth_key}"
+            test_output "Retrying adding DNS via command: ${DNS_ADD_COMMAND}"
+            add_dns_rr "${lower_d}" "${auth_key}" \
+              || error_exit "DNS_ADD_COMMAND failed for domain ${d}"
           fi
           info "checking DNS at ${ns} for ${lower_d}. Attempt $ntries/${DNS_WAIT_COUNT} gave wrong result, "\
             "waiting $DNS_WAIT secs before checking again"
           sleep $DNS_WAIT
         else
           debug "dns check failed - removing existing value"
-          eval "$DNS_DEL_COMMAND" "$lower_d" "$auth_key"
+          del_dns_rr "${lower_d}" "${auth_key}"
 
           error_exit "checking _acme-challenge.${lower_d} gave $check_result not $auth_key"
         fi
@@ -601,10 +599,7 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
 
   check_challenge_completion "$uri" "$d" "$keyauthorization"
 
-  debug "remove DNS entry"
-  # shellcheck disable=SC2018,SC2019
-  lower_d=$(echo "${d##\*.}" | tr A-Z a-z)
-  eval "$DNS_DEL_COMMAND" "$lower_d" "$auth_key"
+  del_dns_rr "${d}" "${auth_key}"
 }
 # end of ... perform validation if via DNS challenge
 
@@ -807,7 +802,7 @@ clean_up() { # Perform pre-exit housekeeping
       # shellcheck source=/dev/null
       . "$dnsfile"
       debug "attempting to clean up DNS entry for $d"
-      eval "$DNS_DEL_COMMAND" "${d##\*.}" "$auth_key"
+      del_dns_rr "${d}" "${auth_key}"
     done
     shopt -u nullglob
   fi
@@ -1171,6 +1166,26 @@ find_ftp_command() {
 }
 
 
+add_dns_rr() {
+  d=${1}
+  auth_key=${2}
+
+  # shellcheck disable=SC2018,SC2019
+  lower_d=$(printf '%s' "${d#\*.}" | tr 'A-Z' 'a-z')
+  debug "adding DNS RR via command: ${DNS_ADD_COMMAND} ${lower_d} ${auth_key}"
+  eval "${DNS_ADD_COMMAND}" "${lower_d}" "${auth_key}"
+}
+
+del_dns_rr() {
+  d=${1}
+  auth_key=${2}
+
+  # shellcheck disable=SC2018,SC2019
+  lower_d=$(printf '%s' "${d#\*.}" | tr 'A-Z' 'a-z')
+  debug "removing DNS RR via command: ${DNS_DEL_COMMAND} ${lower_d} ${auth_key}"
+  eval "${DNS_DEL_COMMAND}" "${lower_d}" "${auth_key}"
+}
+
 fulfill_challenges() {
 dn=0
 for d in "${alldomains[@]}"; do
@@ -1236,12 +1251,8 @@ for d in "${alldomains[@]}"; do
         | sed -e 's:=*$::g' -e 'y:+/:-_:')
       debug auth_key "$auth_key"
 
-      # shellcheck disable=SC2018,SC2019
-      lower_d=$(echo "${d##\*.}" | tr A-Z a-z)
-      debug "adding dns via command: $DNS_ADD_COMMAND $lower_d $auth_key"
-      if ! eval "$DNS_ADD_COMMAND" "$lower_d" "$auth_key" ; then
-        error_exit "DNS_ADD_COMMAND failed for domain $d"
-      fi
+      add_dns_rr "${d}" "${auth_key}" \
+        || error_exit "DNS_ADD_COMMAND failed for domain $d"
 
       # find a primary / authoritative DNS server for the domain
       if [[ -z "$AUTH_DNS_SERVER" ]]; then
