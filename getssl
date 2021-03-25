@@ -518,48 +518,42 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 }
 
 check_challenge_completion_dns() { # perform validation via DNS challenge
-  token=$1
-  uri=$2
-  keyauthorization=$3
-  d=$4
-  primary_ns=$5
-  auth_key=$6
-
-  # Always use lowercase domain name when querying DNS servers
-  # shellcheck disable=SC2018,SC2019
-  lower_d=$(echo "${d##\*.}" | tr A-Z a-z)
+  d=${1}
+  rr=${2}
+  primary_ns=${3}
+  auth_key=${4}
 
   # check for token at public dns server, waiting for a valid response.
   for ns in $primary_ns; do
-    info "checking dns at $ns"
+    info "checking DNS at $ns"
     ntries=0
     check_dns="fail"
     while [[ "$check_dns" == "fail" ]]; do
       if [[ "$os" == "cygwin" ]]; then
-        check_result=$(nslookup -type=txt "_acme-challenge.${lower_d}" "${ns}" \
+        check_result=$(nslookup -type=txt "${rr}" "${ns}" \
                       | grep ^_acme -A2\
                       | grep '"'|awk -F'"' '{ print $2}')
       elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-        debug "$DNS_CHECK_FUNC" TXT "_acme-challenge.${lower_d}" "@${ns}"
-        check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${lower_d}" "@${ns}" \
-                      | grep -i "^_acme-challenge.${lower_d}" \
+        debug "$DNS_CHECK_FUNC" TXT "${rr}" "@${ns}"
+        check_result=$($DNS_CHECK_FUNC TXT "${rr}" "@${ns}" \
+                      | grep -i "^${rr}" \
                       | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
         debug "check_result=$check_result"
         if [[ -z "$check_result" ]]; then
-          debug "$DNS_CHECK_FUNC" ANY "_acme-challenge.${lower_d}" "@${ns}"
-          check_result=$($DNS_CHECK_FUNC ANY "_acme-challenge.${lower_d}" "@${ns}" \
-                      | grep -i "^_acme-challenge.${lower_d}" \
+          debug "$DNS_CHECK_FUNC" ANY "${rr}" "@${ns}"
+          check_result=$($DNS_CHECK_FUNC ANY "${rr}" "@${ns}" \
+                      | grep -i "^${rr}" \
                       | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
           debug "check_result=$check_result"
         fi
       elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
-        check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${lower_d}" "${ns}" \
+        check_result=$($DNS_CHECK_FUNC -t TXT "${rr}" "${ns}" \
                       | grep 'descriptive text'|awk -F'"' '{ print $2}')
       else
-        check_result=$(nslookup -type=txt "_acme-challenge.${lower_d}" "${ns}" \
+        check_result=$(nslookup -type=txt "${rr}" "${ns}" \
                       | grep 'text ='|awk -F'"' '{ print $2}')
         if [[ -z "$check_result" ]]; then
-          check_result=$(nslookup -type=any "_acme-challenge.${lower_d}" "${ns}" \
+          check_result=$(nslookup -type=any "${rr}" "${ns}" \
                       | grep 'text ='|awk -F'"' '{ print $2}')
         fi
       fi
@@ -574,19 +568,19 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
 
           if [[ $DNS_WAIT_RETRY_ADD == "true" && $(( ntries % 10 )) == 0 ]]; then
             test_output "Deleting DNS RR via command: ${DNS_DEL_COMMAND}"
-            del_dns_rr "${lower_d}" "${auth_key}"
+            del_dns_rr "${d}" "${auth_key}"
             test_output "Retrying adding DNS via command: ${DNS_ADD_COMMAND}"
-            add_dns_rr "${lower_d}" "${auth_key}" \
+            add_dns_rr "${d}" "${auth_key}" \
               || error_exit "DNS_ADD_COMMAND failed for domain ${d}"
           fi
-          info "checking DNS at ${ns} for ${lower_d}. Attempt $ntries/${DNS_WAIT_COUNT} gave wrong result, "\
+          info "checking DNS at ${ns} for ${rr}. Attempt $ntries/${DNS_WAIT_COUNT} gave wrong result, "\
             "waiting $DNS_WAIT secs before checking again"
           sleep $DNS_WAIT
         else
           debug "dns check failed - removing existing value"
-          del_dns_rr "${lower_d}" "${auth_key}"
+          del_dns_rr "${d}" "${auth_key}"
 
-          error_exit "checking _acme-challenge.${lower_d} gave $check_result not $auth_key"
+          error_exit "checking ${rr} gave $check_result not $auth_key"
         fi
       fi
     done
@@ -596,10 +590,6 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
     info "sleeping $DNS_EXTRA_WAIT seconds before asking the ACME server to check the dns"
     sleep "$DNS_EXTRA_WAIT"
   fi
-
-  check_challenge_completion "$uri" "$d" "$keyauthorization"
-
-  del_dns_rr "${d}" "${auth_key}"
 }
 # end of ... perform validation if via DNS challenge
 
@@ -1256,7 +1246,12 @@ for d in "${alldomains[@]}"; do
 
       # find a primary / authoritative DNS server for the domain
       if [[ -z "$AUTH_DNS_SERVER" ]]; then
-        get_auth_dns "$d"
+        # shellcheck disable=SC2018,SC2019
+        rr="_acme-challenge.$(printf '%s' "${d#\*.}" | tr 'A-Z' 'a-z')"
+        get_auth_dns "${rr}"
+        if test -n "${cname}"; then
+          rr=${cname}
+        fi
       elif [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
         primary_ns="$AUTH_DNS_SERVER $PUBLIC_DNS_SERVER"
       else
@@ -1264,7 +1259,13 @@ for d in "${alldomains[@]}"; do
       fi
       debug set primary_ns = "$primary_ns"
 
-      check_challenge_completion_dns "${token}" "${uri}" "${keyauthorization}" "${d}" "${primary_ns}" "${auth_key}"
+      # internal check
+      check_challenge_completion_dns "${d}" "${rr}" "${primary_ns}" "${auth_key}"
+
+      # let Let's Encrypt check
+      check_challenge_completion "${uri}" "${d}" "${keyauthorization}"
+
+      del_dns_rr "${d}" "${auth_key}"
     else      # set up the correct http token for verification
       if [[ $API -eq 1 ]]; then
         # get the token from the http component
