@@ -1378,6 +1378,27 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
       gad_s="@$gad_s"
     fi
 
+    # Check if domain is a CNAME, first
+    test_output "Using $HAS_DIG_OR_DRILL CNAME"
+
+    # Two options here; either dig CNAME will return the CNAME and the NS or just the CNAME
+    debug Checking for CNAME using "$HAS_DIG_OR_DRILL CNAME $gad_d $gad_s"
+    res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" $gad_s| grep "^$gad_d")
+    cname=$(echo "$res"| awk '$4 ~ "CNAME" {print $5}' |sed 's/\.$//g')
+
+    if [[ $_TEST_SKIP_CNAME_CALL == 0 ]]; then
+      debug Checking if CNAME result contains NS records
+      res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" $gad_s| grep -E "IN\W(NS|SOA)\W")
+    else
+      res=
+    fi
+
+    if [[ -n "${cname}" ]]; then
+      # domain is a CNAME: resolve it and continue with that
+      debug Domain is a CNAME, actual domain is "$cname"
+      gad_d=${cname}
+    fi
+
     # Use SOA +trace to find the name server
     if [[ $_TEST_SKIP_SOA_CALL == 0 ]]; then
       if [[ "$HAS_DIG_OR_DRILL" == "drill" ]]; then
@@ -1388,27 +1409,6 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         debug Using "$HAS_DIG_OR_DRILL SOA +trace +nocomments $gad_d $gad_s" to find primary nameserver
         test_output "Using $HAS_DIG_OR_DRILL SOA"
         res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
-      fi
-    fi
-
-    # Check if domain is a CNAME
-    if [[ -z "$res" ]]; then
-      test_output "Using $HAS_DIG_OR_DRILL CNAME"
-
-      # Two options here; either dig CNAME will return the CNAME and the NS or just the CNAME
-      debug Checking for CNAME using "$HAS_DIG_OR_DRILL CNAME $gad_d $gad_s"
-      res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" $gad_s| grep "^$gad_d")
-      cname=$(echo "$res"| awk '$4 ~ "CNAME" {print $5}' |sed 's/\.$//g')
-
-      if [[ $_TEST_SKIP_CNAME_CALL == 0 ]]; then
-        debug Checking if CNAME result contains NS records
-        res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" $gad_s| grep -E "IN\W(NS|SOA)\W")
-      else
-        res=""
-      fi
-
-      if [[ -n "$cname" ]]; then # domain is a CNAME so get main domain
-        debug Domain is a CNAME, actual domain is "$cname"
       fi
     fi
 
