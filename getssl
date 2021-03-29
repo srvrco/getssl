@@ -258,6 +258,7 @@
 # 2021-02-12 Add PREFERRED_CHAIN
 # 2021-02-15 ADD ftp explicit SSL with curl for upload the challenge (CoolMischa)
 # 2021-02-18 Add FULL_CHAIN_INCLUDE_ROOT
+# 2021-03-25 Fix DNS challenge completion check if CNAMEs on different NS are used (sideeffect42)(2.35)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -266,7 +267,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.34"
+VERSION="2.35"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
