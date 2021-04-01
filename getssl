@@ -258,6 +258,7 @@
 # 2021-02-12 Add PREFERRED_CHAIN
 # 2021-02-15 ADD ftp explicit SSL with curl for upload the challenge (CoolMischa)
 # 2021-02-18 Add FULL_CHAIN_INCLUDE_ROOT
+# 2021-03-25 Fix DNS challenge completion check if CNAMEs on different NS are used (sideeffect42)(2.35)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -266,7 +267,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.34"
+VERSION="2.35"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -518,48 +519,42 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 }
 
 check_challenge_completion_dns() { # perform validation via DNS challenge
-  token=$1
-  uri=$2
-  keyauthorization=$3
-  d=$4
-  primary_ns=$5
-  auth_key=$6
-
-  # Always use lowercase domain name when querying DNS servers
-  # shellcheck disable=SC2018,SC2019
-  lower_d=$(echo "${d##\*.}" | tr A-Z a-z)
+  d=${1}
+  rr=${2}
+  primary_ns=${3}
+  auth_key=${4}
 
   # check for token at public dns server, waiting for a valid response.
   for ns in $primary_ns; do
-    info "checking dns at $ns"
+    info "checking DNS at $ns"
     ntries=0
     check_dns="fail"
     while [[ "$check_dns" == "fail" ]]; do
       if [[ "$os" == "cygwin" ]]; then
-        check_result=$(nslookup -type=txt "_acme-challenge.${lower_d}" "${ns}" \
+        check_result=$(nslookup -type=txt "${rr}" "${ns}" \
                       | grep ^_acme -A2\
                       | grep '"'|awk -F'"' '{ print $2}')
       elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-        debug "$DNS_CHECK_FUNC" TXT "_acme-challenge.${lower_d}" "@${ns}"
-        check_result=$($DNS_CHECK_FUNC TXT "_acme-challenge.${lower_d}" "@${ns}" \
-                      | grep -i "^_acme-challenge.${lower_d}" \
+        debug "$DNS_CHECK_FUNC" TXT "${rr}" "@${ns}"
+        check_result=$($DNS_CHECK_FUNC TXT "${rr}" "@${ns}" \
+                      | grep -i "^${rr}" \
                       | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
         debug "check_result=$check_result"
         if [[ -z "$check_result" ]]; then
-          debug "$DNS_CHECK_FUNC" ANY "_acme-challenge.${lower_d}" "@${ns}"
-          check_result=$($DNS_CHECK_FUNC ANY "_acme-challenge.${lower_d}" "@${ns}" \
-                      | grep -i "^_acme-challenge.${lower_d}" \
+          debug "$DNS_CHECK_FUNC" ANY "${rr}" "@${ns}"
+          check_result=$($DNS_CHECK_FUNC ANY "${rr}" "@${ns}" \
+                      | grep -i "^${rr}" \
                       | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
           debug "check_result=$check_result"
         fi
       elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
-        check_result=$($DNS_CHECK_FUNC -t TXT "_acme-challenge.${lower_d}" "${ns}" \
+        check_result=$($DNS_CHECK_FUNC -t TXT "${rr}" "${ns}" \
                       | grep 'descriptive text'|awk -F'"' '{ print $2}')
       else
-        check_result=$(nslookup -type=txt "_acme-challenge.${lower_d}" "${ns}" \
+        check_result=$(nslookup -type=txt "${rr}" "${ns}" \
                       | grep 'text ='|awk -F'"' '{ print $2}')
         if [[ -z "$check_result" ]]; then
-          check_result=$(nslookup -type=any "_acme-challenge.${lower_d}" "${ns}" \
+          check_result=$(nslookup -type=any "${rr}" "${ns}" \
                       | grep 'text ='|awk -F'"' '{ print $2}')
         fi
       fi
@@ -573,22 +568,20 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
           ntries=$(( ntries + 1 ))
 
           if [[ $DNS_WAIT_RETRY_ADD == "true" && $(( ntries % 10 )) == 0 ]]; then
-            debug "Retrying adding dns via command: $DNS_ADD_COMMAND $lower_d $auth_key"
-            test_output "Retrying adding dns via command: $DNS_ADD_COMMAND"
-            eval "$DNS_DEL_COMMAND" "$lower_d" "$auth_key"
-            if ! eval "$DNS_ADD_COMMAND" "$lower_d" "$auth_key" ; then
-              error_exit "DNS_ADD_COMMAND failed for domain $d"
-            fi
-
+            test_output "Deleting DNS RR via command: ${DNS_DEL_COMMAND}"
+            del_dns_rr "${d}" "${auth_key}"
+            test_output "Retrying adding DNS via command: ${DNS_ADD_COMMAND}"
+            add_dns_rr "${d}" "${auth_key}" \
+              || error_exit "DNS_ADD_COMMAND failed for domain ${d}"
           fi
-          info "checking DNS at ${ns} for ${lower_d}. Attempt $ntries/${DNS_WAIT_COUNT} gave wrong result, "\
+          info "checking DNS at ${ns} for ${rr}. Attempt $ntries/${DNS_WAIT_COUNT} gave wrong result, "\
             "waiting $DNS_WAIT secs before checking again"
           sleep $DNS_WAIT
         else
           debug "dns check failed - removing existing value"
-          eval "$DNS_DEL_COMMAND" "$lower_d" "$auth_key"
+          del_dns_rr "${d}" "${auth_key}"
 
-          error_exit "checking _acme-challenge.${lower_d} gave $check_result not $auth_key"
+          error_exit "checking ${rr} gave $check_result not $auth_key"
         fi
       fi
     done
@@ -598,13 +591,6 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
     info "sleeping $DNS_EXTRA_WAIT seconds before asking the ACME server to check the dns"
     sleep "$DNS_EXTRA_WAIT"
   fi
-
-  check_challenge_completion "$uri" "$d" "$keyauthorization"
-
-  debug "remove DNS entry"
-  # shellcheck disable=SC2018,SC2019
-  lower_d=$(echo "${d##\*.}" | tr A-Z a-z)
-  eval "$DNS_DEL_COMMAND" "$lower_d" "$auth_key"
 }
 # end of ... perform validation if via DNS challenge
 
@@ -807,7 +793,7 @@ clean_up() { # Perform pre-exit housekeeping
       # shellcheck source=/dev/null
       . "$dnsfile"
       debug "attempting to clean up DNS entry for $d"
-      eval "$DNS_DEL_COMMAND" "${d##\*.}" "$auth_key"
+      del_dns_rr "${d}" "${auth_key}"
     done
     shopt -u nullglob
   fi
@@ -1171,6 +1157,26 @@ find_ftp_command() {
 }
 
 
+add_dns_rr() {
+  d=${1}
+  auth_key=${2}
+
+  # shellcheck disable=SC2018,SC2019
+  lower_d=$(printf '%s' "${d#\*.}" | tr 'A-Z' 'a-z')
+  debug "adding DNS RR via command: ${DNS_ADD_COMMAND} ${lower_d} ${auth_key}"
+  eval "${DNS_ADD_COMMAND}" "${lower_d}" "${auth_key}"
+}
+
+del_dns_rr() {
+  d=${1}
+  auth_key=${2}
+
+  # shellcheck disable=SC2018,SC2019
+  lower_d=$(printf '%s' "${d#\*.}" | tr 'A-Z' 'a-z')
+  debug "removing DNS RR via command: ${DNS_DEL_COMMAND} ${lower_d} ${auth_key}"
+  eval "${DNS_DEL_COMMAND}" "${lower_d}" "${auth_key}"
+}
+
 fulfill_challenges() {
 dn=0
 for d in "${alldomains[@]}"; do
@@ -1236,16 +1242,24 @@ for d in "${alldomains[@]}"; do
         | sed -e 's:=*$::g' -e 'y:+/:-_:')
       debug auth_key "$auth_key"
 
+      add_dns_rr "${d}" "${auth_key}" \
+        || error_exit "DNS_ADD_COMMAND failed for domain $d"
+
       # shellcheck disable=SC2018,SC2019
-      lower_d=$(echo "${d##\*.}" | tr A-Z a-z)
-      debug "adding dns via command: $DNS_ADD_COMMAND $lower_d $auth_key"
-      if ! eval "$DNS_ADD_COMMAND" "$lower_d" "$auth_key" ; then
-        error_exit "DNS_ADD_COMMAND failed for domain $d"
-      fi
+      rr="_acme-challenge.$(printf '%s' "${d#\*.}" | tr 'A-Z' 'a-z')"
 
       # find a primary / authoritative DNS server for the domain
       if [[ -z "$AUTH_DNS_SERVER" ]]; then
-        get_auth_dns "$d"
+        # Find authorative dns server for _acme-challenge.{domain} (for CNAMES/acme-dns)
+        get_auth_dns "${rr}"
+        if test -n "${cname}"; then
+          rr=${cname}
+        fi
+
+        # If no authorative dns server found, try again for {domain}
+        if [[ -z "$primary_ns" ]]; then
+          get_auth_dns "$d"
+        fi
       elif [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
         primary_ns="$AUTH_DNS_SERVER $PUBLIC_DNS_SERVER"
       else
@@ -1253,7 +1267,13 @@ for d in "${alldomains[@]}"; do
       fi
       debug set primary_ns = "$primary_ns"
 
-      check_challenge_completion_dns "${token}" "${uri}" "${keyauthorization}" "${d}" "${primary_ns}" "${auth_key}"
+      # internal check
+      check_challenge_completion_dns "${d}" "${rr}" "${primary_ns}" "${auth_key}"
+
+      # let Let's Encrypt check
+      check_challenge_completion "${uri}" "${d}" "${keyauthorization}"
+
+      del_dns_rr "${d}" "${auth_key}"
     else      # set up the correct http token for verification
       if [[ $API -eq 1 ]]; then
         # get the token from the http component
@@ -1366,8 +1386,29 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
       gad_s="@$gad_s"
     fi
 
+    # Check if domain is a CNAME, first
+    test_output "Using $HAS_DIG_OR_DRILL CNAME"
+
+    # Two options here; either dig CNAME will return the CNAME and the NS or just the CNAME
+    debug Checking for CNAME using "$HAS_DIG_OR_DRILL CNAME $gad_d $gad_s"
+    res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" $gad_s| grep "^$gad_d")
+    cname=$(echo "$res"| awk '$4 ~ "CNAME" {print $5}' |sed 's/\.$//g')
+
+    if [[ $_TEST_SKIP_CNAME_CALL == 0 ]]; then
+      debug Checking if CNAME result contains NS records
+      res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" $gad_s| grep -E "IN\W(NS|SOA)\W")
+    else
+      res=
+    fi
+
+    if [[ -n "${cname}" ]]; then
+      # domain is a CNAME: resolve it and continue with that
+      debug Domain is a CNAME, actual domain is "$cname"
+      gad_d=${cname}
+    fi
+
     # Use SOA +trace to find the name server
-    if [[ $_TEST_SKIP_SOA_CALL == 0 ]]; then
+    if [[ -z "$res" ]] && [[ $_TEST_SKIP_SOA_CALL == 0 ]]; then
       if [[ "$HAS_DIG_OR_DRILL" == "drill" ]]; then
         debug Using "$HAS_DIG_OR_DRILL -T $gad_d $gad_s" to find primary nameserver
         test_output "Using $HAS_DIG_OR_DRILL SOA"
@@ -1376,27 +1417,6 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         debug Using "$HAS_DIG_OR_DRILL SOA +trace +nocomments $gad_d $gad_s" to find primary nameserver
         test_output "Using $HAS_DIG_OR_DRILL SOA"
         res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
-      fi
-    fi
-
-    # Check if domain is a CNAME
-    if [[ -z "$res" ]]; then
-      test_output "Using $HAS_DIG_OR_DRILL CNAME"
-
-      # Two options here; either dig CNAME will return the CNAME and the NS or just the CNAME
-      debug Checking for CNAME using "$HAS_DIG_OR_DRILL CNAME $gad_d $gad_s"
-      res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" $gad_s| grep "^$gad_d")
-      cname=$(echo "$res"| awk '$4 ~ "CNAME" {print $5}' |sed 's/\.$//g')
-
-      if [[ $_TEST_SKIP_CNAME_CALL == 0 ]]; then
-        debug Checking if CNAME result contains NS records
-        res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" $gad_s| grep -E "IN\W(NS|SOA)\W")
-      else
-        res=""
-      fi
-
-      if [[ -n "$cname" ]]; then # domain is a CNAME so get main domain
-        debug Domain is a CNAME, actual domain is "$cname"
       fi
     fi
 
