@@ -10,6 +10,7 @@ for automating the process on remote servers.
 - [Installation](#installation)
 - [Overview](#overview)
 - [Getting started](#getting-started)
+- [Detailed guide to getting started with more examples](#detailed-guide-to-getting-started-with-more-examples)
 - [Wildcard certificates](#wildcard-certificates)
 - [Automating updates](#automating-updates)
 - [Structure](#structure)
@@ -87,25 +88,27 @@ desktop computer, or even a virtualbox) and add the checks, and
 certificates to a remote server ( providing you have a ssh with key,
 sftp or ftp access to the remote server).
 
-```getssl
-getssl ver. 2.02
+```getssl -h
+getssl ver. 2.35
 Obtain SSL certificates from the letsencrypt.org ACME server
 
-Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-k|--keep #] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] domain
+Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-k|--keep #] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] [--preferred-chain chain] domain   
 
 Options:
   -a, --all          Check all certificates
-  -d, --debug        Outputs debug information
+  -d, --debug        Output debug information
   -c, --create       Create default config files
   -f, --force        Force renewal of cert (overrides expiry checks)
   -h, --help         Display this help message and exit
+  -i, --install      Install certificates and reload service
   -q, --quiet        Quiet mode (only outputs on error, success of new cert, or getssl was upgraded)
-  -Q, --mute         Like -q, but mutes notification about successful upgrade
+  -Q, --mute         Like -q, but also mute notification about successful upgrade
   -r, --revoke   "cert" "key" [CA_server] Revoke a certificate (the cert and key are required)
   -u, --upgrade      Upgrade getssl if a more recent version is available - can be used with or without domain(s)
-  -k, --keep     "#" Maximum amount of old getssl versions to keep when upgrading
+  -k, --keep     "#" Maximum number of old getssl versions to keep when upgrading
   -U, --nocheck      Do not check if a more recent version is available
   -w working_dir "Working directory"
+    --preferred-chain "chain" Use an alternate chain for the certificate
 ```
 
 ## Getting started
@@ -164,6 +167,10 @@ Change the server in your config file to get a fully valid certificate.
 **Note:** Verification is done via port 80 (http), port 443 (https) or
 dns. The certificate can be used (and checked with getssl) on alternate
 ports.
+
+## Detailed guide to getting started with more examples
+
+[Guide to getting a certificate for example.com and www.example.com](https://github.com/srvrco/getssl/wiki/Guide-to-getting-a-certificate-for-example.com-and-www.example.com)
 
 ## Wildcard certificates
 
