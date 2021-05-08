@@ -237,6 +237,7 @@ Add request to: $url
 $request"
 --------
 EOF
+
         result="$(curl -i -s -X PUT -d "$request" --config - "$url" <<EOF
                        header = "Content-Type: application/json" 
                        header = "$authhdr"
