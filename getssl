@@ -674,7 +674,7 @@ check_config() { # check the config files for all obvious errors
       # check domain exists using all DNS utilities. DNS_CHECK_OPTIONS may bind IP address or provide TSIG
       found_ip=false
       if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
-        debug "DNS lookup using $HAS_DIG_OR_DRILL ${d}"
+        debug "DNS lookup using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${d}"
         if [[ "$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -t SOA "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
           found_ip=true
         elif [[ "$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -t A "${d}"|grep -c -i "^${d}")" -ge 1 ]]; then
@@ -1389,7 +1389,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     fi
 
     # Check if domain is a CNAME, first
-    test_output "Using $HAS_DIG_OR_DRILL CNAME"
+    test_output "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME"
 
     # Two options here; either dig CNAME will return the CNAME and the NS or just the CNAME
     debug Checking for CNAME using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME $gad_d $gad_s"
