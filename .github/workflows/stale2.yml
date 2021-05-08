@@ -1,0 +1,31 @@
+on:
+  schedule:
+    - cron: "0 0 * * *"
+
+name: Run Stale Bot on Issue Comments
+
+jobs:
+  build:
+    name: stale
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+      - name: stale
+        uses: gatsbyjs/stale@master
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: true
+          DAYS_BEFORE_STALE: 60
+          DAYS_BEFORE_CLOSE: 30
+          STALE_ISSUE_LABEL: 'stale'
+          STALE_PR_LABEL: 'stale'
+          OPERATIONS_PER_RUN: 30
+          STALE_ISSUE_MESSAGE: 'This issue will be closed as no updates for 60 days'
+          CLOSE_MESSAGE: 'Closing stale issue after 90 days of inactivity'
+          EXEMPT_ISSUE_LABELS: |
+            bug
+            documentation
+            enhancement
+            feature
+            help wanted
+            rfc

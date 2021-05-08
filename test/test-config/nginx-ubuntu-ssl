@@ -1,0 +1,23 @@
+server {
+    listen 80 default_server;
+    listen 5002 default_server;
+    listen [::]:5002 default_server;
+
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+
+    listen 5001 ssl default_server;
+    listen [::]:5001 ssl default_server;
+
+    root /var/www/html;
+
+    index index.html index.htm index.nginx-debian.html;
+
+    server_name _;
+    ssl_certificate /etc/nginx/pki/server.crt;
+    ssl_certificate_key /etc/nginx/pki/private/server.key;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}

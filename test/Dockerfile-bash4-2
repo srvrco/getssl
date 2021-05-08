@@ -1,0 +1,34 @@
+FROM bash:4.2
+
+# https://hub.docker.com/_/bash
+
+RUN apk --no-cache add supervisor openssl git curl bind-tools drill wget nginx lftp vsftpd openssh-server
+
+WORKDIR /root
+
+# Create nginx directories in standard places
+RUN mkdir /run/nginx
+RUN mkdir /etc/nginx/pki
+RUN mkdir /etc/nginx/pki/private
+
+# Setup ftp
+ENV VSFTPD_CONF=/etc/vsftpd.conf
+ENV FTP_PASSIVE_DEFAULT=true
+COPY ./test/test-config/vsftpd.conf /etc/vsftpd.conf
+RUN echo "seccomp_sandbox=NO" >> /etc/vsftpd.conf
+RUN adduser -D ftpuser
+RUN echo 'ftpuser:ftpuser' | chpasswd
+RUN adduser ftpuser www-data
+RUN adduser root www-data
+RUN chown -R ftpuser.www-data /var/www
+RUN chmod g+w -R /var/www
+
+# BATS (Bash Automated Testings)
+RUN git clone https://github.com/bats-core/bats-core.git /bats-core --branch v1.2.1
+RUN git clone https://github.com/bats-core/bats-support /bats-support
+RUN git clone https://github.com/bats-core/bats-assert /bats-assert
+RUN /bats-core/install.sh /usr/local
+
+# Use supervisord to run nginx in the background
+COPY ./test/test-config/alpine-supervisord.conf /etc/supervisord.conf
+CMD tail -f /dev/null

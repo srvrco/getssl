@@ -1,0 +1,47 @@
+FROM centos:centos6
+
+# Note this image uses gawk
+# Note if you are running this using WSL2 you need to put the following lines in %userprofile%\.wslconfig
+# [wsl2]
+# kernelCommandLine = vsyscall=emulate
+
+# Centos 6 is EOL and is no longer available from the usual mirrors, so switch to https://vault.centos.org
+RUN sed -i 's/enabled=1/enabled=0/g' /etc/yum/pluginconf.d/fastestmirror.conf && \
+    sed -i 's/^mirrorlist/#mirrorlist/g' /etc/yum.repos.d/*.repo && \
+    sed -i 's;^#baseurl=http://mirror;baseurl=https://vault;g' /etc/yum.repos.d/*.repo
+
+# Update and install required software
+RUN yum -y install epel-release
+RUN yum -y install git curl dnsutils ldns wget nginx
+RUN yum -y install ftp vsftpd
+RUN yum -y install openssh-server
+
+# Setup ftp
+ENV VSFTPD_CONF=/etc/vsftpd/vsftpd.conf
+ENV FTP_PASSIVE_DEFAULT=true
+COPY test/test-config/vsftpd.conf /etc/vsftpd/vsftpd.conf
+RUN adduser ftpuser
+RUN echo 'ftpuser:ftpuser' | chpasswd
+RUN adduser www-data
+RUN usermod -G www-data ftpuser
+RUN usermod -G www-data root
+RUN mkdir -p /var/www/.well-known/acme-challenge
+RUN chown -R www-data.www-data /var/www
+RUN chmod g+w -R /var/www
+
+WORKDIR /root
+RUN mkdir -p /etc/nginx/pki/private
+COPY ./test/test-config/nginx-ubuntu-no-ssl /etc/nginx/conf.d/default.conf
+
+# BATS (Bash Automated Testings)
+RUN git clone https://github.com/bats-core/bats-core.git /bats-core # --branch v1.2.1
+RUN git clone https://github.com/bats-core/bats-support /bats-support
+RUN git clone https://github.com/bats-core/bats-assert /bats-assert
+RUN /bats-core/install.sh /usr/local
+# Hack to disable BATS pretty formatter which stopped working on centos6
+ENV CI=yes
+
+EXPOSE 80 443
+
+# Run eternal loop - for testing
+CMD [ "tail", "-f", "/dev/null" ]

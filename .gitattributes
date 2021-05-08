@@ -1,3 +1,11 @@
 # Files not to include in .zip/.tar.gz archives
 #
 .git*           export-ignore
+
+# Handle line endings automatically for files detected as text
+# and leave all files detected as binary untouched.
+* text=auto
+
+# Make all text files lf formatted
+*     text eol=lf
+

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+if [ "$GETSSL_OS" = "alpine" ]; then
+    killall -HUP vsftpd >&3-
+elif [[ "$GETSSL_OS" == "centos"[78] ]]; then
+    pgrep vsftpd | head -1 | xargs kill -HUP
+else
+    service vsftpd restart >/dev/null >&3-
+fi

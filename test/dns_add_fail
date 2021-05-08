@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+# Special test script which will always fail to update dns
+
+echo "This is a test script to check retry works if DNS isn't updated"
+exit 0

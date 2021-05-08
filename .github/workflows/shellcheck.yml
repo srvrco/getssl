@@ -1,0 +1,17 @@
+name: shellcheck
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Lint check
+        uses: azohra/shell-linter@v0.3.0
+        with:
+          path: "getssl"

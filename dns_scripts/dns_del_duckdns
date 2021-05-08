@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# need to add your Token for duckdns below
+token=${DUCKDNS_TOKEN:-}
+domain="$1"
+i=1
+
+response=$(curl --retry 5 --silent "https://www.duckdns.org/update?domains=${domain}&token=${token}&txt=&clear=true")
+
+while [[ "${response}" == *"502 Bad Gateway"* ]] && [ $i -le 5 ]; do
+    echo "Retrying Bad Gateway response (attempt $i of 5)"
+    sleep 5
+    i=$((i+1))
+    response=$(curl --retry 5 --silent "https://www.duckdns.org/update?domains=${domain}&token=${token}&txt=&clear=true")
+done
+
+if [ "$response" != "OK" ]; then
+    echo "Failed to update TXT record for ${domain} at duckdns.org (is the TOKEN valid?)"
+    echo "$response"
+    exit 1
+fi
