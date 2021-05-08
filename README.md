@@ -89,7 +89,7 @@ certificates to a remote server ( providing you have a ssh with key,
 sftp or ftp access to the remote server).
 
 ```getssl -h
-getssl ver. 2.35
+getssl ver. 2.36
 Obtain SSL certificates from the letsencrypt.org ACME server
 
 Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-k|--keep #] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] [--preferred-chain chain] domain   
@@ -107,6 +107,7 @@ Options:
   -u, --upgrade      Upgrade getssl if a more recent version is available - can be used with or without domain(s)
   -k, --keep     "#" Maximum number of old getssl versions to keep when upgrading
   -U, --nocheck      Do not check if a more recent version is available
+  -v  --version      Display current version of getssl
   -w working_dir "Working directory"
     --preferred-chain "chain" Use an alternate chain for the certificate
 ```
@@ -376,7 +377,7 @@ Usage: `getssl -r path/to/cert path/to/key [CA_server]`
 You need to specify both the certificate you want to revoke, and the
 account or private domain key which was used to sign / obtain the
 original certificate. The `CA_server` is an optional parameter and
-defaults to Let's Encrypt ("<https://acme-v01.api.letsencrypt.org>") as
+defaults to Let's Encrypt ("<https://acme-v02.api.letsencrypt.org>") as
 that is currently the only Certificate Authority using the ACME
 protocol.
 
