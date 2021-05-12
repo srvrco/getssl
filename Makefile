@@ -19,10 +19,9 @@ ifneq ($(strip $(DESTDIR)),)
 	mkdir -p $(DESTDIR)
 endif
 
-	install -Dm755 getssl $(DESTDIR)/usr/bin/getssl
-	
-	install -dm755 $(DESTDIR)/usr/share/getssl
-	cp -r *_scripts $(DESTDIR)/usr/share/getssl
+	install -Dvm755 getssl $(DESTDIR)/usr/bin/getssl
+	install -dvm755 $(DESTDIR)/usr/share/getssl
+	for dir in *_scripts; do install -dv $(DESTDIR)/usr/share/getssl/$$dir; install -pv $$dir/* $(DESTDIR)/usr/share/getssl/$$dir/; done
 
 .PHONY: install
 

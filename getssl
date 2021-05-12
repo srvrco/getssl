@@ -259,6 +259,7 @@
 # 2021-02-15 ADD ftp explicit SSL with curl for upload the challenge (CoolMischa)
 # 2021-02-18 Add FULL_CHAIN_INCLUDE_ROOT
 # 2021-03-25 Fix DNS challenge completion check if CNAMEs on different NS are used (sideeffect42)(2.35)
+# 2021-05-08 Merge from tlhackque/getssl: GoDaddy, split-view, tempfile permissions fixes, --version(2.36)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -267,7 +268,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.35"
+VERSION="2.36"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -307,8 +308,9 @@ WORKING_DIR_CANDIDATES=("/etc/getssl" "${PROGDIR}/conf" "${PROGDIR}/.getssl" "${
 
 # Variables used when validating using a DNS entry
 VALIDATE_VIA_DNS=""             # Set this to "true" to enable DNS validation
-AUTH_DNS_SERVER=""              # Use this DNS server to check the challenge token has been set
-PUBLIC_DNS_SERVER=""            # Use this DNS server to find the authoritative DNS servers for the domain
+export AUTH_DNS_SERVER=""       # Use this DNS server to check the challenge token has been set
+export DNS_CHECK_OPTIONS=""     # Options (such as TSIG file) required by DNS_CHECK_FUNC
+export PUBLIC_DNS_SERVER=""     # Use this DNS server to find the authoritative DNS servers for the domain
 CHECK_ALL_AUTH_DNS="false"      # Check the challenge token has been set on all authoritative DNS servers
 CHECK_PUBLIC_DNS_SERVER="true"  # Check the public DNS server as well as the authoritative DNS servers
 DNS_ADD_COMMAND=""              # Use this command/script to add the challenge token to the DNS entries for the domain
@@ -336,7 +338,7 @@ _UPGRADE_CHECK=1
 _USE_DEBUG=0
 _ONLY_CHECK_CONFIG=0
 config_errors="false"
-LANG=C
+export LANG=C
 API=1
 
 # store copy of original command in case of upgrading script and re-running
@@ -613,7 +615,7 @@ check_config() { # check the config files for all obvious errors
     rsa|prime256v1|secp384r1|secp521r1)
       debug "checked PRIVATE_KEY_ALG " ;;
     *)
-      info "${DOMAIN}: invalid PRIVATE_KEY_ALG - $PRIVATE_KEY_ALG"
+      info "${DOMAIN}: invalid PRIVATE_KEY_ALG - '$PRIVATE_KEY_ALG'"
       config_errors=true ;;
   esac
   if [[ "$DUAL_RSA_ECDSA" == "true" ]] && [[ "$PRIVATE_KEY_ALG" == "rsa" ]]; then
@@ -669,32 +671,32 @@ check_config() { # check the config files for all obvious errors
         config_errors=true
       fi
 
-      # check domain exists using all DNS utilities
+      # check domain exists using all DNS utilities. DNS_CHECK_OPTIONS may bind IP address or provide TSIG
       found_ip=false
       if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
-        debug "DNS lookup using $HAS_DIG_OR_DRILL ${d}"
-        if [[ "$($HAS_DIG_OR_DRILL -t SOA "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
+        debug "DNS lookup using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${d}"
+        if [[ "$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -t SOA "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
           found_ip=true
-        elif [[ "$($HAS_DIG_OR_DRILL -t A "${d}"|grep -c -i "^${d}")" -ge 1 ]]; then
+        elif [[ "$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -t A "${d}"|grep -c -i "^${d}")" -ge 1 ]]; then
           found_ip=true
-        elif [[ "$($HAS_DIG_OR_DRILL -t AAAA "${d}"|grep -c -i "^${d}")" -ge 1 ]]; then
+        elif [[ "$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -t AAAA "${d}"|grep -c -i "^${d}")" -ge 1 ]]; then
           found_ip=true
         fi
       fi
 
       if [[ "$HAS_HOST" == "true" ]]; then
         debug "DNS lookup using host ${d}"
-        if [[ "$(host "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
+        if [[ "$(host $DNS_CHECK_OPTIONS "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
           found_ip=true
         fi
       fi
 
       if [[ "$HAS_NSLOOKUP" == "true" ]]; then
         debug "DNS lookup using nslookup -query AAAA ${d}"
-        if [[ "$(nslookup -query=AAAA "${d}"|grep -c -i "^${d}.*has AAAA address")" -ge 1 ]]; then
+        if [[ "$(nslookup $DNS_CHECK_OPTIONS -query=AAAA "${d}"|grep -c -i "^${d}.*has AAAA address")" -ge 1 ]]; then
           debug "found IPv6 record for ${d}"
           found_ip=true
-        elif [[ "$(nslookup "${d}"| grep -c ^Name)" -ge 1 ]]; then
+        elif [[ "$(nslookup $DNS_CHECK_OPTIONS "${d}"| grep -c ^Name)" -ge 1 ]]; then
           debug "found IPv4 record for ${d}"
           found_ip=true
         fi
@@ -1387,16 +1389,16 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     fi
 
     # Check if domain is a CNAME, first
-    test_output "Using $HAS_DIG_OR_DRILL CNAME"
+    test_output "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME"
 
     # Two options here; either dig CNAME will return the CNAME and the NS or just the CNAME
-    debug Checking for CNAME using "$HAS_DIG_OR_DRILL CNAME $gad_d $gad_s"
-    res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" $gad_s| grep "^$gad_d")
+    debug Checking for CNAME using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME $gad_d $gad_s"
+    res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME "$gad_d" $gad_s| grep "^$gad_d")
     cname=$(echo "$res"| awk '$4 ~ "CNAME" {print $5}' |sed 's/\.$//g')
 
     if [[ $_TEST_SKIP_CNAME_CALL == 0 ]]; then
       debug Checking if CNAME result contains NS records
-      res=$($HAS_DIG_OR_DRILL CNAME "$gad_d" $gad_s| grep -E "IN\W(NS|SOA)\W")
+      res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME "$gad_d" $gad_s| grep -E "IN\W(NS|SOA)\W")
     else
       res=
     fi
@@ -1410,21 +1412,21 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     # Use SOA +trace to find the name server
     if [[ -z "$res" ]] && [[ $_TEST_SKIP_SOA_CALL == 0 ]]; then
       if [[ "$HAS_DIG_OR_DRILL" == "drill" ]]; then
-        debug Using "$HAS_DIG_OR_DRILL -T $gad_d $gad_s" to find primary nameserver
-        test_output "Using $HAS_DIG_OR_DRILL SOA"
-        res=$($HAS_DIG_OR_DRILL -T SOA "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
+        debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T $gad_d $gad_s" to find primary nameserver
+        test_output "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS SOA"
+        res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T SOA "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
       else
-        debug Using "$HAS_DIG_OR_DRILL SOA +trace +nocomments $gad_d $gad_s" to find primary nameserver
-        test_output "Using $HAS_DIG_OR_DRILL SOA"
-        res=$($HAS_DIG_OR_DRILL SOA +trace +nocomments "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
+        debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS SOA +trace +nocomments $gad_d $gad_s" to find primary nameserver
+        test_output "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS SOA"
+        res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS SOA +trace +nocomments "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
       fi
     fi
 
     # Query for NS records
     if [[ -z "$res" ]]; then
-      test_output "Using $HAS_DIG_OR_DRILL NS"
-      debug Using "$HAS_DIG_OR_DRILL NS $gad_d $gad_s" to find primary nameserver
-      res=$($HAS_DIG_OR_DRILL NS "$gad_d" $gad_s | grep -E "IN\W(NS|SOA)\W")
+      test_output "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS NS"
+      debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS NS $gad_d $gad_s" to find primary nameserver
+      res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS NS "$gad_d" $gad_s | grep -E "IN\W(NS|SOA)\W")
     fi
 
     if [[ -n "$res" ]]; then
@@ -1464,10 +1466,10 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     gad_d="$orig_gad_d"
     debug Using "host -t NS" to find primary name server for "$gad_d"
     if [[ -z "$gad_s" ]]; then
-      res=$(host -t NS "$gad_d"| grep "name server")
+      res=$(host $DNS_CHECK_OPTIONS -t NS "$gad_d"| grep "name server")
     else
       # shellcheck disable=SC2086
-      res=$(host -t NS "$gad_d" $gad_s| grep "name server")
+      res=$(host $DNS_CHECK_OPTIONS -t NS "$gad_d" $gad_s| grep "name server")
     fi
     if [[ -n "$res" ]]; then
       all_auth_dns_servers=$(echo "$res" | awk '{print $4}' | sed 's/\.$//g'|tr '\n' ' ')
@@ -1487,9 +1489,9 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
   if [[ "$HAS_NSLOOKUP" == "true" ]]; then
     gad_d="$orig_gad_d"
-    debug Using "nslookup -debug -type=soa -type=ns $gad_d $gad_s" to find primary name server
+    debug Using "nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns $gad_d $gad_s" to find primary name server
     # shellcheck disable=SC2086
-    res=$(nslookup -debug -type=soa -type=ns "$gad_d" ${gad_s})
+    res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" ${gad_s})
 
     if [[ "$(echo "$res" | grep -c "Non-authoritative")" -gt 0 ]]; then
       # this is a Non-authoritative server, need to check for an authoritative one.
@@ -1505,7 +1507,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
       fi
 
       # shellcheck disable=SC2086
-      res=$(nslookup -debug -type=soa -type=ns "$gad_d" ${gad_s})
+      res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" ${gad_s})
     fi
 
     if [[ "$(echo "$res" | grep -c "canonical name")" -gt 0 ]]; then
@@ -1521,7 +1523,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
     # shellcheck disable=SC2086
     # not quoting gad_s fixes the nslookup: couldn't get address for '': not found warning (#332)
-    all_auth_dns_servers=$(nslookup -debug -type=soa -type=ns "$gad_d" $gad_s \
+    all_auth_dns_servers=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" $gad_s \
                           | awk '$1 ~ "nameserver" {print $3}' \
                           | sed 's/\.$//g'| tr '\n' ' ')
 
@@ -1549,6 +1551,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
   gc_fullchain=$4   # The filename for the fullchain
 
   der=$(openssl req -in "$gc_csr" -outform DER | urlbase64)
+
   if [[ $API -eq 1 ]]; then
     send_signed_request "$URL_new_cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
     # convert certificate information into correct format and save to file.
@@ -1757,6 +1760,7 @@ help_message() { # print out the help message
 	  -u, --upgrade      Upgrade getssl if a more recent version is available - can be used with or without domain(s)
 	  -k, --keep     "#" Maximum number of old getssl versions to keep when upgrading
 	  -U, --nocheck      Do not check if a more recent version is available
+	  -v  --version      Display current version of $PROGNAME
 	  -w working_dir "Working directory"
     --preferred-chain "chain" Use an alternate chain for the certificate
 
@@ -2515,6 +2519,19 @@ write_getssl_template() { # write out the main template file
 	#VALIDATE_VIA_DNS="true"
 	#DNS_ADD_COMMAND=
 	#DNS_DEL_COMMAND=
+
+        # Unusual configurations (especially split views) may require these.
+        # If you have a mixture, these can go in the per-domain getssl.cfg.
+        #
+        # If you must use an external DNS Server (e.g. due to split views)
+        # Specify it here.  Otherwise, the default is to find the zone master.
+        # The default will usually work.
+        # PUBLIC_DNS_SERVER="8.8.8.8"
+
+        # If getssl is unable to determine the authoritative nameserver for a domain
+        # it will as you to enter AUTH_DNS_SERVER.  This is a server that
+        # can answer queries for the zone - a master or a slave, not a recursive server.
+        # AUTH_DNS_SERVER="10.0.0.14"
 	_EOF_getssl_
 }
 
@@ -2537,6 +2554,8 @@ while [[ -n ${1+defined} ]]; do
   case $1 in
     -h | --help)
       help_message; graceful_exit ;;
+    -v | --version)
+      echo "$PROGNAME V$VERSION"; graceful_exit ;;
     -d | --debug)
       _USE_DEBUG=1 ;;
     -c | --create)
@@ -2681,6 +2700,12 @@ if [[ -s "$WORKING_DIR/getssl.cfg" ]]; then
   . "$WORKING_DIR/getssl.cfg"
 fi
 
+if [[ -n "$DNS_CHECK_FUNC" ]]; then
+  requires "${DNS_CHECK_FUNC}"
+else
+  requires nslookup drill dig host DNS_CHECK_FUNC
+fi
+
 # Define defaults for variables not set in the main config.
 ACCOUNT_KEY="${ACCOUNT_KEY:=$WORKING_DIR/account.key}"
 DOMAIN_STORAGE="${DOMAIN_STORAGE:=$WORKING_DIR}"
@@ -2771,6 +2796,7 @@ if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
       info "Adding SANS=$EX_SANS from certificate installed on ${DOMAIN##\*.} to new configuration file"
     fi
     write_domain_template "$DOMAIN_DIR/getssl.cfg"
+    info "created domain config file in $DOMAIN_DIR/getssl.cfg"
   fi
   TEMP_DIR="$DOMAIN_DIR/tmp"
   # end of "-c|--create" option, so exit
@@ -2910,11 +2936,15 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
           copy_file_to_location "full pem" \
                                 "$TEMP_DIR/${DOMAIN}_chain.pem" \
                                 "$DOMAIN_CHAIN_LOCATION"
+          umask 077
           cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" > "$TEMP_DIR/${DOMAIN}_K_C.pem"
+          umask "$ORIG_UMASK"
           copy_file_to_location "private key and domain cert pem" \
                                 "$TEMP_DIR/${DOMAIN}_K_C.pem"  \
                                 "$DOMAIN_KEY_CERT_LOCATION"
+          umask 077
           cat "$DOMAIN_DIR/${DOMAIN}.key" "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}.pem"
+          umask "$ORIG_UMASK"
           copy_file_to_location "full pem" \
                                 "$TEMP_DIR/${DOMAIN}.pem"  \
                                 "$DOMAIN_PEM_LOCATION"

@@ -61,7 +61,7 @@ teardown() {
     # Assert that we've found the primary_ns server
     assert_output --regexp 'set primary_ns = ns[1-4]+\.duckdns\.org'
     # Assert that we had to use dig NS
-    assert_line --partial 'Using dig NS'
+    assert_line --regexp 'Using dig.* NS'
 
     # Check all Authoritive DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
@@ -89,8 +89,8 @@ teardown() {
     assert_output --regexp 'set primary_ns = ns[1-4]+\.duckdns\.org'
 
     # Assert that we had to use dig NS
-    assert_line --partial 'Using dig SOA'
-    refute_line --partial 'Using dig NS'
+    assert_line --regexp 'Using dig.* SOA'
+    refute_line --regexp 'Using dig.* NS'
 
     # Check all Authoritive DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
@@ -125,8 +125,8 @@ teardown() {
     assert_output --regexp 'set primary_ns = ns.*\.awsdns.*\.com'
 
     # Assert that we found a CNAME and use dig NS
-    assert_line --partial 'Using dig CNAME'
-    assert_line --partial 'Using dig NS'
+    assert_line --regexp 'Using dig.* CNAME'
+    assert_line --regexp 'Using dig.* NS'
 
     # Check all Authoritive DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
@@ -168,8 +168,8 @@ teardown() {
     assert_output --regexp 'set primary_ns = ns[1-4]+\.duckdns\.org'
 
     # Assert that we found a CNAME but didn't use dig NS
-    assert_line --partial 'Using dig CNAME'
-    refute_line --partial 'Using dig NS'
+    assert_line --regexp 'Using dig.* CNAME'
+    refute_line --regexp 'Using dig.* NS'
 
     # Check all Authoritive DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
