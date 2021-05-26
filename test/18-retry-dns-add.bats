@@ -30,8 +30,9 @@ DNS_EXTRA_WAIT=0
 CHECK_ALL_AUTH_DNS="false"
 CHECK_PUBLIC_DNS_SERVER="false"
 DNS_WAIT_RETRY_ADD="true"
+_RUNNING_TEST=1
 EOF
-    create_certificate -d
+    create_certificate
     assert_failure
-    assert_line --partial "Retrying adding dns via command"
+    assert_line --partial "Retrying adding DNS via command"
 }

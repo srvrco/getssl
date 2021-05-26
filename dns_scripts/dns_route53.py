@@ -70,7 +70,7 @@ if action == 'UPSERT':
         try:
             my_resolver = dns.resolver.Resolver(configure=False)
             my_resolver.nameservers = ['8.8.8.8', '8.8.4.4']
-            results = my_resolver.query(challenge_fqdn, 'TXT')
+            results = my_resolver.resolve(challenge_fqdn, 'TXT')
             data = str(results.response.answer[0][0]).strip('\"')
             if data == challenge:
                 print("found {f} entry".format(f=challenge_fqdn))

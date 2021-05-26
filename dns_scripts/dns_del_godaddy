@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (2017) Timothe Litt  litt at acm _dot org
+# Copyright (C) 2017,2018 Timothe Litt  litt at acm _dot org
 
 # Remove token from GoDaddy dns using dns_godaddy
 
@@ -24,7 +24,7 @@ token="$2"
 
 [ -z "$GODADDY_SCRIPT" ] && GODADDY_SCRIPT="/usr/share/getssl/dns_scripts/dns_godaddy"
 [[ "$GODADDY_SCRIPT" =~ ^~ ]] && \
-    eval 'GODADDY_SCRIPT=`readlink -nf ' "$GODADDY_SCRIPT" '`'
+    eval 'GODADDY_SCRIPT=`readlink -nf ' $GODADDY_SCRIPT '`'
 
 if ! [ -x "$GODADDY_SCRIPT" ]; then
     echo "$GODADDY_SCRIPT: not found.  Please install, softlink or set GODADDY_SCRIPT to its full path"
@@ -34,5 +34,6 @@ fi
 
 export GODADDY_KEY
 export GODADDY_SECRET
+export GODADDY_BASE
 
 $GODADDY_SCRIPT -q del "${fulldomain}" "_acme-challenge.${fulldomain}." "${token}"

@@ -60,7 +60,7 @@ teardown() {
     # Assert that we've found the primary_ns server
     assert_output --regexp 'set primary_ns = '
     # Assert that we had to use dig NS
-    assert_line --partial 'Using dig NS'
+    assert_line --regexp 'Using dig.* NS'
 
     # Check we didn't include any root servers
     refute_line --partial 'root-servers.net'
@@ -89,7 +89,7 @@ teardown() {
     # Assert that we've found the primary_ns server
     assert_output --regexp 'set primary_ns = '
     # Assert that we had to use dig SOA
-    assert_line --partial 'Using dig SOA'
+    assert_line --regexp 'Using dig.* SOA'
 
     # Check we didn't include any root servers
     refute_line --partial 'root-servers.net'

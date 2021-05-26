@@ -64,6 +64,8 @@ setup_environment() {
   fi
 
   if [ -z "$STAGING" ]; then
+    # Make sure that we have cleared any previous entries, otherwise get random dns failures
+    curl --silent -X POST -d '{"host":"'"$GETSSL_HOST"'"}' http://10.30.50.3:8055/clear-a
     curl --silent -X POST -d '{"host":"'"$GETSSL_HOST"'", "addresses":["'"$GETSSL_IP"'"]}' http://10.30.50.3:8055/add-a
   fi
   cp ${CODE_DIR}/test/test-config/nginx-ubuntu-no-ssl "${NGINX_CONFIG}"
