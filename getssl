@@ -1070,9 +1070,13 @@ create_order() {
 date_epoc() { # convert the date into epoch time
   if [[ "$os" == "bsd" ]]; then
     date -j -f "%b %d %T %Y %Z" "$1" +%s
-#  elif [[ "$os" == "mac" ]]; then
-#    date -j -f "%b %d %T %Y %Z" "$1" +%s
-#    date -d "$1" +%s
+  elif [[ "$os" == "mac" ]]; then
+    date -j 2>/dev/null
+    if [[ $? -eq 0 ]]; then # macOS uses older BSD style date.
+      date -j -f "%b %d %T %Y %Z" "$1" +%s
+    else
+      date -d "$1" +%s
+    fi
   elif [[ "$os" == "busybox" ]]; then
     de_ld=$(echo "$1" | awk '{print $1 " " $2 " " $3 " " $4}')
     date -D "%b %d %T %Y" -d "$de_ld" +%s
@@ -1085,9 +1089,13 @@ date_epoc() { # convert the date into epoch time
 date_fmt() { # format date from epoc time to YYYY-MM-DD
   if [[ "$os" == "bsd" ]]; then # uses older style date function.
     date -j -f "%s" "$1" +%F
-#  elif [[ "$os" == "mac" ]]; then # macOS uses older BSD style date.
-#    date -j -f "%s" "$1" +%F
-#    date -d "@$1" +%F
+  elif [[ "$os" == "mac" ]]; then # macOS uses older BSD style date.
+    date -j 2>/dev/null
+    if [[ $? -eq 0 ]]; then # macOS uses older BSD style date.
+      date -j -f "%s" "$1" +%F
+    else
+      date -d "@$1" +%F
+    fi
   else
     date -d "@$1" +%F
   fi
