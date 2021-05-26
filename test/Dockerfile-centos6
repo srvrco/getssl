@@ -30,8 +30,7 @@ RUN chown -R www-data.www-data /var/www
 RUN chmod g+w -R /var/www
 
 WORKDIR /root
-RUN mkdir /etc/nginx/pki
-RUN mkdir /etc/nginx/pki/private
+RUN mkdir -p /etc/nginx/pki/private
 COPY ./test/test-config/nginx-ubuntu-no-ssl /etc/nginx/conf.d/default.conf
 
 # BATS (Bash Automated Testings)
@@ -45,4 +44,4 @@ ENV CI=yes
 EXPOSE 80 443
 
 # Run eternal loop - for testing
-CMD tail -f /dev/null
+CMD [ "tail", "-f", "/dev/null" ]

@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+
+# Need to add your email address and API key to cpanel below or set as env variables
+user=${CPANEL_USERNAME:-''}
+password=${CPANEL_PASSWORD:-''}
+url=${CPANEL_URL:-''} # e.g. https://www.cpanel-host.test:2083
+apitoken=${CPANEL_APITOKEN:-''}
+
+fulldomain="${1}"
+token="${2}"
+
+# Check initial parameters
+if [[ -z "$fulldomain" ]]; then
+    echo "DNS script requires full domain name as first parameter"
+    exit 1
+fi
+if [[ -z "$token" ]]; then
+    echo "DNS script requires challenge token as second parameter"
+    exit 1
+fi
+if [[ -z "$user" ]]; then
+    echo "CPANEL_USERNAME (username) parameter not set"
+    exit 1
+fi
+if [[ -z "$apitoken" ]] && [[ -z "$password" ]]; then
+    echo "Must set either CPANEL_APITOKEN or CPANEL_PASSWORD in dns script, environment variable or getssl.cfg"
+    exit 1
+fi
+if [[ -z "$url" ]]; then
+    echo "CPANEL_URL (url) parameter not set"
+    exit 1
+fi
+
+# Setup
+request_func="${url}/json-api/cpanel?cpanel_jsonapi_apiversion=2&cpanel_jsonapi_module=ZoneEdit"
+if [[ -n $apitoken ]]; then
+  curl_params=( -H "Authorization: cpanel $user:$apitoken" )
+else
+  auth_string=$(echo -ne "$user:$password" | base64 --wrap 0)
+  curl_params=( -H "Authorization: Basic $auth_string" )
+fi
+
+# Check if domain is a CNAME
+res=$(dig CNAME "$fulldomain")
+domain=$(echo "$res"| awk '$4 ~ "CNAME" {print $5}' |sed 's/\.$//g')
+if [[ -n "$domain" ]]; then
+  name=".${fulldomain%.$domain}"
+else
+  domain=$fulldomain
+  name=""
+fi
+
+# Check to see if challenge dns entry already exists (update or delete?)
+request_params="&cpanel_jsonapi_func=fetchzone_records&domain=${domain}&type=TXT&name=_acme-challenge.${fulldomain}."
+resp=$(curl --silent "${curl_params[@]}" "$request_func$request_params")
+if [[ "$resp" = *\"error\":* ]]; then
+  echo -n "cpanel fetchzone records failed: "
+  echo "$resp" | awk -F"error" '{ print $2 }' | awk -F\" '{ print $3 }'
+  exit 1
+fi
+
+# If no existing record, create a new TXT record, otherwise edit the existing record
+if [[ "$resp" == *\"data\":[]* ]]; then
+  request_params="&cpanel_jsonapi_func=add_zone_record&domain=$domain&type=TXT&name=_acme-challenge$name&txtdata=$token"
+else
+  # shellcheck disable=SC2001
+  line=$(echo "$resp" | sed -e 's/.*line":\([0-9]*\),.*/\1/')
+  request_params="&cpanel_jsonapi_func=edit_zone_record&domain=$domain&type=TXT&name=_acme-challenge$name&txtdata=${token}&line=${line}"
+fi
+resp=$(curl --silent "${curl_params[@]}" "$request_func$request_params")
+
+if [[ "$resp" = *\"status\":0* ]]; then
+  echo -n "cpanel edit zone record failed: "
+  echo "$resp" | awk -F"statusmsg" '{ print $2 }' | awk -F\" '{ print $3 }'
+  exit 1
+fi

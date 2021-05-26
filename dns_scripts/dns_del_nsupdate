@@ -21,8 +21,9 @@ if [ -n "${DNS_NSUPDATE_KEYFILE}" ]; then
   options="-k ${DNS_NSUPDATE_KEYFILE}"
 fi
 
+cmd=
 if [ -n "${DNS_SERVER}" ]; then
-        cmd+="server ${DNS_SERVER}\n"
+  cmd+="server ${DNS_SERVER}\n"
 fi
 
 cmd+="update delete  ${DNS_ZONE:-"_acme-challenge.${fulldomain}."} 300 in TXT \"${token}\"\n"
