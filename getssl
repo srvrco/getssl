@@ -675,6 +675,7 @@ check_config() { # check the config files for all obvious errors
       found_ip=false
       if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
         debug "DNS lookup using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${d}"
+        # shellcheck disable=SC2086
         if [[ "$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -t SOA "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
           found_ip=true
         elif [[ "$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -t A "${d}"|grep -c -i "^${d}")" -ge 1 ]]; then
@@ -686,6 +687,7 @@ check_config() { # check the config files for all obvious errors
 
       if [[ "$HAS_HOST" == "true" ]]; then
         debug "DNS lookup using host ${d}"
+        # shellcheck disable=SC2086
         if [[ "$(host $DNS_CHECK_OPTIONS "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
           found_ip=true
         fi
@@ -693,6 +695,7 @@ check_config() { # check the config files for all obvious errors
 
       if [[ "$HAS_NSLOOKUP" == "true" ]]; then
         debug "DNS lookup using nslookup -query AAAA ${d}"
+        # shellcheck disable=SC2086
         if [[ "$(nslookup $DNS_CHECK_OPTIONS -query=AAAA "${d}"|grep -c -i "^${d}.*has AAAA address")" -ge 1 ]]; then
           debug "found IPv6 record for ${d}"
           found_ip=true
@@ -1393,11 +1396,13 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
     # Two options here; either dig CNAME will return the CNAME and the NS or just the CNAME
     debug Checking for CNAME using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME $gad_d $gad_s"
+    # shellcheck disable=SC2086
     res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME "$gad_d" $gad_s| grep "^$gad_d")
     cname=$(echo "$res"| awk '$4 ~ "CNAME" {print $5}' |sed 's/\.$//g')
 
     if [[ $_TEST_SKIP_CNAME_CALL == 0 ]]; then
       debug Checking if CNAME result contains NS records
+      # shellcheck disable=SC2086
       res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME "$gad_d" $gad_s| grep -E "IN\W(NS|SOA)\W")
     else
       res=
@@ -1411,6 +1416,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
     # Use SOA +trace to find the name server
     if [[ -z "$res" ]] && [[ $_TEST_SKIP_SOA_CALL == 0 ]]; then
+      # shellcheck disable=SC2086
       if [[ "$HAS_DIG_OR_DRILL" == "drill" ]]; then
         debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T $gad_d $gad_s" to find primary nameserver
         test_output "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS SOA"
@@ -1426,6 +1432,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     if [[ -z "$res" ]]; then
       test_output "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS NS"
       debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS NS $gad_d $gad_s" to find primary nameserver
+      # shellcheck disable=SC2086
       res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS NS "$gad_d" $gad_s | grep -E "IN\W(NS|SOA)\W")
     fi
 
@@ -1465,10 +1472,10 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
   if [[ "$HAS_HOST" == "true" ]]; then
     gad_d="$orig_gad_d"
     debug Using "host -t NS" to find primary name server for "$gad_d"
+    # shellcheck disable=SC2086
     if [[ -z "$gad_s" ]]; then
       res=$(host $DNS_CHECK_OPTIONS -t NS "$gad_d"| grep "name server")
     else
-      # shellcheck disable=SC2086
       res=$(host $DNS_CHECK_OPTIONS -t NS "$gad_d" $gad_s| grep "name server")
     fi
     if [[ -n "$res" ]]; then
