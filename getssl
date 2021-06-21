@@ -1257,9 +1257,6 @@ for d in "${alldomains[@]}"; do
       if [[ -z "$AUTH_DNS_SERVER" ]]; then
         # Find authorative dns server for _acme-challenge.{domain} (for CNAMES/acme-dns)
         get_auth_dns "${rr}"
-        if test -n "${cname}"; then
-          rr=${cname}
-        fi
 
         # If no authorative dns server found, try again for {domain}
         if [[ -z "$primary_ns" ]]; then
