@@ -7,7 +7,7 @@ RUN apk --no-cache add supervisor openssl git curl bind-tools drill wget nginx b
 WORKDIR /root
 
 # Create nginx directories in standard places
-RUN mkdir /run/nginx
+RUN mkdir -p /run/nginx
 RUN mkdir -p /etc/nginx/pki/private
 
 # Setup ftp
