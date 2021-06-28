@@ -2972,14 +2972,26 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
 fi
 # end of .... check_remote is true then connect and obtain the current certificate
 
+#create SAN
+if [[ -z "$SANS" ]]; then
+  SANLIST="subjectAltName=DNS:${DOMAIN}"
+elif [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
+  SANLIST="subjectAltName=DNS:${SANS//[, ]/,DNS:}"
+else
+  SANLIST="subjectAltName=DNS:${DOMAIN},DNS:${SANS//[, ]/,DNS:}"
+fi
+debug "created SAN list = $SANLIST"
+
 # if there is an existing certificate file, check details.
 if [[ -s "$CERT_FILE" ]]; then
   debug "certificate $CERT_FILE exists"
   enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
   debug "local cert is valid until $enddate"
+  existing_sanlist=$(openssl x509 -in "$CERT_FILE" -noout -text | grep "DNS:" | sed 's/^ *//g')
+  debug "local cert is for domains: ${existing_sanlist}"
   if [[ "$enddate" != "-" ]]; then
     enddate_s=$(date_epoc "$enddate")
-    if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]]; then
+    if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]] && [[ "subjectAltName=$existing_sanlist" == "$SANLIST" ]]; then
       issuer=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null)
       if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v02.api.letsencrypt.org" ]]; then
         debug "upgrading from fake cert to real"
@@ -2989,6 +3001,9 @@ if [[ -s "$CERT_FILE" ]]; then
         graceful_exit $_NOTIFY_VALID
       fi
     else
+      if [[ "subjectAltName=$existing_sanlist" != "$SANLIST" ]]; then
+        info "Domain list in existing certificate ($existing_sanlist) does not match domains requested ($SANLIST), so recreating certificate"
+      fi
       debug "${DOMAIN}: certificate needs renewal"
     fi
   fi
@@ -3026,16 +3041,6 @@ else
   create_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.ec.key" "$DOMAIN_KEY_LENGTH"
 fi
 # End of creating domain keys.
-
-#create SAN
-if [[ -z "$SANS" ]]; then
-  SANLIST="subjectAltName=DNS:${DOMAIN}"
-elif [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
-  SANLIST="subjectAltName=DNS:${SANS//[, ]/,DNS:}"
-else
-  SANLIST="subjectAltName=DNS:${DOMAIN},DNS:${SANS//[, ]/,DNS:}"
-fi
-debug "created SAN list = $SANLIST"
 
 #create CSR's
 if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
