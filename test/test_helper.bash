@@ -92,6 +92,8 @@ fi
 # Find NGINX configuration directory for HTTP-01 testing (need to add SSL to config)
 if [[ -f /etc/nginx/conf.d/default.conf ]]; then
   export NGINX_CONFIG=/etc/nginx/conf.d/default.conf
+elif [[ -f /etc/nginx/http.d/default.conf ]]; then
+  export NGINX_CONFIG=/etc/nginx/http.d/default.conf
 elif [[ -f /etc/nginx/sites-enabled/default ]]; then
   export NGINX_CONFIG=/etc/nginx/sites-enabled/default
 else
