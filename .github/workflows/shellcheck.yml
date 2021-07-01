@@ -2,6 +2,8 @@ name: shellcheck
 
 on:
   push:
+    paths-ignore:
+      - '.github/workflows/*'
     branches: [ master ]
   pull_request:
     branches: [ master ]
@@ -10,8 +12,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - name: Lint check
-        uses: azohra/shell-linter@v0.3.0
+        uses: azohra/shell-linter@latest
         with:
           path: "getssl"

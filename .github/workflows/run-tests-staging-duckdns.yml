@@ -1,6 +1,8 @@
 name: Run all tests using DuckDNS
 on:
   push:
+    paths-ignore:
+      - '.github/workflows/*'
     branches:
       - master
   pull_request:
@@ -10,7 +12,7 @@ jobs:
   test-centos7-duckdns:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on CentOS7 against Staging using DuckDNS
@@ -18,7 +20,7 @@ jobs:
   test-ubuntu-duckdns:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on Ubuntu against Staging using DuckDNS
