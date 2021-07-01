@@ -1,31 +1,16 @@
+name: 'Close stale issues and PRs'
 on:
   schedule:
-    - cron: "0 0 * * *"
-
-name: Run Stale Bot on Issue Comments
+    - cron: '45 2 * * *'
 
 jobs:
-  build:
-    name: stale
+  stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
-      - name: stale
-        uses: gatsbyjs/stale@master
+      - uses: actions/stale@v3
         with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DRY_RUN: true
-          DAYS_BEFORE_STALE: 60
-          DAYS_BEFORE_CLOSE: 30
-          STALE_ISSUE_LABEL: 'stale'
-          STALE_PR_LABEL: 'stale'
-          OPERATIONS_PER_RUN: 30
-          STALE_ISSUE_MESSAGE: 'This issue will be closed as no updates for 60 days'
-          CLOSE_MESSAGE: 'Closing stale issue after 90 days of inactivity'
-          EXEMPT_ISSUE_LABELS: |
-            bug
-            documentation
-            enhancement
-            feature
-            help wanted
-            rfc
+          stale-issue-message: 'This issue is stale because it has been open 60 days with no activity. Remove stale label or comment or this will be closed in 30 days.'
+          days-before-stale: 60
+          days-before-close: 30
+          any-of-labels: 'needs more information'
+          debug-only: true
