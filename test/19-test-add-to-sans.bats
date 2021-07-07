@@ -34,7 +34,37 @@ teardown() {
 }
 
 
-@test "Check we can add a new domain to SANS" {
+@test "Check that if the SANS doesn't change, we don't re-create the certificate (single domain)" {
+    if [ -n "$STAGING" ]; then
+        skip "Not trying on staging server yet"
+    fi
+    CONFIG_FILE="getssl-dns01.cfg"
+
+    . "${CODE_DIR}/test/test-config/${CONFIG_FILE}"
+    CERT=${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt
+
+    create_certificate
+    assert_success
+    check_output_for_errors
+
+    # As the SANS list changed, a new certificate is needed
+    refute_line --partial "does not match domains requested"
+    refute_line --partial "does not have the same domains as the config - re-create-csr"
+    refute_line --partial "certificate installed OK on server"
+    assert_line --partial 'certificate is valid for more than'
+
+    # Check that the SAN list in the certificate matches the expected value
+    SAN_IN_CERT=$(openssl x509 -in "$CERT" -noout -text | grep "DNS:" | sed 's/^ *//g')
+    SAN_EXPECTED="DNS:${GETSSL_HOST}"
+    if [[ "$SAN_IN_CERT" != "$SAN_EXPECTED" ]]; then
+        echo "# SAN_IN_CERT=$SAN_IN_CERT"
+        echo "# SAN_EXPECTED=$SAN_EXPECTED"
+    fi
+    [ "${SAN_IN_CERT}" = "$SAN_EXPECTED" ]
+}
+
+
+@test "Check certificate is recreated if we add a new domain to SANS" {
     if [ -n "$STAGING" ]; then
         skip "Not trying on staging server yet"
     fi
@@ -56,6 +86,75 @@ EOF
     assert_line --partial "does not have the same domains as the config - re-create-csr"
     assert_line --partial "certificate installed OK on server"
     refute_line --partial 'certificate is valid for more than'
+
+    # Check that the SAN list in the certificate matches the expected value
+    SAN_IN_CERT=$(openssl x509 -in "$CERT" -noout -text | grep "DNS:" | sed 's/^ *//g')
+    SAN_EXPECTED="DNS:${GETSSL_HOST}, DNS:a.${GETSSL_HOST}"
+    if [[ "$SAN_IN_CERT" != "$SAN_EXPECTED" ]]; then
+        echo "# SAN_IN_CERT=$SAN_IN_CERT"
+        echo "# SAN_EXPECTED=$SAN_EXPECTED"
+    fi
+    [ "${SAN_IN_CERT}" = "$SAN_EXPECTED" ]
+}
+
+
+@test "Check that if the SANS doesn't change, we don't re-create the certificate (multiple domains)" {
+    if [ -n "$STAGING" ]; then
+        skip "Not trying on staging server yet"
+    fi
+    CONFIG_FILE="getssl-dns01.cfg"
+
+    cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
+SANS="a.${GETSSL_HOST}"
+EOF
+
+    . "${CODE_DIR}/test/test-config/${CONFIG_FILE}"
+    CERT=${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt
+
+    create_certificate
+    assert_success
+    check_output_for_errors
+
+    # As the SANS list changed, a new certificate is needed
+    refute_line --partial "does not match domains requested"
+    refute_line --partial "does not have the same domains as the config - re-create-csr"
+    refute_line --partial "certificate installed OK on server"
+    assert_line --partial 'certificate is valid for more than'
+
+    # Check that the SAN list in the certificate matches the expected value
+    SAN_IN_CERT=$(openssl x509 -in "$CERT" -noout -text | grep "DNS:" | sed 's/^ *//g')
+    SAN_EXPECTED="DNS:${GETSSL_HOST}, DNS:a.${GETSSL_HOST}"
+    if [[ "$SAN_IN_CERT" != "$SAN_EXPECTED" ]]; then
+        echo "# SAN_IN_CERT=$SAN_IN_CERT"
+        echo "# SAN_EXPECTED=$SAN_EXPECTED"
+    fi
+    [ "${SAN_IN_CERT}" = "$SAN_EXPECTED" ]
+}
+
+
+@test "Check that if the SANS doesn't change, we don't re-create the certificate (reordered domains)" {
+    if [ -n "$STAGING" ]; then
+        skip "Not trying on staging server yet"
+    fi
+    CONFIG_FILE="getssl-dns01.cfg"
+
+    cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
+IGNORE_DIRECTORY_DOMAIN="true"
+SANS="a.${GETSSL_HOST}, ${GETSSL_HOST}"
+EOF
+
+    . "${CODE_DIR}/test/test-config/${CONFIG_FILE}"
+    CERT=${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt
+
+    create_certificate
+    assert_success
+    check_output_for_errors
+
+    # As the SANS list changed, a new certificate is needed
+    refute_line --partial "does not match domains requested"
+    refute_line --partial "does not have the same domains as the config - re-create-csr"
+    refute_line --partial "certificate installed OK on server"
+    assert_line --partial 'certificate is valid for more than'
 
     # Check that the SAN list in the certificate matches the expected value
     SAN_IN_CERT=$(openssl x509 -in "$CERT" -noout -text | grep "DNS:" | sed 's/^ *//g')
