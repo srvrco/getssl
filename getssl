@@ -260,6 +260,7 @@
 # 2021-02-18 Add FULL_CHAIN_INCLUDE_ROOT
 # 2021-03-25 Fix DNS challenge completion check if CNAMEs on different NS are used (sideeffect42)(2.35)
 # 2021-05-08 Merge from tlhackque/getssl: GoDaddy, split-view, tempfile permissions fixes, --version(2.36)
+# 2021-07-12 Do not output a message when PREVENT_NON_INTERACTIVE_RENEWAL and QUIET are used together (atisne)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -3012,9 +3013,13 @@ fi
 # end of .... if there is an existing certificate file, check details.
 
 if [[ ! -t 0 ]] && [[ "$PREVENT_NON_INTERACTIVE_RENEWAL" = "true" ]]; then
-  errmsg="$DOMAIN due for renewal,"
-  errmsg="${errmsg} but not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
-  error_exit "$errmsg"
+  if [[ ${_QUIET} -eq 0 ]]; then
+    errmsg="$DOMAIN due for renewal,"
+    errmsg="${errmsg} but not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
+    error_exit "$errmsg"
+  else
+    graceful_exit 1
+  fi
 fi
 
 # create account key if it doesn't exist.
