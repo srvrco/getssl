@@ -12,6 +12,7 @@ IF NOT x%OS:duck=%==x%OS% GOTO duckdns
 IF NOT x%OS:dynu=%==x%OS% GOTO dynu
 IF NOT x%OS:bash=%==x%OS% GOTO bash
 SET ALIAS=%OS%.getssl.test
+SET IDN=%OS%.xn--t-r1a81lydm69gz81r.test
 SET STAGING=
 SET GETSSL_OS=%OS%
 GOTO Run
@@ -55,6 +56,7 @@ docker run -it ^
   --rm ^
   --network %CurrDirName%_acmenet ^
   --network-alias %ALIAS% ^
+  --network-alias %IDN% ^
   --network-alias a.%OS%.getssl.test ^
   --network-alias b.%OS%.getssl.test ^
   --network-alias c.%OS%.getssl.test ^

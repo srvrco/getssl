@@ -15,6 +15,7 @@ else
 fi
 
 ALIAS="$OS.getssl.test"
+IDN="$OS.xn--t-r1a81lydm69gz81r.test"
 STAGING=""
 GETSSL_OS=$OS
 
@@ -39,6 +40,7 @@ docker run \
   --rm \
   --network ${PWD##*/}_acmenet \
   --network-alias $ALIAS \
+  --network-alias $IDN \
   --network-alias "a.$OS.getssl.test" \
   --network-alias "b.$OS.getssl.test" \
   --network-alias "c.$OS.getssl.test" \
