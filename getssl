@@ -1167,11 +1167,12 @@ find_dns_utils() {
           HAS_DIG_OR_DRILL="dig"
         fi
 
-        if [[ $(${HAS_DIG_OR_DRILL} +noidnout >/dev/null 2>&1) ]]; then
+        if [[ -z $(dig +noidnout >/dev/null 2>&1) ]]; then
           DIG_SUPPORTS_NOIDNOUT=true
         fi
 
         debug "HAS DIG_OR_DRILL=$HAS_DIG_OR_DRILL"
+        debug "DIG_SUPPORTS_NOIDNOUT=$DIG_SUPPORTS_NOIDNOUT"
     fi
 
     if [[ -n "$(command -v host 2>/dev/null)" ]]; then
