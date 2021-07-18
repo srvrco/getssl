@@ -1,6 +1,6 @@
 FROM centos:centos8
 
-# Note this image uses drill, does not have dig or nslookup installed
+# Note this image does not have drill
 
 # Update and install required software
 RUN yum -y update
@@ -8,6 +8,11 @@ RUN yum -y install epel-release
 RUN yum -y install git curl bind-utils wget which nginx
 RUN yum -y install ftp vsftpd
 RUN yum -y install openssh-server
+
+# Set locale
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
 
 WORKDIR /root
 RUN mkdir -p /etc/nginx/pki/private

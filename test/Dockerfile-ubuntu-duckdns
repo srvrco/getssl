@@ -14,6 +14,13 @@ ENV DUCKDNS_TOKEN 1d616aa9-b8e4-4bb4-b312-3289de82badb
 RUN apt-get update --fix-missing
 RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light
 RUN apt-get install -y vim dos2unix # for debugging
+RUN apt-get install -y locales # for idn testing
+
+# Set locale
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
 
 WORKDIR /root
 

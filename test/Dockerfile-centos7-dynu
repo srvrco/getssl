@@ -7,6 +7,11 @@ RUN yum -y update
 RUN yum -y install epel-release
 RUN yum -y install git curl bind-utils ldns wget which nginx
 
+# Set locale
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
+
 ENV staging "true"
 ENV dynamic_dns "duckdns"
 ENV DYNU_API_KEY 65cXefd35XbYf36546eg5dYcZT6X52Y2
