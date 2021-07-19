@@ -1160,14 +1160,14 @@ find_dns_utils() {
         debug "HAS DIG_OR_DRILL=drill"
         HAS_DIG_OR_DRILL="drill"
     elif [[ -n "$(command -v dig 2>/dev/null)" ]] && dig >/dev/null 2>&1; then
-        if [[ $(dig -r >/dev/null 2>&1) ]]; then
+        if dig -r >/dev/null 2>&1; then
           # use dig -r so ~/.digrc is not used
           HAS_DIG_OR_DRILL="dig -r"
         else
           HAS_DIG_OR_DRILL="dig"
         fi
 
-        if [[ -z $(dig +noidnout >/dev/null 2>&1) ]]; then
+        if dig +noidnout >/dev/null 2>&1; then
           DIG_SUPPORTS_NOIDNOUT=true
         fi
 
