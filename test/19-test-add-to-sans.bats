@@ -47,7 +47,7 @@ teardown() {
     assert_success
     check_output_for_errors
 
-    # As the SANS list changed, a new certificate is needed
+    # As the SANS list didn't change, a new certificate isn't needed
     refute_line --partial "does not match domains requested"
     refute_line --partial "does not have the same domains as the config - re-create-csr"
     refute_line --partial "certificate installed OK on server"
@@ -115,7 +115,7 @@ EOF
     assert_success
     check_output_for_errors
 
-    # As the SANS list changed, a new certificate is needed
+    # As the SANS list didn't change, a new certificate isn't needed
     refute_line --partial "does not match domains requested"
     refute_line --partial "does not have the same domains as the config - re-create-csr"
     refute_line --partial "certificate installed OK on server"
@@ -150,7 +150,7 @@ EOF
     assert_success
     check_output_for_errors
 
-    # As the SANS list changed, a new certificate is needed
+    # As the SANS list didn't change, a new certificate isn't needed
     refute_line --partial "does not match domains requested"
     refute_line --partial "does not have the same domains as the config - re-create-csr"
     refute_line --partial "certificate installed OK on server"

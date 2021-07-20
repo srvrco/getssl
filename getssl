@@ -529,6 +529,17 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
   # check for token at public dns server, waiting for a valid response.
   for ns in $primary_ns; do
     info "checking DNS at $ns"
+
+    # add +noidnout if idn-domain so search for domain in results works
+    if [[ "${d}" == xn--* || "${d}" == *".xn--"* ]]; then
+      if [[ "$DNS_CHECK_FUNC" == "nslookup" || "$DNS_CHECK_FUNC" == "host" || ("$DNS_CHECK_FUNC" == "dig" && "$DIG_SUPPORTS_NOIDNOUT" == "false") ]]; then
+        info "Warning: idn domain but $DNS_CHECK_FUNC doesn't support +noidnout"
+      else
+        debug "adding +noidnout to DNS_CHECK_OPTIONS"
+        DNS_CHECK_OPTIONS="$DNS_CHECK_OPTIONS +noidnout"
+      fi
+    fi
+
     ntries=0
     check_dns="fail"
     while [[ "$check_dns" == "fail" ]]; do
@@ -537,14 +548,18 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
                       | grep ^_acme -A2\
                       | grep '"'|awk -F'"' '{ print $2}')
       elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
-        debug "$DNS_CHECK_FUNC" TXT "${rr}" "@${ns}"
-        check_result=$($DNS_CHECK_FUNC TXT "${rr}" "@${ns}" \
+        # shellcheck disable=SC2086
+        debug "$DNS_CHECK_FUNC" $DNS_CHECK_OPTIONS TXT "${rr}" "@${ns}"
+        # shellcheck disable=SC2086
+        check_result=$($DNS_CHECK_FUNC $DNS_CHECK_OPTIONS TXT "${rr}" "@${ns}" \
                       | grep -i "^${rr}" \
                       | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
         debug "check_result=$check_result"
         if [[ -z "$check_result" ]]; then
-          debug "$DNS_CHECK_FUNC" ANY "${rr}" "@${ns}"
-          check_result=$($DNS_CHECK_FUNC ANY "${rr}" "@${ns}" \
+          # shellcheck disable=SC2086
+          debug "$DNS_CHECK_FUNC" $DNS_CHECK_OPTIONS ANY "${rr}" "@${ns}"
+          # shellcheck disable=SC2086
+          check_result=$($DNS_CHECK_FUNC $DNS_CHECK_OPTIONS ANY "${rr}" "@${ns}" \
                       | grep -i "^${rr}" \
                       | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
           debug "check_result=$check_result"
@@ -649,6 +664,7 @@ check_config() { # check the config files for all obvious errors
   tmplist=$(mktemp 2>/dev/null || mktemp -t getssl.XXXXXX) || error_exit "mktemp failed"
   for d in "${alldomains[@]}"; do # loop over domains (dn is domain number)
     debug "checking domain $d"
+
     if [[ "$(grep "^${d}$" "$tmplist")" = "$d" ]]; then
       info "${DOMAIN}: $d appears to be duplicated in domain, SAN list"
       config_errors=true
@@ -672,6 +688,14 @@ check_config() { # check the config files for all obvious errors
       fi
 
       # check domain exists using all DNS utilities. DNS_CHECK_OPTIONS may bind IP address or provide TSIG
+
+      # add +noidnout if idn-domain so search for domain in results works
+      if [[ "${d}" == xn--* || "${d}" == *".xn--"* ]]; then
+        if [[ "$HAS_DIG_OR_DRILL" != "dig" || "$DIG_SUPPORTS_NOIDNOUT" == "true" ]]; then
+          DNS_CHECK_OPTIONS="$DNS_CHECK_OPTIONS +noidnout"
+        fi
+      fi
+
       found_ip=false
       if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
         debug "DNS lookup using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${d}"
@@ -1125,6 +1149,7 @@ error_exit() { # give error message on error exit
 find_dns_utils() {
     HAS_NSLOOKUP=false
     HAS_DIG_OR_DRILL=""
+    DIG_SUPPORTS_NOIDNOUT=false
     HAS_HOST=false
     if [[ -n "$(command -v nslookup 2>/dev/null)" ]]; then
         debug "HAS NSLOOKUP=true"
@@ -1135,13 +1160,19 @@ find_dns_utils() {
         debug "HAS DIG_OR_DRILL=drill"
         HAS_DIG_OR_DRILL="drill"
     elif [[ -n "$(command -v dig 2>/dev/null)" ]] && dig >/dev/null 2>&1; then
-        if [[ $(dig -r >/dev/null 2>&1) ]]; then
+        if dig -r >/dev/null 2>&1; then
           # use dig -r so ~/.digrc is not used
           HAS_DIG_OR_DRILL="dig -r"
         else
           HAS_DIG_OR_DRILL="dig"
         fi
+
+        if dig +noidnout >/dev/null 2>&1; then
+          DIG_SUPPORTS_NOIDNOUT=true
+        fi
+
         debug "HAS DIG_OR_DRILL=$HAS_DIG_OR_DRILL"
+        debug "DIG_SUPPORTS_NOIDNOUT=$DIG_SUPPORTS_NOIDNOUT"
     fi
 
     if [[ -n "$(command -v host 2>/dev/null)" ]]; then
