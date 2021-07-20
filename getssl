@@ -260,7 +260,9 @@
 # 2021-02-18 Add FULL_CHAIN_INCLUDE_ROOT
 # 2021-03-25 Fix DNS challenge completion check if CNAMEs on different NS are used (sideeffect42)(2.35)
 # 2021-05-08 Merge from tlhackque/getssl: GoDaddy, split-view, tempfile permissions fixes, --version(2.36)
+# 2021-07-07 Request new certificate if SANs have changed (#669)(#673)
 # 2021-07-12 Do not redirect outputs on remote commands when the debug option is used (atisne)
+# 2021-07-20 Use +noidnout to enable certificates for IDN domains (#679)(2.37)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -269,16 +271,16 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.36"
+VERSION="2.37"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
 ACCOUNT_KEY_TYPE="rsa"
-CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 CA_CERT_LOCATION=""
+CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 CHALLENGE_CHECK_TYPE="http"
-CHECK_REMOTE="true"
 CHECK_REMOTE_WAIT=0
+CHECK_REMOTE="true"
 CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
 CSR_SUBJECT="/"
 CURL_USERAGENT="${PROGNAME}/${VERSION}"
@@ -291,6 +293,7 @@ FULL_CHAIN_INCLUDE_ROOT="false"
 GETSSL_IGNORE_CP_PRESERVE="false"
 HTTP_TOKEN_CHECK_WAIT=0
 IGNORE_DIRECTORY_DOMAIN="false"
+OCSP_MUST_STAPLE="false"
 ORIG_UMASK=$(umask)
 PREFERRED_CHAIN=""              # Set this to use an alternative root certificate
 PREVIOUSLY_VALIDATED="true"
@@ -301,7 +304,6 @@ REUSE_PRIVATE_KEY="true"
 SERVER_TYPE="https"
 SKIP_HTTP_TOKEN_CHECK="false"
 SSLCONF="$(openssl version -d 2>/dev/null| cut -d\" -f2)/openssl.cnf"
-OCSP_MUST_STAPLE="false"
 TEMP_UPGRADE_FILE=""
 TOKEN_USER_ID=""
 USE_SINGLE_ACL="false"
