@@ -5,7 +5,7 @@ load '/bats-assert/load.bash'
 load '/getssl/test/test_helper.bash'
 
 
-setup() {
+setup_file() {
     if [ -z "$STAGING" ]; then
         export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
     fi
@@ -18,7 +18,7 @@ setup() {
 }
 
 
-teardown() {
+teardown_file() {
     if [ -f /usr/bin/host.getssl.bak ]; then
         mv /usr/bin/host.getssl.bak /usr/bin/host
     fi
