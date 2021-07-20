@@ -5,9 +5,9 @@ domains=($(echo "$1"|sed -e 's/^\(\([a-zA-Z0-9.-]*\?\)\.\)*\([a-zA-Z0-9-]\+\.[a-
 
 # Please, do not forget to ask for your credentials at https://eu.api.ovh.com/createToken/
 # permissions needed are /domain/zone/* in GET,POST,DELETE
-applicationKey="YourAK"
-applicationSecret="YourAS"
-consumerKey="YourCK"
+applicationKey=${OVH_APPLICATION_KEY:-''}
+applicationSecret=${OVH_APPLICATION_SECRET:-''}
+consumerKey=${OVH_CONSUMER_KEY:-''}
 
 topDomain=${domains[2]}
 subDomain=${domains[1]%%.}
