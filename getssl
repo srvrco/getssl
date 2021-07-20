@@ -260,6 +260,7 @@
 # 2021-02-18 Add FULL_CHAIN_INCLUDE_ROOT
 # 2021-03-25 Fix DNS challenge completion check if CNAMEs on different NS are used (sideeffect42)(2.35)
 # 2021-05-08 Merge from tlhackque/getssl: GoDaddy, split-view, tempfile permissions fixes, --version(2.36)
+# 2021-07-12 Do not redirect outputs on remote commands when the debug option is used (atisne)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -329,6 +330,7 @@ _MUTE=0
 _NOTIFY_VALID=0
 _QUIET=0
 _RECREATE_CSR=0
+_REDIRECT_OUTPUT="1>/dev/null 2>&1"
 _REVOKE=0
 _RUNNING_TEST=0
 _TEST_SKIP_CNAME_CALL=0
@@ -1365,10 +1367,10 @@ for d in "${alldomains[@]}"; do
         if [[ "${t_loc:0:4}" == "ssh:" ]] ; then
           sshhost=$(echo "${t_loc}"| awk -F: '{print $2}')
           command="rm -f ${t_loc:(( ${#sshhost} + 5))}/${token:?}"
-          debug "running following command to remove token"
-          debug "ssh $SSH_OPTS $sshhost ${command}"
+          debug "running following command to remove token:"
+          debug "ssh $SSH_OPTS $sshhost ${command} $_REDIRECT_OUTPUT"
           # shellcheck disable=SC2029 disable=SC2086
-          ssh $SSH_OPTS "$sshhost" "${command}" 1>/dev/null 2>&1
+          ssh $SSH_OPTS "$sshhost" "${command}" $_REDIRECT_OUTPUT
           rm -f "${TEMP_DIR:?}/${token:?}"
         elif [[ "${t_loc:0:4}" == "ftp:" ]] ; then
           debug "using ftp to remove token file"
@@ -2101,10 +2103,10 @@ reload_service() {  # Runs a command to reload services ( via ssh if needed)
         sshhost=$(echo "$ARELOAD_CMD"| awk -F: '{print $2}')
         command=${ARELOAD_CMD:(( ${#sshhost} + 5))}
         debug "running following command to reload cert:"
-        debug "ssh $SSH_OPTS $sshhost ${command}"
+        debug "ssh $SSH_OPTS $sshhost ${command} $_REDIRECT_OUTPUT"
         # shellcheck disable=SC2029
         # shellcheck disable=SC2086
-        ssh $SSH_OPTS "$sshhost" "${command}" 1>/dev/null 2>&1
+        ssh $SSH_OPTS "$sshhost" "${command}" $_REDIRECT_OUTPUT
         # allow 2 seconds for services to restart
         sleep 2
       else
@@ -2650,6 +2652,11 @@ while [[ -n ${1+defined} ]]; do
   esac
   shift
 done
+
+if [[ ${_USE_DEBUG} -eq 1 ]]; then
+  # Do not hide outputs when debug mode is on
+  _REDIRECT_OUTPUT=""
+fi
 
 # Main logic
 ############
