@@ -895,8 +895,8 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       fi
       $FTP_COMMAND <<- _EOF
 			open $ftphost
-      user $ftpuser $ftppass
-      $FTP_OPTIONS
+			user $ftpuser $ftppass
+			$FTP_OPTIONS
 			cd $ftpdirn
 			lcd $fromdir
 			put ./$fromfile
@@ -1804,7 +1804,7 @@ help_message() { # print out the help message
 	  -U, --nocheck      Do not check if a more recent version is available
 	  -v  --version      Display current version of $PROGNAME
 	  -w working_dir "Working directory"
-    --preferred-chain "chain" Use an alternate chain for the certificate
+	  --preferred-chain "chain" Use an alternate chain for the certificate
 
 	_EOF_
 }
@@ -2452,7 +2452,7 @@ write_domain_template() { # write out a template file for a domain.
 		# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
 		# You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
 		# password, host, port (explicitly needed even if using default port 443) and path on the server.
-        # Multiple locations can be defined for a file by separating the locations with a semi-colon.
+		# Multiple locations can be defined for a file by separating the locations with a semi-colon.
 		#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 		#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 		#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
@@ -2562,18 +2562,18 @@ write_getssl_template() { # write out the main template file
 	#DNS_ADD_COMMAND=
 	#DNS_DEL_COMMAND=
 
-        # Unusual configurations (especially split views) may require these.
-        # If you have a mixture, these can go in the per-domain getssl.cfg.
-        #
-        # If you must use an external DNS Server (e.g. due to split views)
-        # Specify it here.  Otherwise, the default is to find the zone master.
-        # The default will usually work.
-        # PUBLIC_DNS_SERVER="8.8.8.8"
+	# Unusual configurations (especially split views) may require these.
+	# If you have a mixture, these can go in the per-domain getssl.cfg.
+	#
+	# If you must use an external DNS Server (e.g. due to split views)
+	# Specify it here.  Otherwise, the default is to find the zone master.
+	# The default will usually work.
+	# PUBLIC_DNS_SERVER="8.8.8.8"
 
-        # If getssl is unable to determine the authoritative nameserver for a domain
-        # it will as you to enter AUTH_DNS_SERVER.  This is a server that
-        # can answer queries for the zone - a master or a slave, not a recursive server.
-        # AUTH_DNS_SERVER="10.0.0.14"
+	# If getssl is unable to determine the authoritative nameserver for a domain
+	# it will as you to enter AUTH_DNS_SERVER.  This is a server that
+	# can answer queries for the zone - a master or a slave, not a recursive server.
+	# AUTH_DNS_SERVER="10.0.0.14"
 	_EOF_getssl_
 }
 
