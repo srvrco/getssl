@@ -47,7 +47,7 @@ create_certificate() {
   # Create certificate
   cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg"
   # shellcheck disable=SC2086
-  run ${CODE_DIR}/getssl $1 "$GETSSL_CMD_HOST"
+  run ${CODE_DIR}/getssl "$@" "$GETSSL_CMD_HOST"
 }
 
 init_getssl() {
