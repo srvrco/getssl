@@ -693,28 +693,27 @@ check_config() { # check the config files for all obvious errors
 
       # check domain exists using all DNS utilities. DNS_CHECK_OPTIONS may bind IP address or provide TSIG
 
-      # add +noidnout if idn-domain so search for domain in results works
-      if [[ "${d}" == xn--* || "${d}" == *".xn--"* ]]; then
-        if [[ "$HAS_DIG_OR_DRILL" != "dig" || "$DIG_SUPPORTS_NOIDNOUT" == "true" ]]; then
-          DNS_CHECK_OPTIONS="$DNS_CHECK_OPTIONS +noidnout"
-        fi
-      fi
-
       found_ip=false
       if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
-        debug "DNS lookup using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${d}"
+        # add +noidnout if idn-domain so search for domain in results works
+        DIG_CHECK_OPTIONS="$DNS_CHECK_OPTIONS"
+        if [[ ("${d}" == xn--* || "${d}" == *".xn--"* ) && "$DIG_SUPPORTS_NOIDNOUT" == "true" ]]; then
+          DIG_CHECK_OPTIONS="$DNS_CHECK_OPTIONS +noidnout"
+        fi
+
+        debug "DNS lookup using $HAS_DIG_OR_DRILL $DIG_CHECK_OPTIONS ${d}"
         # shellcheck disable=SC2086
-        if [[ "$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -t SOA "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
+        if [[ "$($HAS_DIG_OR_DRILL $DIG_CHECK_OPTIONS -t SOA "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
           found_ip=true
-        elif [[ "$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -t A "${d}"|grep -c -i "^${d}")" -ge 1 ]]; then
+        elif [[ "$($HAS_DIG_OR_DRILL $DIG_CHECK_OPTIONS -t A "${d}"|grep -c -i "^${d}")" -ge 1 ]]; then
           found_ip=true
-        elif [[ "$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -t AAAA "${d}"|grep -c -i "^${d}")" -ge 1 ]]; then
+        elif [[ "$($HAS_DIG_OR_DRILL $DIG_CHECK_OPTIONS -t AAAA "${d}"|grep -c -i "^${d}")" -ge 1 ]]; then
           found_ip=true
         fi
       fi
 
       if [[ "$HAS_HOST" == "true" ]]; then
-        debug "DNS lookup using host ${d}"
+        debug "DNS lookup using host $DNS_CHECK_OPTIONS ${d}"
         # shellcheck disable=SC2086
         if [[ "$(host $DNS_CHECK_OPTIONS "${d}" |grep -c -i "^${d}")" -ge 1 ]]; then
           found_ip=true
@@ -722,7 +721,7 @@ check_config() { # check the config files for all obvious errors
       fi
 
       if [[ "$HAS_NSLOOKUP" == "true" ]]; then
-        debug "DNS lookup using nslookup -query AAAA ${d}"
+        debug "DNS lookup using nslookup $DNS_CHECK_OPTIONS -query AAAA ${d}"
         # shellcheck disable=SC2086
         if [[ "$(nslookup $DNS_CHECK_OPTIONS -query=AAAA "${d}"|grep -c -i "^${d}.*has AAAA address")" -ge 1 ]]; then
           debug "found IPv6 record for ${d}"
@@ -1161,7 +1160,6 @@ find_dns_utils() {
     fi
 
     if [[ -n "$(command -v drill 2>/dev/null)" ]]; then
-        debug "HAS DIG_OR_DRILL=drill"
         HAS_DIG_OR_DRILL="drill"
     elif [[ -n "$(command -v dig 2>/dev/null)" ]] && dig >/dev/null 2>&1; then
         if dig -r >/dev/null 2>&1; then
@@ -1170,8 +1168,10 @@ find_dns_utils() {
         else
           HAS_DIG_OR_DRILL="dig"
         fi
+    fi
 
-        if dig +noidnout >/dev/null 2>&1; then
+    if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
+        if $HAS_DIG_OR_DRILL +noidnout >/dev/null 2>&1; then
           DIG_SUPPORTS_NOIDNOUT=true
         fi
 
