@@ -8,11 +8,11 @@ SET COMMAND=%2 %3
 
 :CheckAlias
 REM check if OS *contains* staging
+SET GETSSL_IDN_HOST=%OS%.xn--t-r1a81lydm69gz81r.test
 IF NOT x%OS:duck=%==x%OS% GOTO duckdns
 IF NOT x%OS:dynu=%==x%OS% GOTO dynu
 IF NOT x%OS:bash=%==x%OS% GOTO bash
 SET ALIAS=%OS%.getssl.test
-SET IDN=%OS%.xn--t-r1a81lydm69gz81r.test
 SET STAGING=
 SET GETSSL_OS=%OS%
 GOTO Run
@@ -51,12 +51,13 @@ IF %ErrorLevel% EQU 1 GOTO End
 @echo on
 docker run -it ^
   --env GETSSL_HOST=%ALIAS% %STAGING% ^
+  --env GETSSL_IDN_HOST=%GETSSL_IDN_HOST% ^
   --env GETSSL_OS=%GETSSL_OS% ^
   -v %cd%:/getssl ^
   --rm ^
   --network %CurrDirName%_acmenet ^
   --network-alias %ALIAS% ^
-  --network-alias %IDN% ^
+  --network-alias %GETSSL_IDN_HOST% ^
   --network-alias a.%OS%.getssl.test ^
   --network-alias b.%OS%.getssl.test ^
   --network-alias c.%OS%.getssl.test ^

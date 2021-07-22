@@ -7,14 +7,13 @@ load '/getssl/test/test_helper.bash'
 setup_file() {
     if [ -z "$STAGING" ]; then
         export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
-        GETSSL_CMD_HOST=${GETSSL_HOST/getssl/xn--t-r1a81lydm69gz81r}
-        curl --silent -X POST -d '{"host":"'$GETSSL_CMD_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
+        curl --silent -X POST -d '{"host":"'$GETSSL_IDN_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
     fi
 }
 
 # This is run for every test
 setup() {
-    GETSSL_CMD_HOST=${GETSSL_HOST/getssl/xn--t-r1a81lydm69gz81r}
+    GETSSL_CMD_HOST=${GETSSL_IDN_HOST}
 
     # use the test description to move tools we don't want to test out of the way
     DNS_TOOL=${BATS_TEST_DESCRIPTION##*:}
@@ -39,7 +38,7 @@ teardown() {
 
 teardown_file() {
     if [ -z "$STAGING" ]; then
-        curl --silent -X POST -d '{"host":"'$GETSSL_CMD_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/clear-a
+        curl --silent -X POST -d '{"host":"'$GETSSL_IDN_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/clear-a
     fi
 }
 
