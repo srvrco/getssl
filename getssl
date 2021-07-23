@@ -263,6 +263,7 @@
 # 2021-07-07 Request new certificate if SANs have changed (#669)(#673)
 # 2021-07-12 Do not redirect outputs on remote commands when the debug option is used (atisne)
 # 2021-07-20 Use +noidnout to enable certificates for IDN domains (#679)(2.37)
+# 2021-07-22 Only pass +noidnout param to dig/drill(#682)(2.38)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -271,7 +272,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.37"
+VERSION="2.38"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
