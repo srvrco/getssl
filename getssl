@@ -264,6 +264,7 @@
 # 2021-07-12 Do not redirect outputs on remote commands when the debug option is used (atisne)
 # 2021-07-20 Use +noidnout to enable certificates for IDN domains (#679)(2.37)
 # 2021-07-22 Only pass +noidnout param to dig/drill(#682)(2.38)
+# 2021-07-25 Fix copy_file_to_location failures with ssh when suffix applied to file lacking an extension (2.39)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -272,7 +273,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.38"
+VERSION="2.39"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -850,7 +851,12 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
   IFS=\; read -r -a copy_locations <<<"$3"
   for to in "${copy_locations[@]}"; do
     if [[ -n "$suffix" ]]; then
-      to="${to%.*}.${suffix}.${to##*.}"
+      bname="`basename $to`"
+      if [[ "${bname##*.}" == "$bname" ]]; then
+        to="${to}.${suffix}"
+      else
+        to="${to%.*}.${suffix}.${to##*.}"
+      fi
     fi
     info "copying $cert to $to"
     if [[ "${to:0:4}" == "ssh:" ]] ; then
