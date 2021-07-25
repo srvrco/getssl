@@ -851,7 +851,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
   IFS=\; read -r -a copy_locations <<<"$3"
   for to in "${copy_locations[@]}"; do
     if [[ -n "$suffix" ]]; then
-      bname="`basename $to`"
+      bname="$(basename "$to")"
       if [[ "${bname##*.}" == "$bname" ]]; then
         to="${to}.${suffix}"
       else
