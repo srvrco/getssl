@@ -264,8 +264,8 @@
 # 2021-07-12 Do not redirect outputs on remote commands when the debug option is used (atisne)
 # 2021-07-20 Use +noidnout to enable certificates for IDN domains (#679)(2.37)
 # 2021-07-22 Only pass +noidnout param to dig/drill(#682)(2.38)
-# 2021-07-25 Fix copy_file_to_location failures with ssh when suffix applied to file lacking an extension
-# 2021-07-27 Provide ftps:// copy which verifies remote TLS certificates (vs. ftpes:// which is insecure) (2.39)
+# 2021-07-25 Fix copy_file_to_location failures with ssh when suffix applied to file lacking an extension (tlhackque)(#686)
+# 2021-07-27 Support ftps://, FTPS_OPTIONS, remove default --insecure parameter to ftpes (tlhackque)(#687)(2.39)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -956,7 +956,8 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       if [[ "${to:0:5}" == "ftps:" ]] ; then
         curl --ftp-ssl -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}/"
       else
-        curl --insecure --ftp-ssl -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}/"
+        # shellcheck disable=SC2086
+        curl $FTPS_OPTIONS --ftp-ssl -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}/"
       fi
     else
       if ! mkdir -p "$(dirname "$to")" ; then
@@ -2462,8 +2463,8 @@ write_domain_template() { # write out a template file for a domain.
 		# If these start with ftp:/ftpes:/ftps: then the next variables are ftpuserid:ftppassword:servername:ACL_location
 		# These should be of the form "/path/to/your/website/folder/.well-known/acme-challenge"
 		# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
-		# ftp: uses regular ftp; ftpes: uses ftp over TLS but DOES NOT verify the remote certificates; ftps: uses ftp over TLS.
-		# ftpes: is less secure than ftps: and should only be used for hosts with self-signed certificates.
+		# ftp: uses regular ftp; ftpes: ftp over explicit TLS (port 21); ftps: ftp over implicit TLS (port 990).
+		# ftps/ftpes support FTPS_OPTIONS, e.g. to add "--insecure" to the curl command for hosts with self-signed certificates.
 		# You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
 		# password, host, port (explicitly needed even if using default port 443) and path on the server.
 		# Multiple locations can be defined for a file by separating the locations with a semi-colon.
@@ -2472,7 +2473,8 @@ write_domain_template() { # write out a template file for a domain.
 		#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 		#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
 		#     'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge'
-		#     'ftps:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
+		#     'ftps:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
+		#     'ftpes:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
 
 		# Specify SSH options, e.g. non standard port in SSH_OPTS
 		# (Can also use SCP_OPTS and SFTP_OPTS)
