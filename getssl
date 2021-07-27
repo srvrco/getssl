@@ -955,10 +955,10 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       debug "from dir=$fromdir  file=$fromfile"
       if [[ "${to:0:5}" == "ftps:" ]] ; then
         # shellcheck disable=SC2086
-        curl $FTPS_OPTIONS --ftp-ssl -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}:990/"
+        curl $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}:990/"
       else
         # shellcheck disable=SC2086
-        curl $FTPS_OPTIONS --ftp-ssl -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}/"
+        curl $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}/"
       fi
     else
       if ! mkdir -p "$(dirname "$to")" ; then
