@@ -265,7 +265,7 @@
 # 2021-07-20 Use +noidnout to enable certificates for IDN domains (#679)(2.37)
 # 2021-07-22 Only pass +noidnout param to dig/drill(#682)(2.38)
 # 2021-07-25 Fix copy_file_to_location failures with ssh when suffix applied to file lacking an extension (tlhackque)(#686)
-# 2021-07-27 Support ftps://, FTPS_OPTIONS, remove default --insecure parameter to ftpes. Report caller of error_exit in debug and test modes (tlhackque)(#687)(2.39)
+# 2021-07-27 Support ftps://, FTPS_OPTIONS, remove default --insecure parameter to ftpes. Report caller(s) of error_exit in debug and test modes (tlhackque)(#687)(2.39)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -1161,7 +1161,7 @@ test_output() { # write out debug output for testing
 error_exit() { # give error message on error exit
   echo -e "${PROGNAME}: ${1:-"Unknown Error"}" >&2
   if [[ ${_RUNNING_TEST} -eq 1 ]] || [[ ${_USE_DEBUG} -eq 1 ]] ; then
-    echo "  from ${FUNCNAME[1]}:${BASH_LINENO[1]}" >&2
+    traceback
   fi
   clean_up
   exit 1
@@ -2411,6 +2411,16 @@ signal_exit() { # Handle trapped signals
     *)
       error_exit "$PROGNAME: Terminating on unknown signal" ;;
   esac
+}
+
+traceback() { # Print function traceback
+    local i d=1 lbl=" called"
+    echo "Traceback" >&2
+    for ((i=$((${#FUNCNAME[@]}-1)); i>0; i--)); do
+      if [[ ${i} -eq 1 ]] ; then lbl=" called traceback" ; fi
+      printf "%*s%s() line %d%s\n" "$d" '' "${FUNCNAME[$i]}" "${BASH_LINENO[$((i-1))]}" "$lbl" >&2
+      ((d++))
+    done
 }
 
 urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
