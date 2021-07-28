@@ -265,7 +265,7 @@
 # 2021-07-20 Use +noidnout to enable certificates for IDN domains (#679)(2.37)
 # 2021-07-22 Only pass +noidnout param to dig/drill(#682)(2.38)
 # 2021-07-25 Fix copy_file_to_location failures with ssh when suffix applied to file lacking an extension (tlhackque)(#686)
-# 2021-07-27 Support ftps://, FTPS_OPTIONS, remove default --insecure parameter to ftpes (tlhackque)(#687)(2.39)
+# 2021-07-27 Support ftps://, FTPS_OPTIONS, remove default --insecure parameter to ftpes. Report caller of error_exit in debug and test modes (tlhackque)(#687)(2.39)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -1160,6 +1160,9 @@ test_output() { # write out debug output for testing
 
 error_exit() { # give error message on error exit
   echo -e "${PROGNAME}: ${1:-"Unknown Error"}" >&2
+  if [[ ${_RUNNING_TEST} -eq 1 ]] || [[ ${_USE_DEBUG} -eq 1 ]] ; then
+    echo "  from ${FUNCNAME[1]}:${BASH_LINENO[1]}" >&2
+  fi
   clean_up
   exit 1
 }
