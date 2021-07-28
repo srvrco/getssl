@@ -1371,7 +1371,10 @@ for d in "${alldomains[@]}"; do
       else
         sleep "$HTTP_TOKEN_CHECK_WAIT"
         # check that we can reach the challenge ourselves, if not, then error
-        if [[ ! "$(curl --user-agent "$CURL_USERAGENT" -k --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
+        # ACME only allows port 80 (http), but redirects may use https.  --insecure is used in case
+        # those certificates are being renewed.  Let's Encrypt does the same.  In this case, we verify
+        # that the correct data is returned, so this is safe.
+        if [[ ! "$(curl --user-agent "$CURL_USERAGENT" --insecure --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
           error_exit "for some reason could not reach $wellknown_url - please check it manually"
         fi
       fi
