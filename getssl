@@ -266,6 +266,7 @@
 # 2021-07-22 Only pass +noidnout param to dig/drill(#682)(2.38)
 # 2021-07-25 Fix copy_file_to_location failures with ssh when suffix applied to file lacking an extension (tlhackque)(#686)
 # 2021-07-27 Support ftps://, FTPS_OPTIONS, remove default --insecure parameter to ftpes. Report caller(s) of error_exit in debug and test modes (tlhackque)(#687)(2.39)
+# 2021-07-30 Prefer API V2 when both offered (tlhackque) (#690) (2.40)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -274,7 +275,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.39"
+VERSION="2.40"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -2072,10 +2073,11 @@ obtain_ca_resource_locations()
     fi
   done
 
-  if [[ -n "$URL_new_reg" ]]; then
-    API=1
-  elif [[ -n "$URL_newAccount" ]]; then
+  # If a directory offers both versions, select V2.
+  if [[ -n "$URL_newAccount" ]]; then
     API=2
+  elif [[ -n "$URL_new_reg" ]]; then
+    API=1
   else
     error_exit "unknown API version"
   fi
