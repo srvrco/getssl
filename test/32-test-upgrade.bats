@@ -11,7 +11,12 @@ setup() {
 
     # Turn off warning about detached head
     git config --global advice.detachedHead false
-    run git clone https://github.com/srvrco/getssl.git "$INSTALL_DIR/upgrade-getssl"
+    if [[ -n "${GITHUB_REPOSITORY}" ]] ; then
+      _REPO="https://github.com/${GITHUB_REPOSITORY}.git"
+    else
+      _REPO="https://github.com/srvrco/getssl.git"
+    fi
+    run git clone "${_REPO}" "$INSTALL_DIR/upgrade-getssl"
 
     # Don't do version arithmetics any longer, look what was the previous version by getting the last
     # line (starting with v) and the one before that from the list of tags.

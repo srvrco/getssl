@@ -25,7 +25,7 @@ check_nginx() {
 check_output_for_errors() {
   refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
   # less strict tests if running with debug output
-  if [ -n "$1" ]; then
+  if [ -n "X$1" ]; then
       # don't fail for :error:badNonce
       refute_output --regexp '[^:][Ee][Rr][Rr][Oo][Rr][^:]'
       # don't check for "Warnings:" as there might be a warning message if nslookup doesn't support -debug (alpine/ubuntu)
@@ -47,12 +47,12 @@ create_certificate() {
   # Create certificate
   cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg"
   # shellcheck disable=SC2086
-  run ${CODE_DIR}/getssl "$@" "$GETSSL_CMD_HOST"
+  run ${CODE_DIR}/getssl -d "$@" "$GETSSL_CMD_HOST"
 }
 
 init_getssl() {
   # Run initialisation (create account key, etc)
-  run ${CODE_DIR}/getssl -c "$GETSSL_CMD_HOST"
+  run ${CODE_DIR}/getssl -d -c "$GETSSL_CMD_HOST"
   assert_success
   [ -d "$INSTALL_DIR/.getssl" ]
 }

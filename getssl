@@ -267,6 +267,7 @@
 # 2021-07-25 Fix copy_file_to_location failures with ssh when suffix applied to file lacking an extension (tlhackque)(#686)
 # 2021-07-27 Support ftps://, FTPS_OPTIONS, remove default --insecure parameter to ftpes. Report caller(s) of error_exit in debug and test modes (tlhackque)(#687)(2.39)
 # 2021-07-30 Prefer API V2 when both offered (tlhackque) (#690) (2.40)
+# 2021-07-30 Run tests with -d to catch intermittent failures, Use fork's repo for upgrade tests. (tlhackque) (#692) (2.41)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -275,7 +276,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.40"
+VERSION="2.41"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -285,7 +286,11 @@ CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 CHALLENGE_CHECK_TYPE="http"
 CHECK_REMOTE_WAIT=0
 CHECK_REMOTE="true"
-CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
+if [[ -n "${GITHUB_REPOSITORY}" ]] ; then
+  CODE_LOCATION="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/master/getssl"
+else
+  CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
+fi
 CSR_SUBJECT="/"
 CURL_USERAGENT="${PROGNAME}/${VERSION}"
 DEACTIVATE_AUTH="false"
@@ -1798,7 +1803,7 @@ get_signing_params() { # get signing parameters from key
 }
 
 graceful_exit() { # normal exit function.
-  exit_code=$1
+  exit_code="${1-0}"
   clean_up
   # shellcheck disable=SC2086
   exit $exit_code
@@ -2415,14 +2420,18 @@ signal_exit() { # Handle trapped signals
   esac
 }
 
+test_setup() { # setup for running test
+  _USE_DEBUG=1
+}
+
 traceback() { # Print function traceback
-    local i d=1 lbl=" called"
-    echo "Traceback" >&2
-    for ((i=$((${#FUNCNAME[@]}-1)); i>0; i--)); do
-      if [[ ${i} -eq 1 ]] ; then lbl=" called traceback" ; fi
-      printf "%*s%s() line %d%s\n" "$d" '' "${FUNCNAME[$i]}" "${BASH_LINENO[$((i-1))]}" "$lbl" >&2
-      ((d++))
-    done
+  local i d=1 lbl=" called"
+  debug "Traceback"
+  for ((i=$((${#FUNCNAME[@]}-1)); i>0; i--)); do
+    if [[ ${i} -eq 1 ]] ; then lbl=" called traceback" ; fi
+    debug "$(printf "%*s%s() line %d%s\n" "$d" '' "${FUNCNAME[$i]}" "${BASH_LINENO[$((i-1))]}" "$lbl")"
+    ((d++))
+  done
 }
 
 urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
@@ -2626,6 +2635,12 @@ write_openssl_conf() { # write out a minimal openssl conf
 # Trap signals
 trap "signal_exit TERM" TERM HUP
 trap "signal_exit INT"  INT
+
+# When running tests, use debug mode to capture intermittent faults
+# Test harness will Save output in a temporary file, which is displayed if an error occurs
+if [[ ${_RUNNING_TEST} -eq 1 ]] ; then
+  test_setup
+fi
 
 # Parse command-line
 while [[ -n ${1+defined} ]]; do
