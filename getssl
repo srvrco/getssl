@@ -340,6 +340,7 @@ _FORCE_RENEW=0
 _KEEP_VERSIONS=""
 _MUTE=0
 _NOTIFY_VALID=0
+_NOMETER=""
 _QUIET=0
 _RECREATE_CSR=0
 _REDIRECT_OUTPUT="1>/dev/null 2>&1"
@@ -568,7 +569,7 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
         check_result=$($DNS_CHECK_FUNC $DNS_CHECK_OPTIONS TXT "${rr}" "@${ns}" \
                       | grep -i "^${rr}" \
                       | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
-        debug "check_result=$check_result"
+        debug "check_result=\"$check_result\""
         if [[ -z "$check_result" ]]; then
           # shellcheck disable=SC2086
           debug "$DNS_CHECK_FUNC" $DNS_CHECK_OPTIONS ANY "${rr}" "@${ns}"
@@ -576,7 +577,7 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
           check_result=$($DNS_CHECK_FUNC $DNS_CHECK_OPTIONS ANY "${rr}" "@${ns}" \
                       | grep -i "^${rr}" \
                       | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
-          debug "check_result=$check_result"
+          debug "check_result=\"$check_result\""
         fi
       elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
         check_result=$($DNS_CHECK_FUNC -t TXT "${rr}" "${ns}" \
@@ -589,8 +590,8 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
                       | grep 'text ='|awk -F'"' '{ print $2}')
         fi
       fi
-      debug "expecting  $auth_key"
-      debug "${ns} gave ... $check_result"
+      debug "expecting  \"$auth_key\""
+      debug "${ns} gave ... \"$check_result\""
 
       if [[ "$check_result" == *"$auth_key"* ]]; then
         check_dns="success"
@@ -612,7 +613,7 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
           debug "dns check failed - removing existing value"
           del_dns_rr "${d}" "${auth_key}"
 
-          error_exit "checking ${rr} gave $check_result not $auth_key"
+          error_exit "checking \"${rr}\" gave \"$check_result\" not \"$auth_key\""
         fi
       fi
     done
@@ -764,7 +765,7 @@ check_getssl_upgrade() { # check if a more recent version of code is available a
   if [ "$TEMP_UPGRADE_FILE" == "" ]; then
     error_exit "mktemp failed"
   fi
-  curl --user-agent "$CURL_USERAGENT" --silent "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
+  curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
     error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
@@ -947,7 +948,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       fromfile=$(basename "$from")
       debug "davs user=$davsuser - pass=$davspass - host=$davshost port=$davsport dir=$davsdirn file=$davsfile"
       debug "from dir=$fromdir  file=$fromfile"
-      curl -u "${davsuser}:${davspass}" -T "${fromdir}/${fromfile}" "https://${davshost}:${davsport}${davsdirn}${davsfile}"
+      curl ${_NOMETER} -u "${davsuser}:${davspass}" -T "${fromdir}/${fromfile}" "https://${davshost}:${davsport}${davsdirn}${davsfile}"
     elif [[ "${to:0:6}" == "ftpes:" ]] || [[ "${to:0:5}" == "ftps:" ]] ; then
       debug "using ftp to copy the file from $from"
       ftpuser=$(echo "$to"| awk -F: '{print $2}')
@@ -962,10 +963,10 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       debug "from dir=$fromdir  file=$fromfile"
       if [[ "${to:0:5}" == "ftps:" ]] ; then
         # shellcheck disable=SC2086
-        curl $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}:990/"
+        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}:990/"
       else
         # shellcheck disable=SC2086
-        curl $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}/"
+        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}/"
       fi
     else
       if ! mkdir -p "$(dirname "$to")" ; then
@@ -1383,7 +1384,7 @@ for d in "${alldomains[@]}"; do
         # ACME only allows port 80 (http), but redirects may use https.  --insecure is used in case
         # those certificates are being renewed.  Let's Encrypt does the same.  In this case, we verify
         # that the correct data is returned, so this is safe.
-        if [[ ! "$(curl --user-agent "$CURL_USERAGENT" --insecure --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
+        if [[ ! "$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --insecure --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
           error_exit "for some reason could not reach $wellknown_url - please check it manually"
         fi
       fi
@@ -1627,7 +1628,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
     CertData=$(awk ' $1 ~ "^Location" {print $2}' "$CURL_HEADER" |tr -d '\r')
     if [[ "$CertData" ]] ; then
       echo -----BEGIN CERTIFICATE----- > "$gc_certfile"
-      curl --user-agent "$CURL_USERAGENT" --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
+      curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
       echo -----END CERTIFICATE-----  >> "$gc_certfile"
       info "Certificate saved in $CERT_FILE"
     fi
@@ -1647,7 +1648,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
                 | sed 's/>//g')
     if [[ "$IssuerData" ]] ; then
       echo -----BEGIN CERTIFICATE----- > "$gc_cafile"
-      curl --user-agent "$CURL_USERAGENT" --silent "$IssuerData" | openssl base64 -e  >> "$gc_cafile"
+      curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent "$IssuerData" | openssl base64 -e  >> "$gc_cafile"
       echo -----END CERTIFICATE-----  >> "$gc_cafile"
       info "The intermediate CA cert is in $gc_cafile"
     fi
@@ -1705,7 +1706,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
       cp "$gc_certfile" "$gc_fullchain"
       while [[ -n "$issuer_url" ]]; do
         debug Fetching certificate issuer from "$issuer_url"
-        issuer_cert=$(curl --user-agent "$CURL_USERAGENT" --silent "$issuer_url" | openssl x509 -inform der -outform pem)
+        issuer_cert=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent "$issuer_url" | openssl x509 -inform der -outform pem)
         debug Fetched issuer certificate "$(echo "$issuer_cert" | openssl x509 -inform pem -noout -text | awk 'BEGIN {FS="Subject: "} NF==2 {print $2; exit}')"
         echo "$issuer_cert" >> "$gc_fullchain"
 
@@ -1720,7 +1721,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
 get_cr() { # get curl response
   url="$1"
   debug url "$url"
-  response=$(curl --user-agent "$CURL_USERAGENT" --silent "$url")
+  response=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent "$url")
   ret=$?
   debug response "${response//[$'\t\r\n']}"
   code=$(json_get "$response" status)
@@ -2061,7 +2062,7 @@ obtain_ca_resource_locations()
   for suffix in "" "/directory" "/dir";
   do
     # Obtain CA resource locations
-    ca_all_loc=$(curl --user-agent "$CURL_USERAGENT" "${CA}${suffix}" 2>/dev/null)
+    ca_all_loc=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" "${CA}${suffix}" 2>/dev/null)
     debug "ca_all_loc from ${CA}${suffix} gives $ca_all_loc"
     # APIv1
     URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
@@ -2243,9 +2244,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   CURL_HEADER="$TEMP_DIR/curl.header"
   dp="$TEMP_DIR/curl.dump"
 
-  CURL="curl "
+  CURL="curl ${_NOMETER} "
   # shellcheck disable=SC2072
-  if [[ "$($CURL -V | head -1 | cut -d' ' -f2 )" > "7.33" ]]; then
+  if [[ ! "$($CURL -V | head -1 | cut -d' ' -f2 )" < "7.33" ]]; then
     CURL="$CURL --http1.1 "
   fi
 
@@ -2321,7 +2322,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       fi
 
       if [[ $errcode -gt 0 || ( "$response" == "" && $url != *"revoke"* ) ]]; then
-        error_exit "ERROR curl \"$url\" failed with $errcode and returned $response"
+        error_exit "ERROR curl \"$url\" failed with $errcode and returned \"$response\""
       fi
 
       responseHeaders=$(cat "$CURL_HEADER")
@@ -2420,10 +2421,6 @@ signal_exit() { # Handle trapped signals
   esac
 }
 
-test_setup() { # setup for running test
-  _USE_DEBUG=1
-}
-
 traceback() { # Print function traceback
   local i d=1 lbl=" called"
   debug "Traceback"
@@ -2432,6 +2429,7 @@ traceback() { # Print function traceback
     debug "$(printf "%*s%s() line %d%s\n" "$d" '' "${FUNCNAME[$i]}" "${BASH_LINENO[$((i-1))]}" "$lbl")"
     ((d++))
   done
+  return 0
 }
 
 urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
@@ -2639,7 +2637,7 @@ trap "signal_exit INT"  INT
 # When running tests, use debug mode to capture intermittent faults
 # Test harness will Save output in a temporary file, which is displayed if an error occurs
 if [[ ${_RUNNING_TEST} -eq 1 ]] ; then
-  test_setup
+  _USE_DEBUG=1
 fi
 
 # Parse command-line
@@ -2736,6 +2734,16 @@ requires grep
 requires sed
 requires sort
 requires mktemp
+
+# Make sure cURL doesn't display a progress meter (if it's new enough)
+# --silent also does this, but suppresses warnings and informational messages too.
+# TODO: see where --silent can be removed (if _NOMETER defaults to --silent for old versions?)
+#       This would help with debugging transfer errors.
+
+# shellcheck disable=SC2072
+if [[ ! "$(curl -V | head -1 | cut -d' ' -f2 )" < "7.67" ]]; then
+    _NOMETER="--no-progress-meter"
+fi
 
 # Check if upgrades are available (unless they have specified -U to ignore Upgrade checks)
 if [[ $_UPGRADE_CHECK -eq 1 ]]; then

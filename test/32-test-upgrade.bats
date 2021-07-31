@@ -7,7 +7,7 @@ load '/getssl/test/test_helper.bash'
 
 # This is run for every test
 setup() {
-    [ !   -f ${BATS_PARENT_TMPNAME}.skip ] || skip "skip remaining tests"
+    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
 
     # Turn off warning about detached head
@@ -33,8 +33,9 @@ setup() {
 
 
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch ${BATS_PARENT_TMPNAME}.skip
-    rm -r "$INSTALL_DIR/upgrade-getssl"
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+    [ -d "$INSTALL_DIR/upgrade-getssl" ] && rm -r "$INSTALL_DIR/upgrade-getssl"
+    true
 }
 
 

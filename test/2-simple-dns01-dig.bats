@@ -29,10 +29,10 @@ teardown_file() {
 
 
 setup() {
-    [ ! -f ${BATS_PARENT_TMPNAME}.skip ] || skip "skip remaining tests"
+    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
 }
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch ${BATS_PARENT_TMPNAME}.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
 }
 
 @test "Create new certificate using DNS-01 verification (dig)" {
@@ -48,10 +48,10 @@ teardown() {
 
 
 setup() {
-    [ ! -f ${BATS_PARENT_TMPNAME}.skip ] || skip "skip remaining tests"
+    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
 }
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch ${BATS_PARENT_TMPNAME}.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
 }
 
 @test "Force renewal of certificate using DNS-01 (dig)" {

@@ -6,10 +6,10 @@ load '/getssl/test/test_helper.bash'
 
 
 setup() {
-    [ ! -f ${BATS_PARENT_TMPNAME}.skip ] || skip "skip remaining tests"
+    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
 }
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch ${BATS_PARENT_TMPNAME}.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
 }
 
 @test "Check mktemp -t getssl.XXXXXX works on all platforms" {

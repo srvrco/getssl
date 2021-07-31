@@ -12,11 +12,11 @@ setup_file() {
 }
 
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch ${BATS_PARENT_TMPNAME}.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
 }
 
 setup() {
-    [ !   -f ${BATS_PARENT_TMPNAME}.skip ] || skip "skip remaining tests"
+    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
     GETSSL_CMD_HOST=$GETSSL_IDN_HOST
 }
 

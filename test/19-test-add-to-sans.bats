@@ -7,7 +7,7 @@ load '/getssl/test/test_helper.bash'
 
 # This is run for every test
 setup() {
-    [ !   -f ${BATS_PARENT_TMPNAME}.skip ] || skip "skip remaining tests"
+    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
     if [ -z "$STAGING" ]; then
         export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
         curl --silent -X POST -d '{"host":"a.'$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
@@ -15,7 +15,7 @@ setup() {
 }
 
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch ${BATS_PARENT_TMPNAME}.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
     if [ -z "$STAGING" ]; then
         curl --silent -X POST -d '{"host":"a.'$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/clear-a
     fi
