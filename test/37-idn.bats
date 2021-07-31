@@ -13,6 +13,7 @@ setup_file() {
 
 # This is run for every test
 setup() {
+    [ !   -f ${BATS_PARENT_TMPNAME}.skip ] || skip "skip remaining tests"
     GETSSL_CMD_HOST=${GETSSL_IDN_HOST}
 
     # use the test description to move tools we don't want to test out of the way
@@ -26,6 +27,7 @@ setup() {
 }
 
 teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch ${BATS_PARENT_TMPNAME}.skip
     # use the test description to move tools we didn't want to test back
     DNS_TOOL=${BATS_TEST_DESCRIPTION##*-}
     for tool in dig drill host nslookup

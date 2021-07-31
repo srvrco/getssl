@@ -6,7 +6,12 @@ load '/getssl/test/test_helper.bash'
 
 
 # These are run for every test, not once per file
+teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch ${BATS_PARENT_TMPNAME}.skip
+}
+
 setup() {
+    [ !   -f ${BATS_PARENT_TMPNAME}.skip ] || skip "skip remaining tests"
     if [ -z "$STAGING" ]; then
         export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
     fi

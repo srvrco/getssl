@@ -7,6 +7,7 @@ load '/getssl/test/test_helper.bash'
 
 # This is run for every test
 setup() {
+    [ !   -f ${BATS_PARENT_TMPNAME}.skip ] || skip "skip remaining tests"
     cp /etc/resolv.conf /etc/resolv.conf.getssl
     cat <<- EOF > /etc/resolv.conf
 nameserver 8.8.8.8
@@ -28,6 +29,7 @@ EOF
 
 
 teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch ${BATS_PARENT_TMPNAME}.skip
     cat /etc/resolv.conf.getssl > /etc/resolv.conf
     for app in drill host nslookup
     do

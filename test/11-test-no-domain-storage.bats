@@ -5,6 +5,13 @@ load '/bats-assert/load.bash'
 load '/getssl/test/test_helper.bash'
 
 
+setup() {
+    [ ! -f ${BATS_PARENT_TMPNAME}.skip ] || skip "skip remaining tests"
+}
+teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch ${BATS_PARENT_TMPNAME}.skip
+}
+
 @test "Check that if domain storage isn't set getssl doesn't try to delete /tmp" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"

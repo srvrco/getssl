@@ -5,7 +5,12 @@ load '/bats-assert/load.bash'
 load '/getssl/test/test_helper.bash'
 
 # This is run for every test
+teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch ${BATS_PARENT_TMPNAME}.skip
+}
+
 setup() {
+    [ !   -f ${BATS_PARENT_TMPNAME}.skip ] || skip "skip remaining tests"
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
 }
 

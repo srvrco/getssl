@@ -28,6 +28,13 @@ teardown_file() {
 }
 
 
+setup() {
+    [ ! -f ${BATS_PARENT_TMPNAME}.skip ] || skip "skip remaining tests"
+}
+teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch ${BATS_PARENT_TMPNAME}.skip
+}
+
 @test "Create new certificate using DNS-01 verification (dig)" {
     CONFIG_FILE="getssl-dns01.cfg"
 
@@ -39,6 +46,13 @@ teardown_file() {
     check_output_for_errors "debug"
 }
 
+
+setup() {
+    [ ! -f ${BATS_PARENT_TMPNAME}.skip ] || skip "skip remaining tests"
+}
+teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch ${BATS_PARENT_TMPNAME}.skip
+}
 
 @test "Force renewal of certificate using DNS-01 (dig)" {
     run ${CODE_DIR}/getssl -d -f $GETSSL_HOST
