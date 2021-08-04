@@ -336,6 +336,7 @@ DNS_WAIT_RETRY_ADD="false"      # Try the dns_add_command again if the DNS recor
 # Private variables
 _CHECK_ALL=0
 _CREATE_CONFIG=0
+_CURL_VERSION=""
 _FORCE_RENEW=0
 _KEEP_VERSIONS=""
 _MUTE=0
@@ -2246,7 +2247,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
 
   CURL="curl ${_NOMETER} "
   # shellcheck disable=SC2072
-  if [[ ! "$($CURL -V | head -1 | cut -d' ' -f2 )" < "7.33" ]]; then
+  if [[ ! "${_CURL_VERSION}" < "7.33" ]]; then
     CURL="$CURL --http1.1 "
   fi
 
@@ -2740,8 +2741,9 @@ requires mktemp
 # TODO: see where --silent can be removed (if _NOMETER defaults to --silent for old versions?)
 #       This would help with debugging transfer errors.
 
+_CURL_VERSION="$(curl -V | head -1 | cut -d' ' -f2 )"
 # shellcheck disable=SC2072
-if [[ ! "$(curl -V | head -1 | cut -d' ' -f2 )" < "7.67" ]]; then
+if [[ ! "${_CURL_VERSION}" < "7.67" ]]; then
     _NOMETER="--no-progress-meter"
 fi
 
