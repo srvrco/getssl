@@ -37,6 +37,7 @@ docker run \
   --env GETSSL_HOST=$ALIAS $STAGING \
   --env GETSSL_IDN_HOST=$GETSSL_IDN_HOST \
   --env GETSSL_OS=$GETSSL_OS \
+  --env GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
   -v "$(pwd)":/getssl \
   --rm \
   --network ${PWD##*/}_acmenet \

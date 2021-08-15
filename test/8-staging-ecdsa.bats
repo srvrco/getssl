@@ -7,6 +7,13 @@ load '/getssl/test/test_helper.bash'
 
 
 
+setup() {
+    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+}
+teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+}
+
 @test "Create new certificate using staging server and prime256v1" {
     if [ -z "$STAGING" ]; then
         skip "Running external tests, skipping internal testing"
@@ -22,6 +29,13 @@ load '/getssl/test/test_helper.bash'
 }
 
 
+setup() {
+    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+}
+teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+}
+
 @test "Force renewal of certificate using staging server and prime256v1" {
     if [ -z "$STAGING" ]; then
         skip "Running internal tests, skipping external test"
@@ -32,6 +46,13 @@ load '/getssl/test/test_helper.bash'
     cleanup_environment
 }
 
+
+setup() {
+    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+}
+teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+}
 
 @test "Create new certificate using staging server and secp384r1" {
     if [ -z "$STAGING" ]; then
@@ -47,6 +68,13 @@ load '/getssl/test/test_helper.bash'
     check_output_for_errors "debug"
 }
 
+
+setup() {
+    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+}
+teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+}
 
 @test "Force renewal of certificate using staging server and secp384r1" {
     if [ -z "$STAGING" ]; then

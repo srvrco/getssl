@@ -7,11 +7,17 @@ load '/getssl/test/test_helper.bash'
 
 # This is run for every test
 setup() {
+    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
 
     # Turn off warning about detached head
     git config --global advice.detachedHead false
-    run git clone https://github.com/srvrco/getssl.git "$INSTALL_DIR/upgrade-getssl"
+    if [[ -n "${GITHUB_REPOSITORY}" ]] ; then
+      _REPO="https://github.com/${GITHUB_REPOSITORY}.git"
+    else
+      _REPO="https://github.com/srvrco/getssl.git"
+    fi
+    run git clone "${_REPO}" "$INSTALL_DIR/upgrade-getssl"
 
     # Don't do version arithmetics any longer, look what was the previous version by getting the last
     # line (starting with v) and the one before that from the list of tags.
@@ -27,7 +33,9 @@ setup() {
 
 
 teardown() {
-    rm -r "$INSTALL_DIR/upgrade-getssl"
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+    [ -d "$INSTALL_DIR/upgrade-getssl" ] && rm -r "$INSTALL_DIR/upgrade-getssl"
+    true
 }
 
 
