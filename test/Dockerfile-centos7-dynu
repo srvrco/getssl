@@ -17,8 +17,8 @@ ENV dynamic_dns "duckdns"
 #ENV DYNU_API_KEY 
 
 WORKDIR /root
-RUN mkdir /etc/nginx/pki
-RUN mkdir /etc/nginx/pki/private
+RUN mkdir -p /etc/nginx/pki
+RUN mkdir -p /etc/nginx/pki/private
 COPY ./test/test-config/nginx-ubuntu-no-ssl /etc/nginx/conf.d/default.conf
 COPY ./test/test-config/nginx-centos7.conf /etc/nginx/nginx.conf
 
