@@ -14,7 +14,7 @@ ENV LC_ALL en_US.UTF-8
 
 ENV staging "true"
 ENV dynamic_dns "duckdns"
-ENV DYNU_API_KEY 65cXefd35XbYf36546eg5dYcZT6X52Y2
+#ENV DYNU_API_KEY 
 
 WORKDIR /root
 RUN mkdir /etc/nginx/pki

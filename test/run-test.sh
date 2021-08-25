@@ -38,6 +38,8 @@ docker run \
   --env GETSSL_IDN_HOST=$GETSSL_IDN_HOST \
   --env GETSSL_OS=$GETSSL_OS \
   --env GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
+  --env DUCKDNS_TOKEN="${DUCKDNS_TOKEN}" \
+  --env DYNU_API_KEY="${DYNU_API_KEY}" \
   -v "$(pwd)":/getssl \
   --rm \
   --network ${PWD##*/}_acmenet \

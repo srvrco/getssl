@@ -8,6 +8,8 @@ on:
   pull_request:
     branches:
       - master
+env:
+  DUCKDNS_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
 jobs:
   test-centos7-duckdns:
     runs-on: ubuntu-latest

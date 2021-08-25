@@ -14,7 +14,7 @@ ENV LC_ALL en_US.UTF-8
 
 ENV staging "true"
 ENV dynamic_dns "dynu"
-ENV DUCKDNS_TOKEN 1d616aa9-b8e4-4bb4-b312-3289de82badb
+#ENV DUCKDNS_TOKEN 
 
 WORKDIR /root
 RUN mkdir -p /etc/nginx/pki/private

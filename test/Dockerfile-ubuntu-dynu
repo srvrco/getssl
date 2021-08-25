@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND noninteractive
 # Ensure tests in this image use the staging server
 ENV staging "true"
 ENV dynamic_dns "dynu"
-ENV DYNU_API_KEY 65cXefd35XbYf36546eg5dYcZT6X52Y2
+#ENV DYNU_API_KEY 
 
 # Update and install required software
 RUN apt-get update --fix-missing

@@ -8,6 +8,8 @@ on:
   pull_request:
     branches:
       - master
+env:
+  DYNU_API_KEY: ${{ secrets.DYNU_API_KEY }}
 jobs:
   test-centos7-dynu:
     runs-on: ubuntu-latest
