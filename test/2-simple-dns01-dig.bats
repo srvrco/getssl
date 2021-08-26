@@ -55,7 +55,7 @@ teardown() {
 }
 
 @test "Force renewal of certificate using DNS-01 (dig)" {
-    run ${CODE_DIR}/getssl -d -f $GETSSL_HOST
+    run ${CODE_DIR}/getssl -U -d -f $GETSSL_HOST
     assert_success
     assert_output --partial "dig"
     check_output_for_errors "debug"

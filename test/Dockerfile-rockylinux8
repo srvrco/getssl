@@ -3,7 +3,7 @@ FROM rockylinux/rockylinux:8
 # Update and install required software
 RUN yum -y update
 RUN yum -y install epel-release
-RUN yum -y install git curl bind-utils wget which nginx
+RUN yum -y install git curl bind-utils wget which nginx jq
 RUN yum -y install ftp vsftpd
 RUN yum -y install openssh-server
 RUN yum -y install glibc-locale-source glibc-langpack-en # for en_US.UTF-8 support

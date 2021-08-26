@@ -40,7 +40,7 @@ setup() {
     rm -r ${INSTALL_DIR}/.getssl
 
     # Create configuration
-    run ${CODE_DIR}/getssl -c "${GETSSL_CMD_HOST}"
+    run ${CODE_DIR}/getssl -U -d -c "${GETSSL_CMD_HOST}"
 
     # Assert that the newly created configuration contains the additional domain in SANS
     # if this fails then error in tests will be "grep failed" - this means SANS did not hold the expected value

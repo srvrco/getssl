@@ -23,7 +23,7 @@ teardown() {
     setup_environment
     init_getssl
     sed -e 's/rsa/prime256v1/g' < "${CODE_DIR}/test/test-config/${CONFIG_FILE}" > "${INSTALL_DIR}/.getssl/${GETSSL_HOST}/getssl.cfg"
-    run ${CODE_DIR}/getssl -d "$GETSSL_HOST"
+    run ${CODE_DIR}/getssl -U -d "$GETSSL_HOST"
     assert_success
     check_output_for_errors "debug"
 }
@@ -40,7 +40,7 @@ teardown() {
     if [ -z "$STAGING" ]; then
         skip "Running internal tests, skipping external test"
     fi
-    run ${CODE_DIR}/getssl -d -f $GETSSL_HOST
+    run ${CODE_DIR}/getssl -U -d -f $GETSSL_HOST
     assert_success
     check_output_for_errors "debug"
     cleanup_environment
@@ -63,7 +63,7 @@ teardown() {
     setup_environment
     init_getssl
     sed -e 's/rsa/secp384r1/g' < "${CODE_DIR}/test/test-config/${CONFIG_FILE}" > "${INSTALL_DIR}/.getssl/${GETSSL_HOST}/getssl.cfg"
-    run ${CODE_DIR}/getssl -d "$GETSSL_HOST"
+    run ${CODE_DIR}/getssl -U -d "$GETSSL_HOST"
     assert_success
     check_output_for_errors "debug"
 }
@@ -80,7 +80,7 @@ teardown() {
     if [ -z "$STAGING" ]; then
         skip "Running internal tests, skipping external test"
     fi
-    run ${CODE_DIR}/getssl -d -f $GETSSL_HOST
+    run ${CODE_DIR}/getssl -U -d -f $GETSSL_HOST
     assert_success
     check_output_for_errors "debug"
     cleanup_environment

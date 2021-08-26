@@ -20,7 +20,7 @@ teardown() {
     setup_environment
     mkdir ${INSTALL_DIR}/.getssl
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/getssl.cfg"
-    run ${CODE_DIR}/getssl -a
+    run ${CODE_DIR}/getssl -U -d -a
     assert_success
     check_output_for_errors
     assert_line 'Not going to delete TEMP_DIR ///tmp as it appears to be /tmp'

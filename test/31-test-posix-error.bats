@@ -23,7 +23,7 @@ setup() {
         skip "Using staging server, skipping internal test"
     fi
 
-    run bash --posix "${CODE_DIR}/getssl"
+    run bash --posix "${CODE_DIR}/getssl" -U -d
     assert_failure
     assert_line "getssl: Running with POSIX mode enabled is not supported"
     check_output_for_errors

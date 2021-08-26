@@ -32,13 +32,13 @@ setup() {
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/*.${GETSSL_HOST}/getssl.cfg"
 
     # create another domain in the .getssl directory
-    run ${CODE_DIR}/getssl -c "a.${GETSSL_HOST}"
+    run ${CODE_DIR}/getssl -U -d -c "a.${GETSSL_HOST}"
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/a.${GETSSL_HOST}/getssl.cfg"
 
     # Create a directory in /root which looks like a domain so that if glob expansion is performed the wildcard certificate won't be created
     mkdir -p "${INSTALL_DIR}/a.${GETSSL_HOST}"
 
-    run ${CODE_DIR}/getssl --all
+    run ${CODE_DIR}/getssl -U -d --all
 
     assert_success
     assert_line --partial "Certificate saved in /root/.getssl/*.${GETSSL_HOST}/*.${GETSSL_HOST}"

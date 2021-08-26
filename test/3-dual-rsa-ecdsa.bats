@@ -45,7 +45,7 @@ setup() {
         skip "Using staging server, skipping internal test"
     fi
     check_nginx
-    run ${CODE_DIR}/getssl -d $GETSSL_HOST
+    run ${CODE_DIR}/getssl -U -d $GETSSL_HOST
 
     if [ "$OLD_NGINX" = "false" ]; then
         assert_line "certificate on server is same as the local cert"
@@ -60,7 +60,7 @@ setup() {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
-    run ${CODE_DIR}/getssl -f $GETSSL_HOST
+    run ${CODE_DIR}/getssl -U -f $GETSSL_HOST
     assert_success
     check_output_for_errors
 }
@@ -94,7 +94,7 @@ setup() {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
-    run ${CODE_DIR}/getssl -f $GETSSL_HOST
+    run ${CODE_DIR}/getssl -U -f $GETSSL_HOST
     assert_success
     check_output_for_errors
     cleanup_environment

@@ -12,7 +12,7 @@ ENV dynamic_dns "duckdns"
 
 # Update and install required software
 RUN apt-get update --fix-missing
-RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light
+RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light jq
 RUN apt-get install -y vim dos2unix # for debugging
 RUN apt-get install -y locales # for idn testing
 

@@ -2,7 +2,7 @@ FROM bash:4.2
 
 # https://hub.docker.com/_/bash
 
-RUN apk --no-cache add supervisor openssl git curl bind-tools drill wget nginx lftp vsftpd openssh-server
+RUN apk --no-cache add supervisor openssl git curl bind-tools drill wget nginx lftp vsftpd openssh-server jq
 
 WORKDIR /root
 
