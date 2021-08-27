@@ -101,7 +101,8 @@ teardown() {
 
     # Check for current tag or file version otherwise push to master fails on a new version (or if the tag hasn't been updated)
     assert_line --regexp "A more recent version \(v(${CURRENT_TAG}|${FILE_VERSION})\) than .* of getssl is available, please update"
-    check_output_for_errors
+    # output can contain "error" in release description
+    # check_output_for_errors
 }
 
 
