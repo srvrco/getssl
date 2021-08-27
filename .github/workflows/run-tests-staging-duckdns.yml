@@ -12,7 +12,7 @@ on:
     branches:
       - master
 env:
-  DUCKDNS_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
+  DUCKDNS_TOKEN: ${{ secrets.DUCKDNS_TOKEN == '' && '1d616aa9-b8e4-4bb4-b312-3289de82badb' || secrets.DUCKDNS_TOKEN }}
 jobs:
   test-centos7-duckdns:
     runs-on: ubuntu-latest
