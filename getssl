@@ -269,6 +269,7 @@
 # 2021-07-30 Prefer API V2 when both offered (tlhackque) (#690) (2.40)
 # 2021-07-30 Run tests with -d to catch intermittent failures, Use fork's repo for upgrade tests. (tlhackque) (#692) (2.41)
 # 2021-08-26 Improve upgrade check & make upgrade do a full install when possible (tlhackque) (#694) (2.42)
+# 2021-09-02 Fix version compare - cURL v8 may have single digit minor numbers. (tlhackque) (2.43)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -277,7 +278,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.42"
+VERSION="2.43"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -922,6 +923,27 @@ check_getssl_upgrade() { # check if a more recent release is available
     error_exit "Running upgraded getssl failed"
   fi
   graceful_exit
+}
+
+check_version() { # true if version string $1 >= $2
+  local v1 v2 i n1 n2 n
+  # $1 and $2 can be different lengths, but all parts must be numeric
+  if [[ "$1" == "$2" ]] ; then return 0; fi
+  local IFS='.'
+  # shellcheck disable=SC2206
+  v1=($1)
+  # shellcheck disable=SC2206
+  v2=($2)
+  n1="${#v1[@]}"
+  n2="${#v2[@]}"
+  if [[ "$n1" -ge "$n2" ]] ; then n="$n1" ; else n="$n2" ; fi
+  for ((i=0; i<n; i++)) do
+    n1="${v1[$i]:-0}"
+    n2="${v2[$i]:-0}"
+    if [[ $((10#$n1)) -gt $((10#$n2)) ]] ; then return 0 ; fi
+    if [[ $((10#$n1)) -lt $((10#$n2)) ]] ; then return 1 ; fi
+  done
+  return 0
 }
 
 clean_up() { # Perform pre-exit housekeeping
@@ -2346,8 +2368,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   dp="$TEMP_DIR/curl.dump"
 
   CURL="curl ${_NOMETER} "
-  # shellcheck disable=SC2072
-  if [[ ! "${_CURL_VERSION}" < "7.33" ]]; then
+  if check_version "${_CURL_VERSION}" "7.33" ; then
     CURL="$CURL --http1.1 "
   fi
 
@@ -2846,8 +2867,7 @@ requires mktemp
 #       This would help with debugging transfer errors.
 
 _CURL_VERSION="$(curl -V | head -1 | cut -d' ' -f2 )"
-# shellcheck disable=SC2072
-if [[ ! "${_CURL_VERSION}" < "7.67" ]]; then
+if check_version "${_CURL_VERSION}" "7.67" ; then
     _NOMETER="--no-progress-meter"
 fi
 
