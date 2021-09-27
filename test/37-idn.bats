@@ -4,16 +4,9 @@ load '/bats-support/load.bash'
 load '/bats-assert/load.bash'
 load '/getssl/test/test_helper.bash'
 
-setup_file() {
-    if [ -z "$STAGING" ]; then
-        export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
-        curl --silent -X POST -d '{"host":"'$GETSSL_IDN_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
-    fi
-}
-
 # This is run for every test
 setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
     GETSSL_CMD_HOST=${GETSSL_IDN_HOST}
 
     # use the test description to move tools we don't want to test out of the way
@@ -27,7 +20,7 @@ setup() {
 }
 
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
     # use the test description to move tools we didn't want to test back
     DNS_TOOL=${BATS_TEST_DESCRIPTION##*-}
     for tool in dig drill host nslookup
@@ -36,6 +29,13 @@ teardown() {
             mv /usr/bin/${tool}.getssl /usr/bin/${tool}
         fi
     done
+}
+
+setup_file() {
+    if [ -z "$STAGING" ]; then
+        export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+        curl --silent -X POST -d '{"host":"'$GETSSL_IDN_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
+    fi
 }
 
 teardown_file() {
@@ -53,11 +53,11 @@ teardown_file() {
 
     setup_environment
     init_getssl
-    create_certificate -d
+    create_certificate
 
     assert_success
     assert_output --partial "dig"
-    check_output_for_errors "debug"
+    check_output_for_errors
 }
 
 @test "Check that DNS-01 verification works if the domain is idn:drill" {
@@ -73,9 +73,9 @@ teardown_file() {
 
     setup_environment
     init_getssl
-    create_certificate -d
+    create_certificate
 
     assert_success
     assert_output --partial "drill"
-    check_output_for_errors "debug"
+    check_output_for_errors
 }

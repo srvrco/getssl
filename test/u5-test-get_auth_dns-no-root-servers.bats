@@ -7,7 +7,7 @@ load '/getssl/test/test_helper.bash'
 
 # This is run for every test
 setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
     cp /etc/resolv.conf /etc/resolv.conf.getssl
     cat <<- EOF > /etc/resolv.conf
 nameserver 8.8.8.8
@@ -23,13 +23,12 @@ EOF
 
     . /getssl/getssl --source
     find_dns_utils
-    _RUNNING_TEST=1
-    _USE_DEBUG=0
+    _USE_DEBUG=1
 }
 
 
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
     cat /etc/resolv.conf.getssl > /etc/resolv.conf
     for app in drill host nslookup
     do

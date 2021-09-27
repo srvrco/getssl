@@ -6,10 +6,10 @@ load '/getssl/test/test_helper.bash'
 
 
 setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
 }
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
 }
 
 @test "Check that if domain storage isn't set getssl doesn't try to delete /tmp" {
@@ -23,5 +23,5 @@ teardown() {
     run ${CODE_DIR}/getssl -U -d -a
     assert_success
     check_output_for_errors
-    assert_line 'Not going to delete TEMP_DIR ///tmp as it appears to be /tmp'
+    assert_line --partial 'Not going to delete TEMP_DIR ///tmp as it appears to be /tmp'
 }

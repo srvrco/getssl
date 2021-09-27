@@ -4,9 +4,41 @@ load '/bats-support/load.bash'
 load '/bats-assert/load.bash'
 load '/getssl/test/test_helper.bash'
 
+LIMIT_API="https://api.github.com/rate_limit"
+
+# Quota generally shouldn't be an issue - except for tests
+# Rate limits are per-IP address
+check_github_quota() {
+  local need remaining reset limits now
+  need="$1"
+  while true ; do
+    limits="$(curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" -H 'Accept: application/vnd.github.v3+json' "$LIMIT_API" | sed -e's/\("[^:]*": *\("[^""]*",\|[^,]*[,}]\)\)/\r\n\1/g' | sed -ne'/"core":/,/}/p')"
+    errcode=$?
+    if [[ $errcode -eq 60 ]]; then
+      error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
+    elif [[ $errcode -gt 0 ]]; then
+      error_exit "curl error checking releases: $errcode"
+    fi
+    limits="$(sed -e's/^ *//g' <<<"${limits}")"
+    remaining="$(sed -e'/^"remaining": *[0-9]/!d;s/^"remaining": *\([0-9][0-9]*\).*$/\1/' <<<"${limits}")"
+    reset="$(sed -e'/^"reset": *[0-9]/!d;s/^"reset": *\([0-9][0-9]*\).*$/\1/' <<<"${limits}")"
+    if [[ "$remaining" -ge "$need" ]] ; then return 0 ; fi
+    limit="$(sed -e'/^"limit": *[0-9]/!d;s/^"limit": *\([0-9][0-9]*\).*$/\1/' <<<"${limits}")"
+    if [[ "$limit" -lt "$need" ]] ; then
+      error_exit "GitHub API request $need exceeds limit $limit"
+    fi
+    now="$(date +%s)"
+    while [[ "$now" -lt "$reset" ]] ; do
+      info "sleeping $(( "$reset" - "$now" )) seconds for GitHub quota"
+      sleep "$(( "$reset" - "$now" ))"
+      now="$(date +%s)"
+   done
+  done
+}
+
 
 setup_file() {
-    if [ -f $BATS_TMPDIR/failed.skip ]; then
+    if [ -f $BATS_RUN_TMPDIR/failed.skip ]; then
         echo "# Skipping setup due to previous test failure" >&3
         return 0
     fi
@@ -17,7 +49,7 @@ setup_file() {
     # This is expensive, so do it only once
 
     . "${CODE_DIR}/getssl" -U --source
-    check_github_quota 1
+    check_github_quota 7
     export RELEASES="$(mktemp 2>/dev/null || mktemp -t getssl.XXXXXX)"
     if [ -z "$RELEASES" ]; then
         echo "# mktemp failed" >&3
@@ -48,7 +80,7 @@ teardown_file() {
 
 # This is run for every test
 setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
     [ -z "$PREVIOUS_TAG" ] && skip "Skipping upgrade test because no previous release detected"
 
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
@@ -62,7 +94,7 @@ setup() {
     fi
     run git clone "${_REPO}" "$INSTALL_DIR/upgrade-getssl"
 
-   
+
     cd "$INSTALL_DIR/upgrade-getssl"
 
     # The version in the file, which we will overwrite
@@ -72,7 +104,7 @@ setup() {
 
 
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
     [ -d "$INSTALL_DIR/upgrade-getssl" ] && rm -r "$INSTALL_DIR/upgrade-getssl"
     true
 }
@@ -102,7 +134,7 @@ teardown() {
     # Check for current tag or file version otherwise push to master fails on a new version (or if the tag hasn't been updated)
     assert_line --regexp "A more recent version \(v(${CURRENT_TAG}|${FILE_VERSION})\) than .* of getssl is available, please update"
     # output can contain "error" in release description
-    # check_output_for_errors
+    check_output_for_errors
 }
 
 
@@ -129,12 +161,11 @@ teardown() {
 
     # Check for current tag or file version otherwise push to master fails on a new version (or if the tag hasn't been updated)
     assert_line --regexp "Installed v(${CURRENT_TAG}|${FILE_VERSION}), restarting"
+    assert_line "Configuration check successful"
 }
 
 
 @test "Test that we can upgrade to the newer version when invoking as \"bash ./getssl\"" {
-    skip "Makefile doesn't support bash ./getssl"
-
     # Note that `bash getssl` will fail if the CWD isn't in the PATH and an upgrade occurs
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"

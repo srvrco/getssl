@@ -7,7 +7,7 @@ load '/getssl/test/test_helper.bash'
 
 # This is run for every test
 setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
     if [ -f /usr/bin/dig ]; then
         mv /usr/bin/dig /usr/bin/dig.getssl.bak
@@ -19,7 +19,7 @@ setup() {
 
 
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
     if [ -f /usr/bin/dig.getssl.bak ]; then
         mv /usr/bin/dig.getssl.bak /usr/bin/dig
     fi

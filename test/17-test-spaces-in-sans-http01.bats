@@ -6,15 +6,32 @@ load '/getssl/test/test_helper.bash'
 
 
 # This is run for every test
-teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+setup() {
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
 }
 
-setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
 
+teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
+}
+
+
+setup_file() {
+    # Add hosts to DNS (also need to be added as aliases in docker-compose.yml)
     if [ -z "$STAGING" ]; then
         export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+        for prefix in a b c; do
+            curl --silent -X POST -d '{"host":"'$prefix.$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
+        done
+    fi
+}
+
+
+teardown_file() {
+    if [ -z "$STAGING" ]; then
+        for prefix in a b c; do
+            curl --silent -X POST -d '{"host":"'$prefix.$GETSSL_HOST'"}' http://10.30.50.3:8055/clear-a
+        done
     fi
 }
 
@@ -25,11 +42,6 @@ setup() {
     fi
     CONFIG_FILE="getssl-http01-spaces-sans.cfg"
     setup_environment
-
-    # Add hosts to DNS (also need to be added as aliases in docker-compose.yml)
-    for prefix in a b c; do
-        curl --silent -X POST -d '{"host":"'$prefix.$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
-    done
 
     init_getssl
     create_certificate
@@ -86,8 +98,4 @@ setup() {
     assert_success
     check_output_for_errors
     cleanup_environment
-
-    for prefix in a b c; do
-        curl --silent -X POST -d '{"host":"'$prefix.$GETSSL_HOST'"}' http://10.30.50.3:8055/clear-a
-    done
 }

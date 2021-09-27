@@ -6,6 +6,8 @@ if [ "$GETSSL_OS" = "alpine" ]; then
 elif [[ "$GETSSL_OS" == "centos"[78] || "$GETSSL_OS" == "rockylinux"* ]]; then
     pgrep nginx | head -1 | xargs kill -HUP
     sleep 5
+elif [[ "$GETSSL_OS" == "centos6" ]]; then
+    service nginx restart >&3- >/dev/null
 else
     service nginx restart >/dev/null >&3-
 fi

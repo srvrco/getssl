@@ -4,20 +4,20 @@ load '/bats-support/load.bash'
 load '/bats-assert/load.bash'
 load '/getssl/test/test_helper.bash'
 
+setup() {
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+    GETSSL_CMD_HOST=$GETSSL_IDN_HOST
+}
+
+teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
+}
+
 setup_file() {
     if [ -z "$STAGING" ]; then
         export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
         curl --silent -X POST -d '{"host":"'$GETSSL_IDN_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
     fi
-}
-
-teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
-}
-
-setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
-    GETSSL_CMD_HOST=$GETSSL_IDN_HOST
 }
 
 teardown_file() {
@@ -39,7 +39,7 @@ SANS="${GETSSL_HOST}"
 USE_SINGLE_ACL="true"
 EOF
 
-    create_certificate -d --check-config
+    create_certificate --check-config
 
     assert_success
     refute_output --partial "DNS lookup using host  +noidnout"

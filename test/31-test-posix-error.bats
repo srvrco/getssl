@@ -7,11 +7,11 @@ load '/getssl/test/test_helper.bash'
 
 # This is run for every test
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
 }
 
 setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
 }
 
@@ -25,6 +25,6 @@ setup() {
 
     run bash --posix "${CODE_DIR}/getssl" -U -d
     assert_failure
-    assert_line "getssl: Running with POSIX mode enabled is not supported"
+    assert_line --partial "getssl: Running with POSIX mode enabled is not supported"
     check_output_for_errors
 }

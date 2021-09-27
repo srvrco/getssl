@@ -4,6 +4,7 @@ FROM centos:centos8
 
 # Update and install required software
 RUN yum -y update
+RUN yum -y install glibc-all-langpacks
 RUN yum -y install epel-release
 RUN yum -y install git curl bind-utils wget which nginx jq
 RUN yum -y install ftp vsftpd

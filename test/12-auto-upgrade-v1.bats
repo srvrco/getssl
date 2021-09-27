@@ -6,11 +6,14 @@ load '/getssl/test/test_helper.bash'
 
 
 setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
 }
+
+
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
 }
+
 
 @test "Check that auto upgrade to v2 doesn't change pebble url" {
     if [ -n "$STAGING" ]; then
@@ -22,16 +25,9 @@ teardown() {
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/getssl.cfg"
     run ${CODE_DIR}/getssl -U -d --check-config "$GETSSL_CMD_HOST"
     assert_success
-    assert_line 'Using certificate issuer: https://pebble:14000/dir'
+    assert_line --partial 'Using certificate issuer: https://pebble:14000/dir'
 }
 
-
-setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
-}
-teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
-}
 
 @test "Check that auto upgrade to v2 doesn't change v2 staging url" {
     if [ -n "$STAGING" ]; then
@@ -43,16 +39,9 @@ teardown() {
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/getssl.cfg"
     run ${CODE_DIR}/getssl -U -d --check-config "$GETSSL_CMD_HOST"
     assert_success
-    assert_line 'Using certificate issuer: https://acme-staging-v02.api.letsencrypt.org/directory'
+    assert_line --partial 'Using certificate issuer: https://acme-staging-v02.api.letsencrypt.org/directory'
 }
 
-
-setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
-}
-teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
-}
 
 @test "Check that auto upgrade to v2 doesn't change v2 prod url" {
     if [ -n "$STAGING" ]; then
@@ -64,16 +53,9 @@ teardown() {
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/getssl.cfg"
     run ${CODE_DIR}/getssl -U -d --check-config "$GETSSL_CMD_HOST"
     assert_success
-    assert_line 'Using certificate issuer: https://acme-v02.api.letsencrypt.org/directory'
+    assert_line --partial 'Using certificate issuer: https://acme-v02.api.letsencrypt.org/directory'
 }
 
-
-setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
-}
-teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
-}
 
 @test "Check that auto upgrade to v2 changes v1 staging to v2 staging url" {
     if [ -n "$STAGING" ]; then
@@ -85,16 +67,9 @@ teardown() {
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/getssl.cfg"
     run ${CODE_DIR}/getssl -U -d --check-config "$GETSSL_CMD_HOST"
     assert_success
-    assert_line 'Using certificate issuer: https://acme-staging-v02.api.letsencrypt.org/directory'
+    assert_line --partial 'Using certificate issuer: https://acme-staging-v02.api.letsencrypt.org/directory'
 }
 
-
-setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
-}
-teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
-}
 
 @test "Check that auto upgrade to v2 changes v1 prod to v2 prod url" {
     if [ -n "$STAGING" ]; then
@@ -106,5 +81,5 @@ teardown() {
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/getssl.cfg"
     run ${CODE_DIR}/getssl -U -d --check-config "$GETSSL_CMD_HOST"
     assert_success
-    assert_line 'Using certificate issuer: https://acme-v02.api.letsencrypt.org/directory'
+    assert_line --partial 'Using certificate issuer: https://acme-v02.api.letsencrypt.org/directory'
 }
