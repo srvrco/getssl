@@ -6,11 +6,11 @@ load '/getssl/test/test_helper.bash'
 
 # This is run for every test
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
 }
 
 setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
 }
 
@@ -35,7 +35,6 @@ DNS_EXTRA_WAIT=0
 CHECK_ALL_AUTH_DNS="false"
 CHECK_PUBLIC_DNS_SERVER="false"
 DNS_WAIT_RETRY_ADD="true"
-_RUNNING_TEST=1
 EOF
     create_certificate
     assert_failure

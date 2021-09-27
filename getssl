@@ -288,10 +288,11 @@ CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 CHALLENGE_CHECK_TYPE="http"
 CHECK_REMOTE_WAIT=0
 CHECK_REMOTE="true"
-LIMIT_API="https://api.github.com/rate_limit"
 if [[ -n "${GITHUB_REPOSITORY}" ]] ; then
+  CODE_LOCATION="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/getssl/master/getssl"
   RELEASE_API="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest"
 else
+  CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
   RELEASE_API="https://api.github.com/repos/srvrco/getssl/releases/latest"
 fi
 CSR_SUBJECT="/"
@@ -317,7 +318,6 @@ REUSE_PRIVATE_KEY="true"
 SERVER_TYPE="https"
 SKIP_HTTP_TOKEN_CHECK="false"
 SSLCONF="$(openssl version -d 2>/dev/null| cut -d\" -f2)/openssl.cnf"
-TEMP_UPGRADE_DIR=""
 TOKEN_USER_ID=""
 USE_SINGLE_ACL="false"
 WORKING_DIR_CANDIDATES=("/etc/getssl" "${PROGDIR}/conf" "${PROGDIR}/.getssl" "${HOME}/.getssl")
@@ -348,7 +348,6 @@ _QUIET=0
 _RECREATE_CSR=0
 _REDIRECT_OUTPUT="1>/dev/null 2>&1"
 _REVOKE=0
-_RUNNING_TEST=0
 _TEST_SKIP_CNAME_CALL=0
 _TEST_SKIP_SOA_CALL=0
 _UPGRADE=0
@@ -552,7 +551,7 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
     # add +noidnout if idn-domain so search for domain in results works
     if [[ "${d}" == xn--* || "${d}" == *".xn--"* ]]; then
       if [[ "$DNS_CHECK_FUNC" == "nslookup" || "$DNS_CHECK_FUNC" == "host" || ("$DNS_CHECK_FUNC" == "dig" && "$DIG_SUPPORTS_NOIDNOUT" == "false") ]]; then
-        info "Warning: idn domain but $DNS_CHECK_FUNC doesn't support +noidnout"
+        info "Info: idn domain but $DNS_CHECK_FUNC doesn't support +noidnout"
       else
         debug "adding +noidnout to DNS_CHECK_OPTIONS"
         DNS_CHECK_OPTIONS="$DNS_CHECK_OPTIONS +noidnout"
@@ -604,9 +603,9 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
           ntries=$(( ntries + 1 ))
 
           if [[ $DNS_WAIT_RETRY_ADD == "true" && $(( ntries % 10 )) == 0 ]]; then
-            test_output "Deleting DNS RR via command: ${DNS_DEL_COMMAND}"
+            debug "Deleting DNS via command: ${DNS_DEL_COMMAND}"
             del_dns_rr "${d}" "${auth_key}"
-            test_output "Retrying adding DNS via command: ${DNS_ADD_COMMAND}"
+            debug "Retrying adding DNS via command: ${DNS_ADD_COMMAND}"
             add_dns_rr "${d}" "${auth_key}" \
               || error_exit "DNS_ADD_COMMAND failed for domain ${d}"
           fi
@@ -764,45 +763,16 @@ check_config() { # check the config files for all obvious errors
   debug "${DOMAIN}: check_config completed  - all OK"
 }
 
-# Quota generally shouldn't be an issue - except for tests
-# Rate limits are per-IP address
-check_github_quota() {
-  local need remaining reset limits now
-  need="$1"
-  while true ; do
-    limits="$(curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" -H 'Accept: application/vnd.github.v3+json' "$LIMIT_API" | sed -e's/\("[^:]*": *\("[^""]*",\|[^,]*[,}]\)\)/\r\n\1/g' | sed -ne'/"core":/,/}/p')"
-    errcode=$?
-    if [[ $errcode -eq 60 ]]; then
-      error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
-    elif [[ $errcode -gt 0 ]]; then
-      error_exit "curl error checking releases: $errcode"
-    fi
-    limits="$(sed -e's/^ *//g' <<<"${limits}")"
-    remaining="$(sed -e'/^"remaining": *[0-9]/!d;s/^"remaining": *\([0-9][0-9]*\).*$/\1/' <<<"${limits}")"
-    reset="$(sed -e'/^"reset": *[0-9]/!d;s/^"reset": *\([0-9][0-9]*\).*$/\1/' <<<"${limits}")"
-    if [[ "$remaining" -ge "$need" ]] ; then return 0 ; fi
-    limit="$(sed -e'/^"limit": *[0-9]/!d;s/^"limit": *\([0-9][0-9]*\).*$/\1/' <<<"${limits}")"
-    if [[ "$limit" -lt "$need" ]] ; then
-      error_exit "GitHub API request $need exceeds limit $limit"
-    fi
-    now="$(date +%s)"
-    while [[ "$now" -lt "$reset" ]] ; do
-      info "sleeping $(( "$reset" - "$now" )) seconds for GitHub quota"
-      sleep "$(( "$reset" - "$now" ))"
-      now="$(date +%s)"
-   done
-  done
-}
 check_getssl_upgrade() { # check if a more recent release is available
-  check_github_quota 2
   # Check GitHub for latest stable release, or a specified tag
   if [[ -n "$_UPGRADE_TO_TAG" ]]; then
       RELEASE_API="$RELEASE_API/tags/$_UPGRADE_TO_TAG"
   fi
-  local release_data release_tag release_ver local_ver release_desc release_url release_tar NEWCMD
+  local release_data release_tag release_ver local_ver release_desc NEWCMD
   debug "Checking for releases at $RELEASE_API"
   # Sometimes the json is pretty-printed, sometimes not.  Loosely tied to --user-agent, but not
   # always.  Normalize it enough to get the 3 elements necessary. Oh, for jq...
+  # shellcheck disable=SC2086
   release_data="$(curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" -H 'Accept: application/vnd.github.v3+json' "$RELEASE_API" | sed -e's/\("[^:]*": *\("[^""]*",\|[^,]*[,}]\)\)/\r\n\1/g')"
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
@@ -810,7 +780,8 @@ check_getssl_upgrade() { # check if a more recent release is available
   elif [[ $errcode -gt 0 ]]; then
     error_exit "curl error checking releases: $errcode"
   fi
-  debug "$release_data"
+  # Replace error in release description with _error (which is ignored by check_output_for_errors() in the tests)
+  debug "${release_data//error/_error}"
   release_data="$(sed -e's/^ *//g' <<<"${release_data}")"
   release_tag="$(sed -e'/^"tag_name": *"/!d;s/^"tag_name": *"\([^""]*\).*$/\1/' <<<"${release_data}")"
   if [[ "${release_tag:0:1}" != 'v' ]] ; then
@@ -836,74 +807,47 @@ check_getssl_upgrade() { # check if a more recent release is available
       info "The easiest way is to use the -u or --upgrade flag"
       info ""
       info "Release ${release_tag} summary"
-      info "$release_desc"
+      # Replace error in release description with _error (which is ignored by check_output_for_errors() in the tests)
+      info "${release_desc//error/_error}"
       info ""
     fi
     return 0;
   fi
-  # Find, download, and unpack the tarball containing the selected release
-  release_url="$(sed -e'/^"tarball_url": *"/!d;s/^"tarball_url": *"\([^""]*\).*$/\1/' <<<"${release_data}")"
-  debug "Release url '$release_url'"
-  requires tar
-  TEMP_UPGRADE_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t getssl.XXXXXXXX)"
-  if [ "$TEMP_UPGRADE_DIR" == "" ]; then
+
+  # Download the latest tag
+  TEMP_UPGRADE_FILE="$(mktemp 2>/dev/null || mktemp -t getssl.XXXXXX)"
+  if [ "$TEMP_UPGRADE_FILE" == "" ]; then
     error_exit "mktemp failed"
   fi
-  release_tar="$TEMP_UPGRADE_DIR/getssl-${release_tag}.tgz"
-  debug "Downloading release to $release_tar"
-  check_github_quota 1
-  curl ${_NOMETER:---silent} -L --user-agent "$CURL_USERAGENT" -H 'Accept: application/vnd.github.v3+json' "$release_url" --output "$release_tar"
+  CODE_LOCATION=$(sed -e"s/master/${release_tag}/" <<<"$CODE_LOCATION")
+  # shellcheck disable=SC2086
+  curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
+
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
     error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
   elif [[ $errcode -gt 0 ]]; then
     error_exit "curl error downloading release: $errcode"
   fi
-  if ! tar -C "${TEMP_UPGRADE_DIR}" --strip-components 1 -xzf "$release_tar" ; then
-    error_exit "failed to unpack release: $?"
-  fi
-  # Inhibit check for upgrades when running the new version
-  NEWCMD="$(sed -e's/ -\(u\|-upgrade\|U\|-nocheck\)//g;s/^\([^ ]* \)/\1--nocheck /' <<<"$ORIGCMD")"
-  # Install everything with make - if it's available
-  if [ -n "$(command -v 'make' 2>/dev/null)" ]; then
-    if [[ "${0%/usr/bin/getssl}" != "$0" ]] ; then
-      export DESTDIR="${0%/usr/bin/getssl}"
-    fi
-    if [[ ${_MUTE} -eq 0 ]]; then
-      if ! make -C "${TEMP_UPGRADE_DIR}" "install" ; then
-        error_exit "Installation failed: $?"
-      fi
-    else
-      if ! make -s -C "${TEMP_UPGRADE_DIR}" "install" >/dev/null ; then
-        error_exit "Installation failed: $?"
-      fi
-    fi
-    clean_up
-    if [[ ${_MUTE} -eq 0 ]]; then
-      info "Installed $release_tag, restarting with $NEWCMD"
-    fi
-    if ! eval "$NEWCMD"; then
-      error_exit "Running upgraded getssl failed"
-    fi
-    graceful_exit
-  fi
-  # Fall back to 'install' and just the main script.
-  if [[ ${_MUTE} -eq 0 ]]; then
-    info "'make' is not available. getssl will be installed, but support scripts will not be upgraded"
-    info "To stay completely up-to-date, please install make"
-  fi
+
   if ! install "$0" "${0}.v${VERSION}"; then
     error_exit "problem renaming old version while updating, check permissions"
   fi
-  if ! install -m 700 "$TEMP_UPGRADE_DIR/getssl" "$0"; then
+  if ! install -m 700 "$TEMP_UPGRADE_FILE" "$0"; then
     error_exit "problem installing new version while updating, check permissions"
   fi
+
   if [[ ${_MUTE} -eq 0 ]]; then
-    echo "Updated getssl from v${VERSION} to $release_tag"
+    echo "Updated getssl from v${VERSION} to v${release_tag}"
     echo "The old version remains as ${0}.v${VERSION} and should be removed"
+    echo "These update notifications can be turned off using the -Q option"
+    echo ""
+    echo "Updates are;"
+    awk "/\(${VERSION}\)$/ {s=1} s; /\(${release_tag}\)$/ || /^# ----/ {s=0}" "$TEMP_UPGRADE_FILE" | awk '{if(NR>1)print}'
     echo ""
   fi
-  # This version can't be removed since disappearing can confuse bash.
+
+  # Delete old versions, but not the version just upgraded (which can't be removed since disappearing can confuse bash)
   declare -a getssl_versions
   shopt -s nullglob
   for getssl_version in "$0".v*; do
@@ -915,6 +859,9 @@ check_getssl_upgrade() { # check if a more recent release is available
   if [[ -n "${getssl_versions[*]}" ]] ; then
     rm "${getssl_versions[@]}"
   fi
+
+  # Inhibit check for upgrades when running the new version
+  NEWCMD="$(sed -e's/ -\(u\|-upgrade\|U\|-nocheck\)//g;s/^\([^ ]* \)/\1--nocheck /' <<<"$ORIGCMD")"
   clean_up
   if [[ ${_MUTE} -eq 0 ]]; then
     info "Installed $release_tag, restarting with $NEWCMD"
@@ -922,6 +869,7 @@ check_getssl_upgrade() { # check if a more recent release is available
   if ! eval "$NEWCMD"; then
     error_exit "Running upgraded getssl failed"
   fi
+
   graceful_exit
 }
 
@@ -964,13 +912,6 @@ clean_up() { # Perform pre-exit housekeeping
         info "Not going to delete TEMP_DIR ${TEMP_DIR} as it appears to be /tmp"
     else
         rm -rf "${TEMP_DIR:?}"
-    fi
-  fi
-  if [[ -n "$TEMP_UPGRADE_DIR" ]] && [[ -d "$TEMP_UPGRADE_DIR" ]]; then
-    if [ "${TEMP_UPGRADE_DIR}" -ef "/tmp" ]; then
-        info "Not going to delete TEMP_UPGRADE_DIR ${TEMP_UPGRADE_DIR} as it appears to be /tmp"
-    else
-        rm -rf "${TEMP_UPGRADE_DIR:?}"
     fi
   fi
 }
@@ -1071,6 +1012,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       fromfile=$(basename "$from")
       debug "davs user=$davsuser - pass=$davspass - host=$davshost port=$davsport dir=$davsdirn file=$davsfile"
       debug "from dir=$fromdir  file=$fromfile"
+      # shellcheck disable=SC2086
       curl ${_NOMETER} -u "${davsuser}:${davspass}" -T "${fromdir}/${fromfile}" "https://${davshost}:${davsport}${davsdirn}${davsfile}"
     elif [[ "${to:0:6}" == "ftpes:" ]] || [[ "${to:0:5}" == "ftps:" ]] ; then
       debug "using ftp to copy the file from $from"
@@ -1139,7 +1081,7 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
       info "existing csr at $csr_file does not have the same domains as the config - re-create-csr"
       _RECREATE_CSR=1
     else
-      test_output "Existing csr at $csr_file contains same domains as the config"
+      debug "Existing csr at $csr_file contains same domains as the config"
     fi
   fi
   # end of ... check if domain csr exists - if not then create it
@@ -1272,9 +1214,9 @@ date_renew() { # calculates the renewal time in epoch
 
 debug() { # write out debug info if the debug flag has been set
   if [[ ${_USE_DEBUG} -eq 1 ]]; then
-    # If running tests then output in TAP format (for debugging tests)
-    if [[ ${_RUNNING_TEST} -eq 1 ]]; then
-      echo "# $(date "+%b %d %T") ${FUNCNAME[1]}:${BASH_LINENO[1]}" "$@" >&3
+    # If running tests then verbose output (for debugging tests)
+    if [[ -n ${BATS_RUN_TMPDIR} ]]; then
+      echo "$(date "+%b %d %T") ${FUNCNAME[1]}:${BASH_LINENO[1]}" "$@"
     else
       echo " "
       echo "$@"
@@ -1282,15 +1224,9 @@ debug() { # write out debug info if the debug flag has been set
   fi
 }
 
-test_output() { # write out debug output for testing
-  if [[ ${_RUNNING_TEST} -eq 1 ]]; then
-    echo "#" "$@"
-  fi
-}
-
 error_exit() { # give error message on error exit
   echo -e "${PROGNAME}: ${1:-"Unknown Error"}" >&2
-  if [[ ${_RUNNING_TEST} -eq 1 ]] || [[ ${_USE_DEBUG} -eq 1 ]] ; then
+  if [[ ${_USE_DEBUG} -eq 1 ]]; then
     traceback
   fi
   clean_up
@@ -1507,6 +1443,7 @@ for d in "${alldomains[@]}"; do
         # ACME only allows port 80 (http), but redirects may use https.  --insecure is used in case
         # those certificates are being renewed.  Let's Encrypt does the same.  In this case, we verify
         # that the correct data is returned, so this is safe.
+        # shellcheck disable=SC2086
         if [[ ! "$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --insecure --silent --location "$wellknown_url")" == "$keyauthorization" ]]; then
           error_exit "for some reason could not reach $wellknown_url - please check it manually"
         fi
@@ -1577,11 +1514,8 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
       gad_s="@$gad_s"
     fi
 
-    # Check if domain is a CNAME, first
-    test_output "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME"
-
     # Two options here; either dig CNAME will return the CNAME and the NS or just the CNAME
-    debug Checking for CNAME using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME $gad_d $gad_s"
+    debug "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME $gad_d $gad_s"
     # shellcheck disable=SC2086
     res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME "$gad_d" $gad_s| grep "^$gad_d")
     cname=$(echo "$res"| awk '$4 ~ "CNAME" {print $5}' |sed 's/\.$//g')
@@ -1604,19 +1538,16 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     if [[ -z "$res" ]] && [[ $_TEST_SKIP_SOA_CALL == 0 ]]; then
       # shellcheck disable=SC2086
       if [[ "$HAS_DIG_OR_DRILL" == "drill" ]]; then
-        debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T $gad_d $gad_s" to find primary nameserver
-        test_output "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS SOA"
+        debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T SOA $gad_d $gad_s" to find primary nameserver
         res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T SOA "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
       else
         debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS SOA +trace +nocomments $gad_d $gad_s" to find primary nameserver
-        test_output "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS SOA"
         res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS SOA +trace +nocomments "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
       fi
     fi
 
     # Query for NS records
     if [[ -z "$res" ]]; then
-      test_output "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS NS"
       debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS NS $gad_d $gad_s" to find primary nameserver
       # shellcheck disable=SC2086
       res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS NS "$gad_d" $gad_s | grep -E "IN\W(NS|SOA)\W")
@@ -1646,7 +1577,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         primary_ns="$primary_ns $PUBLIC_DNS_SERVER"
       fi
 
-      test_output set primary_ns ="$primary_ns"
+      debug set primary_ns ="$primary_ns"
 
       return
     fi
@@ -1751,6 +1682,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
     CertData=$(awk ' $1 ~ "^Location" {print $2}' "$CURL_HEADER" |tr -d '\r')
     if [[ "$CertData" ]] ; then
       echo -----BEGIN CERTIFICATE----- > "$gc_certfile"
+      # shellcheck disable=SC2086
       curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent "$CertData" | openssl base64 -e  >> "$gc_certfile"
       echo -----END CERTIFICATE-----  >> "$gc_certfile"
       info "Certificate saved in $CERT_FILE"
@@ -1771,6 +1703,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
                 | sed 's/>//g')
     if [[ "$IssuerData" ]] ; then
       echo -----BEGIN CERTIFICATE----- > "$gc_cafile"
+      # shellcheck disable=SC2086
       curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent "$IssuerData" | openssl base64 -e  >> "$gc_cafile"
       echo -----END CERTIFICATE-----  >> "$gc_cafile"
       info "The intermediate CA cert is in $gc_cafile"
@@ -1829,6 +1762,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
       cp "$gc_certfile" "$gc_fullchain"
       while [[ -n "$issuer_url" ]]; do
         debug Fetching certificate issuer from "$issuer_url"
+        # shellcheck disable=SC2086
         issuer_cert=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent "$issuer_url" | openssl x509 -inform der -outform pem)
         debug Fetched issuer certificate "$(echo "$issuer_cert" | openssl x509 -inform pem -noout -text | awk 'BEGIN {FS="Subject: "} NF==2 {print $2; exit}')"
         echo "$issuer_cert" >> "$gc_fullchain"
@@ -1844,6 +1778,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
 get_cr() { # get curl response
   url="$1"
   debug url "$url"
+  # shellcheck disable=SC2086
   response=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent "$url")
   ret=$?
   debug response "${response//[$'\t\r\n']}"
@@ -1967,12 +1902,12 @@ hex2bin() { # Remove spaces, add leading zero, escape as hex string ensuring no 
 
 info() { # write out info as long as the quiet flag has not been set.
   if [[ ${_QUIET} -eq 0 ]]; then
-    # If running tests then output in TAP format as well (for debugging tests)
-    if [[ ${_RUNNING_TEST} -eq 1 ]]; then
-      echo "# $(date "+%b %d %T") ${FUNCNAME[1]}:${BASH_LINENO[1]}" "$@" >&3
+    # If running tests then verbose output (for debugging tests)
+    if [[ -n ${BATS_RUN_TMPDIR} ]]; then
+      echo "$(date "+%b %d %T") ${FUNCNAME[1]}:${BASH_LINENO[1]}" "$@"
+    else
+      echo "$@"
     fi
-
-    echo "$@"
   fi
 }
 
@@ -2185,6 +2120,7 @@ obtain_ca_resource_locations()
   for suffix in "" "/directory" "/dir";
   do
     # Obtain CA resource locations
+    # shellcheck disable=SC2086
     ca_all_loc=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" "${CA}${suffix}" 2>/dev/null)
     debug "ca_all_loc from ${CA}${suffix} gives $ca_all_loc"
     # APIv1
@@ -2756,12 +2692,6 @@ write_openssl_conf() { # write out a minimal openssl conf
 trap "signal_exit TERM" TERM HUP
 trap "signal_exit INT"  INT
 
-# When running tests, use debug mode to capture intermittent faults
-# Test harness will Save output in a temporary file, which is displayed if an error occurs
-if [[ ${_RUNNING_TEST} -eq 1 ]] ; then
-  _USE_DEBUG=1
-fi
-
 # Parse command-line
 while [[ -n ${1+defined} ]]; do
   case $1 in
@@ -2781,7 +2711,7 @@ while [[ -n ${1+defined} ]]; do
     -a | --all)
       _CHECK_ALL=1 ;;
     -k | --keep)
-      shift; 
+      shift;
       echo "--keep has no effect" ;;
     -q | --quiet)
       _QUIET=1 ;;

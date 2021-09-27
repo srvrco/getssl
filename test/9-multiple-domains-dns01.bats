@@ -6,13 +6,28 @@ load '/getssl/test/test_helper.bash'
 
 
 # This is run for every test
-teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+setup() {
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
 }
 
-setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
-    export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
+}
+
+
+setup_file() {
+    # Add top level domain from SANS to DNS
+    if [ -z "$STAGING" ]; then
+        export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+        curl --silent -X POST -d '{"host":"getssl.test", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
+    fi
+}
+
+
+teardown_file() {
+    if [ -z "$STAGING" ]; then
+        curl --silent -X POST -d '{"host":"getssl.tst"}' http://10.30.50.3:8055/clear-a
+    fi
 }
 
 
@@ -23,9 +38,6 @@ setup() {
     fi
     CONFIG_FILE="getssl-dns01-multiple-domains.cfg"
     setup_environment
-
-    # Add top level domain from SANS to DNS
-    curl --silent -X POST -d '{"host":"getssl.test", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
 
     init_getssl
     create_certificate
@@ -42,10 +54,9 @@ setup() {
     run ${CODE_DIR}/getssl -U -d -f $GETSSL_HOST
     assert_success
     check_output_for_errors
-    # Remove all the dns aliases
     cleanup_environment
-    curl --silent -X POST -d '{"host":"getssl.tst"}' http://10.30.50.3:8055/clear-a
 }
+
 
 @test "Test IGNORE_DIRECTORY_DOMAIN using DNS-01 verification" {
     # This tests we can create a certificate for getssl.test and <os>.getssl.test (*both* in SANS)
@@ -54,9 +65,6 @@ setup() {
     fi
     CONFIG_FILE="getssl-dns01-ignore-directory-domain.cfg"
     setup_environment
-
-    # Add top level domain from SANS to DNS
-    curl --silent -X POST -d '{"host":"getssl.test", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
 
     init_getssl
     create_certificate

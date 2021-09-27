@@ -28,13 +28,13 @@ GOTO CheckAlias
 
 :duckdns
 SET ALIAS=%OS:-duckdns=%-getssl.duckdns.org
-SET STAGING=--env STAGING=true --env dynamic_dns=duckdns
+SET STAGING=--env STAGING=true --env dynamic_dns=duckdns --env DUCKDNS_TOKEN=1d616aa9-b8e4-4bb4-b312-3289de82badb
 SET GETSSL_OS=%OS:-duckdns=%
 GOTO Run
 
 :dynu
 SET ALIAS=%OS:-dynu=%-getssl.freeddns.org
-SET STAGING=--env STAGING=true --env dynamic_dns=dynu
+SET STAGING=--env STAGING=true --env dynamic_dns=dynu --env DYNU_API_KEY=65cXefd35XbYf36546eg5dYcZT6X52Y2
 SET GETSSL_OS=%OS:-dynu=%
 GOTO Run
 

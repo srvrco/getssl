@@ -9,26 +9,24 @@ CA="https://api.test4.buypass.no/acme"
 
 # This is run for every test
 setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
 
     . /getssl/getssl --source
 
     requires curl
     _NOMETER="--silent"
 
-    _RUNNING_TEST=1
     _USE_DEBUG=1
 }
 
 
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
 }
 
 
 @test "Check that API V2 is selected in a unified ACME directory." {
     obtain_ca_resource_locations
-    
+
     [ "$API" -eq 2 ]
 }
-

@@ -7,12 +7,33 @@ load '/getssl/test/test_helper.bash'
 
 # This is run for every test
 teardown() {
-    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_TMPDIR/failed.skip
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
 }
 
+
 setup() {
-    [ ! -f $BATS_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
-    export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
+}
+
+
+setup_file() {
+    if [ -z "$STAGING" ]; then
+        export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+        # Add 11 hosts to DNS (also need to be added as aliases in docker-compose.yml)
+        for prefix in a b c d e f g h i j k; do
+            curl --silent -X POST -d '{"host":"'$prefix.$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
+        done
+    fi
+}
+
+
+teardown_file() {
+    # Remove all the dns aliases
+    if [ -n "$STAGING" ]; then
+        for prefix in a b c d e f g h i j k; do
+            curl --silent -X POST -d '{"host":"'$prefix.$GETSSL_HOST'"}' http://10.30.50.3:8055/clear-a
+        done
+    fi
 }
 
 
@@ -22,11 +43,6 @@ setup() {
     fi
     CONFIG_FILE="getssl-http01-10-hosts.cfg"
     setup_environment
-
-    # Add 11 hosts to DNS (also need to be added as aliases in docker-compose.yml)
-    for prefix in a b c d e f g h i j k; do
-        curl --silent -X POST -d '{"host":"'$prefix.$GETSSL_HOST'", "addresses":["'$GETSSL_IP'"]}' http://10.30.50.3:8055/add-a
-    done
 
     init_getssl
     create_certificate
@@ -42,9 +58,5 @@ setup() {
     run ${CODE_DIR}/getssl -U -d -f $GETSSL_HOST
     assert_success
     check_output_for_errors
-    # Remove all the dns aliases
     cleanup_environment
-    for prefix in a b c d e f g h i j k; do
-        curl --silent -X POST -d '{"host":"'$prefix.$GETSSL_HOST'"}' http://10.30.50.3:8055/clear-a
-    done
 }
