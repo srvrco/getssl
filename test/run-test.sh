@@ -14,17 +14,27 @@ else
   COMMAND="bats /getssl/test --timing"
 fi
 
+REPO=""
+if [ -n "$GITHUB_REPOSITORY" ] ; then
+  REPO="$(echo "$GITHUB_REPOSITORY" | cut -d/ -f1)"
+  if [[ "$REPO" == "srvrco" ]] ; then
+    REPO=""
+  else
+    REPO="${REPO}-"
+  fi
+fi
+
 ALIAS="$OS.getssl.test"
 GETSSL_IDN_HOST="$OS.xn--t-r1a81lydm69gz81r.test"
 STAGING=""
 GETSSL_OS=$OS
 
 if [[ "$OS" == *"duckdns"* ]]; then
-  ALIAS="${OS%-duckdns}-getssl.duckdns.org"
+  ALIAS="${REPO}${OS%-duckdns}-getssl.duckdns.org"
   STAGING="--env STAGING=true --env dynamic_dns=duckdns"
   GETSSL_OS="${OS%-duckdns}"
 elif [[ "$OS" == *"dynu"* ]]; then
-  ALIAS="${OS%-dynu}-getssl.freeddns.org"
+  ALIAS="${REPO}${OS%-dynu}-getssl.freeddns.org"
   STAGING="--env STAGING=true --env dynamic_dns=dynu"
   GETSSL_OS="${OS%-dynu}"
 elif [[ "$OS" == "bash"* ]]; then
@@ -38,6 +48,8 @@ docker run \
   --env GETSSL_IDN_HOST=$GETSSL_IDN_HOST \
   --env GETSSL_OS=$GETSSL_OS \
   --env GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
+  --env DUCKDNS_TOKEN="${DUCKDNS_TOKEN}" \
+  --env DYNU_API_KEY="${DYNU_API_KEY}" \
   -v "$(pwd)":/getssl \
   --rm \
   --network ${PWD##*/}_acmenet \

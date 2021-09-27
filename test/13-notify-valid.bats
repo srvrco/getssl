@@ -33,7 +33,7 @@ setup() {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
-    run ${CODE_DIR}/getssl $GETSSL_HOST
+    run ${CODE_DIR}/getssl -U -d $GETSSL_HOST
     assert_success
     check_output_for_errors
 }
@@ -43,7 +43,7 @@ setup() {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
-    run ${CODE_DIR}/getssl --notify-valid $GETSSL_HOST
+    run ${CODE_DIR}/getssl -U -d --notify-valid $GETSSL_HOST
     assert [ $status == 2 ]
     check_output_for_errors
     cleanup_environment

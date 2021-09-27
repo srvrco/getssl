@@ -4,7 +4,7 @@ FROM debian:latest
 
 # Update and install required software
 RUN apt-get update --fix-missing
-RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light
+RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light jq
 RUN apt-get install -y ftp vsftpd
 RUN apt-get install -y openssh-server
 RUN apt-get install -y locales # for idn testing

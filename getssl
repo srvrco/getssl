@@ -268,6 +268,8 @@
 # 2021-07-27 Support ftps://, FTPS_OPTIONS, remove default --insecure parameter to ftpes. Report caller(s) of error_exit in debug and test modes (tlhackque)(#687)(2.39)
 # 2021-07-30 Prefer API V2 when both offered (tlhackque) (#690) (2.40)
 # 2021-07-30 Run tests with -d to catch intermittent failures, Use fork's repo for upgrade tests. (tlhackque) (#692) (2.41)
+# 2021-08-26 Improve upgrade check & make upgrade do a full install when possible (tlhackque) (#694) (2.42)
+# 2021-09-02 Fix version compare - cURL v8 may have single digit minor numbers. (tlhackque) (2.43)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -276,7 +278,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.41"
+VERSION="2.43"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -286,10 +288,11 @@ CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 CHALLENGE_CHECK_TYPE="http"
 CHECK_REMOTE_WAIT=0
 CHECK_REMOTE="true"
+LIMIT_API="https://api.github.com/rate_limit"
 if [[ -n "${GITHUB_REPOSITORY}" ]] ; then
-  CODE_LOCATION="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/master/getssl"
+  RELEASE_API="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest"
 else
-  CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
+  RELEASE_API="https://api.github.com/repos/srvrco/getssl/releases/latest"
 fi
 CSR_SUBJECT="/"
 CURL_USERAGENT="${PROGNAME}/${VERSION}"
@@ -314,7 +317,7 @@ REUSE_PRIVATE_KEY="true"
 SERVER_TYPE="https"
 SKIP_HTTP_TOKEN_CHECK="false"
 SSLCONF="$(openssl version -d 2>/dev/null| cut -d\" -f2)/openssl.cnf"
-TEMP_UPGRADE_FILE=""
+TEMP_UPGRADE_DIR=""
 TOKEN_USER_ID=""
 USE_SINGLE_ACL="false"
 WORKING_DIR_CANDIDATES=("/etc/getssl" "${PROGDIR}/conf" "${PROGDIR}/.getssl" "${HOME}/.getssl")
@@ -338,7 +341,6 @@ _CHECK_ALL=0
 _CREATE_CONFIG=0
 _CURL_VERSION=""
 _FORCE_RENEW=0
-_KEEP_VERSIONS=""
 _MUTE=0
 _NOTIFY_VALID=0
 _NOMETER=""
@@ -351,6 +353,7 @@ _TEST_SKIP_CNAME_CALL=0
 _TEST_SKIP_SOA_CALL=0
 _UPGRADE=0
 _UPGRADE_CHECK=1
+_UPGRADE_TO_TAG=""
 _USE_DEBUG=0
 _ONLY_CHECK_CONFIG=0
 config_errors="false"
@@ -761,71 +764,186 @@ check_config() { # check the config files for all obvious errors
   debug "${DOMAIN}: check_config completed  - all OK"
 }
 
-check_getssl_upgrade() { # check if a more recent version of code is available available
-  TEMP_UPGRADE_FILE="$(mktemp 2>/dev/null || mktemp -t getssl.XXXXXX)"
-  if [ "$TEMP_UPGRADE_FILE" == "" ]; then
-    error_exit "mktemp failed"
+# Quota generally shouldn't be an issue - except for tests
+# Rate limits are per-IP address
+check_github_quota() {
+  local need remaining reset limits now
+  need="$1"
+  while true ; do
+    limits="$(curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" -H 'Accept: application/vnd.github.v3+json' "$LIMIT_API" | sed -e's/\("[^:]*": *\("[^""]*",\|[^,]*[,}]\)\)/\r\n\1/g' | sed -ne'/"core":/,/}/p')"
+    errcode=$?
+    if [[ $errcode -eq 60 ]]; then
+      error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
+    elif [[ $errcode -gt 0 ]]; then
+      error_exit "curl error checking releases: $errcode"
+    fi
+    limits="$(sed -e's/^ *//g' <<<"${limits}")"
+    remaining="$(sed -e'/^"remaining": *[0-9]/!d;s/^"remaining": *\([0-9][0-9]*\).*$/\1/' <<<"${limits}")"
+    reset="$(sed -e'/^"reset": *[0-9]/!d;s/^"reset": *\([0-9][0-9]*\).*$/\1/' <<<"${limits}")"
+    if [[ "$remaining" -ge "$need" ]] ; then return 0 ; fi
+    limit="$(sed -e'/^"limit": *[0-9]/!d;s/^"limit": *\([0-9][0-9]*\).*$/\1/' <<<"${limits}")"
+    if [[ "$limit" -lt "$need" ]] ; then
+      error_exit "GitHub API request $need exceeds limit $limit"
+    fi
+    now="$(date +%s)"
+    while [[ "$now" -lt "$reset" ]] ; do
+      info "sleeping $(( "$reset" - "$now" )) seconds for GitHub quota"
+      sleep "$(( "$reset" - "$now" ))"
+      now="$(date +%s)"
+   done
+  done
+}
+check_getssl_upgrade() { # check if a more recent release is available
+  check_github_quota 2
+  # Check GitHub for latest stable release, or a specified tag
+  if [[ -n "$_UPGRADE_TO_TAG" ]]; then
+      RELEASE_API="$RELEASE_API/tags/$_UPGRADE_TO_TAG"
   fi
-  curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
+  local release_data release_tag release_ver local_ver release_desc release_url release_tar NEWCMD
+  debug "Checking for releases at $RELEASE_API"
+  # Sometimes the json is pretty-printed, sometimes not.  Loosely tied to --user-agent, but not
+  # always.  Normalize it enough to get the 3 elements necessary. Oh, for jq...
+  release_data="$(curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" -H 'Accept: application/vnd.github.v3+json' "$RELEASE_API" | sed -e's/\("[^:]*": *\("[^""]*",\|[^,]*[,}]\)\)/\r\n\1/g')"
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
     error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
   elif [[ $errcode -gt 0 ]]; then
-    error_exit "curl error : $errcode"
+    error_exit "curl error checking releases: $errcode"
   fi
-  latestversion=$(awk -F '"' '$1 == "VERSION=" {print $2}' "$TEMP_UPGRADE_FILE")
-  latestvdec=$(echo "$latestversion"| tr -d '.')
-  localvdec=$(echo "$VERSION"| tr -d '.' )
+  debug "$release_data"
+  release_data="$(sed -e's/^ *//g' <<<"${release_data}")"
+  release_tag="$(sed -e'/^"tag_name": *"/!d;s/^"tag_name": *"\([^""]*\).*$/\1/' <<<"${release_data}")"
+  if [[ "${release_tag:0:1}" != 'v' ]] ; then
+    if [[ ${_MUTE} -eq 0 ]]; then
+      info "The current repository has no releases or is improperly tagged; can't check for upgrades: '$release_tag'"
+    fi
+    return 0
+  fi
+  release_ver="$( tr -d '.v' <<<"${release_tag}")"
+  local_ver="$( tr -d '.' <<<"${VERSION}")"
   debug "current code is version ${VERSION}"
-  debug "Most recent version is  ${latestversion}"
-  # use a default of 0 for cases where the latest code has not been obtained.
-  if [[ "${latestvdec:-0}" -gt "$localvdec" ]]; then
-    if [[ ${_UPGRADE} -eq 1 ]]; then
-      if ! install "$0" "${0}.v${VERSION}"; then
-        error_exit "problem renaming old version while updating, check permissions"
-      fi
-      if ! install -m 700 "$TEMP_UPGRADE_FILE" "$0"; then
-        error_exit "problem installing new version while updating, check permissions"
-      fi
-      if [[ ${_MUTE} -eq 0 ]]; then
-        echo "Updated getssl from v${VERSION} to v${latestversion}"
-        echo "These update notifications can be turned off using the -Q option"
-        echo ""
-        echo "Updates are;"
-        awk "/\(${VERSION}\)$/ {s=1} s; /\(${latestversion}\)$/ || /^# ----/ {s=0}" "$TEMP_UPGRADE_FILE" | awk '{if(NR>1)print}'
-        echo ""
-      fi
-      if [[ -n "$_KEEP_VERSIONS" ]] && [[ "$_KEEP_VERSIONS" =~ ^[0-9]+$ ]]; then
-        # Obtain all locally stored old versions in getssl_versions
-        declare -a getssl_versions
-        shopt -s nullglob
-        for getssl_version in "$0".v*; do
-          getssl_versions[${#getssl_versions[@]}]="$getssl_version"
-        done
-        shopt -u nullglob
-        # Explicitly sort the getssl_versions array to make sure
-        shopt -s -o noglob
-        # shellcheck disable=SC2207
-        IFS=$'\n' getssl_versions=($(sort <<< "${getssl_versions[*]}"))
-        shopt -u -o noglob
-        # Remove entries until given number of old versions to keep is reached
-        while [[ ${#getssl_versions[@]} -gt $_KEEP_VERSIONS ]]; do
-          debug "removing old version ${getssl_versions[0]}"
-          rm "${getssl_versions[0]}"
-          getssl_versions=("${getssl_versions[@]:1}")
-        done
-      fi
-      if ! eval "$ORIGCMD"; then
-        error_exit "Running upgraded getssl failed"
-      fi
-      graceful_exit
-    else
+  debug "Most recent version is  ${release_tag:1}"
+  if [[ -z "$_UPGRADE_TO_TAG" ]] ; then
+    if [[ "$local_ver" -ge "$release_ver" ]] ; then return 0; fi
+  else
+    if [[ "$local_ver" -eq "$release_ver" ]] ; then return 0; fi
+  fi
+  if [[ ${_UPGRADE} -ne 1 ]]; then
+    if [[ ${_MUTE} -eq 0 ]]; then
+      release_desc="$(sed -e'/^"body": *"/!d;s/^"body": *"\([^""]*\).*$/\1/;s/\\r/\r/g;s/\\n/\n/g' <<<"$release_data")"
       info ""
-      info "A more recent version (v${latestversion}) of getssl is available, please update"
+      info "A more recent version (${release_tag}) than $VERSION of getssl is available, please update"
       info "The easiest way is to use the -u or --upgrade flag"
       info ""
+      info "Release ${release_tag} summary"
+      info "$release_desc"
+      info ""
     fi
+    return 0;
   fi
+  # Find, download, and unpack the tarball containing the selected release
+  release_url="$(sed -e'/^"tarball_url": *"/!d;s/^"tarball_url": *"\([^""]*\).*$/\1/' <<<"${release_data}")"
+  debug "Release url '$release_url'"
+  requires tar
+  TEMP_UPGRADE_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t getssl.XXXXXXXX)"
+  if [ "$TEMP_UPGRADE_DIR" == "" ]; then
+    error_exit "mktemp failed"
+  fi
+  release_tar="$TEMP_UPGRADE_DIR/getssl-${release_tag}.tgz"
+  debug "Downloading release to $release_tar"
+  check_github_quota 1
+  curl ${_NOMETER:---silent} -L --user-agent "$CURL_USERAGENT" -H 'Accept: application/vnd.github.v3+json' "$release_url" --output "$release_tar"
+  errcode=$?
+  if [[ $errcode -eq 60 ]]; then
+    error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
+  elif [[ $errcode -gt 0 ]]; then
+    error_exit "curl error downloading release: $errcode"
+  fi
+  if ! tar -C "${TEMP_UPGRADE_DIR}" --strip-components 1 -xzf "$release_tar" ; then
+    error_exit "failed to unpack release: $?"
+  fi
+  # Inhibit check for upgrades when running the new version
+  NEWCMD="$(sed -e's/ -\(u\|-upgrade\|U\|-nocheck\)//g;s/^\([^ ]* \)/\1--nocheck /' <<<"$ORIGCMD")"
+  # Install everything with make - if it's available
+  if [ -n "$(command -v 'make' 2>/dev/null)" ]; then
+    if [[ "${0%/usr/bin/getssl}" != "$0" ]] ; then
+      export DESTDIR="${0%/usr/bin/getssl}"
+    fi
+    if [[ ${_MUTE} -eq 0 ]]; then
+      if ! make -C "${TEMP_UPGRADE_DIR}" "install" ; then
+        error_exit "Installation failed: $?"
+      fi
+    else
+      if ! make -s -C "${TEMP_UPGRADE_DIR}" "install" >/dev/null ; then
+        error_exit "Installation failed: $?"
+      fi
+    fi
+    clean_up
+    if [[ ${_MUTE} -eq 0 ]]; then
+      info "Installed $release_tag, restarting with $NEWCMD"
+    fi
+    if ! eval "$NEWCMD"; then
+      error_exit "Running upgraded getssl failed"
+    fi
+    graceful_exit
+  fi
+  # Fall back to 'install' and just the main script.
+  if [[ ${_MUTE} -eq 0 ]]; then
+    info "'make' is not available. getssl will be installed, but support scripts will not be upgraded"
+    info "To stay completely up-to-date, please install make"
+  fi
+  if ! install "$0" "${0}.v${VERSION}"; then
+    error_exit "problem renaming old version while updating, check permissions"
+  fi
+  if ! install -m 700 "$TEMP_UPGRADE_DIR/getssl" "$0"; then
+    error_exit "problem installing new version while updating, check permissions"
+  fi
+  if [[ ${_MUTE} -eq 0 ]]; then
+    echo "Updated getssl from v${VERSION} to $release_tag"
+    echo "The old version remains as ${0}.v${VERSION} and should be removed"
+    echo ""
+  fi
+  # This version can't be removed since disappearing can confuse bash.
+  declare -a getssl_versions
+  shopt -s nullglob
+  for getssl_version in "$0".v*; do
+    if [[ "$getssl_version" != "${0}.v${VERSION}" ]] ; then
+      getssl_versions[${#getssl_versions[@]}]="$getssl_version"
+    fi
+  done
+  shopt -u nullglob
+  if [[ -n "${getssl_versions[*]}" ]] ; then
+    rm "${getssl_versions[@]}"
+  fi
+  clean_up
+  if [[ ${_MUTE} -eq 0 ]]; then
+    info "Installed $release_tag, restarting with $NEWCMD"
+  fi
+  if ! eval "$NEWCMD"; then
+    error_exit "Running upgraded getssl failed"
+  fi
+  graceful_exit
+}
+
+check_version() { # true if version string $1 >= $2
+  local v1 v2 i n1 n2 n
+  # $1 and $2 can be different lengths, but all parts must be numeric
+  if [[ "$1" == "$2" ]] ; then return 0; fi
+  local IFS='.'
+  # shellcheck disable=SC2206
+  v1=($1)
+  # shellcheck disable=SC2206
+  v2=($2)
+  n1="${#v1[@]}"
+  n2="${#v2[@]}"
+  if [[ "$n1" -ge "$n2" ]] ; then n="$n1" ; else n="$n2" ; fi
+  for ((i=0; i<n; i++)) do
+    n1="${v1[$i]:-0}"
+    n2="${v2[$i]:-0}"
+    if [[ $((10#$n1)) -gt $((10#$n2)) ]] ; then return 0 ; fi
+    if [[ $((10#$n1)) -lt $((10#$n2)) ]] ; then return 1 ; fi
+  done
+  return 0
 }
 
 clean_up() { # Perform pre-exit housekeeping
@@ -848,8 +966,12 @@ clean_up() { # Perform pre-exit housekeeping
         rm -rf "${TEMP_DIR:?}"
     fi
   fi
-  if [[ -n "$TEMP_UPGRADE_FILE" ]] && [[ -f "$TEMP_UPGRADE_FILE" ]]; then
-    rm -f "$TEMP_UPGRADE_FILE"
+  if [[ -n "$TEMP_UPGRADE_DIR" ]] && [[ -d "$TEMP_UPGRADE_DIR" ]]; then
+    if [ "${TEMP_UPGRADE_DIR}" -ef "/tmp" ]; then
+        info "Not going to delete TEMP_UPGRADE_DIR ${TEMP_UPGRADE_DIR} as it appears to be /tmp"
+    else
+        rm -rf "${TEMP_UPGRADE_DIR:?}"
+    fi
   fi
 }
 
@@ -1829,7 +1951,7 @@ help_message() { # print out the help message
 	  -Q, --mute         Like -q, but also mute notification about successful upgrade
 	  -r, --revoke   "cert" "key" [CA_server] Revoke a certificate (the cert and key are required)
 	  -u, --upgrade      Upgrade getssl if a more recent version is available - can be used with or without domain(s)
-	  -k, --keep     "#" Maximum number of old getssl versions to keep when upgrading
+	  -X, --experimental tag  Upgrade to experimental releases, specified by tag (e.g. v9.43)
 	  -U, --nocheck      Do not check if a more recent version is available
 	  -v  --version      Display current version of $PROGNAME
 	  -w working_dir "Working directory"
@@ -2246,8 +2368,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   dp="$TEMP_DIR/curl.dump"
 
   CURL="curl ${_NOMETER} "
-  # shellcheck disable=SC2072
-  if [[ ! "${_CURL_VERSION}" < "7.33" ]]; then
+  if check_version "${_CURL_VERSION}" "7.33" ; then
     CURL="$CURL --http1.1 "
   fi
 
@@ -2451,7 +2572,7 @@ urlbase64_decode() {
 
 usage() { # echos out the program usage
   echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet]"\
-       "[-Q|--mute] [-u|--upgrade] [-k|--keep #] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir]"\
+       "[-Q|--mute] [-u|--upgrade] [-X|--experimental tag] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir]"\
        "[--preferred-chain chain] domain"
 }
 
@@ -2660,7 +2781,8 @@ while [[ -n ${1+defined} ]]; do
     -a | --all)
       _CHECK_ALL=1 ;;
     -k | --keep)
-      shift; _KEEP_VERSIONS="$1";;
+      shift; 
+      echo "--keep has no effect" ;;
     -q | --quiet)
       _QUIET=1 ;;
     -Q | --mute)
@@ -2678,6 +2800,9 @@ while [[ -n ${1+defined} ]]; do
       REVOKE_REASON=0 ;;
     -u | --upgrade)
       _UPGRADE=1 ;;
+    -X | --experimental)
+      _UPGRADE_TO_TAG="$1"
+      shift ;;
     -U | --nocheck)
       _UPGRADE_CHECK=0 ;;
     -i | --install)
@@ -2742,10 +2867,18 @@ requires mktemp
 #       This would help with debugging transfer errors.
 
 _CURL_VERSION="$(curl -V | head -1 | cut -d' ' -f2 )"
-# shellcheck disable=SC2072
-if [[ ! "${_CURL_VERSION}" < "7.67" ]]; then
+if check_version "${_CURL_VERSION}" "7.67" ; then
     _NOMETER="--no-progress-meter"
 fi
+
+# Make sure mktemp works before going too far
+MKDIR_TEST_FILE="$(mktemp 2>/dev/null || mktemp -t getssl.XXXXXX)"
+if [ "$MKDIR_TEST_FILE" == "" ]; then
+  error_exit "mktemp failed"
+else
+  rm "$MKDIR_TEST_FILE"
+fi
+unset MKDIR_TEST_FILE
 
 # Check if upgrades are available (unless they have specified -U to ignore Upgrade checks)
 if [[ $_UPGRADE_CHECK -eq 1 ]]; then

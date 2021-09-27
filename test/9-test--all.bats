@@ -29,7 +29,7 @@ setup() {
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_HOST}/getssl.cfg"
 
     # Run test
-    run ${CODE_DIR}/getssl --all
+    run ${CODE_DIR}/getssl -U -d --all
 
     # Check success conditions
     assert_success

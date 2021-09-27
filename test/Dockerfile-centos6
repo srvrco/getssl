@@ -12,7 +12,7 @@ RUN sed -i 's/enabled=1/enabled=0/g' /etc/yum/pluginconf.d/fastestmirror.conf &&
 
 # Update and install required software
 RUN yum -y install epel-release
-RUN yum -y install git curl dnsutils ldns wget nginx
+RUN yum -y install git curl dnsutils ldns wget nginx jq
 RUN yum -y install ftp vsftpd
 RUN yum -y install openssh-server
 

@@ -2,14 +2,14 @@ FROM bash:4.0
 
 # https://hub.docker.com/_/bash
 
-RUN apk --no-cache add supervisor openssl git curl bind-tools drill wget nginx lftp vsftpd openssh-server
+RUN apk --no-cache add supervisor openssl git curl bind-tools drill wget nginx lftp vsftpd openssh-server jq
 
 WORKDIR /root
 
 # Create nginx directories in standard places
-RUN mkdir /run/nginx
-RUN mkdir /etc/nginx/pki
-RUN mkdir /etc/nginx/pki/private
+RUN mkdir -p /run/nginx
+RUN mkdir -p /etc/nginx/pki
+RUN mkdir -p /etc/nginx/pki/private
 
 # Setup ftp
 ENV VSFTPD_CONF=/etc/vsftpd.conf

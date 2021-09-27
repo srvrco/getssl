@@ -28,7 +28,7 @@ setup() {
     # set TMPDIR to an invalid directory and check for failure
     export TMPDIR=/getssl.invalid.directory
     setup_environment
-    run ${CODE_DIR}/getssl -c "$GETSSL_CMD_HOST"
+    run ${CODE_DIR}/getssl -U -d -c "$GETSSL_CMD_HOST"
     assert_failure
     assert_line --partial "mktemp failed"
 }

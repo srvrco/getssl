@@ -8,6 +8,11 @@ on:
   pull_request:
     branches:
       - master
+  workflow_dispatch:
+    branches:
+      - master
+env:
+  DYNU_API_KEY: ${{ secrets.DYNU_API_KEY == '' && '65cXefd35XbYf36546eg5dYcZT6X52Y2' || secrets.DYNU_API_KEY }}
 jobs:
   test-centos7-dynu:
     runs-on: ubuntu-latest

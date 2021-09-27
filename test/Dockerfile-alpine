@@ -2,7 +2,7 @@ FROM alpine:latest
 
 # Note this image uses busybox awk instead of gawk
 
-RUN apk --no-cache add supervisor openssl git curl bind-tools drill wget nginx bash lftp vsftpd openssh-server
+RUN apk --no-cache add supervisor openssl git curl bind-tools drill wget nginx bash lftp vsftpd openssh-server jq
 
 WORKDIR /root
 

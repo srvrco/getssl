@@ -8,11 +8,11 @@ ENV DEBIAN_FRONTEND noninteractive
 # Ensure tests in this image use the staging server
 ENV staging "true"
 ENV dynamic_dns "duckdns"
-ENV DUCKDNS_TOKEN 1d616aa9-b8e4-4bb4-b312-3289de82badb
+#ENV DUCKDNS_TOKEN 
 
 # Update and install required software
 RUN apt-get update --fix-missing
-RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light
+RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light jq
 RUN apt-get install -y vim dos2unix # for debugging
 RUN apt-get install -y locales # for idn testing
 

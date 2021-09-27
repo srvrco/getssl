@@ -34,7 +34,7 @@ setup() {
     cp "${CODE_DIR}/test/test-config/getssl-etc-template.cfg" "/etc/getssl/getssl.cfg"
 
     # Run getssl
-    run ${CODE_DIR}/getssl "$GETSSL_CMD_HOST"
+    run ${CODE_DIR}/getssl -U -d "$GETSSL_CMD_HOST"
 
     assert_success
     check_output_for_errors
@@ -53,7 +53,7 @@ setup() {
     CONFIG_FILE="getssl-http01.cfg"
 
     # Run getssl
-    run ${CODE_DIR}/getssl --install "$GETSSL_CMD_HOST"
+    run ${CODE_DIR}/getssl -U -d --install "$GETSSL_CMD_HOST"
 
     assert_success
     check_output_for_errors

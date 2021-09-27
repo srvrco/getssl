@@ -39,7 +39,7 @@ setup() {
     CERT=${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt
     KEY=${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key
 
-    run ${CODE_DIR}/getssl -d --revoke $CERT $KEY $CA
+    run ${CODE_DIR}/getssl -U -d --revoke $CERT $KEY $CA
     assert_line "certificate revoked"
     assert_success
     check_output_for_errors "debug"

@@ -35,7 +35,7 @@ setup() {
         skip "Using staging server, skipping internal test"
     fi
 
-    run ${CODE_DIR}/getssl "*.$GETSSL_HOST"
+    run ${CODE_DIR}/getssl -U -d "*.$GETSSL_HOST"
     assert_success
     assert_line --partial "certificate is valid for more than"
     check_output_for_errors
@@ -47,7 +47,7 @@ setup() {
         skip "Using staging server, skipping internal test"
     fi
 
-    run ${CODE_DIR}/getssl -f "*.$GETSSL_HOST"
+    run ${CODE_DIR}/getssl -U -d -f "*.$GETSSL_HOST"
     assert_success
     refute_line --partial "certificate is valid for more than"
     check_output_for_errors
@@ -61,7 +61,7 @@ setup() {
 
     echo "RENEW_ALLOW=2000" >> "${INSTALL_DIR}/.getssl/*.${GETSSL_HOST}/getssl.cfg"
 
-    run ${CODE_DIR}/getssl "*.$GETSSL_HOST"
+    run ${CODE_DIR}/getssl -U -d "*.$GETSSL_HOST"
     assert_success
     refute_line --partial "certificate is valid for more than"
     check_output_for_errors

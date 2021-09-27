@@ -20,7 +20,7 @@ teardown() {
     setup_environment
     mkdir ${INSTALL_DIR}/.getssl
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/getssl.cfg"
-    run ${CODE_DIR}/getssl -d --check-config "$GETSSL_CMD_HOST"
+    run ${CODE_DIR}/getssl -U -d --check-config "$GETSSL_CMD_HOST"
     assert_success
     assert_line 'Using certificate issuer: https://pebble:14000/dir'
 }
@@ -41,7 +41,7 @@ teardown() {
     setup_environment
     mkdir ${INSTALL_DIR}/.getssl
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/getssl.cfg"
-    run ${CODE_DIR}/getssl -d --check-config "$GETSSL_CMD_HOST"
+    run ${CODE_DIR}/getssl -U -d --check-config "$GETSSL_CMD_HOST"
     assert_success
     assert_line 'Using certificate issuer: https://acme-staging-v02.api.letsencrypt.org/directory'
 }
@@ -62,7 +62,7 @@ teardown() {
     setup_environment
     mkdir ${INSTALL_DIR}/.getssl
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/getssl.cfg"
-    run ${CODE_DIR}/getssl -d --check-config "$GETSSL_CMD_HOST"
+    run ${CODE_DIR}/getssl -U -d --check-config "$GETSSL_CMD_HOST"
     assert_success
     assert_line 'Using certificate issuer: https://acme-v02.api.letsencrypt.org/directory'
 }
@@ -83,7 +83,7 @@ teardown() {
     setup_environment
     mkdir ${INSTALL_DIR}/.getssl
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/getssl.cfg"
-    run ${CODE_DIR}/getssl -d --check-config "$GETSSL_CMD_HOST"
+    run ${CODE_DIR}/getssl -U -d --check-config "$GETSSL_CMD_HOST"
     assert_success
     assert_line 'Using certificate issuer: https://acme-staging-v02.api.letsencrypt.org/directory'
 }
@@ -104,7 +104,7 @@ teardown() {
     setup_environment
     mkdir ${INSTALL_DIR}/.getssl
     cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/getssl.cfg"
-    run ${CODE_DIR}/getssl -d --check-config "$GETSSL_CMD_HOST"
+    run ${CODE_DIR}/getssl -U -d --check-config "$GETSSL_CMD_HOST"
     assert_success
     assert_line 'Using certificate issuer: https://acme-v02.api.letsencrypt.org/directory'
 }

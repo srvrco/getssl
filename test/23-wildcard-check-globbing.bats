@@ -44,7 +44,7 @@ setup() {
         skip "Not trying on staging server yet"
     fi
 
-    run ${CODE_DIR}/getssl -f "*.$GETSSL_HOST"
+    run ${CODE_DIR}/getssl -U -d -f "*.$GETSSL_HOST"
     assert_success
     refute_line --partial "certificate is valid for more than"
     check_output_for_errors
