@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Set the TXT DNS record with azure-cli
+fulldomain="${1}"
+token="${2}"
+
+if [[ -z "$AZURE_RESOURCE_GROUP" ]]; then
+  echo "AZURE_RESOURCE_GROUP is not set. Unable to set TXT records."
+  exit 2
+fi
+if [[ -z "$AZURE_ZONE_ID" ]]; then
+  echo "AZURE_ZONE_ID is not set. Unable to set TXT records."
+  exit 2
+fi
+if [[ -z "$AZURE_SUBSCRIPTION_ID" ]]; then 
+  echo "AZURE_SUBSCRIPTION_ID is not set. Unable to set TXT records."
+  exit 2
+fi
+
+az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+recordset="_acme-challenge.${fulldomain/.$AZURE_ZONE_ID/}"
+[[ "$recordset" == "_acme-challenge.$fulldomain" ]] && recordset="_acme-challenge"
+az network dns record-set txt add-record -g "$AZURE_RESOURCE_GROUP" -z "$AZURE_ZONE_ID" -n "$recordset" -v "$token"
