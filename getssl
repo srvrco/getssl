@@ -820,7 +820,7 @@ check_getssl_upgrade() { # check if a more recent release is available
   if [ "$TEMP_UPGRADE_FILE" == "" ]; then
     error_exit "mktemp failed"
   fi
-  CODE_LOCATION=$(sed -e"s/master/${release_tag}/" <<<"$CODE_LOCATION")
+  CODE_LOCATION=$(sed -e"s/getssl\/master/${release_tag}/" <<<"$CODE_LOCATION")
   # shellcheck disable=SC2086
   debug curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
   # shellcheck disable=SC2086
