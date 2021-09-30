@@ -270,6 +270,7 @@
 # 2021-07-30 Run tests with -d to catch intermittent failures, Use fork's repo for upgrade tests. (tlhackque) (#692) (2.41)
 # 2021-08-26 Improve upgrade check & make upgrade do a full install when possible (tlhackque) (#694) (2.42)
 # 2021-09-02 Fix version compare - cURL v8 may have single digit minor numbers. (tlhackque) (2.43)
+# 2021-09-26 Delete key file when key algorithm has changed (makuhama)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -819,11 +820,13 @@ check_getssl_upgrade() { # check if a more recent release is available
   if [ "$TEMP_UPGRADE_FILE" == "" ]; then
     error_exit "mktemp failed"
   fi
-  CODE_LOCATION=$(sed -e"s/master/${release_tag}/" <<<"$CODE_LOCATION")
+  CODE_LOCATION=$(sed -e"s/getssl\/master/${release_tag}/" <<<"$CODE_LOCATION")
+  # shellcheck disable=SC2086
+  debug curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
   # shellcheck disable=SC2086
   curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
-
   errcode=$?
+
   if [[ $errcode -eq 60 ]]; then
     error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
   elif [[ $errcode -gt 0 ]]; then
@@ -838,11 +841,11 @@ check_getssl_upgrade() { # check if a more recent release is available
   fi
 
   if [[ ${_MUTE} -eq 0 ]]; then
-    echo "Updated getssl from v${VERSION} to v${release_tag}"
+    echo "Updated getssl from v${VERSION} to ${release_tag}"
     echo "The old version remains as ${0}.v${VERSION} and should be removed"
     echo "These update notifications can be turned off using the -Q option"
     echo ""
-    echo "Updates are;"
+    echo "Updates are:"
     awk "/\(${VERSION}\)$/ {s=1} s; /\(${release_tag}\)$/ || /^# ----/ {s=0}" "$TEMP_UPGRADE_FILE" | awk '{if(NR>1)print}'
     echo ""
   fi
@@ -2117,11 +2120,22 @@ json_get() { # get values from json
 
 obtain_ca_resource_locations()
 {
+  CURL_RESPONSE_FILE="$(mktemp 2>/dev/null || mktemp -t getssl.XXXXXX)"
+
   for suffix in "" "/directory" "/dir";
   do
     # Obtain CA resource locations
     # shellcheck disable=SC2086
-    ca_all_loc=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" "${CA}${suffix}" 2>/dev/null)
+    ca_all_loc=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" "${CA}${suffix}" 2> $CURL_RESPONSE_FILE)
+    errcode=$?
+    if [[ $errcode -ne 0 ]]; then
+      response=$(cat "$CURL_RESPONSE_FILE")
+      rm "$CURL_RESPONSE_FILE"
+      error_exit "ERROR curl \"$CA$suffix\" failed with $errcode and returned:\n$response"
+    else
+      rm "$CURL_RESPONSE_FILE"
+    fi
+
     debug "ca_all_loc from ${CA}${suffix} gives $ca_all_loc"
     # APIv1
     URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
@@ -3146,6 +3160,22 @@ else
 fi
 debug "created SAN list = $SANLIST"
 
+# check if private key alg has changed from RSA to EC (or vice versa)
+if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
+  case "${PRIVATE_KEY_ALG}" in
+    rsa)
+      if grep -q -- "-----BEGIN EC PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+        _FORCE_RENEW=1
+      fi ;;
+    prime256v1|secp384r1|secp521r1)
+      if grep -q -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+        _FORCE_RENEW=1
+      fi ;;
+  esac
+fi
+
 # if there is an existing certificate file, check details.
 if [[ -s "$CERT_FILE" ]]; then
   debug "certificate $CERT_FILE exists"
@@ -3197,20 +3227,6 @@ if [[ "$REUSE_PRIVATE_KEY" != "true" ]]; then
   if [[ -s "$DOMAIN_DIR/${DOMAIN}.ec.key" ]]; then
     rm -f "$DOMAIN_DIR/${DOMAIN}.ec.key"
   fi
-fi
-
-# check if private key alg has changed from RSA to EC (or vice versa)
-if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
-  case "${PRIVATE_KEY_ALG}" in
-    rsa)
-      if grep --silent -- "-----BEGIN EC PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
-        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
-      fi ;;
-    prime256v1|secp384r1|secp521r1)
-      if grep --silent -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
-        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
-      fi ;;
-  esac
 fi
 
 # create new domain keys if they don't already exist
