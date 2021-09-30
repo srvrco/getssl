@@ -161,7 +161,7 @@ teardown() {
 
     # Check for current tag or file version otherwise push to master fails on a new version (or if the tag hasn't been updated)
     assert_line --regexp "Installed v(${CURRENT_TAG}|${FILE_VERSION}), restarting"
-    assert_line "Configuration check successful"
+    assert_line --partial "Configuration check successful"
 }
 
 

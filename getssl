@@ -2118,11 +2118,22 @@ json_get() { # get values from json
 
 obtain_ca_resource_locations()
 {
+  CURL_RESPONSE_FILE="$(mktemp 2>/dev/null || mktemp -t getssl.XXXXXX)"
+
   for suffix in "" "/directory" "/dir";
   do
     # Obtain CA resource locations
     # shellcheck disable=SC2086
-    ca_all_loc=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" "${CA}${suffix}" 2>/dev/null)
+    ca_all_loc=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" "${CA}${suffix}" 2> $CURL_RESPONSE_FILE)
+    errcode=$?
+    if [[ $errcode -ne 0 ]]; then
+      response=$(cat "$CURL_RESPONSE_FILE")
+      rm "$CURL_RESPONSE_FILE"
+      error_exit "ERROR curl \"$CA$suffix\" failed with $errcode and returned:\n$response"
+    else
+      rm "$CURL_RESPONSE_FILE"
+    fi
+
     debug "ca_all_loc from ${CA}${suffix} gives $ca_all_loc"
     # APIv1
     URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
