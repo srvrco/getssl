@@ -270,6 +270,7 @@
 # 2021-07-30 Run tests with -d to catch intermittent failures, Use fork's repo for upgrade tests. (tlhackque) (#692) (2.41)
 # 2021-08-26 Improve upgrade check & make upgrade do a full install when possible (tlhackque) (#694) (2.42)
 # 2021-09-02 Fix version compare - cURL v8 may have single digit minor numbers. (tlhackque) (2.43)
+# 2021-09-26 Delete key file when key algorithm has changed (makuhama)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -838,7 +839,7 @@ check_getssl_upgrade() { # check if a more recent release is available
   fi
 
   if [[ ${_MUTE} -eq 0 ]]; then
-    echo "Updated getssl from v${VERSION} to v${release_tag}"
+    echo "Updated getssl from v${VERSION} to ${release_tag}"
     echo "The old version remains as ${0}.v${VERSION} and should be removed"
     echo "These update notifications can be turned off using the -Q option"
     echo ""
@@ -3146,6 +3147,22 @@ else
 fi
 debug "created SAN list = $SANLIST"
 
+# check if private key alg has changed from RSA to EC (or vice versa)
+if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
+  case "${PRIVATE_KEY_ALG}" in
+    rsa)
+      if grep --silent -- "-----BEGIN EC PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+        _FORCE_RENEW=1
+      fi ;;
+    prime256v1|secp384r1|secp521r1)
+      if grep --silent -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+        _FORCE_RENEW=1
+      fi ;;
+  esac
+fi
+
 # if there is an existing certificate file, check details.
 if [[ -s "$CERT_FILE" ]]; then
   debug "certificate $CERT_FILE exists"
@@ -3197,20 +3214,6 @@ if [[ "$REUSE_PRIVATE_KEY" != "true" ]]; then
   if [[ -s "$DOMAIN_DIR/${DOMAIN}.ec.key" ]]; then
     rm -f "$DOMAIN_DIR/${DOMAIN}.ec.key"
   fi
-fi
-
-# check if private key alg has changed from RSA to EC (or vice versa)
-if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
-  case "${PRIVATE_KEY_ALG}" in
-    rsa)
-      if grep --silent -- "-----BEGIN EC PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
-        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
-      fi ;;
-    prime256v1|secp384r1|secp521r1)
-      if grep --silent -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
-        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
-      fi ;;
-  esac
 fi
 
 # create new domain keys if they don't already exist
