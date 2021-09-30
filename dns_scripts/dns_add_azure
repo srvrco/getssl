@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Set the TXT DNS record with azure-cli
+fulldomain="${1}"
+token="${2}"
+
+if [[ -z "$AZURE_RESOURCE_GROUP" ]]; then
+  echo "AZURE_RESOURCE_GROUP is not set. Unable to set TXT records."
+  exit 2
+fi
+if [[ -z "$AZURE_ZONE_ID" ]]; then
+  echo "AZURE_ZONE_ID is not set. Unable to set TXT records."
+  exit 2
+fi
+if [[ -z "$AZURE_SUBSCRIPTION_ID" ]]; then 
+  echo "AZURE_SUBSCRIPTION_ID is not set. Unable to set TXT records."
+  exit 2
+fi
+
+# Determine which zone ID to use from AZURE_ZONE_IDs
+# Convert the comma-separated list of AZURE_ZONE_IDs into an array and loop
+IFS=',' read -ra zone_ids <<< "$AZURE_ZONE_ID"
+for item in "${zone_ids[@]}"; do 
+  # If the full domain ends with the current zone ID
+  [[ "$fulldomain" =~ .*"${item}"$ ]] && zone_id="$item"
+done
+
+if [ -z "$zone_id" ]; then 
+  echo "${fulldomain} does not match any of the zone IDs specified by ${AZURE_ZONE_ID[@]}"
+  exit 2
+fi
+
+az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+# Determine the recordset by removing the zone_id from the full domain and prefixing
+# with _acme-challenge.
+recordset="_acme-challenge.${fulldomain/.$zone_id/}"
+# The fulldomain should not be included in the recordset. It is used for subdomains.
+# E.g. domain = *.sub.example.com the recordset is _acme-challenge.sub
+#      domain = example.com the record set is _acme-challenge
+[[ "$recordset" == "_acme-challenge.$fulldomain" ]] && recordset="_acme-challenge"
+az network dns record-set txt add-record -g "$AZURE_RESOURCE_GROUP" -z "$zone_id" -n "$recordset" -v "$token"
