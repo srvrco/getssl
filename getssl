@@ -822,9 +822,11 @@ check_getssl_upgrade() { # check if a more recent release is available
   fi
   CODE_LOCATION=$(sed -e"s/master/${release_tag}/" <<<"$CODE_LOCATION")
   # shellcheck disable=SC2086
+  debug curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
+  # shellcheck disable=SC2086
   curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
-
   errcode=$?
+
   if [[ $errcode -eq 60 ]]; then
     error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
   elif [[ $errcode -gt 0 ]]; then
@@ -843,7 +845,7 @@ check_getssl_upgrade() { # check if a more recent release is available
     echo "The old version remains as ${0}.v${VERSION} and should be removed"
     echo "These update notifications can be turned off using the -Q option"
     echo ""
-    echo "Updates are;"
+    echo "Updates are:"
     awk "/\(${VERSION}\)$/ {s=1} s; /\(${release_tag}\)$/ || /^# ----/ {s=0}" "$TEMP_UPGRADE_FILE" | awk '{if(NR>1)print}'
     echo ""
   fi
@@ -3162,12 +3164,12 @@ debug "created SAN list = $SANLIST"
 if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
   case "${PRIVATE_KEY_ALG}" in
     rsa)
-      if grep --silent -- "-----BEGIN EC PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+      if grep -q -- "-----BEGIN EC PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
         rm -f "$DOMAIN_DIR/${DOMAIN}.key"
         _FORCE_RENEW=1
       fi ;;
     prime256v1|secp384r1|secp521r1)
-      if grep --silent -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+      if grep -q -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
         rm -f "$DOMAIN_DIR/${DOMAIN}.key"
         _FORCE_RENEW=1
       fi ;;
