@@ -3198,6 +3198,21 @@ if [[ "$REUSE_PRIVATE_KEY" != "true" ]]; then
     rm -f "$DOMAIN_DIR/${DOMAIN}.ec.key"
   fi
 fi
+
+# check if private key alg has changed from RSA to EC (or vice versa)
+if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
+  case "${PRIVATE_KEY_ALG}" in
+    rsa)
+      if grep --silent -- "-----BEGIN EC PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+      fi ;;
+    prime256v1|secp384r1|secp521r1)
+      if grep --silent -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+      fi ;;
+  esac
+fi
+
 # create new domain keys if they don't already exist
 if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
   create_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LENGTH"
