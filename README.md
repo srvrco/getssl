@@ -58,7 +58,7 @@ Since the script is only one file, you can use the following command for
 a quick installation of GetSSL only:
 
 ```sh
-curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl > getssl ; chmod 700 getssl
+curl --silent https://raw.githubusercontent.com/srvrco/getssl/latest/getssl > getssl ; chmod 700 getssl
 ```
 
 This will copy the getssl Bash script to the current location and change
