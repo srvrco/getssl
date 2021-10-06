@@ -787,7 +787,7 @@ check_getssl_upgrade() { # check if a more recent release is available
   # Replace error in release description with _error (which is ignored by check_output_for_errors() in the tests)
   debug "${release_data//error/_error}"
   release_data="$(sed -e's/^ *//g' <<<"${release_data}")"
-  release_tag="$(sed -e'/^"tag_name": *"/!d;s/^"tag_name": *"\([^""]*\).*$/\1/' <<<"${release_data}")"
+  release_tag="$(sed -e'/"tag_name": *"/!d;s/"tag_name": *"\([^""]*\).*$/\1/' <<<"${release_data}")"
   if [[ "${release_tag:0:1}" != 'v' ]] ; then
     if [[ ${_MUTE} -eq 0 ]]; then
       info "The current repository has no releases or is improperly tagged; can't check for upgrades: '$release_tag'"
