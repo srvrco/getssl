@@ -74,10 +74,10 @@ if [[ -f /usr/bin/supervisord && -f /etc/supervisord.conf ]]; then
   fi
 elif [[ "$GETSSL_OS" == "centos"[78] || "$GETSSL_OS" == "rockylinux"* ]]; then
   if [ -z "$(pgrep nginx)" ]; then
-    nginx >&3-
+    nginx 3>&-
   fi
   if [ -z "$(pgrep vsftpd)" ] && [ "$(command -v vsftpd)" ]; then
-    vsftpd >&3-
+    vsftpd 3>&-
   fi
 fi
 
