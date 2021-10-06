@@ -21,7 +21,7 @@ pasv_min_port=10090
 connect_from_port_20=NO
 _FTP
 
-        ${CODE_DIR}/test/restart-ftpd
+        ${CODE_DIR}/test/restart-ftpd start
     fi
 }
 
@@ -30,7 +30,7 @@ teardown() {
     [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
     if [ -n "${VSFTPD_CONF}" ]; then
         cp ${VSFTPD_CONF}.getssl $VSFTPD_CONF
-        ${CODE_DIR}/test/restart-ftpd
+        ${CODE_DIR}/test/restart-ftpd stop
     fi
 }
 

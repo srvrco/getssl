@@ -271,6 +271,9 @@
 # 2021-08-26 Improve upgrade check & make upgrade do a full install when possible (tlhackque) (#694) (2.42)
 # 2021-09-02 Fix version compare - cURL v8 may have single digit minor numbers. (tlhackque) (2.43)
 # 2021-09-26 Delete key file when key algorithm has changed (makuhama)
+# 2021-09-30 better error if curl returns 60 (#709)
+# 2021-10-01 Fix -preferred-chain argument (#712)
+# 2021-10-01 Show help if no domain specified (#705)(2.44)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -279,7 +282,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.43"
+VERSION="2.44"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -290,7 +293,7 @@ CHALLENGE_CHECK_TYPE="http"
 CHECK_REMOTE_WAIT=0
 CHECK_REMOTE="true"
 if [[ -n "${GITHUB_REPOSITORY}" ]] ; then
-  CODE_LOCATION="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/getssl/master/getssl"
+  CODE_LOCATION="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/master/getssl"
   RELEASE_API="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest"
 else
   CODE_LOCATION="https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
@@ -784,7 +787,7 @@ check_getssl_upgrade() { # check if a more recent release is available
   # Replace error in release description with _error (which is ignored by check_output_for_errors() in the tests)
   debug "${release_data//error/_error}"
   release_data="$(sed -e's/^ *//g' <<<"${release_data}")"
-  release_tag="$(sed -e'/^"tag_name": *"/!d;s/^"tag_name": *"\([^""]*\).*$/\1/' <<<"${release_data}")"
+  release_tag="$(sed -e'/"tag_name": *"/!d;s/"tag_name": *"\([^""]*\).*$/\1/' <<<"${release_data}")"
   if [[ "${release_tag:0:1}" != 'v' ]] ; then
     if [[ ${_MUTE} -eq 0 ]]; then
       info "The current repository has no releases or is improperly tagged; can't check for upgrades: '$release_tag'"
@@ -820,7 +823,7 @@ check_getssl_upgrade() { # check if a more recent release is available
   if [ "$TEMP_UPGRADE_FILE" == "" ]; then
     error_exit "mktemp failed"
   fi
-  CODE_LOCATION=$(sed -e"s/getssl\/master/${release_tag}/" <<<"$CODE_LOCATION")
+  CODE_LOCATION=$(sed -e"s/master/${release_tag}/" <<<"$CODE_LOCATION")
   # shellcheck disable=SC2086
   debug curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
   # shellcheck disable=SC2086
@@ -2427,7 +2430,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       fi
       debug "response status = $response_status"
       if [[ "$code" -eq 500 ]]; then
-        info "error on acme server - trying again ...."
+        info "_error on acme server - trying again ...."
         debug "loop_limit = $loop_limit"
         sleep 5
         loop_limit=$((loop_limit - 1))
@@ -2755,7 +2758,7 @@ while [[ -n ${1+defined} ]]; do
       _ONLY_CHECK_CONFIG=1 ;;
     -w)
       shift; WORKING_DIR="$1" ;;
-    -preferred-chain)
+    -preferred-chain | --preferred-chain)
       shift; PREFERRED_CHAIN="$1" ;;
     --source)
       return ;;
@@ -2830,6 +2833,10 @@ if [[ $_UPGRADE_CHECK -eq 1 ]]; then
   # if nothing in command line and no revocation and not only config check,
   # then exit after upgrade
   if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ ${_REVOKE} -ne 1 ]] && [ "${_ONLY_CHECK_CONFIG}" -ne 1 ]; then
+    # if nothing in command line, print help before exit.
+    if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]]; then
+      help_message
+    fi
     graceful_exit
   fi
 fi
