@@ -2430,7 +2430,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       fi
       debug "response status = $response_status"
       if [[ "$code" -eq 500 ]]; then
-        info "error on acme server - trying again ...."
+        info "_error on acme server - trying again ...."
         debug "loop_limit = $loop_limit"
         sleep 5
         loop_limit=$((loop_limit - 1))
