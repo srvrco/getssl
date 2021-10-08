@@ -774,10 +774,8 @@ check_getssl_upgrade() { # check if a more recent release is available
   fi
   local release_data release_tag release_ver local_ver release_desc NEWCMD
   debug "Checking for releases at $RELEASE_API"
-  # Sometimes the json is pretty-printed, sometimes not.  Loosely tied to --user-agent, but not
-  # always.  Normalize it enough to get the 3 elements necessary. Oh, for jq...
   # shellcheck disable=SC2086
-  release_data="$(curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" -H 'Accept: application/vnd.github.v3+json' "$RELEASE_API" | sed -e's/\("[^:]*": *\("[^""]*",\|[^,]*[,}]\)\)/\r\n\1/g')"
+  release_data="$(curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" -H 'Accept: application/vnd.github.v3+json' "$RELEASE_API")"
   errcode=$?
   if [[ $errcode -eq 60 ]]; then
     error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
@@ -786,8 +784,8 @@ check_getssl_upgrade() { # check if a more recent release is available
   fi
   # Replace error in release description with _error (which is ignored by check_output_for_errors() in the tests)
   debug "${release_data//error/_error}"
-  release_data="$(sed -e's/^ *//g' <<<"${release_data}")"
-  release_tag="$(sed -e'/"tag_name": *"/!d;s/"tag_name": *"\([^""]*\).*$/\1/' <<<"${release_data}")"
+  # awk from https://stackoverflow.com/questions/1761341/awk-print-next-record-following-matched-record
+  release_tag=$(awk -F'"' '/tag_name/ {f=NR} f&&NR-1==f' RS=":|," <<<"${release_data}" | sed -e's/"//g')
   if [[ "${release_tag:0:1}" != 'v' ]] ; then
     if [[ ${_MUTE} -eq 0 ]]; then
       info "The current repository has no releases or is improperly tagged; can't check for upgrades: '$release_tag'"
