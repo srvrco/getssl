@@ -21,6 +21,11 @@ for automating the process on remote servers.
 - [Include Root certificate in full chain](#include-root-certificate-in-full-chain)
 - [Issues / problems / help](#issues--problems--help)
 
+## Upgrade broken in v2.43
+
+The automatic upgrade in v2.43 is broken as the url is incorrect.  If you have this version installed you'll need to manually upgrade using:
+```curl --silent --user-agent getssl/manual https://raw.githubusercontent.com/srvrco/getssl/latest/getssl --output getssl```
+
 ## Features
 
 * **Bash** - It runs on virtually all unix machines, including BSD, most
