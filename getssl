@@ -274,6 +274,8 @@
 # 2021-09-30 better error if curl returns 60 (#709)
 # 2021-10-01 Fix -preferred-chain argument (#712)
 # 2021-10-01 Show help if no domain specified (#705)(2.44)
+# 2021-10-08 Extract release tag from release api using awk (fix BSD issues)
+# 2021-10-11 Fix broken upgrade url (#718)(2.45)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -282,7 +284,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.44"
+VERSION="2.45"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -825,13 +827,18 @@ check_getssl_upgrade() { # check if a more recent release is available
   # shellcheck disable=SC2086
   debug curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
   # shellcheck disable=SC2086
-  curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE"
+  status=$(curl ${_NOMETER:---silent} -w "%{http_code}" --user-agent "$CURL_USERAGENT" "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE")
   errcode=$?
+debug errcode=$errcode
 
   if [[ $errcode -eq 60 ]]; then
     error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
   elif [[ $errcode -gt 0 ]]; then
     error_exit "curl error downloading release: $errcode"
+  fi
+
+  if [[ $status -ne 200 ]]; then
+    error_exit "curl didn't find the updated version of getssl at $CODE_LOCATION"
   fi
 
   if ! install "$0" "${0}.v${VERSION}"; then
@@ -840,6 +847,17 @@ check_getssl_upgrade() { # check if a more recent release is available
   if ! install -m 700 "$TEMP_UPGRADE_FILE" "$0"; then
     error_exit "problem installing new version while updating, check permissions"
   fi
+
+  check=$(bash "$0" -U -v)
+  release_tag_upper=$(echo "$release_tag" | tr "[:lower:]" "[:upper:]")
+  if [[ "$check" != "getssl ${release_tag_upper}" ]]; then
+    info "problem running new version, rolling back to old version"
+    if ! install "${0}.v${VERSION}" "$0"; then
+      error_exit "problem rolling back, you'll need to manually check $0 and $0.${VERSION}"
+    fi
+    error_exit "problem calling new version; output of $TEMP_UPGRADE_FILE -v was \"$check\", expected \"getssl ${release_tag_upper}\""
+  fi
+
 
   if [[ ${_MUTE} -eq 0 ]]; then
     echo "Updated getssl from v${VERSION} to ${release_tag}"
