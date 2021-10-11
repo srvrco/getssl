@@ -24,6 +24,8 @@ jobs:
         run: test/run-test.sh centos7-dynu
   test-ubuntu-dynu:
     runs-on: ubuntu-latest
+    if: always()
+    needs: test-centos7-dynu
     steps:
       - uses: actions/checkout@v2
       - name: Build the docker-compose stack
