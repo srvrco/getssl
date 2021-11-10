@@ -1,0 +1,54 @@
+#!/usr/bin/bash
+#
+# Called as
+#
+#  eval "${DNS_ADD_COMMAND}" "${lower_d}" "${auth_key}"
+#
+
+# See https://developer.hosting.ionos.de/docs/getstarted how to generate
+# an API Key consisting of prefix and key
+#
+# see DNS API Doc here https://developer.hosting.ionos.de/docs/dns
+#
+
+API_KEY="X-API-Key: <prefix>.<key>"
+API_URL="https://api.hosting.ionos.com/dns/v1"
+
+# TODO: check $1,$2 not empty
+
+DNS_RR=$1
+DNS_SECRET=$2
+
+
+# get zone id:
+curl -s -X GET "$API_URL/zones" -H "accept: application/json" -H "Content-Type: application/json" -H "$API_KEY" \
+       	| jq -r 'map([.name, .id] | join (";")) | .[]' >/tmp/$$.zones
+
+ZONE=$DNS_RR
+
+do=true
+while $do; do
+  ZONE_ID=$(awk -F\; '/^'"$ZONE"';/{print $2}' </tmp/$$.zones)
+  if [  -z "$ZONE_ID" ]; then
+    ZONE=$(echo "$ZONE" | cut -d'.' -f2-)
+    # check that it has at minimum one '.'. This check is incomplete
+    # when dealing with .co.nz etc Zones
+    DOTS=$(echo "$ZONE" | awk -F. '{ print NF -1 }')
+    if [ $DOTS -le 0 ]; then
+      echo "No ZoneID found for $1"
+      echo "Zones found with API"
+      cat /tmp/$$.zones
+      rm -f /tmp/$$.zones
+      exit 1
+    fi
+  else
+    break
+    do=false  # Never reached
+  fi
+done
+
+
+# create record
+curl -X POST "$API_URL/zones/$ZONE_ID/records" -H "accept: application/json" -H "Content-Type: application/json" -H "$API_KEY" -d '[ { "name": "_acme-challenge.'$DNS_RR'", "type": "TXT", "content": "'$DNS_SECRET'", "ttl": 60, "prio": 100, "disabled": false } ]'
+
+rm -f /tmp/$$.zones
