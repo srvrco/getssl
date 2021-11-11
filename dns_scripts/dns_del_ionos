@@ -1,0 +1,23 @@
+#!/usr/bin/bash
+#
+# Called as
+#
+# eval "${DNS_DEL_COMMAND}" "${lower_d}" "${auth_key}"
+#
+# See https://developer.hosting.ionos.de/docs/getstarted how to generate
+# an API Key consisting of prefix and key
+#
+# see DNS API Doc here https://developer.hosting.ionos.de/docs/dns
+#
+
+API_KEY="X-API-Key: <prefix>.<key>"
+API_URL="https://api.hosting.ionos.com/dns/v1"
+
+# get zone id:
+ZONE_ID=$(curl -s -X GET "$API_URL/zones" -H "accept: application/json" -H "Content-Type: application/json" -H "$API_KEY" | jq -r '.[].id')
+
+RECORD_ID=$(curl -s -X GET "$API_URL/zones/$ZONE_ID?recordName=_acme-challenge.$1&recordType=TXT" -H "$API_KEY" -H "Accept: application/json" | jq -r '.["records"][]["id"]')
+
+# delete record
+curl -X DELETE "$API_URL/zones/$ZONE_ID/records/$RECORD_ID" -H "accept: application/json" -H "Content-Type: application/json" -H "$API_KEY"
+
