@@ -438,7 +438,7 @@ cert_install() {  # copy certs to the correct location (creating concatenated fi
     else
       to_location="${DOMAIN_CHAIN_LOCATION}"
     fi
-    cat "$CERT_FILE" "$CA_CERT" > "$TEMP_DIR/${DOMAIN}_chain.pem"
+    cat "$FULL_CHAIN" > "$TEMP_DIR/${DOMAIN}_chain.pem"
     copy_file_to_location "full chain" "$TEMP_DIR/${DOMAIN}_chain.pem"  "$to_location"
     if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
       cat "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "$TEMP_DIR/${DOMAIN}_chain.pem.ec"
