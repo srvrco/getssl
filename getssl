@@ -1824,6 +1824,14 @@ get_os() { # function to get the current Operating System
     os="cygwin"
   elif [[ ${uname_res:0:5} == "MINGW" ]]; then
     os="mingw"
+  elif [[ ${uname_res} == "SunOS" ]]; then
+    os="solaris"
+    if [ -d /usr/gnu/bin ]; then
+      export PATH=/usr/gnu/bin:$PATH
+    else
+      echo "Path with required GNU commands not found, please install /usr/gnu/bin"
+      exit 1
+    fi
   else
     os="unknown"
   fi
