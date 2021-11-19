@@ -1,0 +1,39 @@
+FROM ubuntu:latest
+
+# Note this image uses mawk1.3
+
+# Set noninteractive otherwise tzdata hangs
+ENV DEBIAN_FRONTEND noninteractive
+
+# Ensure tests in this image use the staging server
+ENV staging "true"
+# 2016ENV dynamic_dns "acme-dns"
+ENV ACMEDNS_API_USER 49ac5f6d-74cd-4aca-acfe-f9457af7894c
+ENV ACMEDNS_API_KEY 2NPGF8cH7PeTrHZWXImi1prhTsQGz2pdCC7Za5zE
+ENV ACMEDNS_SUBDOMAIN 7268181b-7075-4dce-be51-9c20c205cf6e
+
+# Update and install required software
+RUN apt-get update --fix-missing
+RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light
+RUN apt-get install -y vim dos2unix # for debugging
+RUN apt-get install -y locales # for idn testing
+
+# Set locale
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
+
+WORKDIR /root
+
+# Prevent "Can't load /root/.rnd into RNG" error from openssl
+RUN touch /root/.rnd
+
+# BATS (Bash Automated Testings)
+RUN git clone https://github.com/bats-core/bats-core.git /bats-core --branch v1.2.1
+RUN git clone https://github.com/bats-core/bats-support /bats-support
+RUN git clone https://github.com/bats-core/bats-assert /bats-assert
+RUN /bats-core/install.sh /usr/local
+
+# Run eternal loop - for testing
+CMD tail -f /dev/null

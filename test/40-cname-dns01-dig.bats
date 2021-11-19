@@ -6,7 +6,6 @@ load '/getssl/test/test_helper.bash'
 
 
 setup_file() {
-    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
     if [ -z "$STAGING" ]; then
         export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
     fi
@@ -39,22 +38,23 @@ teardown() {
 }
 
 
-@test "Create new certificate using DNS-01 verification (dig)" {
+@test "Check CNAME _acme-challenge works if AUTH_DNS specified (dig)" {
+    if [ -z "$STAGING" ]; then
+        skip "Running local tests this is a staging server test"
+    fi
     CONFIG_FILE="getssl-dns01.cfg"
 
     setup_environment
     init_getssl
+
+    cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
+PUBLIC_DNS_SERVER=
+AUTH_DNS_SERVER="8.8.8.8"
+CHECK_ALL_AUTH_DNS="false"
+CHECK_PUBLIC_DNS_SERVER="false"
+EOF
     create_certificate
     assert_success
     assert_output --partial "dig"
     check_output_for_errors
-}
-
-
-@test "Force renewal of certificate using DNS-01 (dig)" {
-    run ${CODE_DIR}/getssl -U -d -f $GETSSL_HOST
-    assert_success
-    assert_output --partial "dig"
-    check_output_for_errors
-    cleanup_environment
 }

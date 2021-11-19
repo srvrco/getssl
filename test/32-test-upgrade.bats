@@ -38,6 +38,10 @@ check_github_quota() {
 
 
 setup_file() {
+    if [ -n "$STAGING" ]; then
+        echo "Using staging server, skipping internal test" >&3
+        return 0
+    fi
     if [ -f $BATS_RUN_TMPDIR/failed.skip ]; then
         echo "# Skipping setup due to previous test failure" >&3
         return 0

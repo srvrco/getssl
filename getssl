@@ -276,6 +276,9 @@
 # 2021-10-01 Show help if no domain specified (#705)(2.44)
 # 2021-10-08 Extract release tag from release api using awk (fix BSD issues)
 # 2021-10-11 Fix broken upgrade url (#718)(2.45)
+# 2021-10-22 Copy fullchain to DOMAIN_CHAIN_LOCATION (amartin-git)
+# 2021-11-10 Detect Solaris and use gnu tools (#701)(miesi)
+# 2021-11-12 Support acme-dns and fix CNAME issues (#722)(#308)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -536,12 +539,6 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
     debug "sleep 5 secs before testing verify again"
     sleep 5
   done
-
-  if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
-    deactivate_url=$(echo "$responseHeaders" | grep "^Link" | awk -F"[<>]" '{print $2}')
-    deactivate_url_list="$deactivate_url_list $deactivate_url"
-    debug "adding url to deactivate list - $deactivate_url"
-  fi
 }
 
 check_challenge_completion_dns() { # perform validation via DNS challenge
@@ -575,10 +572,19 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
         # shellcheck disable=SC2086
         debug "$DNS_CHECK_FUNC" $DNS_CHECK_OPTIONS TXT "${rr}" "@${ns}"
         # shellcheck disable=SC2086
-        check_result=$($DNS_CHECK_FUNC $DNS_CHECK_OPTIONS TXT "${rr}" "@${ns}" \
-                      | grep -i "^${rr}" \
-                      | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
+        check_output=$($DNS_CHECK_FUNC $DNS_CHECK_OPTIONS TXT "${rr}" "@${ns}")
+        check_result=$(grep -i "^${rr}"<<<"${check_output}"|grep 'IN\WTXT'|awk -F'"' '{ print $2}')
         debug "check_result=\"$check_result\""
+
+        # Check if rr is a CNAME
+        if [[ -z "$check_result" ]]; then
+          rr_cname=$(grep -i "^${rr}"<<<"${check_output}"|grep 'IN\WCNAME'|awk '{ print $5}')
+          debug "cname check=\"$rr_cname\""
+          if [[ -n "$rr_cname" ]]; then
+            check_result=$(grep -i "^${rr_cname}"<<<"${check_output}"|grep 'IN\WTXT'|awk -F'"' '{ print $2}' | uniq)
+          fi
+        fi
+
         if [[ -z "$check_result" ]]; then
           # shellcheck disable=SC2086
           debug "$DNS_CHECK_FUNC" $DNS_CHECK_OPTIONS ANY "${rr}" "@${ns}"
@@ -589,14 +595,20 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
           debug "check_result=\"$check_result\""
         fi
       elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
+        debug "$DNS_CHECK_FUNC" -t TXT "${rr}" "${ns}"
         check_result=$($DNS_CHECK_FUNC -t TXT "${rr}" "${ns}" \
                       | grep 'descriptive text'|awk -F'"' '{ print $2}')
+        debug "check_result=\"$check_result\""
       else
+        debug "$DNS_CHECK_FUNC" -type=txt "${rr}" "${ns}"
         check_result=$(nslookup -type=txt "${rr}" "${ns}" \
                       | grep 'text ='|awk -F'"' '{ print $2}')
+        debug "check_result=\"$check_result\""
         if [[ -z "$check_result" ]]; then
+          debug "$DNS_CHECK_FUNC" -type=any "${rr}" "${ns}"
           check_result=$(nslookup -type=any "${rr}" "${ns}" \
                       | grep 'text ='|awk -F'"' '{ print $2}')
+          debug "check_result=\"$check_result\""
         fi
       fi
       debug "expecting  \"$auth_key\""
@@ -1201,6 +1213,11 @@ create_order() {
         fi
         ((dn++))
       done
+      if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
+        deactivate_url_list+=" $l "
+        debug "url added to deactivate list ${l}"
+        debug "deactivate list is now $deactivate_url_list"
+      fi
     done
   fi
 }
@@ -1352,12 +1369,6 @@ for d in "${alldomains[@]}"; do
 
   if [[ $response_status == "valid" ]]; then
     info "$d is already validated"
-    if [[ "$DEACTIVATE_AUTH" == "true" ]]; then
-      deactivate_url="$(echo "$responseHeaders" | awk ' $1 ~ "^Location" {print $2}' | tr -d "\r")"
-      deactivate_url_list+=" $deactivate_url "
-      debug "url added to deactivate list ${deactivate_url}"
-      debug "deactivate list is now $deactivate_url_list"
-    fi
     # increment domain-counter
     ((dn++))
   else
@@ -1554,6 +1565,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
       # domain is a CNAME: resolve it and continue with that
       debug Domain is a CNAME, actual domain is "$cname"
       gad_d=${cname}
+      res=
     fi
 
     # Use SOA +trace to find the name server
@@ -1629,6 +1641,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         primary_ns="$primary_ns $PUBLIC_DNS_SERVER"
       fi
 
+      debug set primary_ns="$primary_ns"
       return
     fi
   fi
@@ -1639,26 +1652,48 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     # shellcheck disable=SC2086
     res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" ${gad_s})
 
-    if [[ "$(echo "$res" | grep -c "Non-authoritative")" -gt 0 ]]; then
-      # this is a Non-authoritative server, need to check for an authoritative one.
-      gad_s=$(echo "$res" | awk '$2 ~ "nameserver" {print $4; exit }' |sed 's/\.$//g')
-      if [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
-        # if domain name doesn't exist, then find auth servers for next level up
-        gad_s=$(echo "$res" | awk '$1 ~ "origin" {print $3; exit }')
-        gad_d=$(echo "$res" | awk '$1 ~ "->" {print $2; exit}')
-        # handle scenario where awk returns nothing
-        if [[ -z "$gad_d" ]]; then
-          gad_d="$orig_gad_d"
-        fi
-      fi
-
+    # check for CNAME (assumes gad_d is _acme-challenge.{host})
+    if [[ "$(grep -c "NXDOMAIN"<<<"$res")" -gt 0 ]]; then
+      debug "Cannot find nameserver record for $gad_d, using parent domain ${gad_d#*.}"
+      gad_d="${gad_d#*.}"
+      debug "nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns $gad_d ${gad_s}"
       # shellcheck disable=SC2086
       res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" ${gad_s})
     fi
 
-    if [[ "$(echo "$res" | grep -c "canonical name")" -gt 0 ]]; then
-      gad_d=$(echo "$res" | awk ' $2 ~ "canonical" {print $5; exit }' |sed 's/\.$//g')
-    elif [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
+    if [[ "$(echo "$res" | grep -c "Non-authoritative")" -gt 0 ]]; then
+      # this is a Non-authoritative server, need to check for an authoritative one.
+      debug "Response from non-authoritative server looking for authoritative server"
+
+      gad_s=$(echo "$res" | awk '$2 ~ "nameserver" {print $4; exit }' |sed 's/\.$//g')
+      # If the previous line fails to find the nameserver, use the original
+      if [[ -z "$gad_s" ]]; then
+        gad_s="$orig_gad_s"
+      fi
+
+      if [[ "$(echo "$res" | grep -c "canonical name")" -gt 0 ]]; then
+        debug "$gad_d" appears to be a CNAME
+        gad_d=$(echo "$res" | awk ' $2 ~ "canonical" {print $5; exit }' |sed 's/\.$//g')
+        debug "Using $gad_d instead"
+      elif [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
+        # if domain name doesn't exist, then find auth servers for next level up
+        debug "Couldn't find NS or SOA for domain name, using nslookup $DNS_CHECK_OPTIONS -debug ${gad_d#*.} ${orig_gad_s}"
+        # shellcheck disable=SC2086
+        res=$(nslookup $DNS_CHECK_OPTIONS -debug "${gad_d#*.}" ${orig_gad_s})
+        gad_s=$(echo "$res" | awk '$1 ~ "origin" {print $3; exit }')
+        gad_d=$(echo "$res" | awk '$1 ~ "->" {print $2; exit}')
+        # handle scenario where awk returns nothing
+        if [[ -z "$gad_d" ]]; then
+          gad_d="${orig_gad_d}"
+        fi
+      fi
+
+      debug "Using nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns $gad_d ${gad_s}"
+      # shellcheck disable=SC2086
+      res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" ${gad_s})
+    fi
+
+    if [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
       gad_s=$(echo "$res" | awk ' $1 ~ "origin" {print $3; exit }')
       gad_d=$(echo "$res"| awk '$1 ~ "->" {print $2; exit}')
       # handle scenario where awk returns nothing
@@ -1680,6 +1715,11 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         primary_ns=$(echo "$all_auth_dns_servers" | awk '{print $1}')
       fi
 
+      if [[ "$CHECK_PUBLIC_DNS_SERVER" == "true" ]]; then
+        primary_ns="$primary_ns $PUBLIC_DNS_SERVER"
+      fi
+
+      debug set primary_ns="$primary_ns"
       return
     fi
   fi
