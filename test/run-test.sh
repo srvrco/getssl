@@ -45,9 +45,15 @@ elif [[ "$OS" == "bash"* ]]; then
   GETSSL_OS="alpine"
 fi
 
+if tty -s; then
+  INT="-it"
+else
+  INT=""
+fi
+
 docker build --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" .
 # shellcheck disable=SC2086
-docker run -it \
+docker run $INT\
   --env GETSSL_HOST=$ALIAS $STAGING \
   --env GETSSL_IDN_HOST=$GETSSL_IDN_HOST \
   --env GETSSL_OS=$GETSSL_OS \
