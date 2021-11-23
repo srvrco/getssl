@@ -6,7 +6,6 @@ load '/getssl/test/test_helper.bash'
 
 
 setup_file() {
-    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
     if [ -z "$STAGING" ]; then
         export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
     fi
