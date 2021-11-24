@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Need to add your API key below or set as env variable
+apikey=${DYNU_API_KEY:-''}
+
+# This script adds a token to dynu.com DNS for the ACME challenge
+# usage dns_add_dynu "domain name" "token"
+# return codes are;
+# 0 - success
+# 1 - error in input
+# 2 - error within internal processing
+# 3 - error in result ( domain not found in dynu.com etc)
+
+fulldomain="${1}"
+token="${2}"
+
+API='https://api.dynu.com/v2/dns'
+
+# Check initial parameters
+if [[ -z "$fulldomain" ]]; then
+  echo "DNS script requires full domain name as first parameter"
+  exit 1
+fi
+if [[ -z "$token" ]]; then
+  echo "DNS script requires challenge token as second parameter"
+  exit 1
+fi
+
+curl_params=( -H "accept: application/json" -H "API-Key: $apikey" -H 'Content-Type: application/json' )
+
+# Get domain id
+# curl -X GET https://api.dynu.com/v2/dns/getroot/ubuntu-getssl.freeddns.org
+resp=$(curl --silent "${curl_params[@]}" -X GET "$API/getroot/${fulldomain}")
+
+# Match domain id
+re="\"id\":([^,]*),\"domainName\":\"${fulldomain}\""
+if [[ "$resp" =~ $re ]]; then
+  domain_id="${BASH_REMATCH[1]}"
+fi
+
+if [[ -z "$domain_id" ]]; then
+  echo 'Domain name not found on your Dynu account'
+  exit 3
+fi
+
+# Check for existing _acme-challenge TXT record
+# curl -X GET "https://api.dynu.com/v2/dns/record/_acme-challenge.ubuntu-getssl.freeddns.org?recordType=TXT"
+resp=$(curl --silent "${curl_params[@]}" -X GET "${API}/record/_acme-challenge.${fulldomain}?recordType=TXT")
+re="\"id\":([^,]*)"
+if [[ "$resp" =~ $re ]]; then
+  record_id="${BASH_REMATCH[1]}"
+fi
+
+if [[ -z "$record_id" ]]; then
+  # Add new TXT challenge record
+  resp=$(curl --silent \
+    "${curl_params[@]}" \
+    -X POST "${API}/${domain_id}/record" \
+    --data "{\"nodeName\":\"_acme-challenge\",\"recordType\":\"TXT\",\"state\":\"true\",\"textData\":\"$token\"}")
+else
+  # Update existing record
+  # curl -X POST https://api.dynu.com/v2/dns/9329328/record/7082063 -d "{\"nodeName\":\"_acme-challenge\",\"recordType\":\"TXT\",\"state\":\"true\",\"textData\":\"Test2\"}"
+  resp=$(curl --silent \
+    "${curl_params[@]}" \
+    -X POST "${API}/${domain_id}/record/${record_id}" \
+    --data "{\"nodeName\":\"_acme-challenge\",\"recordType\":\"TXT\",\"state\":\"true\",\"textData\":\"$token\"}")
+fi
+
+# If adding record failed (exception:) then print error message
+if [[ "$resp" != *"\"statusCode\":200"* ]]; then
+  echo "Error: DNS challenge not added: unknown error - ${resp}"
+  exit 3
+fi

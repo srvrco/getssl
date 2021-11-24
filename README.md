@@ -1,8 +1,30 @@
+# getssl <!-- omit in toc -->
+
 ![Run all tests](https://github.com/srvrco/getssl/workflows/Run%20all%20tests/badge.svg) ![shellcheck](https://github.com/srvrco/getssl/workflows/shellcheck/badge.svg)
-# getssl
 
 Obtain SSL certificates from the letsencrypt.org ACME server. Suitable
 for automating the process on remote servers.
+
+## Table of Contents <!-- omit in toc -->
+- [Features](#features)
+- [Installation](#installation)
+- [Overview](#overview)
+- [Getting started](#getting-started)
+- [Detailed guide to getting started with more examples](#detailed-guide-to-getting-started-with-more-examples)
+- [Wildcard certificates](#wildcard-certificates)
+- [Automating updates](#automating-updates)
+- [Structure](#structure)
+- [Server-Types](#server-types)
+- [Revoke a certificate](#revoke-a-certificate)
+- [Elliptic curve keys](#elliptic-curve-keys)
+- [Preferred Chain](#preferred-chain)
+- [Include Root certificate in full chain](#include-root-certificate-in-full-chain)
+- [Issues / problems / help](#issues--problems--help)
+
+## Upgrade broken in v2.43
+
+The automatic upgrade in v2.43 is broken as the url is incorrect.  If you have this version installed you'll need to manually upgrade using:
+```curl --silent --user-agent getssl/manual https://raw.githubusercontent.com/srvrco/getssl/latest/getssl --output getssl```
 
 ## Features
 
@@ -33,7 +55,7 @@ for automating the process on remote servers.
   debug information is available.
 * **Reload services** - After a new certificate is obtained then the
   relevant services (e.g. apache/nginx/postfix) can be reloaded.
-* **ACME v1 and V2** - Supports both ACME versions 1 and 2
+* **ACME v1 and V2** - Supports both ACME versions 1 and 2 (note ACMEv1 is deprecated and clients will automatically use v2)
 
 ## Installation
 
@@ -41,7 +63,7 @@ Since the script is only one file, you can use the following command for
 a quick installation of GetSSL only:
 
 ```sh
-curl --silent https://raw.githubusercontent.com/srvrco/getssl/master/getssl > getssl ; chmod 700 getssl
+curl --silent https://raw.githubusercontent.com/srvrco/getssl/latest/getssl > getssl ; chmod 700 getssl
 ```
 
 This will copy the getssl Bash script to the current location and change
@@ -71,25 +93,28 @@ desktop computer, or even a virtualbox) and add the checks, and
 certificates to a remote server ( providing you have a ssh with key,
 sftp or ftp access to the remote server).
 
-```getssl
-getssl ver. 2.02
+```getssl -h
+getssl ver. 2.36
 Obtain SSL certificates from the letsencrypt.org ACME server
 
-Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-k|--keep #] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] domain
+Usage: getssl [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet] [-Q|--mute] [-u|--upgrade] [-X|--experimental tag] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir] [--preferred-chain chain] domain   
 
 Options:
   -a, --all          Check all certificates
-  -d, --debug        Outputs debug information
+  -d, --debug        Output debug information
   -c, --create       Create default config files
   -f, --force        Force renewal of cert (overrides expiry checks)
   -h, --help         Display this help message and exit
+  -i, --install      Install certificates and reload service
   -q, --quiet        Quiet mode (only outputs on error, success of new cert, or getssl was upgraded)
-  -Q, --mute         Like -q, but mutes notification about successful upgrade
+  -Q, --mute         Like -q, but also mute notification about successful upgrade
   -r, --revoke   "cert" "key" [CA_server] Revoke a certificate (the cert and key are required)
-  -u, --upgrade      Upgrade getssl if a more recent version is available
-  -k, --keep     "#" Maximum amount of old getssl versions to keep when upgrading
+  -u, --upgrade      Upgrade getssl if a more recent version is available - can be used with or without domain(s)
+  -X  --experimental tag Allow upgrade to a specified version of getssl
   -U, --nocheck      Do not check if a more recent version is available
+  -v  --version      Display current version of getssl
   -w working_dir "Working directory"
+    --preferred-chain "chain" Use an alternate chain for the certificate
 ```
 
 ## Getting started
@@ -149,9 +174,39 @@ Change the server in your config file to get a fully valid certificate.
 dns. The certificate can be used (and checked with getssl) on alternate
 ports.
 
+## Detailed guide to getting started with more examples
+
+[Guide to getting a certificate for example.com and www.example.com](https://github.com/srvrco/getssl/wiki/Guide-to-getting-a-certificate-for-example.com-and-www.example.com)
+
+## Wildcard certificates
+
+`getssl` supports creating wildcard certificates, i.e. _*.example.com_ which allows a single certificate to be used for any domain under *example.com*, e.g. *www.example.com*, *mail.example.com*.  These must be validated using the dns-01 method.
+
+A *partial* example `getssl.cfg` file is:
+
+```sh
+VALIDATE_VIA_DNS=true
+export CPANEL_USERNAME=''
+export CPANEL_URL='https://www.cpanel.host:2083'
+export CPANEL_APITOKEN='1ABC2DEF3GHI4JKL5MNO6PQR7STU8VWX9YZA'
+DNS_ADD_COMMAND=/home/root/getssl/dns_scripts/dns_add_cpanel
+DNS_DEL_COMMAND=/home/root/getssl/dns_scripts/dns_del_cpanel
+```
+
+Create the wildcard certificate (need to use quotes to prevent globbing):
+
+```sh
+getssl "*.example.domain"
+```
+
+You can renew the certificate using `getssl -a` to renew all configured certificates.
+
+You can also specify additional domains in the `SANS` line, e.g. `SANS="www.test.example.com"`.
+This cannot contain any of the domains which would be covered by the wildcard certificate.
+
 ## Automating updates
 
-I use the following cron
+I use the following **cron** job
 
 ```cron
 23  5 * * * /root/scripts/getssl -u -a -q
@@ -174,12 +229,12 @@ command line).
 Within the **working directory** is a config file `getssl.cfg` which is a
 simple bash file containing variables, an example of which is:
 
-```getssl
+```sh
 # Uncomment and modify any variables you need
 # The staging server is best for testing (hence set as default)
-CA="https://acme-staging.api.letsencrypt.org"
+CA="https://acme-staging-v02.api.letsencrypt.org"
 # This server issues full certificates, however has rate limits
-#CA="https://acme-v01.api.letsencrypt.org"
+#CA="https://acme-v02.api.letsencrypt.org"
 
 AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 
@@ -200,15 +255,15 @@ then, within the **working directory** there will be a folder for each
 certificate (based on its domain name). Within that folder will be a
 config file (again called `getssl.cfg`). An example of which is:
 
-```getssl
+```sh
 # Uncomment and modify any variables you need
 # see https://github.com/srvrco/getssl/wiki/Config-variables for details
 # see https://github.com/srvrco/getssl/wiki/Example-config-files for example configs
 #
 # The staging server is best for testing
-#CA="https://acme-staging.api.letsencrypt.org"
+#CA="https://acme-staging-v02.api.letsencrypt.org"
 # This server issues full certificates, however has rate limits
-#CA="https://acme-v01.api.letsencrypt.org"
+#CA="https://acme-v02.api.letsencrypt.org"
 
 #AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.1.1-August-1-2016.pdf"
 
@@ -239,7 +294,9 @@ DOMAIN_KEY_LOCATION="ssh:server5:/etc/ssl/domain.key"
 #DOMAIN_PEM_LOCATION="" this is the domain_key. domain cert and CA cert
 
 
-# The command needed to reload apache / nginx or whatever you use
+# The command needed to reload apache / nginx or whatever you use.
+# Several (ssh) commands may be given using a bash array:
+# RELOAD_CMD=('ssh:sshuserid@server5:systemctl reload httpd' 'logger getssl for server5 efficient.')
 RELOAD_CMD="service apache2 reload"
 
 # Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
@@ -270,12 +327,12 @@ Multiple locations can be defined for a file by separating the locations with a 
 A typical config file for `example.com` and `www.example.com` on the
 same server would be:
 
-```getssl
+```sh
 # uncomment and modify any variables you need
 # The staging server is best for testing
-CA="https://acme-staging.api.letsencrypt.org"
+CA="https://acme-staging-v02.api.letsencrypt.org"
 # This server issues full certificates, however has rate limits
-#CA="https://acme-v01.api.letsencrypt.org"
+#CA="https://acme-v02.api.letsencrypt.org"
 
 # additional domains - this could be multiple domains / subdomains in a comma separated list
 SANS="www.example.com"
@@ -325,7 +382,7 @@ Usage: `getssl -r path/to/cert path/to/key [CA_server]`
 You need to specify both the certificate you want to revoke, and the
 account or private domain key which was used to sign / obtain the
 original certificate. The `CA_server` is an optional parameter and
-defaults to Let's Encrypt ("<https://acme-v01.api.letsencrypt.org>") as
+defaults to Let's Encrypt ("<https://acme-v02.api.letsencrypt.org>") as
 that is currently the only Certificate Authority using the ACME
 protocol.
 
@@ -336,6 +393,34 @@ key (different of course, don't use the same key for both). prime256v1
 (NIST P-256) and secp384r1 (NIST P-384) are both fully supported.
 secp521r1 (NIST P-521) is included in the code, but not currently
 supported by Let's Encrypt).
+
+## Preferred Chain
+
+If a CA offers multiple chains then it is possible to select which chain
+is used by using the `PREFERRED_CHAIN` variable in `getssl.cfg` or specifying
+ `--preferred-chain` in the call to `getssl`
+
+This uses wildcard matching so requesting "X1" returns the first certificate
+returned by the CA which contains the text "X1",  Note you may need to escape
+any characters which special characters, e.g.
+` PREFERRED_CHAIN="\(STAGING\) Doctored Durian Root CA X3"`
+
+* Staging options are: "(STAGING) Doctored Durian Root CA X3" and "(STAGING) Pretend Pear X1"
+* Production options are: "ISRG Root X1" and "ISRG Root X2"
+
+## Include Root certificate in full chain
+
+Some servers, including those that use Java keystores, will not accept a server certificate if it cannot valid the full chain of signers.
+
+Specifically, Nutanix Prism (Element and Central) will not accept the `fullchain.crt` until the root CA's certificate has been appended to it manually.
+
+If your application requires the full chain, i.e. including the
+root certificate of the CA, then this can be included in the `fullchain.crt` file by
+adding the following line to `getssl.cfg`
+
+```sh
+FULL_CHAIN_INCLUDE_ROOT="true"
+```
 
 ## Issues / problems / help
 

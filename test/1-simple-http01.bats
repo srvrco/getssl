@@ -6,12 +6,17 @@ load '/getssl/test/test_helper.bash'
 
 
 # This is run for every test
+teardown() {
+    [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
+}
+
 setup() {
+    [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
 }
 
 
-@test "Create new certificate using HTTP-01 verification" {
+@test "Create new certificate using HTTP-01 verification (any dns tool)" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
@@ -20,20 +25,16 @@ setup() {
     init_getssl
     create_certificate
     assert_success
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    check_output_for_errors
 }
 
 
-@test "Force renewal of certificate using HTTP-01" {
+@test "Force renewal of certificate using HTTP-01 (any dns tool)" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
-    run ${CODE_DIR}/getssl -f $GETSSL_HOST
+    run ${CODE_DIR}/getssl -U -d -f $GETSSL_HOST
     assert_success
-    refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-    refute_output --regexp '[Ee][Rr][Rr][Oo][Rr]'
-    refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+    check_output_for_errors
     cleanup_environment
 }

@@ -31,7 +31,7 @@ for zone in response['HostedZones']:
     if not zone['Config']['PrivateZone']:
         zone_list[zone['Name']] = zone['Id']
 
-for key in sorted(zone_list.iterkeys(), key=len, reverse=True):
+for key in sorted(zone_list.keys(), key=len, reverse=True):
     if ".{z}".format(z=key) in ".{z}.".format(z=fqdn):
        zone_id = zone_list[key]
 
@@ -70,7 +70,7 @@ if action == 'UPSERT':
         try:
             my_resolver = dns.resolver.Resolver(configure=False)
             my_resolver.nameservers = ['8.8.8.8', '8.8.4.4']
-            results = my_resolver.query(challenge_fqdn, 'TXT')
+            results = my_resolver.resolve(challenge_fqdn, 'TXT')
             data = str(results.response.answer[0][0]).strip('\"')
             if data == challenge:
                 print("found {f} entry".format(f=challenge_fqdn))

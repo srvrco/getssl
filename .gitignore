@@ -1,2 +1,9 @@
-.history/
-.venv/
+*~
+*#
+*.swp
+*.tmp
+*.bak
+*.tdy
+*.tar.gz
+*.orig
+JSON.sh

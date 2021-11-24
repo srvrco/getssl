@@ -10,7 +10,7 @@ if [ $# -eq 2 ]; then
 fi
 
 #shellcheck disable=SC1091
-source /getssl/test/test_helper.bash
+source /getssl/test/test_helper.bash 3>&1
 
 CONFIG_FILE=$1
 if [ ! -e "$CONFIG_FILE" ]; then
@@ -24,7 +24,7 @@ if grep -q pebble "${CONFIG_FILE}"; then
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
 fi
 
-"${CODE_DIR}/getssl" -c "$GETSSL_HOST" 3>&1
+"${CODE_DIR}/getssl" -U -c "$GETSSL_HOST" 3>&1
 cp "${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_HOST}/getssl.cfg"
 # shellcheck disable=SC2086
-"${CODE_DIR}/getssl" ${DEBUG} -f "$GETSSL_HOST" 3>&1
+"${CODE_DIR}/getssl" -U ${DEBUG} -f "$GETSSL_HOST" 3>&1

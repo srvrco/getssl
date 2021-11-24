@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+if [ -z "$1" ]; then
+  arg="restart"
+else
+  arg=$1
+fi
+
+if [ "$GETSSL_OS" = "alpine" ]; then
+    killall -HUP vsftpd >&3-
+elif [[ "$GETSSL_OS" == "centos"[78] || "$GETSSL_OS" == "rockylinux"* ]]; then
+    pgrep vsftpd | head -1 | xargs kill -HUP
+elif [[ "$GETSSL_OS" == "centos6" ]]; then
+    service vsftpd "$arg"
+else
+    service vsftpd restart >/dev/null >&3-
+fi

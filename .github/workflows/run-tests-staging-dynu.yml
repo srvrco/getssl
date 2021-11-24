@@ -1,0 +1,34 @@
+name: Run all tests using Dynu
+on:
+  push:
+    paths-ignore:
+      - '.github/workflows/*'
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+    branches:
+      - master
+env:
+  DYNU_API_KEY: ${{ secrets.DYNU_API_KEY == '' && '65cXefd35XbYf36546eg5dYcZT6X52Y2' || secrets.DYNU_API_KEY }}
+jobs:
+  test-centos7-dynu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on CentOS7 against Staging using Dynu
+        run: test/run-test.sh centos7-dynu
+  test-ubuntu-dynu:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: test-centos7-dynu
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on Ubuntu against Staging using Dynu
+        run: test/run-test.sh ubuntu-dynu

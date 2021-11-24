@@ -2,13 +2,25 @@ FROM ubuntu:latest
 
 # Note this image uses mawk1.3
 
+# Set noninteractive otherwise tzdata hangs
+ENV DEBIAN_FRONTEND noninteractive
+
+# Ensure tests in this image use the staging server
 ENV staging "true"
-ENV DUCKDNS_TOKEN 1d616aa9-b8e4-4bb4-b312-3289de82badb
+ENV dynamic_dns "duckdns"
+#ENV DUCKDNS_TOKEN 
+
 # Update and install required software
 RUN apt-get update --fix-missing
-RUN apt-get install -y git curl dnsutils wget nginx-light
+RUN apt-get install -y git curl dnsutils ldnsutils wget nginx-light jq
 RUN apt-get install -y vim dos2unix # for debugging
-# TODO test with drill, dig, host
+RUN apt-get install -y locales # for idn testing
+
+# Set locale
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
 
 WORKDIR /root
 
@@ -16,10 +28,10 @@ WORKDIR /root
 RUN touch /root/.rnd
 
 # BATS (Bash Automated Testings)
-RUN git clone https://github.com/bats-core/bats-core.git /bats-core
-RUN git clone https://github.com/jasonkarns/bats-support /bats-support
-RUN git clone https://github.com/jasonkarns/bats-assert-1 /bats-assert
+RUN git clone --depth 1 https://github.com/bats-core/bats-core.git /bats-core --branch v1.2.1
+RUN git clone --depth 1 https://github.com/bats-core/bats-support /bats-support
+RUN git clone --depth 1 https://github.com/bats-core/bats-assert /bats-assert
 RUN /bats-core/install.sh /usr/local
 
 # Run eternal loop - for testing
-CMD tail -f /dev/null
+CMD [ "tail", "-f", "/dev/null" ]

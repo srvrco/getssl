@@ -10,8 +10,17 @@ fi
 
 domain="$1"
 txtvalue="$2"
+i=1
 
-response=$(curl --silent "https://www.duckdns.org/update?domains=${domain}&token=${token}&txt=${txtvalue}")
+response=$(curl --retry 5 --silent "https://www.duckdns.org/update?domains=${domain}&token=${token}&txt=${txtvalue}")
+
+while [[ "${response}" == *"502 Bad Gateway"* ]] && [ $i -le 5 ]; do
+    echo "Retrying Bad Gateway response (attempt $i of 5)"
+    sleep 5
+    i=$((i+1))
+    response=$(curl --retry 5 --silent "https://www.duckdns.org/update?domains=${domain}&token=${token}&txt=${txtvalue}")
+done
+
 if [ "$response" != "OK" ]; then
     echo "Failed to update TXT record for ${domain} at duckdns.org (is the TOKEN valid?)"
     echo "Response: $response"
