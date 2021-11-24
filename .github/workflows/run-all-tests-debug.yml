@@ -1,5 +1,9 @@
 name: Run all tests DEBUG
-on: repository_dispatch
+on:
+  workflow_dispatch:
+    branches:
+      - master
+      - acme-dns
 jobs:
   build:
     runs-on: ubuntu-latest
