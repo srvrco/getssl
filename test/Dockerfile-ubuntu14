@@ -1,0 +1,45 @@
+FROM ubuntu:trusty
+# trusty = 14
+
+# Note this image uses mawk
+
+# Update and install required software
+RUN apt-get update --fix-missing && \
+    apt-get install -y \
+        git curl dnsutils ldnsutils wget nginx-light jq \
+        ftp vsftpd \
+        openssh-server \
+        locales # for idn testing
+
+# Set locale
+RUN locale-gen en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
+
+WORKDIR /root
+RUN mkdir -p /etc/nginx/pki/private
+COPY ./test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
+
+# Setup ftp
+ENV VSFTPD_CONF=/etc/vsftpd.conf
+ENV FTP_PASSIVE_DEFAULT=false
+COPY test/test-config/vsftpd.conf /etc/vsftpd.conf
+# The default init.d script seems to have an incorrect check that vsftpd has started
+COPY test/test-config/vsftpd.initd /etc/init.d/vsftpd
+RUN adduser ftpuser
+RUN echo 'ftpuser:ftpuser' | chpasswd
+RUN adduser ftpuser www-data
+RUN adduser root www-data
+RUN mkdir -p /var/www
+RUN chown -R www-data.www-data /var/www
+RUN chmod g+w -R /var/www
+
+# BATS (Bash Automated Testings)
+RUN git clone --depth 1 https://github.com/bats-core/bats-core.git /bats-core --branch v1.2.1
+RUN git clone --depth 1 https://github.com/bats-core/bats-support /bats-support
+RUN git clone --depth 1 https://github.com/bats-core/bats-assert /bats-assert
+RUN /bats-core/install.sh /usr/local
+
+# Run eternal loop - for testing
+CMD [ "tail", "-f", "/dev/null" ]

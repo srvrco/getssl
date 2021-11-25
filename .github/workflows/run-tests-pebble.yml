@@ -92,6 +92,14 @@ jobs:
         run: docker-compose up -d --build
       - name: Run test suite on Ubuntu
         run: test/run-test.sh ubuntu
+  test-ubuntu14:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the docker-compose stack
+        run: docker-compose up -d --build
+      - name: Run test suite on Ubuntu14
+        run: test/run-test.sh ubuntu14
   test-ubuntu16:
     runs-on: ubuntu-latest
     steps:

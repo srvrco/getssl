@@ -14,6 +14,9 @@ setup() {
     if [ -f /usr/bin/dig ]; then
         mv /usr/bin/dig /usr/bin/dig.getssl.bak
     fi
+    if [ -f /usr/bin/drill ]; then
+        mv /usr/bin/drill /usr/bin/drill.getssl.bak
+    fi
     if [ -f /usr/bin/host ]; then
         mv /usr/bin/host /usr/bin/host.getssl.bak
     fi
@@ -24,6 +27,9 @@ teardown() {
     [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
     if [ -f /usr/bin/dig.getssl.bak ]; then
         mv /usr/bin/dig.getssl.bak /usr/bin/dig
+    fi
+    if [ -f /usr/bin/drill.getssl.bak ]; then
+        mv /usr/bin/drill.getssl.bak /usr/bin/drill
     fi
     if [ -f /usr/bin/host.getssl.bak ]; then
         mv /usr/bin/host.getssl.bak /usr/bin/host

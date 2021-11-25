@@ -11,6 +11,7 @@ REM check if OS *contains* staging
 SET GETSSL_IDN_HOST=%OS%.xn--t-r1a81lydm69gz81r.test
 IF NOT x%OS:duck=%==x%OS% GOTO duckdns
 IF NOT x%OS:dynu=%==x%OS% GOTO dynu
+IF NOT x%OS:acmedns=%==x%OS% GOTO acmedns
 IF NOT x%OS:bash=%==x%OS% GOTO bash
 SET ALIAS=%OS%.getssl.test
 SET STAGING=
@@ -36,6 +37,12 @@ GOTO Run
 SET ALIAS=%OS:-dynu=%-getssl.freeddns.org
 SET STAGING=--env STAGING=true --env dynamic_dns=dynu --env DYNU_API_KEY=65cXefd35XbYf36546eg5dYcZT6X52Y2
 SET GETSSL_OS=%OS:-dynu=%
+GOTO Run
+
+:acmedns
+SET ALIAS=%OS%-getssl.freeddns.org
+SET STAGING=--env STAGING=true --env dynamic_dns=acmedns
+SET GETSSL_OS=%OS:-acmedns=%
 GOTO Run
 
 :bash

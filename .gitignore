@@ -7,3 +7,4 @@
 *.tar.gz
 *.orig
 JSON.sh
+.vscode/settings.json
