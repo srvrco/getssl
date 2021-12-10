@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Need to add your API user and key below or set as env variable
+apiuser=${ACMEDNS_API_USER:-''}
+apikey=${ACMEDNS_API_KEY:-''}
+apisubdomain=${ACMEDNS_SUBDOMAIN:-''}
+
+# This script adds a token to acme-dns.io DNS for the ACME challenge
+# usage dns_add_acme-dns "domain name" "token"
+# return codes are;
+# 0 - success
+# 1 - error returned from server
+
+fulldomain="${1}"
+token="${2}"
+
+API='https://auth.acme-dns.io/update'
+
+# Check initial parameters
+if [[ -z "$fulldomain" ]]; then
+  echo "DNS script requires full domain name as first parameter"
+  exit 1
+fi
+if [[ -z "$token" ]]; then
+  echo "DNS script requires challenge token as second parameter"
+  exit 1
+fi
+
+curl_params=(
+  -H "accept: application/json"
+  -H "X-Api-Key: $apikey"
+  -H "X-Api-User: $apiuser"
+  -H 'Content-Type: application/json'
+)
+
+generate_post_data()
+{
+  cat <<EOF
+{
+  "subdomain": "$apisubdomain",
+  "txt": "$token"
+}
+EOF
+}
+
+resp=$(curl --silent \
+  "${curl_params[@]}" \
+  -X POST "${API}" \
+  --data "$(generate_post_data)")
+
+echo $resp
+# If adding record failed (returned json includes "error" then print error message
+if [[ "$resp" = *"\"error\""* ]]; then
+  echo "Error: DNS challenge not added: unknown error - ${resp}"
+  exit 1
+fi

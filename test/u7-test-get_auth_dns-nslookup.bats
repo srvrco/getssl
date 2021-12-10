@@ -8,7 +8,7 @@ load '/getssl/test/test_helper.bash'
 # This is run for every test
 setup() {
     [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
-    for app in drill host nslookup
+    for app in dig drill host
     do
         if [ -f /usr/bin/${app} ]; then
             mv /usr/bin/${app} /usr/bin/${app}.getssl.bak
@@ -16,14 +16,22 @@ setup() {
     done
 
     . /getssl/getssl --source
-    find_dns_utils
     _USE_DEBUG=1
+    find_dns_utils
+
+    NSLOOKUP_VERSION=$(echo "" | nslookup -version 2>/dev/null | awk -F"[ -]" '{ print $2 }')
+    # Version 9.11.3 on Ubuntu -debug doesn't work inside docker in my test env, version 9.16.1 does
+    if [[ "${NSLOOKUP_VERSION}" != "Invalid" ]] && check_version "${NSLOOKUP_VERSION}" "9.11.4" ; then
+      DNS_CHECK_OPTIONS="$DNS_CHECK_OPTIONS -debug"
+    else
+      skip "This version of nslookup either doesn't support -debug or it doesn't work in local docker"
+    fi
 }
 
 
 teardown() {
     [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
-    for app in drill host nslookup
+    for app in dig drill host
     do
         if [ -f /usr/bin/${app}.getssl.bak ]; then
             mv /usr/bin/${app}.getssl.bak /usr/bin/${app}
@@ -32,7 +40,7 @@ teardown() {
 }
 
 
-@test "Check get_auth_dns using dig NS" {
+@test "Check get_auth_dns using nslookup NS" {
     # Test that get_auth_dns() handles scenario where NS query returns Authority section
     #
     # ************** EXAMPLE DIG OUTPUT **************
@@ -60,18 +68,18 @@ teardown() {
     run get_auth_dns ubuntu-getssl.duckdns.org
 
     # Assert that we've found the primary_ns server
-    assert_output --regexp 'set primary_ns = ns[1-9]+\.duckdns\.org'
+    #assert_output --regexp 'set primary_ns = ns[1-9]+\.duckdns\.org'
     # Assert that we had to use dig NS
-    assert_line --regexp 'Using dig.* NS'
+    #assert_line --regexp 'Using nslookup.* NS'
 
     # Check all Authoritive DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
-    run get_auth_dns ubuntu-getssl.duckdns.org
-    assert_output --regexp 'set primary_ns = (ns[1-9]+\.duckdns\.org )+'
+    run get_auth_dns _acme-challenge.ubuntu-getssl.duckdns.org
+    assert_output --regexp 'set primary_ns=(ns[1-9]+\.duckdns\.org )+'
 }
 
 
-@test "Check get_auth_dns using dig SOA" {
+@test "Check get_auth_dns using nslookup SOA" {
     # Test that get_auth_dns() handles scenario where SOA query returns Authority section
     #
     # ************** EXAMPLE DIG OUTPUT **************
@@ -84,28 +92,28 @@ teardown() {
     CHECK_PUBLIC_DNS_SERVER=false
     CHECK_ALL_AUTH_DNS=false
 
-    run get_auth_dns ubuntu-getssl.duckdns.org
+    run get_auth_dns _acme-challenge.ubuntu-getssl.duckdns.org
 
     # Assert that we've found the primary_ns server
-    assert_output --regexp 'set primary_ns = ns[1-9]+\.duckdns\.org'
+    assert_output --regexp 'set primary_ns=ns[1-9]+\.duckdns\.org'
 
-    # Assert that we had to use dig NS
-    assert_line --regexp 'Using dig.* SOA'
-    refute_line --regexp 'Using dig.* NS'
+    # Assert that we had to use nslookup NS
+    assert_line --regexp 'Using nslookup.*-type=soa'
+    assert_line --regexp 'Using nslookup.*-type=ns'
 
     # Check all Authoritive DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
-    run get_auth_dns ubuntu-getssl.duckdns.org
-    assert_output --regexp 'set primary_ns = (ns[1-9]+\.duckdns\.org )+'
+    run get_auth_dns _acme-challenge.ubuntu-getssl.duckdns.org
+    assert_output --regexp 'set primary_ns=(ns[1-9]+\.duckdns\.org )+'
 
     # Check that we also check the public DNS server if requested
     CHECK_PUBLIC_DNS_SERVER=true
-    run get_auth_dns ubuntu-getssl.duckdns.org
-    assert_output --regexp 'set primary_ns = (ns[1-9]+\.duckdns\.org )+1\.0\.0\.1'
+    run get_auth_dns _acme-challenge.ubuntu-getssl.duckdns.org
+    assert_output --regexp 'set primary_ns=(ns[1-9]+\.duckdns\.org )+ 1\.0\.0\.1'
 }
 
 
-@test "Check get_auth_dns using dig CNAME (public dns)" {
+@test "Check get_auth_dns using nslookup CNAME (public dns)" {
     # Test that get_auth_dns() handles scenario where CNAME query returns just a CNAME record
     #
     # ************** EXAMPLE DIG OUTPUT **************
@@ -123,19 +131,18 @@ teardown() {
     run get_auth_dns www.duckdns.org
 
     # Assert that we've found the primary_ns server
-    assert_output --regexp 'set primary_ns = ns.*\.awsdns.*\.net'
+    assert_output --regexp 'set primary_ns=ns.*\.awsdns.*\.org'
 
-    # Assert that we found a CNAME and use dig NS
-    assert_line --regexp 'Using dig.* CNAME'
-    assert_line --regexp 'Using dig.* NS'
+    # Assert that we found a CNAME
+    assert_line --partial 'appears to be a CNAME'
 
     # Check all Authoritive DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
     run get_auth_dns www.duckdns.org
-    assert_output --regexp 'set primary_ns = ns.*\.awsdns.*\.net'
+    assert_output --regexp 'set primary_ns=(ns.*\.awsdns.*\.org )+'
 
     # Check that we also check the public DNS server if requested
     CHECK_PUBLIC_DNS_SERVER=true
     run get_auth_dns www.duckdns.org
-    assert_output --regexp 'set primary_ns = ns.*\.awsdns.*\.net 1\.0\.0\.1'
+    assert_output --regexp 'set primary_ns=(ns.*\.awsdns.* )+ 1\.0\.0\.1'
 }

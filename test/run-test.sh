@@ -37,13 +37,23 @@ elif [[ "$OS" == *"dynu"* ]]; then
   ALIAS="${REPO}${OS%-dynu}-getssl.freeddns.org"
   STAGING="--env STAGING=true --env dynamic_dns=dynu"
   GETSSL_OS="${OS%-dynu}"
+elif [[ "$OS" == *"acmedns"* ]]; then
+  ALIAS="${REPO}${OS}-getssl.freeddns.org"
+  STAGING="--env STAGING=true --env dynamic_dns=acmedns"
+  GETSSL_OS="${OS%-acmedns}"
 elif [[ "$OS" == "bash"* ]]; then
   GETSSL_OS="alpine"
 fi
 
+if tty -s; then
+  INT="-it"
+else
+  INT=""
+fi
+
 docker build --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" .
 # shellcheck disable=SC2086
-docker run \
+docker run $INT\
   --env GETSSL_HOST=$ALIAS $STAGING \
   --env GETSSL_IDN_HOST=$GETSSL_IDN_HOST \
   --env GETSSL_OS=$GETSSL_OS \
