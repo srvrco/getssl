@@ -34,6 +34,8 @@ With those in hand, the installation procedure is:
    DNS_DEL_COMMAND="/usr/share/getssl/dns_scripts/dns_del_godaddy"
    # The API key for your account/this domain
    export GODADDY_KEY="..." GODADDY_SECRET="..."
+   # If you have been using GODADDY_BASE previously, then it is no
+   longer necessary.  The base domain will automatically be determined.
 
  4) Set any other options that you wish (per the standard
    directions.)  Use the test CA to make sure that

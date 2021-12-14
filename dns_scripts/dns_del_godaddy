@@ -36,4 +36,4 @@ export GODADDY_KEY
 export GODADDY_SECRET
 export GODADDY_BASE
 
-$GODADDY_SCRIPT -q del "${fulldomain}" "_acme-challenge.${fulldomain}." "${token}"
+$GODADDY_SCRIPT -q del "_acme-challenge.${fulldomain}." "${token}"
