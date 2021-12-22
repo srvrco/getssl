@@ -2898,7 +2898,7 @@ if [[ $_UPGRADE_CHECK -eq 1 ]]; then
   # then exit after upgrade
   if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ ${_REVOKE} -ne 1 ]] && [ "${_ONLY_CHECK_CONFIG}" -ne 1 ]; then
     # if nothing in command line, print help before exit.
-    if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]]; then
+    if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ ${_UPGRADE} -ne 1 ]]; then
       help_message
     fi
     graceful_exit
