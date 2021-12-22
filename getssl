@@ -279,6 +279,7 @@
 # 2021-10-22 Copy fullchain to DOMAIN_CHAIN_LOCATION (amartin-git)
 # 2021-11-10 Detect Solaris and use gnu tools (#701)(miesi)
 # 2021-11-12 Support acme-dns and fix CNAME issues (#722)(#308)
+# 2021-12-14 Enhancements for GoDaddy (support more levels of domain names, no longer require GODADDY_BASE, and actual deletion of resource records)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in

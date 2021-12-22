@@ -2,8 +2,8 @@
 
 # Copyright (C) 2017,2018 Timothe Litt  litt at acm _dot org
 
-VERSION="1.0.3"
-PROG="`basename $0`"
+VERSION="2.0"
+PROG="$(basename "$0")"
 
 # This script is used to update TXT records in GoDaddy DNS server
 # It depends on JSON.sh from https://github.com/dominictarr/JSON.sh
@@ -27,11 +27,10 @@ GETJSON='https://github.com/dominictarr/JSON.sh'
 VERB="y"
 DEBUG="$GODADDY_DEBUG"
 [ -z "$JSON" ] && JSON="$GODADDY_JSON"
-[ -z "$JSON" ] && JSON="`dirname $0`/JSON.sh"
+[ -z "$JSON" ] && JSON="$(dirname "$0")/JSON.sh"
 
 while getopts 'dhj:k:s:t:qv' opt; do
     case $opt in
-        b) GODADDY_BASE="$OPTARG"                      ;;
         d) DEBUG="Y"                                   ;;
         j) JSON="$OPTARG"                              ;;
         k) GODADDY_KEY="$OPTARG"                       ;;
@@ -42,8 +41,8 @@ while getopts 'dhj:k:s:t:qv' opt; do
         *)
             cat <<EOF
 Usage
-    $PROG [-dt -h -j JSON -k:KEY -s:SECRET -q] add domain name data [ttl]
-    $PROG [-dt -h -j JSON -k:KEY -s:SECRET -q] del domain name data
+    $PROG [-dt -h -j JSON -k:KEY -s:SECRET -q] add name data [ttl]
+    $PROG [-dt -h -j JSON -k:KEY -s:SECRET -q] del name data
 
 Add or delete TXT records from GoDaddy DNS
 
@@ -59,8 +58,6 @@ Arguments:
 
     del - remove the specified record from the domain
 
-    domain is the domain name, e.g. example.org
-
     name is the DNS record name to add, e.g. _acme-challenge.example.org.
          Note that trailing '.' is significant in DNS.
 
@@ -73,12 +70,9 @@ Arguments:
     For minimal trace output (to override -q), define GODADDY_TRACE="y".
 
 Options
-    -b    Domain name(s) in which challenge records are stored
-          E.g. often, www.example.net is stored in example.net.
-          Default from GODADDY_BASE
     -d    Provide debugging output - all requests and responses
     -h    This help.
-    -j:   Location of JSON.sh Default `dirname $0`/JSON.sh, or
+    -j:   Location of JSON.sh Default $(dirname "$0")/JSON.sh, or
           the GODADDY_JSON variable.
     -k:   The GoDaddy API key    Default from GODADDY_KEY
     -s:   The GoDaddy API secret Default from GODADDY_SECRET
@@ -88,7 +82,6 @@ Options
     All output, except for this help text, is to stderr.
 
 Environment variables
-    GODADDY_BASE    Domain name(s) in which challenge records are stored
     GODADDY_JSON    location of the JSOH.sh script
     GODADDY_KEY     default API key
     GODADDY_SCRIPT  location of this script, default location of JSON.sh
@@ -118,7 +111,7 @@ shift $((OPTIND-1))
 # we assume they'll be deleted later & don't want to strand them.
 
 [[ "$JSON" =~ ^~ ]] && \
-    eval 'JSON=`readlink -nf ' $JSON '`'
+    eval 'JSON=`readlink -nf ' "$JSON" '`'
 if [ ! -x "$JSON" ]; then
     cat <<EOF >&2
 $0: requires JSON.sh as "$JSON"
@@ -149,19 +142,12 @@ if ! [[ "$op" =~ ^(add|del)$ ]]; then
     echo "Operation must be \"add\" or \"del\"" >&2
     exit 3
 fi
-domain="$2"
-domain="${domain%'.'}"
-if [ -z "$domain" ]; then
-    echo "'domain' parameter is required, see -h" >&2
-    exit 3
-fi
-name="$3"
+name="$2"
 if [ -z "$name" ]; then
     echo "'name' parameter is required, see -h" >&2
     exit 3
 fi
-! [[ "$name" =~ [.]$ ]] && name="${name}.${domain}."
-data="$4"
+data="$3"
 if [ -z "$data" ]; then
     echo "'data' parameter is required, see -h" >&2
     exit 3
@@ -174,7 +160,7 @@ elif [ -z "$5" ]; then
 elif ! [[ "$5" =~ ^[0-9]+$ ]]; then
     echo "TTL $5 is not numeric" >&2
     exit 3
-elif [ $5 -lt 600 ]; then
+elif [ "$5" -lt 600 ]; then
     [ -n "$VERB" ] && \
         echo "$5 is less than GoDaddy minimum of 600; increased to 600" >&2
     ttl="600"
@@ -185,14 +171,14 @@ fi
 # --- Done with parameters
 
 [ -n "$DEBUG" ] && \
-    echo "$PROG: $op $domain $name \"$data\" $ttl" >&2
+    echo "$PROG: $op $name \"$data\" $ttl" >&2
 
 # Authorization header has secret and key
 
 authhdr="Authorization: sso-key $GODADDY_KEY:$GODADDY_SECRET"
 
 if [ -n "$TRACE" ]; then
-    function timestamp { local tm="`LC_TIME=C date '+%T.%N'`"
+    function timestamp { local tm="$(LC_TIME=C date '+%T.%N')"
         local class="$1"; shift
         echo "${tm:0:15} ** ${class}: $*" >>"$TRACE"
     }
@@ -207,28 +193,92 @@ fi
 
 [ -n "$DEBUG" ] &&  echo "$authhdr" >&2
 
-if [ "$op" = "add" ]; then
-    # May need to retry due to zone cuts
+#strip off the last period
+if [[ "$name" =~ ^.+\. ]]; then
+        name=${name%?}
+fi
 
-    while [[ "$domain" =~ [^.]+\.[^.]+ ]]; do
+reqdomain=
+reqname=
 
-        reqname="$name"
-        # The API doesn't trim the base domain from the name (it used to)
-        # If specified, remove any listed base.
-        if [ -n "$GODADDY_BASE" ]; then
-            for GDB in $GODADDY_BASE; do
-                gdb="`echo "$GDB" | sed -e's/\\.$//;s/\\./\\\\./g;'`"
-                gdb="^(.+)\\.$gdb\\.?$"
-                if [[ "$name" =~ $gdb ]]; then
-                    reqname="${BASH_REMATCH[1]}"
-                    break;
-                fi
-            done
-        else
-            eval 'reqname="$''{name%'"'.$domain.'}"'"'
+# GoDaddy REST API URL is in the format /v1/domains/{domain}/records/{type}/{name}
+# for adding/updating (PUT) or deleting (DELETE) a record. The API will support up 
+# to three segments in domain names (ex. mydomain.com and www.mydomain.com)
+# in order to determine which domain the API call will affect (both mydomain.com and 
+# www.mydomain.com will result in the modification of the mydomain.com domain.  Any 
+# more than three segments (ex. sub.something.mydomain.com will result in 
+# the API throwing a MISMATCH_FORMAT error.
+#
+# Examples
+# 1. If mydomain.com was provided to this script as the domain parameter, and 
+#    _acme-challengemydomain.com was provided as the name, then the URL 
+#    /v1/domains/mydomain.com/records/TXT/_acme-challenge will be used which
+#
+# 2. If www.mydomain.com was provided to this script as the domain parameter, 
+#    and _acme-challenge.www.mydomain.com was provided as the name, then the 
+#    URL /v1/domains/mydomain.com/records/TXT/_acme-challenge.www will be used.
+
+# Determine the domain and the name to use for the API the URL
+# The name parameter given to us is in the format challenge.domain.
+# (ex _acme-challenge.mydomain.com. - note the trailing period).  We will just
+# use the name given us to determine the domain
+
+while [[ "$name" =~ ^([^.]+)\.([^.]+.*) ]]; do
+        if [ -n "${reqname}" ]; then reqname="${reqname}."; fi
+        reqname="${reqname}${BASH_REMATCH[1]}"
+        testdomain="${BASH_REMATCH[2]}"
+        name=$testdomain
+        if [[ ! "$name" =~ [^.]+\.[^.]+ ]]; then
+                exit 1
         fi
 
-        url="$API/$domain/records/TXT/$reqname"
+        url="$API/$testdomain"
+
+        [ -n "$DEBUG" ] && echo "Looking for domain ${testdomain}"
+
+        response="$(curl -i -s -X GET --config - "${url}" <<EOF
+                header = "Content-Type: application/json"
+                header = "$authhdr"
+EOF
+)"
+        sts=$?
+
+        [ -n "$DEBUG" ] && cat >&2 <<EOF
+
+Response:
+curl status = $sts
+--------
+$response
+--------
+EOF
+        if [ $sts -ne 0 ]; then
+            echo "curl error $sts querying domain" >&2
+            exit $sts
+        fi
+
+        if echo "$response" | grep -q '^HTTP/.* 200 '; then
+            [ -n "$DEBUG" ] && echo "Found domain ${testdomain}"
+            reqdomain=${testdomain}
+            break
+        fi
+
+        code="$(echo "$response" | grep '"code":' | sed -e's/^.*"code":"//; s/\".*$//')"
+        if [ "$code" = 'NOT_FOUND' ]; then
+                continue
+        fi
+done
+
+
+if [ -z "$reqdomain" ] || [ -z "$reqname" ]; then
+    echo "Unable to determine domain or RR name" >&2
+    exit 3
+fi
+
+
+
+if [ "$op" = "add" ]; then
+
+        url="$API/$reqdomain/records/TXT/$reqname"
 
         request='[{"data":"'$data'","ttl":'$ttl'}]'
         [ -n "$DEBUG" ] && cat >&2 <<EOF
@@ -252,54 +302,38 @@ curl status = $sts
 $result
 --------
 EOF
-        if [ $sts -ne 0 ]; then
-            echo "curl error $sts adding record" >&2
-            exit $sts
-        fi
-        if ! echo "$result" | grep -q '^HTTP/.* 200 '; then
-            code="`echo "$result" | grep '"code":' | sed -e's/^.*"code":"//; s/\".*$//'`"
-            msg="`echo "$result" | grep '"message":' | sed -e's/^.*"message":"//; s/\".*$//'`"
-            if [ "$code" = "DUPLICATE_RECORD" ]; then
-                if [ -n "$VERB" ]; then
-                    echo "$msg in $domain" >&2
-                fi
-                exit 0 # Duplicate record is still success
+    if [ $sts -ne 0 ]; then
+        echo "curl error $sts adding record" >&2
+        exit $sts
+    fi
+    if ! echo "$result" | grep -q '^HTTP/.* 200 '; then
+        code="$(echo "$result" | grep '"code":' | sed -e's/^.*"code":"//; s/\".*$//')"
+        msg="$(echo "$result" | grep '"message":' | sed -e's/^.*"message":"//; s/\".*$//')"
+        if [ "$code" = "DUPLICATE_RECORD" ]; then
+            if [ -n "$VERB" ]; then
+                echo "$msg in $reqdomain" >&2
             fi
-            if [ "$code" = 'UNKNOWN_DOMAIN' ]; then
-                if [[ "$domain" =~ ^([^.]+)\.([^.]+\.[^.]+.*) ]]; then
-                    [ -n "$DEBUG" ] && \
-                        echo "$domain unknown, trying ${BASH_REMATCH[2]}" >&2
-                    domain="${BASH_REMATCH[2]}"
-                    continue;
-                fi
-            fi
-            echo "Request failed $msg" >&2
-            exit 1
+            exit 0 # Duplicate record is still success
         fi
-        [ -n "$VERB" ] && echo "$domain: added $name $ttl TXT \"$data\"" >&2
-        exit 0
-    done
+        echo "Request failed $msg" >&2
+        exit 1
+    fi
+    [ -n "$VERB" ] && echo "$reqdomain: added $reqname $ttl TXT \"$data\"" >&2
+    exit 0
+    
 fi
 
 
-# ----- Delete
 
-# There is no delete API
-# But, it is possible to replace all TXT records.
-#
-# So, first query for all TXT records
+if [ "$op" = "del" ]; then
+    url="$API/$reqdomain/records/TXT/$reqname"
+    [ -n "$DEBUG" ] && echo "Deleting challenge TXT records at: $url" >&2    
 
-# May need to retry due to zone cuts
-
-while [[ "$domain" =~ [^.]+\.[^.]+ ]]; do
-
-    url="$API/$domain/records/TXT"
-    [ -n "$DEBUG" ] && echo "Query for TXT records to: $url" >&2
-
-    current="$(curl -i -s -X GET --config - "$url" <<EOF
-                        header = "$authhdr" 
+    current="$(curl -i -s -X DELETE --config - "$url" <<EOF
+                    header = "$authhdr" 
 EOF
 )"
+
     sts=$?
     if [ $sts -ne 0 ]; then
         echo "curl error $sts for query" >&2
@@ -312,132 +346,14 @@ Response
 $current
 --------
 EOF
-    if ! echo "$current" | grep -q '^HTTP/.* 200 '; then
-        code="`echo "$current" | grep '"code":' | sed -e's/^.*"code":"//; s/\".*$//'`"
-        msg="`echo "$current" | grep '"message":' | sed -e's/^.*"message":"//; s/\".*$//'`"
-        if [ "$code" = "UNKNOWN_DOMAIN" ]; then
-            if [[ "$domain" =~ ^([^.]+)\.([^.]+\.[^.]+.*) ]]; then
-                [ -n "$DEBUG" ] && echo \
-                     "$domain unknown, trying ${BASH_REMATCH[2]}" >&2
-                domain="${BASH_REMATCH[2]}"
-                continue;
-            fi
-        fi
+
+    if ! echo "$current" | grep -q '^HTTP/.* 204 '; then
+        code="$(echo "$current" | grep '"code":' | sed -e's/^.*"code":"//; s/\".*$//')"
+        msg="$(echo "$current" | grep '"message":' | sed -e's/^.*"message":"//; s/\".*$//')"
         echo "Request failed $msg" >&2
         exit 1
     fi
-    # Remove headers
 
-    current="$(echo "$current" | sed -e'0,/^\r*$/d')"
-    break
-done
-
-    # The zone cut is known, so the replace can't fail due to UNKNOWN domain
-
-if [ "$current" = '[]' ]; then # No TXT records in zone
-    [ -n "$VERB" ] && echo "$domain: $name TXT \"$data\" does not exist" >&2
-    [ -n "$DEBUG" ] && echo "No TXT records in $domain" >&2
-    exit 1  # Intent was to change, so error status
+    [ -n "$VERB" ] && echo "$reqdomain: deleted $reqname TXT \"$data\"" >&2
+    exit 0
 fi
-
-[ -n "$DEBUG" ] && echo "Response is valid"
-
-# Prepare request to replace TXT RRSET
-
-# Parse JSON and select only the record structures, which are [index] { ...}
-
-current="$(echo "$current" | $JSON | sed -n -e'/^\[[0-9][0-9]*\]/{ s/^\[[0-9][0-9]*\]//; p}')"
-base="$current"
-
-[ -n "$DEBUG" ] && cat >&2 <<EOF
-Old TXT RRSET:
-$current
-EOF
-
-# Remove the desired record.  The name must be relative. Order varies.
-
-eval 'name="$''{name%'"'.$domain.'}"'"'
-
-match="$(printf '"name":"%s","data":"%s","ttl":' "$name" "$data")"
-cmd="$(printf 'echo %s%s%s | grep -v %s%s%s' "'" "$current" "'" "'" "$match" "'")"
-eval 'new="$('"$cmd"')"'
-
-match="$(printf '"data":"%s","name":"%s","ttl":' "$data" "$name")"
-cmd="$(printf 'echo %s%s%s | grep -v %s%s%s' "'" "$current" "'" "'" "$match" "'")"
-eval 'new="$('"$cmd"')"'
-
-if [ "$new" = "$base" ]; then
-    [ -n "$VERB" ] && echo "$domain: $name TXT \"$data\" does not exist" >&2
-    exit 1 # Intent was to change DNS, so this is an error
-fi
-
-# Remove whitespace and insert needed commmas
-#
-fmtnew="$new"
-new=$(echo "$new" | sed -e"s/}/},/g; \$s/},/}/;" | tr -d '\t\n')
-
-if [ -z "$new" ]; then
-    [ -n "$VERB" ] && echo "Replacing last TXT record with a dummy (see -h)" >&2
-    new='{"type":"TXT","name":"_dummy.record_","data":"_This record is not used_","ttl":601}'
-    dummy="t"
-    TAB=$'\t'
-    fmtnew="${TAB}$new"
-    if [ "$fmtnew" = "$base" ]; then
-        [ -n "$VERB" ] && echo "This tool can't delete a placeholder when it is the only TXT record" >&2
-        exit 0 # Not really success, but retrying won't help.
-    fi
-fi
-
-request="[$new]"
-
-[ -n "$DEBUG" ] && cat >&2 <<EOF
-New TXT RRSET will be
-$fmtnew
-
-EOF
-
-url="$API/$domain/records/TXT"
-
-[ -n "$DEBUG" ] && cat >&2 <<EOF
-Replace (delete) request to: $url
---------
-$request
---------
-EOF
-
-result="$(curl -i -s -X PUT -d  "$request" --config - "$url" <<EOF
-               header = "Content-Type: application/json"
-               header = "$authhdr"
-EOF
-)"
-sts=$?
-[ -n "$DEBUG" ] && cat >&2 <<EOF
-
-Result:
-curl status = $sts
---------
-$result
---------
-EOF
-
-if [ $sts -ne 0 ]; then
-    echo "curl error $sts deleting record" >&2
-    exit $sts
-fi
-if ! echo "$result" | grep -q '^HTTP/.* 200 '; then
-    result="$(echo "$result" | sed -e'0,/^\r*$/d')"
-    code="`echo "$result" | grep '"code":' | sed -e's/^.*"code":"//; s/\".*$//'`"
-    msg="`echo "$result" | grep '"message":' | sed -e's/^.*"message":"//; s/\".*$//'`"
-    echo "Request failed $msg" >&2
-    exit 1
-fi
-
-if [ -n "$VERB" ]; then
-    if [ -n "$dummy" ]; then
-        echo "$domain: replaced $name TXT \"$data\" with a placeholder" >&2
-    else
-        echo "$domain: deleted $name TXT \"$data\"" >&2
-    fi
-fi
-exit 0
-
