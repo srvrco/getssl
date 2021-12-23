@@ -841,7 +841,7 @@ check_getssl_upgrade() { # check if a more recent release is available
   # shellcheck disable=SC2086
   status=$(curl ${_NOMETER:---silent} -w "%{http_code}" --user-agent "$CURL_USERAGENT" "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE")
   errcode=$?
-debug errcode=$errcode
+  debug curl errcode=$errcode
 
   if [[ $errcode -eq 60 ]]; then
     error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
@@ -1294,7 +1294,9 @@ find_dns_utils() {
     fi
 
     if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
-        if $HAS_DIG_OR_DRILL +noidnout >/dev/null 2>&1; then
+        dig_output=$($HAS_DIG_OR_DRILL +noidnout localhost 2>&1 >/dev/null)
+        # dig +noidnout on Ubuntu 18 succeeds, but outputs warning message to stderr - issue #688)
+        if [[ "$dig_output" != ";; IDN support not enabled" ]]; then
           DIG_SUPPORTS_NOIDNOUT=true
         fi
 
