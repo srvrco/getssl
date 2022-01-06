@@ -357,6 +357,7 @@ _QUIET=0
 _RECREATE_CSR=0
 _REDIRECT_OUTPUT="1>/dev/null 2>&1"
 _REVOKE=0
+_SHOW_ACCOUNT_ID=0
 _TEST_SKIP_CNAME_CALL=0
 _TEST_SKIP_SOA_CALL=0
 _UPGRADE=0
@@ -1273,41 +1274,42 @@ error_exit() { # give error message on error exit
 }
 
 find_dns_utils() {
-    HAS_NSLOOKUP=false
-    HAS_DIG_OR_DRILL=""
-    DIG_SUPPORTS_NOIDNOUT=false
-    HAS_HOST=false
-    if [[ -n "$(command -v nslookup 2>/dev/null)" ]]; then
-        debug "HAS NSLOOKUP=true"
-        HAS_NSLOOKUP=true
+  HAS_NSLOOKUP=false
+  HAS_DIG_OR_DRILL=""
+  DIG_SUPPORTS_NOIDNOUT=false
+  HAS_HOST=false
+  if [[ -n "$(command -v nslookup 2>/dev/null)" ]]; then
+    debug "HAS NSLOOKUP=true"
+    HAS_NSLOOKUP=true
+  fi
+
+  if [[ -n "$(command -v drill 2>/dev/null)" ]]; then
+    HAS_DIG_OR_DRILL="drill"
+  elif [[ -n "$(command -v dig 2>/dev/null)" ]] && dig >/dev/null 2>&1; then
+    if dig -r >/dev/null 2>&1; then
+      # use dig -r so ~/.digrc is not used
+      HAS_DIG_OR_DRILL="dig -r"
+    else
+      HAS_DIG_OR_DRILL="dig"
+    fi
+  fi
+
+  if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
+    if dig_output=$($HAS_DIG_OR_DRILL +noidnout localhost 2>&1 >/dev/null); then
+      # dig +noidnout on Ubuntu 18 succeeds, but outputs warning message to stderr - issue #688)
+      if [[ "$dig_output" != ";; IDN support not enabled" ]]; then
+        DIG_SUPPORTS_NOIDNOUT=true
+      fi
     fi
 
-    if [[ -n "$(command -v drill 2>/dev/null)" ]]; then
-        HAS_DIG_OR_DRILL="drill"
-    elif [[ -n "$(command -v dig 2>/dev/null)" ]] && dig >/dev/null 2>&1; then
-        if dig -r >/dev/null 2>&1; then
-          # use dig -r so ~/.digrc is not used
-          HAS_DIG_OR_DRILL="dig -r"
-        else
-          HAS_DIG_OR_DRILL="dig"
-        fi
-    fi
+    debug "HAS DIG_OR_DRILL=$HAS_DIG_OR_DRILL"
+    debug "DIG_SUPPORTS_NOIDNOUT=$DIG_SUPPORTS_NOIDNOUT"
+  fi
 
-    if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
-        dig_output=$($HAS_DIG_OR_DRILL +noidnout localhost 2>&1 >/dev/null)
-        # dig +noidnout on Ubuntu 18 succeeds, but outputs warning message to stderr - issue #688)
-        if [[ "$dig_output" != ";; IDN support not enabled" ]]; then
-          DIG_SUPPORTS_NOIDNOUT=true
-        fi
-
-        debug "HAS DIG_OR_DRILL=$HAS_DIG_OR_DRILL"
-        debug "DIG_SUPPORTS_NOIDNOUT=$DIG_SUPPORTS_NOIDNOUT"
-    fi
-
-    if [[ -n "$(command -v host 2>/dev/null)" ]]; then
-        debug "HAS HOST=true"
-        HAS_HOST=true
-    fi
+  if [[ -n "$(command -v host 2>/dev/null)" ]]; then
+    debug "HAS HOST=true"
+    HAS_HOST=true
+  fi
 }
 
 find_ftp_command() {
@@ -1956,13 +1958,14 @@ help_message() { # print out the help message
 	  -i, --install      Install certificates and reload service
 	  -q, --quiet        Quiet mode (only outputs on error, success of new cert, or getssl was upgraded)
 	  -Q, --mute         Like -q, but also mute notification about successful upgrade
-	  -r, --revoke   "cert" "key" [CA_server] Revoke a certificate (the cert and key are required)
+	  -r, --revoke "cert" "key" [CA_server]    Revoke a certificate (the cert and key are required)
 	  -u, --upgrade      Upgrade getssl if a more recent version is available - can be used with or without domain(s)
 	  -X, --experimental tag  Upgrade to experimental releases, specified by tag (e.g. v9.43)
 	  -U, --nocheck      Do not check if a more recent version is available
 	  -v  --version      Display current version of $PROGNAME
 	  -w working_dir "Working directory"
 	  --preferred-chain "chain" Use an alternate chain for the certificate
+    --account-id      Display account id and exit
 
 	_EOF_
 }
@@ -2592,7 +2595,7 @@ urlbase64_decode() {
 usage() { # echos out the program usage
   echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet]"\
        "[-Q|--mute] [-u|--upgrade] [-X|--experimental tag] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir]"\
-       "[--preferred-chain chain] domain"
+       "[--preferred-chain chain] [--account-id] domain"
 }
 
 write_domain_template() { # write out a template file for a domain.
@@ -2826,6 +2829,8 @@ while [[ -n ${1+defined} ]]; do
       shift; WORKING_DIR="$1" ;;
     -preferred-chain | --preferred-chain)
       shift; PREFERRED_CHAIN="$1" ;;
+    --account-id)
+      _SHOW_ACCOUNT_ID=1 ;;
     --source)
       return ;;
     -*)
@@ -2898,7 +2903,11 @@ if [[ $_UPGRADE_CHECK -eq 1 ]]; then
   check_getssl_upgrade
   # if nothing in command line and no revocation and not only config check,
   # then exit after upgrade
-  if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ ${_REVOKE} -ne 1 ]] && [ "${_ONLY_CHECK_CONFIG}" -ne 1 ]; then
+  if [[ -z "$DOMAIN" ]] \
+     && [[ ${_CHECK_ALL} -ne 1 ]] \
+     && [[ ${_REVOKE} -ne 1 ]] \
+     && [ "${_ONLY_CHECK_CONFIG}" -ne 1 ] \
+     && [[ ${_SHOW_ACCOUNT_ID} -ne 1 ]]; then
     # if nothing in command line, print help before exit.
     if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ ${_UPGRADE} -ne 1 ]]; then
       help_message
@@ -3131,7 +3140,7 @@ if [[ $API -eq 2 ]]; then
 fi
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
-if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
+if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
   real_d=${DOMAIN##\*.}
   debug "getting certificate for $DOMAIN from remote server ($real_d)"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
@@ -3250,7 +3259,7 @@ if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; t
 fi
 
 # if there is an existing certificate file, check details.
-if [[ -s "$CERT_FILE" ]]; then
+if [[ -s "$CERT_FILE" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
   debug "certificate $CERT_FILE exists"
   enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
   debug "local cert is valid until $enddate"
@@ -3278,7 +3287,7 @@ if [[ -s "$CERT_FILE" ]]; then
 fi
 # end of .... if there is an existing certificate file, check details.
 
-if [[ ! -t 0 ]] && [[ "$PREVENT_NON_INTERACTIVE_RENEWAL" = "true" ]]; then
+if [[ ! -t 0 ]] && [[ "$PREVENT_NON_INTERACTIVE_RENEWAL" = "true" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
   errmsg="$DOMAIN due for renewal,"
   errmsg="${errmsg} but not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
   error_exit "$errmsg"
@@ -3327,16 +3336,16 @@ info "Registering account"
 # send the request to the ACME server.
 if [[ $API -eq 1 ]]; then
   if [[ "$ACCOUNT_EMAIL" ]] ; then
-	regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
+  	regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
   else
-	regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
+  	regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
   fi
   send_signed_request "$URL_new_reg"  "$regjson"
 elif [[ $API -eq 2 ]]; then
   if [[ "$ACCOUNT_EMAIL" ]] ; then
-	regjson='{"termsOfServiceAgreed": true, "contact": ["mailto: '$ACCOUNT_EMAIL'"]}'
+  	regjson='{"termsOfServiceAgreed": true, "contact": ["mailto: '$ACCOUNT_EMAIL'"]}'
   else
-	regjson='{"termsOfServiceAgreed": true}'
+  	regjson='{"termsOfServiceAgreed": true}'
   fi
   send_signed_request "$URL_newAccount"  "$regjson"
 else
@@ -3347,18 +3356,23 @@ fi
 if [[ "$code" == "" ]] || [[ "$code" == '201' ]] ; then
   info "Registered"
   KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
-  debug "KID=_$KID}_"
+  debug "AccountId=$KID}"
   echo "$response" > "$TEMP_DIR/account.json"
 elif [[ "$code" == '409' ]] ; then
   KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
   debug responseHeaders "$responseHeaders"
-  debug "Already registered KID=$KID"
+  debug "Already registered, AccountId=$KID"
 elif [[ "$code" == '200' ]] ; then
   KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
   debug responseHeaders "$responseHeaders"
-  debug "Already registered account, KID=${KID}"
+  debug "Already registered account, AccountId=${KID}"
 else
   error_exit "Error registering account ...$responseHeaders ... $(json_get "$response" detail)"
+fi
+
+if [[ ${_SHOW_ACCOUNT_ID} -eq 1 ]]; then
+  echo "Account Id is: $KID"
+  graceful_exit
 fi
 # end of registering account with CA
 
