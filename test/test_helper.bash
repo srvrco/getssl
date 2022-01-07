@@ -68,16 +68,16 @@ setup_environment() {
 # shellcheck disable=SC2153 # Ignore GETSSL_OS looks like typo of GETSSL_IP
 if [[ -f /usr/bin/supervisord && -f /etc/supervisord.conf ]]; then
   if [[ ! $(pgrep supervisord) ]]; then
-    /usr/bin/supervisord -c /etc/supervisord.conf >&3-
-    # Give supervisord time to start
-    sleep 1
+   /usr/bin/supervisord -c /etc/supervisord.conf 3>&- 4>&-
+   # Give supervisord time to start
+   sleep 1
   fi
 elif [[ "$GETSSL_OS" == "centos"[78] || "$GETSSL_OS" == "rockylinux"* ]]; then
   if [ -z "$(pgrep nginx)" ]; then
-    nginx 3>&-
+    nginx 3>&- 4>&-
   fi
   if [ -z "$(pgrep vsftpd)" ] && [ "$(command -v vsftpd)" ]; then
-    vsftpd 3>&-
+    vsftpd 3>&- 4>&-
   fi
 fi
 
