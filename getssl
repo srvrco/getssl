@@ -280,6 +280,9 @@
 # 2021-11-10 Detect Solaris and use gnu tools (#701)(miesi)
 # 2021-11-12 Support acme-dns and fix CNAME issues (#722)(#308)
 # 2021-12-14 Enhancements for GoDaddy (support more levels of domain names, no longer require GODADDY_BASE, and actual deletion of resource records)
+# 2021-12-22 Don't show usage if run with --upgrade (#728)
+# 2021-12-23 Don't use +idnout if dig shows a warning (#688)
+# 2022-01-06 Support --account-id (#716)(2.46)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -288,7 +291,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.45"
+VERSION="2.46"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
