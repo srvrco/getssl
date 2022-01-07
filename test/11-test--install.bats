@@ -15,6 +15,24 @@ setup() {
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
 }
 
+setup_file() {
+    # Fail if not running in docker and /etc/getssl already exists
+    TEST_FAILED=0
+    if [ -d /etc/getssl  ]; then
+        echo "Test failed: /etc/getssl already exists" >&3
+        TEST_FAILED=1
+        touch $BATS_RUN_TMPDIR/failed.skip
+        return 1
+    fi
+}
+
+teardown_file() {
+    # Cleanup after tests
+    if [ ${TEST_FAILED} == 0 ] && [ -d /etc/getssl  ]; then
+        rm -rf /etc/getssl
+    fi
+}
+
 @test "Check that config files in /etc/getssl works" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
@@ -22,9 +40,6 @@ setup() {
 
     CONFIG_FILE="getssl-http01.cfg"
     setup_environment
-
-    # Fail if not running in docker and /etc/getssl already exists
-    refute [ -d /etc/getssl ]
 
     # Create /etc/getssl/$DOMAIN
     mkdir -p /etc/getssl/${GETSSL_CMD_HOST}
@@ -62,7 +77,4 @@ setup() {
     assert_line --partial 'copying domain certificate to'
     assert_line --partial 'copying private key to'
     assert_line --partial 'copying CA certificate to'
-
-    # Cleanup previous test
-    rm -rf /etc/getssl
 }
