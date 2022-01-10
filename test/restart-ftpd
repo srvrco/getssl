@@ -11,7 +11,7 @@ if [ "$GETSSL_OS" = "alpine" ]; then
 elif [[ "$GETSSL_OS" == "centos"[78] || "$GETSSL_OS" == "rockylinux"* ]]; then
     pgrep vsftpd | head -1 | xargs kill -HUP
 elif [[ "$GETSSL_OS" == "centos6" ]]; then
-    service vsftpd "$arg"
+    service vsftpd "$arg" 3>&- 4>&-
 else
     service vsftpd restart >/dev/null 3>&- 4>&-
 fi
