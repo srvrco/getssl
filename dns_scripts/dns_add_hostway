@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Need to add your API key below or set as env variable
+apikey="$HOSTWAY_API_KEY"
+
+# This script adds a token to dynu.com DNS for the ACME challenge
+# usage dns_add_dynu "domain name" "token"
+# return codes are;
+# 0 - success
+# 1 - error in input
+# 2 - error within internal processing
+# 3 - error in result ( domain not found in dynu.com etc)
+
+fulldomain="${1}"
+token="${2}"
+
+API='https://api.hostway.com/dns'
+
+# Check initial parameters
+if [[ -z "$fulldomain" ]]; then
+  echo "DNS script requires full domain name as first parameter"
+  exit 1
+fi
+if [[ -z "$token" ]]; then
+  echo "DNS script requires challenge token as second parameter"
+  exit 1
+fi
+
+curl_params=( -H "accept: application/json" -H "Authorization: Basic $apikey" -H 'Content-Type: application/json charset=utf-8')
+
+# Get domain id
+# curl -X GET "https://api.hostway.com/dns/domain/"
+resp=$(curl --silent "${curl_params[@]}" -X GET "$API/${fulldomain}")
+
+# Match domain id
+re="\"serial\":\s?([^}]*)"
+if [[ "$resp" =~ $re ]]; then
+  domain_id="${BASH_REMATCH[1]}"
+fi
+
+if [[ -z "$domain_id" ]]; then
+  echo 'Domain name not found on your Hostway account'
+  exit 3
+fi
+
+# Check for existing _acme-challenge TXT record
+# curl -X GET "https://api.hostway.com/dns/domain/records?filterType=TXT&page=1&pageSize=100"
+resp=$(curl --silent "${curl_params[@]}" -X GET "$API/${fulldomain}/records?filterType=TXT")
+re="\"id\":\s?([^}]*)"
+if [[ "$resp" =~ $re ]]; then
+    record_id="${BASH_REMATCH[1]}"
+fi
+
+if [[ -z "$record_id" ]]; then
+  # Add new TXT challenge record
+  # curl -X POST https://api.hostway.com/dns/{domain}/records/{record_id} -d "{\"name\":\"_acme-challenge.{domain}\",\"type\":\"TXT\",\"ttl\":\"300\",\"data\":\"Test2\"}"
+  # Response is empty when successful
+  echo "Adding record for ${fulldomain}"  
+  resp=$(curl --silent \
+    "${curl_params[@]}" \
+    -X POST "${API}/${fulldomain}/records" \
+    --data "{\"name\":\"_acme-challenge.${fulldomain}\",\"type\":\"TXT\",\"ttl\":\"300\",\"data\":\"$token\"}")
+else
+  # Update existing record
+  # curl -X PUT https://api.hostway.com/dns/{domain}/records/{record_id} -d "{\"name\":\"_acme-challenge.{domain}\", \"data\":\"Test2\"}"
+  echo "Updating record for ${fulldomain}"
+  resp=$(curl --silent \
+    "${curl_params[@]}" \
+    -X PUT "${API}/${fulldomain}/records/${record_id}" \
+    --data "{\"name\":\"_acme-challenge.${fulldomain}\", \"data\":\"$token\"}")
+fi
+
+# Check if response data matches token
+re="\"data\":\s?\"([^,]*)\""
+if [[ "$resp" =~ $re ]]; then
+    if [[ ${BASH_REMATCH[1]} == "$token" ]]; then
+        token_match="$token ${BASH_REMATCH[1]}"
+    fi
+fi
+
+# If adding record failed (exception:) then print error message
+if [[ -z "$token_match" && "$resp" != "" ]]; then
+	echo "Error: DNS challenge not added: unknown error - ${resp}"
+        exit 3
+    else
+	echo "Record added successfully for ${fulldomain}"
+fi
