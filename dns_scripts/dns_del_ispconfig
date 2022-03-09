@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Need to add your API key below or set as env variable
+CURR_PATH="`dirname \"$0\"`"
+
+ispconfig_user="$ISPCONFIG_REMOTE_USER_NAME"
+ispconfig_pass="$ISPCONFIG_REMOTE_USER_PASSWORD"
+
+soap_location="$ISPCONFIG_SOAP_LOCATION"
+soap_uri="$ISPCONFIG_SOAP_URL"
+
+# This script adds a token to ispconfig database DNS for the ACME challenge
+# usage dns_add_ispconfig "domain name" "token"
+# return codes are;
+# 0 - success
+# 1 - error in input
+# 2 - error within internal processing
+# 3 - error in result ( domain not found in dynu.com etc)
+
+fulldomain="${1}"
+token="${2}"
+
+# Check initial parameters
+if [[ -z "$fulldomain" ]]; then
+  echo "DNS script requires full domain name as first parameter"
+  exit 1
+fi
+
+if [[ -z "$token" ]]; then
+  echo "DNS script requires challenge token as second parameter"
+  exit 1
+fi
+
+response=$(php $CURR_PATH/ispconfig_soap.php \
+  --action="del" \
+  --domain="$fulldomain" \
+  --token="$token" \
+  --ispconfig_user="$ispconfig_user" \
+  --ispconfig_pass="$ispconfig_pass" \
+  --soap_location="$soap_location" \
+  --soap_uri="$soap_uri")
+
+echo $response
+
+exit 0
