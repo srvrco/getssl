@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+
+# ACMEDNS env variables can be set in a config file at domain level
+acme_config="$DOMAIN_DIR/acme-dns.cfg"
+[ -s "$acme_config" ] && . "$acme_config"
+
 # Need to add your API user and key below or set as env variable
 apiuser=${ACMEDNS_API_USER:-''}
 apikey=${ACMEDNS_API_KEY:-''}
