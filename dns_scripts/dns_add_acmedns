@@ -54,9 +54,9 @@ resp=$(curl --silent \
   -X POST "${API}" \
   --data "$(generate_post_data)")
 
-echo $resp
 # If adding record failed (returned json includes "error" then print error message
 if [[ "$resp" = *"\"error\""* ]]; then
   echo "Error: DNS challenge not added: unknown error - ${resp}"
   exit 1
 fi
+exit 0
