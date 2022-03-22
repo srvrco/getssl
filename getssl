@@ -283,7 +283,7 @@
 # 2021-12-22 Don't show usage if run with --upgrade (#728)
 # 2021-12-23 Don't use +idnout if dig shows a warning (#688)
 # 2022-01-06 Support --account-id (#716)(2.46)
-# 2022-03-09 Support for ISPConfig API (2.47)
+# 2022-03-09 Support for ISPConfig API
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -803,7 +803,9 @@ check_getssl_upgrade() { # check if a more recent release is available
     error_exit "curl error checking releases: $errcode"
   fi
   # Replace error in release description with _error (which is ignored by check_output_for_errors() in the tests)
-  debug "${release_data//error/_error}"
+  sanitised_release_data=${release_data//error/_error}
+  sanitised_release_data=${sanitised_release_data//warning/_warning}
+  debug "${sanitised_release_data//error/_error}"
   # awk from https://stackoverflow.com/questions/1761341/awk-print-next-record-following-matched-record
   release_tag=$(awk -F'"' '/tag_name/ {f=NR} f&&NR-1==f' RS=":|," <<<"${release_data}" | sed -e's/"//g')
   if [[ "${release_tag:0:1}" != 'v' ]] ; then
