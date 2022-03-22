@@ -193,6 +193,25 @@ DNS_ADD_COMMAND=/home/root/getssl/dns_scripts/dns_add_cpanel
 DNS_DEL_COMMAND=/home/root/getssl/dns_scripts/dns_del_cpanel
 ```
 
+
+### ISPConfig
+
+There is a need to create a remote user in `ISPConfig` to enable the remote API access.
+
+You need to go to `System -> Remote Users` and then enable the features for the remote user such as `DNS zone functions`.
+
+PHP is required to exeucte soap functions in file ispconfig_soap.php.
+```sh
+DNS_ADD_COMMAND="/home/root/getssl/dns_scripts/dns_add_ispconfig"
+DNS_DEL_COMMAND="/home/root/getssl/dns_scripts/dns_del_ispconfig"
+
+export ISPCONFIG_REMOTE_USER_NAME="ussename"
+export ISPCONFIG_REMOTE_USER_PASSWORD="password"
+export ISPCONFIG_SOAP_LOCATION="https://localhost:8080/remote/index.php"
+export ISPCONFIG_SOAP_URL="https://localhost:8080/remote/"
+```
+
+
 Create the wildcard certificate (need to use quotes to prevent globbing):
 
 ```sh
