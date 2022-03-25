@@ -2983,7 +2983,7 @@ fi
 # Define defaults for variables not set in the main config.
 ACCOUNT_KEY="${ACCOUNT_KEY:=$WORKING_DIR/account.key}"
 DOMAIN_STORAGE="${DOMAIN_STORAGE:=$WORKING_DIR}"
-DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
+export DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
 FULL_CHAIN="$DOMAIN_DIR/fullchain.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
