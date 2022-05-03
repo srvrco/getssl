@@ -521,11 +521,11 @@ FULL_CHAIN_INCLUDE_ROOT="true"
 
 -   WSL
 
-    -   `RELOAD_CMD=("powershell.exe -ExecutionPolicy Bypass -File "\\\\wsl$\\Ubuntu\\home\\user\\getssl\\other_scripts\\iis_install_certeficate.ps1" "domain.eu" "IIS SiteName" "\\\\wsl$\\Ubuntu\\home\\user\\ssl\\")`
+    -   `RELOAD_CMD=("powershell.exe -ExecutionPolicy Bypass -File "\\\\wsl$\\Ubuntu\\home\\user\\getssl\\other_scripts\\iis_install_certeficate.ps1" "domain.eu" "IIS SiteName" "\\\\wsl$\\Ubuntu\\home\\user\\ssl\\" "path_to_ssl_dir" )`
 
 -   GIT and Rtools4 Bash
 
-    -   `RELOAD_CMD=("powershell.exe /c/Users/Administrator/getssl/other_scripts/iis_install_certeficate.ps1 domain.eu domain")`
+    -   `RELOAD_CMD=("powershell.exe /c/Users/Administrator/getssl/other_scripts/iis_install_certeficate.ps1 domain.eu domain path_to_ssl_dir")`
 
 ## Issues / problems / help
 
