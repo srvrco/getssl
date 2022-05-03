@@ -284,6 +284,7 @@
 # 2021-12-23 Don't use +idnout if dig shows a warning (#688)
 # 2022-01-06 Support --account-id (#716)(2.46)
 # 2022-03-09 Support for ISPConfig API
+# 2022-05-03 Windows Server and IIS support (2.47)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -292,7 +293,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.46"
+VERSION="2.47"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -570,8 +571,8 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
     ntries=0
     check_dns="fail"
     while [[ "$check_dns" == "fail" ]]; do
-      if [[ "$os" == "cygwin" ]]; then
-        check_result=$(nslookup -type=txt "${rr}" "${ns}" \
+      if [[ "$os" == "cygwin" || "$os" == "mingw64_nt"  || "$os" == "msys_nt" ]]; then
+        check_result=$(nslookup -type=txt "${rr}." "${ns}" \
                       | grep ^_acme -A2\
                       | grep '"'|awk -F'"' '{ print $2}')
       elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
@@ -1873,6 +1874,10 @@ get_os() { # function to get the current Operating System
     os="mac"
   elif [[ ${uname_res:0:6} == "CYGWIN" ]]; then
     os="cygwin"
+  elif [[ ${uname_res:0:10} == "MSYS_NT" ]]; then
+    os="msys_nt"
+  elif [[ ${uname_res:0:10} == "MINGW64_NT" ]]; then
+    os="mingw64_nt"
   elif [[ ${uname_res:0:5} == "MINGW" ]]; then
     os="mingw"
   elif [[ ${uname_res} == "SunOS" ]]; then
@@ -2988,7 +2993,7 @@ CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
 FULL_CHAIN="$DOMAIN_DIR/fullchain.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
-if [[ "$os" == "mingw" ]]; then
+if [[ "$os" == "mingw" || "$os" == "mingw64_nt" ]]; then
   CSR_SUBJECT="//"
 fi
 

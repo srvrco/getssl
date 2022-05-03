@@ -6,12 +6,14 @@ Obtain SSL certificates from the letsencrypt.org ACME server. Suitable
 for automating the process on remote servers.
 
 ## Table of Contents <!-- omit in toc -->
+- [Upgrade broken in v2.43](#upgrade-broken-in-v243)
 - [Features](#features)
 - [Installation](#installation)
 - [Overview](#overview)
 - [Getting started](#getting-started)
 - [Detailed guide to getting started with more examples](#detailed-guide-to-getting-started-with-more-examples)
 - [Wildcard certificates](#wildcard-certificates)
+- [ISPConfig](#ispconfig)
 - [Automating updates](#automating-updates)
 - [Structure](#structure)
 - [Server-Types](#server-types)
@@ -19,6 +21,7 @@ for automating the process on remote servers.
 - [Elliptic curve keys](#elliptic-curve-keys)
 - [Preferred Chain](#preferred-chain)
 - [Include Root certificate in full chain](#include-root-certificate-in-full-chain)
+- [Windows Server and IIS Support](#windows-server-and-iis-support)
 - [Issues / problems / help](#issues--problems--help)
 
 ## Upgrade broken in v2.43
@@ -194,7 +197,7 @@ DNS_DEL_COMMAND=/home/root/getssl/dns_scripts/dns_del_cpanel
 ```
 
 
-### ISPConfig
+## ISPConfig
 
 There is a need to create a remote user in `ISPConfig` to enable the remote API access.
 
@@ -440,6 +443,89 @@ adding the following line to `getssl.cfg`
 ```sh
 FULL_CHAIN_INCLUDE_ROOT="true"
 ```
+
+## Windows Server and IIS Support
+
+**System and software requirements**:
+
+-   Windows Server with DNS and IIS services
+
+-   One of
+
+    -   WSL Windows Sub for Linux
+
+        -   Ubuntu or any other distro
+
+        -   gettssl can be installed inside WSL or using `/mnt/` path to windows
+
+    -   Bash - gettssl should be installed in Windows
+
+        -   Git Bash - <https://git-scm.com/downloads>
+
+        -   Rtools4.0 - <https://cran.r-project.org/bin/windows/Rtools/>
+
+**WSL**
+
+-   Installing and configuring WSL 2
+
+    -   Add remove Windows features and choose "Windows for sub Linux"
+
+    -   Install a distro like Ubuntu or any other Linux platform
+
+        -   If newly added to the system a reboot is required to continue
+
+        -   wsl --install -d ubuntu
+
+        -   Any user will work
+
+        -   Copying files to WSL
+
+            -   From Windows open `Windows Explorer` and browse to `\\wsl$\Ubuntu\home\user\` and then place the getssl files and folders `.getssl` and `getssl` into users home directory `\\wsl$\Ubuntu\home\user\.getssl .` or in Windows
+
+        -   Open `cmd` in Widnows and type\
+            `wsl -d Ubuntu /bin/bash /home/UserName/getssl/getssl domain.eu && exit`
+
+        -   Using a specific distro if not set as default in WSL then use the `wsl -d distro` command
+
+    **Notes:**
+
+    -   While configuring WSL please do check the `/etc/hosts` file if the IP of the domain is correct since it overrides the DNS server.
+
+    -   Make sure running version 2.
+
+**GIT Bash** - MINGW64_NT
+
+-   Install git GIT Bash
+
+-   `"C:\Program Files\Git\bin\bash.exe" --login -i -- path_to/getssl/getssl domain.eu`
+
+**Rtools Bash** - MSYS_NT
+
+-   Make sure that the path of `\rtools42\usr\bin` in Windows system environment variables is right before `c:\windows\system32\` so that getssl will use the `Rtools` applications instead of Windows applications such as `sort.exe` that crashes or speify full path to sort.
+
+-   `\rtools42\usr\bin\bash.exe \Users\Administrator\getssl\getssl domain.eu 2>&1 1>out.txt`
+
+**Updating DNS TXT records**
+
+-   Using `PowerShell` to add and delete `_acme-challenge` records
+
+    -   dns_add_windows_dnsserver
+
+    -   dns_del_windows_dnsserver
+
+    **Notes:** The script supports optional second level `TLDs`. `sub.domain.co.uk` You can update the reqexp `.(co|com).uk` to fit your needs.
+
+**IIS internet information service**
+
+-   Under folder `other_scripts` you can find a `PowerSheell` script `iis_install_certeficate.ps1` which generates `PFX` certificate to be installed in `IIS` and binds the domains to the `PFX` certificate.
+
+-   WSL
+
+    -   `RELOAD_CMD=("powershell.exe -ExecutionPolicy Bypass -File "\\\\wsl$\\Ubuntu\\home\\user\\getssl\\other_scripts\\iis_install_certeficate.ps1" "domain.eu" "IIS SiteName" "\\\\wsl$\\Ubuntu\\home\\user\\ssl\\" "path_to_ssl_dir" )`
+
+-   GIT and Rtools4 Bash
+
+    -   `RELOAD_CMD=("powershell.exe /c/Users/Administrator/getssl/other_scripts/iis_install_certeficate.ps1 domain.eu domain path_to_ssl_dir")`
 
 ## Issues / problems / help
 
