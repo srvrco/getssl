@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# Windows DNS server using powershell - dnscmd is going to be deprecated 
+# Using Windows Sublinux for executing windows commands
+# dnscmd command will be depricated use powershell instead
+
+regexp='[A-z0-9]+(\.(co|com))?\.\w+$'
+
+fulldomain=${1}
+# Get root domain api.[domain|.co|.uk]
+rootdomain=$(echo "${fulldomain}" | grep -Eo "${regexp}")
+# Exlude root domain [api].domain.com
+subdomain=$(result=$(echo "${fulldomain}" | grep -Po '(.*)(?=\.[A-z0-9]+(\.(co|com))?\.\w+$)') && if [[ ${#result} -gt 0 ]]; then echo ".${result}"; else echo ""; fi)
+token=${2}
+
+nloop=1
+retries=15 # Sometimes it fails
+while [[ ${nloop} -le ${retries} ]]; do
+
+    # Delete TXT record
+    echo "Tries ${nloop} out of ${retries}" 
+    
+    echo "Deleting acme challenge record for ${fulldomain} with token ${token}"
+    cmd=(powershell.exe Remove-DnsServerResourceRecord -RRType TXT -Name \'"_acme-challenge${subdomain}"\' -ZoneName \'"${rootdomain}"\' -RecordData \'"${token}"\' -Force)
+    echo "${cmd[@]}"
+
+    result_stderr=$({ "${cmd[@]}" ;} 2>&1)
+
+    if [[ ${#result_stderr} -eq 0 ]]; then
+        break
+    else
+        echo "${result_stderr}"
+    fi
+
+    nloop=$((nloop+1))
+
+    echo "Sleeping 5 seconds"
+    sleep 5
+done
