@@ -3263,7 +3263,8 @@ if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; t
         _FORCE_RENEW=1
       fi ;;
     prime256v1|secp384r1|secp521r1)
-      if grep -q -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+      if grep -q -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key" \
+      || grep -q -- "-----BEGIN PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
         rm -f "$DOMAIN_DIR/${DOMAIN}.key"
         _FORCE_RENEW=1
       fi ;;
