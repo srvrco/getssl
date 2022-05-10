@@ -1,4 +1,4 @@
-name: Run all tests using Dynu
+name: Run tests against Staging server using Dynu
 on:
   workflow_dispatch:
     branches:

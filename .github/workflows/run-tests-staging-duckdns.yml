@@ -1,4 +1,4 @@
-name: Run all tests using DuckDNS
+name: Run tests against Staging server using DuckDNS
 on:
   workflow_dispatch:
     branches:
