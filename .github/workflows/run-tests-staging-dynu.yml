@@ -1,13 +1,5 @@
 name: Run all tests using Dynu
 on:
-  push:
-    paths-ignore:
-      - '.github/workflows/*'
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
   workflow_dispatch:
     branches:
       - master
