@@ -1,4 +1,4 @@
-name: Run all tests using Dynu and acmedns
+name: Run tests against Staging server using acmedns
 on:
   push:
     paths-ignore:

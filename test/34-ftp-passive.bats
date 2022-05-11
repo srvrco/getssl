@@ -44,6 +44,11 @@ teardown() {
         mkdir -p /var/www/html/.well-known/acme-challenge
     fi
 
+    NEW_FTP="false"
+    if [[ "$(ftp -? 2>&1 | head -1 | cut -c-6)" == "usage:" ]]; then
+        NEW_FTP="true"
+    fi
+
     # Always change ownership and permissions in case previous tests created the directories as root
     chgrp -R www-data /var/www/html/.well-known
     chmod -R g+w /var/www/html/.well-known
@@ -56,16 +61,27 @@ teardown() {
 ACL="ftp:ftpuser:ftpuser:${GETSSL_CMD_HOST}:/var/www/html/.well-known/acme-challenge"
 EOF
     if [[ "$FTP_PASSIVE_DEFAULT" == "false" ]]; then
-        cat <<- EOF3 >> ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
-FTP_OPTIONS="passive"
+        if [[ "$NEW_FTP" == "true" ]]; then
+            # Newer version of ftp, needs "passive on" instead of "passive"
+            cat <<- EOF3 >> ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
+FTP_OPTIONS="passive on"
 EOF3
+        else
+            cat <<- EOF4 >> ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
+FTP_OPTIONS="passive"
+EOF4
+        fi
     fi
 
     create_certificate
     assert_success
     assert_line --partial "ftp:ftpuser:ftpuser:"
     if [[ "$FTP_PASSIVE_DEFAULT" == "false" ]]; then
-        assert_line --partial "Passive mode on"
+        if [[ "$NEW_FTP" == "true" ]]; then
+            assert_line --partial "Passive mode: on"
+        else
+            assert_line --partial "Passive mode on"
+        fi
     else
         refute_line --partial "Passive mode off"
     fi
