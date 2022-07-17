@@ -13,7 +13,7 @@ Release:          1
 
 URL:              http://github.com/srvrco/getssl/
 Source0:          %{name}-%{version}.tar.gz
-Source1:	  getssl.crontab
+Source1:          getssl.crontab
 Source2:          getssl.logrotate
 BuildArch:        noarch
 
