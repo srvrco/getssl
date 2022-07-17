@@ -1,0 +1,3 @@
+# 0 18 1 */1 * means run at 18:00 on day-of-month 1 in every month
+# uncomment the line below to activate cron getssl service
+# 0 18 1 */1 * root /usr/bin/getssl -u -a &>> /var/log/getssl.log
