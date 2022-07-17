@@ -1,5 +1,5 @@
 /var/log/getssl.log {
-    weekly
+    monthly
     rotate 10
     copytruncate
     delaycompress
