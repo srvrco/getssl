@@ -1978,7 +1978,7 @@ help_message() { # print out the help message
 	  -v  --version      Display current version of $PROGNAME
 	  -w working_dir "Working directory"
 	  --preferred-chain "chain" Use an alternate chain for the certificate
-    --account-id      Display account id and exit
+	  --account-id       Display account id and exit
 
 	_EOF_
 }
