@@ -1826,7 +1826,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
     fi
 
     awk -v CERT_FILE="$gc_certfile" -v CA_CERT="$gc_cafile" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$gc_fullchain"
-    if [[ "$FULL_CHAIN_INCLUDE_ROOT" = "true" ]]; then
+    if [[ "$FULL_CHAIN_INCLUDE_ROOT" == "true" ]]; then
       # Some of the code below was copied from zakjan/cert-chain-resolver
 
       # Download the certificate for the issuer using the "CA Issuers" attribute from the AIA x509 extension
