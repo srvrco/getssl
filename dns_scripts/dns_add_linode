@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 fulldomain="${1}"
 token="${2}"

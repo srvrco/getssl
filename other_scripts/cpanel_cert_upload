@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # a simple script for use on shared cpanel server to automatically add the
 # the certificates to cpanel if the uapi function is available

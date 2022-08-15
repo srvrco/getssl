@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 echo "In the DNS, a new TXT record needs to be created for;"
 echo "_acme-challenge.${1}"
