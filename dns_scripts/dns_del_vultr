@@ -17,7 +17,7 @@ if [[ -z "$VULTR_API_KEY" ]]; then
 fi
 
 function delete {
-  recordID=$(curl "${api_url}/domains/$1/records" -X GET -H "Authorization: Bearer ${VULTR_API_KEY}" | jq -r ".records[] | select(.name==\"$2\").id")
+  recordID=$(curl "${api_url}/domains/$1/records" --silent -X GET -H "Authorization: Bearer ${VULTR_API_KEY}" | jq -r ".records[] | select(.name==\"$2\").id")
 
   curl "${api_url}/domains/$1/records/$recordID" -X DELETE -H "Authorization: Bearer ${VULTR_API_KEY}" 
 }

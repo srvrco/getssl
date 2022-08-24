@@ -17,7 +17,7 @@ if [[ -z "$VULTR_API_KEY" ]]; then
 fi
 
 function create {
-curl "${api_url}/domains/$1/records" -X POST -H "Authorization: Bearer ${VULTR_API_KEY}" -H "Content-Type: application/json" \
+curl "${api_url}/domains/$1/records" -s -o /dev/null -X POST -H "Authorization: Bearer ${VULTR_API_KEY}" -H "Content-Type: application/json" \
   --data "{
     \"name\" : \"$2\",
     \"type\" : \"TXT\",
