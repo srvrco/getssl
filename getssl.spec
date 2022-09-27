@@ -34,7 +34,7 @@ The %{name} package contains the getssl scripts, crontab files, and logrotate fi
 %{__mkdir_p} %{buildroot}%{_datadir}/getssl/dns_scripts
 %{__mkdir_p} %{buildroot}%{_datadir}/getssl/other_scripts
 %{__make} \
-	DESTDIR=%{buildroot}\
+	DESTDIR=%{buildroot} \
 	install
 install -Dpm 644 %{SOURCE1} %{buildroot}%{_sysconfdir}/cron.d/getssl
 install -Dpm 644 %{SOURCE2} %{buildroot}%{_sysconfdir}/logrotate.d/getssl
