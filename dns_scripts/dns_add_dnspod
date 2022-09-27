@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # need to add your email address and key to dnspod below
 key=${DNSPOD_API_KEY:-}

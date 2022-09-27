@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 domains=($(echo "$1"|sed -e 's/^\(\([a-zA-Z0-9.-]*\?\)\.\)*\([a-zA-Z0-9-]\+\.[a-zA-Z-]\+\)$/"\1" _acme-challenge.\2 \3/g'))
 challenge="$2"

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Windows DNS server using powershell - dnscmd is going to be deprecated 
 # Using Windows Sublinux for executing windows commands

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # You must either have a suitable ~/.my.cnf containing a user / pass
 # for your mysql / mariadb database, OR you must uncomment the next line

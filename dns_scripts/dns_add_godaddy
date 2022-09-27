@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Copyright (C) 2017, 2018 Timothe Litt  litt at acm _dot org
 

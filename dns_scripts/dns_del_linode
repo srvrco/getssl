@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 fulldomain="${1}"
 api_url="https://api.linode.com/api/"
