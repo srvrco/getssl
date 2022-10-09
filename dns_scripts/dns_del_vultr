@@ -1,4 +1,4 @@
-#!/bin/bash
+#! /usr/bin/env bash
 # Vultr Delete DNS Record 
 # This script requires jq to be installed on the machine running it
 
