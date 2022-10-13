@@ -103,7 +103,7 @@ this project, or you can manually build and install the program from the git sou
 If you want to manually install the program from scratch with the git sources rather than use the pre-compiled RPMS and DEB packages, or if your target platform does not support Linux RPM or DEB packages, then please skip to the section [Manual Installation](#manual-installation) for instructions on installing the getssl program manually. 
  
 Packages are provided in binary and source versions, and can be downloaded and 
-installed directly or rebuilt for a different target architecture such as ARM64. Package types are
+installed directly or rebuilt. Package types are
 Red Hat Package Manager (RPM) packages and Debian (DEB) packages for binary installation and 
 Source RPM packages (SRPMS) and Debbuild SDEB packages for source code installation.  
 
