@@ -134,7 +134,7 @@ To deinstall the RPM binary package:
 rpm -e getssl
 ```
 
-To install the binary package with the Debian dpkg package manager for Debian and Ubuntu Linux distributioins:
+To install the binary package with the Debian dpkg package manager for Debian and Ubuntu Linux distributions:
 ```sh
 dpkg -i getssl_2.47-1_all.deb
 ```
