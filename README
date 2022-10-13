@@ -178,7 +178,7 @@ _(Note: Debbuild installs the source code files in /root/debbuild/ as
 top directory)_
 
 One item of note is that SDEB packages are actually just tar.gz archives
-renamed with an .sdeb file extension and with the files organized into a
+renamed with an .sdeb file extension with the files organized into a
 SPECS and SOURCES directory tree structure. Subsequently, an SDEB can
 also be extracted and installed with the _tar -xvf command_ or the files
 listed with the _tar -tvf command_:
