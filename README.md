@@ -23,7 +23,7 @@ for automating the process on remote servers.
 - [Preferred Chain](#preferred-chain)
 - [Include Root certificate in full chain](#include-root-certificate-in-full-chain)
 - [Windows Server and IIS Support](#windows-server-and-iis-support)
-- [Building getssl as an RPM Package (Redhat/CentOS/SuSe)](#building-as-an-rpm-package)
+- [Building getssl as an RPM Package (Redhat/CentOS/SuSe/Oracle/AWS)](#building-as-an-rpm-package)
 - [Building getssl as a Debian Package (Debian/Ubuntu)](#building-as-a-debian-package)
 - [Issues / problems / help](#issues--problems--help)
 
@@ -112,7 +112,7 @@ and a source package which can be downloaded and built/rebuilt and which contain
 
 For example, the release v2.47 contains the following packages in the release section:
 
-### **RPM Based Packages (RedHat, CentOS, SuSe)**
+### **RPM Based Packages (RedHat, CentOS, SuSe, Oracle Linux, AWS Linux)**
 
 - [getssl-2.47-1.src.rpm](https://github.com/jeffmerkey/getssl/releases/download/v2.47/getssl-2.47-1.src.rpm) (source)
 - [getssl-2.47-1.noarch.rpm](https://github.com/jeffmerkey/getssl/releases/download/v2.47/getssl-2.47-1.noarch.rpm) (binary)
@@ -124,7 +124,7 @@ For example, the release v2.47 contains the following packages in the release se
 
 ### **Installing Binary Packages**
 
-To install the binary package with the rpm package manager for RedHat, CentOS, or Oracle Linux distributions:
+To install the binary package with the rpm package manager for RedHat, CentOS, SuSe, Oracle Linux, or AWS Linux distributions:
 ```sh
 rpm -i getssl-2.47-1.noarch.rpm
 ```
@@ -146,12 +146,11 @@ dpkg -r getssl
 
 ### **Installing Source Packages**
 
-To install the source package with the rpm package manager for RedHat, CentOS, or Oracle Linux distributions:
+To install the source package with the rpm package manager for RedHat, CentOS, SuSe, Oracle Linux, or AWS Linux distributions:
 ```sh
 rpm -i getssl-2.47-1.src.rpm 
 ```
-*(Note: rpm installs the source code files in /root/rpmbuild/ as top directory for RedHat and CentOS
-platforms.  SuSe platforms install the source code files in /usr/src/packages/)*
+*(Note: rpm installs the source code files in /root/rpmbuild/ as top directory for RedHat, CentOS, Oracle Linux, and AWS Linux platforms.  SuSe platforms install the source code files in /usr/src/packages/)*
 
 To install the source package with the Debbuild package tool for Debian or Ubuntu Linux distributions:
 ```sh
@@ -161,7 +160,7 @@ debbuild -i getssl-2.47-1.sdeb
 
 For building or rebuilding RPMS or DEB Packages after you have installed the associated source packages on your platform, refer to the following:
 
-- [Building getssl as an RPM Package (Redhat/CentOS/SuSe)](#building-as-an-rpm-package)
+- [Building getssl as an RPM Package (Redhat/CentOS/SuSe/Oracle/AWS)](#building-as-an-rpm-package)
 - [Building getssl as a Debian Package (Debian/Ubuntu)](#building-as-a-debian-package)
 
 ## Manual Installation
@@ -607,9 +606,7 @@ file and the tar.gz file named to match the versioning information contained in 
 associated .spec file.  
 
 Spec files are special files which contain instructions on how to build a particular package
-from a source code archive.  On Red Hat and CentOS systems, RPMS are built in the /root/rpmbuild/
- top directory.  SuSe systems build RPMS in the /usr/src/packages/ as top directory.  These 
-"top directories" will contain BUILD, BUILDROOT, SPECS, RPMS, SRPMS, and SOURCES subdirectories.  
+from a source code archive.  On Red Hat, CentOS, Oracle Linux, and AWS Linux systems, RPMS are built in the /root/rpmbuild/ top directory.  SuSe systems build RPMS in the /usr/src/packages/ as top directory.  These "top directories" will contain BUILD, BUILDROOT, SPECS, RPMS, SRPMS, and SOURCES subdirectories.  
 
 The SPECS directory contains the \*.spec files used to build RPMS and SRPMS packages.  The SOURCES subdirectory will contain the soure code archive file referred to in the \*.spec file used to build the 
 RPM package.
