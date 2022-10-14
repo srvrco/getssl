@@ -161,12 +161,12 @@ debbuild -i getssl-2.47-1.sdeb
 One item of note is that SDEB packages are actually just tar.gz archives renamed with an .sdeb file extension with the files organized into a SPECS and SOURCES directory tree structure.  Subsequently, an SDEB can also be extracted and installed with the **tar -xvf command** or the files listed with the **tar -tvf command**:
 
 ```sh
-[root@localhost getssl]# tar -tvf /root/debbuild/SDEBS/getssl-2.47-1.sdeb 
+[root@localhost getssl]$ tar -tvf /root/debbuild/SDEBS/getssl-2.47-1.sdeb 
 -rw-r--r-- root/root   1772110 2022-10-12 20:42 SOURCES/getssl-2.47.tar.gz
 -rw-r--r-- root/root       192 2022-08-02 15:02 SOURCES/getssl.crontab
 -rw-r--r-- root/root       126 2022-08-02 15:02 SOURCES/getssl.logrotate
 -rw-r--r-- root/root      1537 2022-08-02 15:02 SPECS/getssl.spec
-[root@localhost getssl]# 
+[root@localhost getssl]$ 
 ```
 
 For building or rebuilding RPMS or DEB Packages after you have installed the associated source packages on your platform, refer to the following:
