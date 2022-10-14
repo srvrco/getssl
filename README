@@ -180,8 +180,8 @@ top directory)_
 One item of note is that SDEB packages are actually just tar.gz archives
 renamed with an .sdeb file extension with the files organized into a
 SPECS and SOURCES directory tree structure. Subsequently, an SDEB can
-also be extracted and installed with the _tar -xvf command_ or the files
-listed with the _tar -tvf command_:
+also be extracted and installed with the TAR -XVF COMMAND or the files
+listed with the TAR -TVF COMMAND:
 
     [root@localhost getssl]# tar -tvf /root/debbuild/SDEBS/getssl-2.47-1.sdeb 
     -rw-r--r-- root/root   1772110 2022-10-12 20:42 SOURCES/getssl-2.47.tar.gz

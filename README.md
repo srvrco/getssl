@@ -158,7 +158,7 @@ debbuild -i getssl-2.47-1.sdeb
 ```
 *(Note: Debbuild installs the source code files in /root/debbuild/ as top directory)*
 
-One item of note is that SDEB packages are actually just tar.gz archives renamed with an .sdeb file extension with the files organized into a SPECS and SOURCES directory tree structure.  Subsequently, an SDEB can also be extracted and installed with the *tar -xvf command* or the files listed with the *tar -tvf command*:
+One item of note is that SDEB packages are actually just tar.gz archives renamed with an .sdeb file extension with the files organized into a SPECS and SOURCES directory tree structure.  Subsequently, an SDEB can also be extracted and installed with the **tar -xvf command** or the files listed with the **tar -tvf command**:
 
 ```sh
 [root@localhost getssl]# tar -tvf /root/debbuild/SDEBS/getssl-2.47-1.sdeb 
