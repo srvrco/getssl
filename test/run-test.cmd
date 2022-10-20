@@ -77,6 +77,8 @@ docker run -it ^
   --network-alias j.%OS%.getssl.test ^
   --network-alias k.%OS%.getssl.test ^
   --network-alias wild-%ALIAS% ^
+  --hostname getssl-%OS% ^
+  --dns 8.8.8.8 ^
   --name getssl-%OS% ^
   getssl-%OS% ^
   %COMMAND%

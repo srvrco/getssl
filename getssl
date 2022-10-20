@@ -1063,6 +1063,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       # shellcheck disable=SC2086
       curl ${_NOMETER} -u "${davsuser}:${davspass}" -T "${fromdir}/${fromfile}" "https://${davshost}:${davsport}${davsdirn}${davsfile}"
     elif [[ "${to:0:6}" == "ftpes:" ]] || [[ "${to:0:5}" == "ftps:" ]] ; then
+      # FTPES (FTP over explicit TLS/SSL, port 21) and FTPS (FTP over implicit TLS/SSL, port 990).
       debug "using ftp to copy the file from $from"
       ftpuser=$(echo "$to"| awk -F: '{print $2}')
       ftppass=$(echo "$to"| awk -F: '{print $3}')
@@ -1076,10 +1077,14 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       debug "from dir=$fromdir  file=$fromfile"
       if [[ "${to:0:5}" == "ftps:" ]] ; then
         # shellcheck disable=SC2086
-        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}:990/"
+        debug curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}:990/${ftpdirn}/"
+        # shellcheck disable=SC2086
+        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}:990/${ftpdirn}/"
       else
         # shellcheck disable=SC2086
-        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}/"
+        debug curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}/${ftpdirn}/"
+        # shellcheck disable=SC2086
+        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}/${ftpdirn}/"
       fi
     else
       if ! mkdir -p "$(dirname "$to")" ; then
