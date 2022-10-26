@@ -1,4 +1,4 @@
-#!/bin/bash
+#! /usr/bin/env bash
 # Vultr Add DNS Record 
 
 api_url="https://api.vultr.com/v2"
