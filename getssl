@@ -319,6 +319,7 @@ DUAL_RSA_ECDSA="false"
 FTP_OPTIONS=""
 FTPS_OPTIONS=""
 FTP_ARGS=""
+FTP_PORT=""
 FULL_CHAIN_INCLUDE_ROOT="false"
 GETSSL_IGNORE_CP_PRESERVE="false"
 HTTP_TOKEN_CHECK_WAIT=0
@@ -1013,7 +1014,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       ftpfile=$(basename "$ftplocn")
       fromdir=$(dirname "$from")
       fromfile=$(basename "$from")
-      debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost dir=$ftpdirn file=$ftpfile"
+      debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost port=$FTP_PORT dir=$ftpdirn file=$ftpfile"
       debug "from dir=$fromdir  file=$fromfile"
       if [ -n "$FTP_OPTIONS" ]; then
         # Use eval to expand any variables in FTP_OPTIONS
@@ -1021,7 +1022,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
         debug "FTP_OPTIONS=$FTP_OPTIONS"
       fi
       $FTP_COMMAND <<- _EOF
-			open $ftphost
+			open $ftphost $FTP_PORT
 			user $ftpuser $ftppass
 			$FTP_OPTIONS
 			cd $ftpdirn
@@ -1038,10 +1039,11 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       ftpfile=$(basename "$ftplocn")
       fromdir=$(dirname "$from")
       fromfile=$(basename "$from")
-      debug "sftp $SFTP_OPTS user=$ftpuser - pass=$ftppass - host=$ftphost dir=$ftpdirn file=$ftpfile"
+      if [ -n "$FTP_PORT" ]; then SFTP_PORT="-P $FTP_PORT"; else SFTP_PORT=""; fi
+      debug "sftp $SFTP_OPTS user=$ftpuser - pass=$ftppass - host=$ftphost port=$FTP_PORT dir=$ftpdirn file=$ftpfile"
       debug "from dir=$fromdir  file=$fromfile"
       # shellcheck disable=SC2086
-      sshpass -p "$ftppass" sftp $SFTP_OPTS "$ftpuser@$ftphost" <<- _EOF
+      sshpass -p "$ftppass" sftp $SFTP_OPTS $SFTP_PORT "$ftpuser@$ftphost" <<- _EOF
 			cd $ftpdirn
 			lcd $fromdir
 			put ./$fromfile
@@ -1064,7 +1066,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       curl ${_NOMETER} -u "${davsuser}:${davspass}" -T "${fromdir}/${fromfile}" "https://${davshost}:${davsport}${davsdirn}${davsfile}"
     elif [[ "${to:0:6}" == "ftpes:" ]] || [[ "${to:0:5}" == "ftps:" ]] ; then
       # FTPES (FTP over explicit TLS/SSL, port 21) and FTPS (FTP over implicit TLS/SSL, port 990).
-      debug "using ftp to copy the file from $from"
+      debug "using ${to:0:5} to copy the file from $from"
       ftpuser=$(echo "$to"| awk -F: '{print $2}')
       ftppass=$(echo "$to"| awk -F: '{print $3}')
       ftphost=$(echo "$to"| awk -F: '{print $4}')
@@ -1073,18 +1075,25 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       ftpfile=$(basename "$ftplocn")
       fromdir=$(dirname "$from")
       fromfile=$(basename "$from")
-      debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost dir=$ftpdirn file=$ftpfile"
+
+      SFTP_PORT="";
+      if [ -n "$FTP_PORT" ]; then SFTP_PORT=":${FTP_PORT}"; fi
+      debug "${to:0:5} user=$ftpuser - pass=$ftppass - host=$ftphost port=$FTP_PORT dir=$ftpdirn file=$ftpfile"
       debug "from dir=$fromdir  file=$fromfile"
       if [[ "${to:0:5}" == "ftps:" ]] ; then
+        # if no FTP_PORT is specified, then use default
+        if [ -z "$FTP_PORT" ]; then
+          SFTP_PORT=":990"
+        fi
         # shellcheck disable=SC2086
-        debug curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}:990/${ftpdirn}/"
+        debug curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}${SFTP_PORT}/${ftpdirn}/"
         # shellcheck disable=SC2086
-        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}:990/${ftpdirn}/"
+        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}${SFTP_PORT}/${ftpdirn}/"
       else
         # shellcheck disable=SC2086
-        debug curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}/${ftpdirn}/"
+        debug curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${SFTP_PORT}/${ftpdirn}/"
         # shellcheck disable=SC2086
-        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}/${ftpdirn}/"
+        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${SFTP_PORT}/${ftpdirn}/"
       fi
     else
       if ! mkdir -p "$(dirname "$to")" ; then
