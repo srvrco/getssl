@@ -415,6 +415,10 @@ cert_archive() {  # Archive certificate file by copying files to dated archive d
   purge_archive "$DOMAIN_DIR"
 }
 
+base64url_decode() {
+    awk '{ if (length($0) % 4 == 3) print $0"="; else if (length($0) % 4 == 2) print $0"=="; else print $0; }' | tr -- '-_' '+/' | base64 -d
+}
+
 cert_install() {  # copy certs to the correct location (creating concatenated files as required)
   umask 077
 
@@ -1861,6 +1865,36 @@ get_cr() { # get curl response
   debug code "$code"
   debug "get_cr return code $ret"
   return $ret
+}
+
+get_eab_json() { # calculate json block for external account bindings, v2 only
+  if [ ${#EAB_PARAMS[@]} -eq 1 ]; then
+    # single param, assume file path and read into array
+    debug "Using EAB FILE ${EAB_PARAMS[0]}"
+    [[ -s "${EAB_PARAMS[0]}" ]] || error_exit "missing path ${EAB_PARAMS[0]} for eab file"
+    EAB_PARAMS=( $(cat "${EAB_PARAMS[0]}") )
+  fi
+  if [ ${#EAB_PARAMS[@]} -eq 2 ]; then
+    # two params - kid and mac key from CA
+    debug "Using EAB KID ${EAB_PARAMS[0]}"
+    debug "Using EAB HMAC ${EAB_PARAMS[1]}"
+    eab_protected="{\"alg\": \"HS256\", \"kid\": \"${EAB_PARAMS[0]}\", \"url\": \"${URL_newAccount}\"}"
+    eab_protected64=$(printf '%s' "${eab_protected}" | urlbase64)
+    eab_payload="${jwk}"
+    eab_payload64=$(printf '%s' "${eab_payload}" | urlbase64)
+    signing_input=$(printf '%s' "${eab_protected64}.${eab_payload64}")
+    keyhex=$(printf '%s' "${EAB_PARAMS[1]}" | base64url_decode | xxd -p | tr -d '\n')
+    debug "SIGN INPUT $signing_input"
+    debug "HMAC-SHA256 HEXKEY $keyhex"
+    eab_signature=$(printf '%s' "$signing_input" | openssl dgst -sha256 -mac hmac -macopt "hexkey:${keyhex}" -binary | urlbase64)
+    EAB_JSON="{"
+    EAB_JSON="${EAB_JSON}\"protected\": \"${eab_protected64}\","
+    EAB_JSON="${EAB_JSON}\"payload\": \"${eab_payload64}\","
+    EAB_JSON="${EAB_JSON}\"signature\": \"${eab_signature}\"}"
+    debug "EAB_JSON ${EAB_JSON}"
+  else
+    EAB_JSON=""
+  fi
 }
 
 get_os() { # function to get the current Operating System
