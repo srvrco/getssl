@@ -53,21 +53,21 @@ teardown() {
     # Disable CNAME check
     _TEST_SKIP_CNAME_CALL=1
 
-    PUBLIC_DNS_SERVER=ns1.duckdns.org
+    PUBLIC_DNS_SERVER=ns1.afraid.org
     CHECK_PUBLIC_DNS_SERVER=false
     CHECK_ALL_AUTH_DNS=false
 
-    run get_auth_dns ubuntu-getssl.duckdns.org
+    run get_auth_dns ubuntu-getssl.ignorelist.com
 
     # Assert that we've found the primary_ns server
-    assert_output --regexp 'set primary_ns = ns[1-9]+\.duckdns\.org'
+    assert_output --regexp 'set primary_ns = ns[1-3]+\.afraid\.org'
     # Assert that we had to use dig NS
     assert_line --regexp 'Using dig.* NS'
 
     # Check all Authoritive DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
-    run get_auth_dns ubuntu-getssl.duckdns.org
-    assert_output --regexp 'set primary_ns = (ns[1-9]+\.duckdns\.org )+'
+    run get_auth_dns ubuntu-getssl.ignorelist.com
+    assert_output --regexp 'set primary_ns = (ns[1-3]+\.afraid\.org ?)+'
 }
 
 

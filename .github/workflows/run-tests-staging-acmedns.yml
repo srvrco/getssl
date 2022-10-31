@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on Ubuntu against Staging using acmedns
