@@ -1560,20 +1560,20 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
   fi
 
   if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
-    if [[ -n "$gad_s" ]]; then
-      gad_s="@$gad_s"
+    if [[ -n "${gad_s}" ]]; then
+      gad_s="@${gad_s}"
     fi
 
     # Two options here; either dig CNAME will return the CNAME and the NS or just the CNAME
-    debug "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME $gad_d $gad_s"
+    debug "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} CNAME ${gad_d}"
     # shellcheck disable=SC2086
-    res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME "$gad_d" $gad_s| grep "^$gad_d")
+    res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} CNAME "${gad_d}"| grep "^${gad_d}")
     cname=$(echo "$res"| awk '$4 ~ "CNAME" {print $5}' |sed 's/\.$//g')
 
     if [[ $_TEST_SKIP_CNAME_CALL == 0 ]]; then
       debug Checking if CNAME result contains NS records
       # shellcheck disable=SC2086
-      res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME "$gad_d" $gad_s| grep -E "IN\W(NS|SOA)\W")
+      res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} CNAME "${gad_d}"| grep -E "IN\W(NS|SOA)\W")
     else
       res=
     fi
@@ -1589,19 +1589,19 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     if [[ -z "$res" ]] && [[ $_TEST_SKIP_SOA_CALL == 0 ]]; then
       # shellcheck disable=SC2086
       if [[ "$HAS_DIG_OR_DRILL" == "drill" ]]; then
-        debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T SOA $gad_d $gad_s" to find primary nameserver
-        res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T SOA "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
+        debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T ${gad_s} SOA ${gad_d}" to find primary nameserver
+        res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T ${gad_s} SOA "${gad_d}" 2>/dev/null | grep "IN\WNS\W")
       else
-        debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS SOA +trace +nocomments $gad_d $gad_s" to find primary nameserver
-        res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS SOA +trace +nocomments "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
+        debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} SOA +trace +nocomments ${gad_d}" to find primary nameserver
+        res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} SOA +trace +nocomments "${gad_d}" 2>/dev/null | grep "IN\WNS\W")
       fi
     fi
 
     # Query for NS records
     if [[ -z "$res" ]]; then
-      debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS NS $gad_d $gad_s" to find primary nameserver
+      debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} NS ${gad_d}" to find primary nameserver
       # shellcheck disable=SC2086
-      res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS NS "$gad_d" $gad_s | grep -E "IN\W(NS|SOA)\W")
+      res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} NS "${gad_d}"| grep -E "IN\W(NS|SOA)\W")
     fi
 
     if [[ -n "$res" ]]; then
@@ -1639,12 +1639,12 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
   if [[ "$HAS_HOST" == "true" ]]; then
     gad_d="$orig_gad_d"
-    debug Using "host -t NS" to find primary name server for "$gad_d"
+    debug Using "host -t NS" to find primary name server for "${gad_d}"
     # shellcheck disable=SC2086
-    if [[ -z "$gad_s" ]]; then
-      res=$(host $DNS_CHECK_OPTIONS -t NS "$gad_d"| grep "name server")
+    if [[ -z "${gad_s}" ]]; then
+      res=$(host $DNS_CHECK_OPTIONS -t NS "${gad_d}"| grep "name server")
     else
-      res=$(host $DNS_CHECK_OPTIONS -t NS "$gad_d" $gad_s| grep "name server")
+      res=$(host $DNS_CHECK_OPTIONS -t NS "${gad_d}" ${gad_s}| grep "name server")
     fi
     if [[ -n "$res" ]]; then
       all_auth_dns_servers=$(echo "$res" | awk '{print $4}' | sed 's/\.$//g'|tr '\n' ' ')
@@ -1665,17 +1665,17 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
   if [[ "$HAS_NSLOOKUP" == "true" ]]; then
     gad_d="$orig_gad_d"
-    debug Using "nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns $gad_d $gad_s" to find primary name server
+    debug Using "nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns ${gad_d} ${gad_s}" to find primary name server
     # shellcheck disable=SC2086
-    res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" ${gad_s})
+    res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "${gad_d}" ${gad_s})
 
     # check for CNAME (assumes gad_d is _acme-challenge.{host})
     if [[ "$(grep -c "NXDOMAIN"<<<"$res")" -gt 0 ]]; then
-      debug "Cannot find nameserver record for $gad_d, using parent domain ${gad_d#*.}"
+      debug "Cannot find nameserver record for ${gad_d}, using parent domain ${gad_d#*.}"
       gad_d="${gad_d#*.}"
-      debug "nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns $gad_d ${gad_s}"
+      debug "nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns ${gad_d} ${gad_s}"
       # shellcheck disable=SC2086
-      res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" ${gad_s})
+      res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "${gad_d}" ${gad_s})
     fi
 
     if [[ "$(echo "$res" | grep -c "Non-authoritative")" -gt 0 ]]; then
@@ -1684,14 +1684,14 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
       gad_s=$(echo "$res" | awk '$2 ~ "nameserver" {print $4; exit }' |sed 's/\.$//g')
       # If the previous line fails to find the nameserver, use the original
-      if [[ -z "$gad_s" ]]; then
+      if [[ -z "${gad_s}" ]]; then
         gad_s="$orig_gad_s"
       fi
 
       if [[ "$(echo "$res" | grep -c "canonical name")" -gt 0 ]]; then
-        debug "$gad_d" appears to be a CNAME
+        debug "${gad_d}" appears to be a CNAME
         gad_d=$(echo "$res" | awk ' $2 ~ "canonical" {print $5; exit }' |sed 's/\.$//g')
-        debug "Using $gad_d instead"
+        debug "Using ${gad_d} instead"
       elif [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
         # if domain name doesn't exist, then find auth servers for next level up
         debug "Couldn't find NS or SOA for domain name, using nslookup $DNS_CHECK_OPTIONS -debug ${gad_d#*.} ${orig_gad_s}"
@@ -1700,28 +1700,28 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         gad_s=$(echo "$res" | awk '$1 ~ "origin" {print $3; exit }')
         gad_d=$(echo "$res" | awk '$1 ~ "->" {print $2; exit}')
         # handle scenario where awk returns nothing
-        if [[ -z "$gad_d" ]]; then
+        if [[ -z "${gad_d}" ]]; then
           gad_d="${orig_gad_d}"
         fi
       fi
 
-      debug "Using nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns $gad_d ${gad_s}"
+      debug "Using nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns ${gad_d} ${gad_s}"
       # shellcheck disable=SC2086
-      res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" ${gad_s})
+      res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "${gad_d}" ${gad_s})
     fi
 
     if [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
       gad_s=$(echo "$res" | awk ' $1 ~ "origin" {print $3; exit }')
       gad_d=$(echo "$res"| awk '$1 ~ "->" {print $2; exit}')
       # handle scenario where awk returns nothing
-      if [[ -z "$gad_d" ]]; then
+      if [[ -z "${gad_d}" ]]; then
         gad_d="$orig_gad_d"
       fi
     fi
 
     # shellcheck disable=SC2086
     # not quoting gad_s fixes the nslookup: couldn't get address for '': not found warning (#332)
-    all_auth_dns_servers=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" $gad_s \
+    all_auth_dns_servers=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "${gad_d}" ${gad_s} \
                           | awk '$1 ~ "nameserver" {print $3}' \
                           | sed 's/\.$//g'| tr '\n' ' ')
 
@@ -1872,6 +1872,7 @@ get_eab_json() { # calculate json block for external account bindings, v2 only
     # single param, assume file path and read into array
     debug "Using EAB FILE ${EAB_PARAMS[0]}"
     [[ -s "${EAB_PARAMS[0]}" ]] || error_exit "missing path ${EAB_PARAMS[0]} for eab file"
+    # shellcheck disable=SC2207
     EAB_PARAMS=( $(cat "${EAB_PARAMS[0]}") )
   fi
   if [ ${#EAB_PARAMS[@]} -eq 2 ]; then
