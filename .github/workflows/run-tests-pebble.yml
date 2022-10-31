@@ -15,7 +15,7 @@ jobs:
   test-alpine:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on Alpine
@@ -23,7 +23,7 @@ jobs:
   test-bash-4-0:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on Alpine using Bash 4.0
@@ -31,7 +31,7 @@ jobs:
   test-bash-4-2:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on Alpine using Bash 4.2
@@ -39,7 +39,7 @@ jobs:
   test-bash-5-0:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on Alpine using Bash 5
@@ -47,7 +47,7 @@ jobs:
   test-centos6:
       runs-on: ubuntu-latest
       steps:
-        - uses: actions/checkout@v1
+        - uses: actions/checkout@v3
         - name: Build the docker-compose stack
           run: docker-compose up -d --build
         - name: Run test suite on CentOS6
@@ -55,7 +55,7 @@ jobs:
   test-centos7:
       runs-on: ubuntu-latest
       steps:
-        - uses: actions/checkout@v1
+        - uses: actions/checkout@v3
         - name: Build the docker-compose stack
           run: docker-compose up -d --build
         - name: Run test suite on CentOS7
@@ -63,7 +63,7 @@ jobs:
   test-centos8:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on CentOS8
@@ -71,7 +71,7 @@ jobs:
   test-debian:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on Debian
@@ -79,7 +79,7 @@ jobs:
   test-rockylinux8:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on RockyLinux8
@@ -87,7 +87,7 @@ jobs:
   test-ubuntu:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on Ubuntu
@@ -95,7 +95,7 @@ jobs:
   test-ubuntu14:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on Ubuntu14
@@ -103,7 +103,7 @@ jobs:
   test-ubuntu16:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on Ubuntu16
@@ -111,7 +111,7 @@ jobs:
   test-ubuntu18:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - name: Build the docker-compose stack
         run: docker-compose up -d --build
       - name: Run test suite on Ubuntu18
