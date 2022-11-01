@@ -155,13 +155,13 @@ EOF3
 
 
 @test "Use ftpes (explicit ssl, port 21) to create challenge file" {
+    if [ -n "$STAGING" ]; then
+        skip "Using staging server, skipping internal test"
+    fi
+
     if [[ ! -f /etc/vsftpd.pem ]]; then
         echo "FAILED: This test requires the previous test to succeed"
         exit 1
-    fi
-
-    if [ -n "$STAGING" ]; then
-        skip "Using staging server, skipping internal test"
     fi
 
     if [[ ! -d /var/www/html/.well-known/acme-challenge ]]; then
@@ -217,13 +217,13 @@ EOF
 
 
 @test "Use ftps (implicit ssl, port 990) to create challenge file" {
+    if [ -n "$STAGING" ]; then
+        skip "Using staging server, skipping internal test"
+    fi
+
     if [[ ! -f /etc/vsftpd.pem ]]; then
         echo "FAILED: This test requires the previous test to succeed"
         exit 1
-    fi
-
-    if [ -n "$STAGING" ]; then
-        skip "Using staging server, skipping internal test"
     fi
 
     # Restart vsftpd listening on port 990
