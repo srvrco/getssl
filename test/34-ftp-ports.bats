@@ -38,13 +38,13 @@ teardown() {
 
 
 @test "Use ftpes, FTP_PORT=1001 (explicit ssl, port 1001) to create challenge file" {
+    if [ -n "$STAGING" ]; then
+        skip "Using staging server, skipping internal test"
+    fi
+
     if [[ ! -f /etc/vsftpd.pem ]]; then
         echo "FAILED: This test requires the previous test to succeed"
         exit 1
-    fi
-
-    if [ -n "$STAGING" ]; then
-        skip "Using staging server, skipping internal test"
     fi
 
     if [[ ! -d /var/www/html/.well-known/acme-challenge ]]; then
@@ -103,13 +103,13 @@ EOF
 
 
 @test "Use ftps, FTP_PORT=2002 (implicit ssl, port 2002) to create challenge file" {
+    if [ -n "$STAGING" ]; then
+        skip "Using staging server, skipping internal test"
+    fi
+
     if [[ ! -f /etc/vsftpd.pem ]]; then
         echo "FAILED: This test requires the previous test to succeed"
         exit 1
-    fi
-
-    if [ -n "$STAGING" ]; then
-        skip "Using staging server, skipping internal test"
     fi
 
     # Restart vsftpd listening on port 990
