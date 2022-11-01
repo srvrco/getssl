@@ -36,125 +36,8 @@ teardown() {
 }
 
 
-@test "Use Passive FTP to create challenge file (FTP_OPTIONS)" {
-    if [ -n "$STAGING" ]; then
-        skip "Using staging server, skipping internal test"
-    fi
 
-    if [[ ! -d /var/www/html/.well-known/acme-challenge ]]; then
-        mkdir -p /var/www/html/.well-known/acme-challenge
-    fi
-
-    ${CODE_DIR}/test/restart-ftpd start
-
-    NEW_FTP="false"
-    if [[ "$(ftp -? 2>&1 | head -1 | cut -c-6)" == "usage:" ]]; then
-        NEW_FTP="true"
-    fi
-
-    # Always change ownership and permissions in case previous tests created the directories as root
-    chgrp -R www-data /var/www/html/.well-known
-    chmod -R g+w /var/www/html/.well-known
-
-    CONFIG_FILE="getssl-http01.cfg"
-    setup_environment
-    init_getssl
-
-    # The DOMAIN_PEM_LOCATION creates a *signed* certificate for the ftps/ftpes tests
-    cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
-ACL="ftp:ftpuser:ftpuser:${GETSSL_CMD_HOST}:/var/www/html/.well-known/acme-challenge"
-DOMAIN_PEM_LOCATION=/etc/vsftpd.pem
-CA_CERT_LOCATION=/etc/cacert.pem
-EOF
-    if [[ "$FTP_PASSIVE_DEFAULT" == "false" ]]; then
-        if [[ "$NEW_FTP" == "true" ]]; then
-            # Newer version of ftp, needs "passive on" instead of "passive"
-            cat <<- EOF3 >> ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
-FTP_OPTIONS="passive on"
-EOF3
-        else
-            cat <<- EOF4 >> ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
-FTP_OPTIONS="passive"
-EOF4
-        fi
-    fi
-
-    create_certificate
-    assert_success
-    assert_line --partial "ftp:ftpuser:ftpuser:"
-    if [[ "$FTP_PASSIVE_DEFAULT" == "false" ]]; then
-        if [[ "$NEW_FTP" == "true" ]]; then
-            assert_line --partial "Passive mode: on"
-        else
-            assert_line --partial "Passive mode on"
-        fi
-    else
-        refute_line --partial "Passive mode off"
-    fi
-    check_output_for_errors
-}
-
-
-@test "Use Passive FTP to create challenge file (FTP_ARGS)" {
-    if [ -n "$STAGING" ]; then
-        skip "Using staging server, skipping internal test"
-    fi
-
-    if [[ ! -d /var/www/html/.well-known/acme-challenge ]]; then
-        mkdir -p /var/www/html/.well-known/acme-challenge
-    fi
-
-    ${CODE_DIR}/test/restart-ftpd start
-
-    NEW_FTP="false"
-    if [[ "$(ftp -? 2>&1 | head -1 | cut -c-6)" == "usage:" ]]; then
-        NEW_FTP="true"
-    fi
-
-    if [[ -n "$(command -v ftp 2>/dev/null)" ]]; then
-        FTP_COMMAND="ftp"
-    elif [[ -n "$(command -v lftp 2>/dev/null)" ]]; then
-        FTP_COMMAND="lftp"
-    else
-        echo "host doesn't have ftp or lftp installed"
-        exit 1
-    fi
-
-
-    # Always change ownership and permissions in case previous tests created the directories as root
-    chgrp -R www-data /var/www/html/.well-known
-    chmod -R g+w /var/www/html/.well-known
-
-    CONFIG_FILE="getssl-http01.cfg"
-    setup_environment
-    init_getssl
-
-    if [[ "$FTP_COMMAND" == "ftp" ]]; then
-        cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
-ACL="ftp:ftpuser:ftpuser:${GETSSL_CMD_HOST}:/var/www/html/.well-known/acme-challenge"
-FTP_ARGS="-p -v"
-EOF
-    else
-        cat <<- EOF3 > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
-ACL="ftp:ftpuser:ftpuser:${GETSSL_CMD_HOST}:/var/www/html/.well-known/acme-challenge"
-FTP_ARGS="-d -e 'set ftp:passive-mode true'"
-EOF3
-    fi
-
-    create_certificate
-    assert_success
-    assert_line --partial "ftp:ftpuser:ftpuser:"
-
-    if [[ "$NEW_FTP" == "true" ]]; then
-        assert_line --partial "Entering Extended Passive Mode"
-    else
-        assert_line --partial "Entering Passive Mode"
-    fi
-    check_output_for_errors
-}
-
-
-@test "Use ftpes (explicit ssl, port 21) to create challenge file" {
+@test "Use ftpes, FTP_PORT=1001 (explicit ssl, port 1001) to create challenge file" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
@@ -171,6 +54,7 @@ EOF3
     # Restart vsftpd with ssl enabled
     cat <<- _FTP >> $VSFTPD_CONF
 connect_from_port_20=NO
+listen_port=1001
 ssl_enable=YES
 allow_anon_ssl=NO
 force_local_data_ssl=NO
@@ -199,11 +83,13 @@ _FTP
         cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
     ACL="ftpes:ftpuser:ftpuser:${GETSSL_CMD_HOST}:/var/www/html/.well-known/acme-challenge"
     FTPS_OPTIONS="--cacert /etc/cacert.pem -v -k"
+    FTP_PORT=1001
 EOF
     else
         cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
 ACL="ftpes:ftpuser:ftpuser:${GETSSL_CMD_HOST}:/var/www/html/.well-known/acme-challenge"
 FTPS_OPTIONS="--cacert /etc/cacert.pem -v"
+FTP_PORT=1001
 EOF
     fi
 
@@ -216,7 +102,7 @@ EOF
 }
 
 
-@test "Use ftps (implicit ssl, port 990) to create challenge file" {
+@test "Use ftps, FTP_PORT=2002 (implicit ssl, port 2002) to create challenge file" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
@@ -229,7 +115,7 @@ EOF
     # Restart vsftpd listening on port 990
     cat <<- _FTP >> $VSFTPD_CONF
 implicit_ssl=YES
-listen_port=990
+listen_port=2002
 connect_from_port_20=NO
 ssl_enable=YES
 allow_anon_ssl=NO
@@ -264,11 +150,13 @@ _FTP
         cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
 ACL="ftps:ftpuser:ftpuser:${GETSSL_CMD_HOST}:/var/www/html/.well-known/acme-challenge"
 FTPS_OPTIONS="--cacert /etc/cacert.pem -v -k"
+FTP_PORT=2002
 EOF
     else
         cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
 ACL="ftps:ftpuser:ftpuser:${GETSSL_CMD_HOST}:/var/www/html/.well-known/acme-challenge"
 FTPS_OPTIONS="--cacert /etc/cacert.pem -v"
+FTP_PORT=2002
 EOF
     fi
 
