@@ -285,6 +285,8 @@
 # 2022-01-06 Support --account-id (#716)(2.46)
 # 2022-03-09 Support for ISPConfig API
 # 2022-05-03 Windows Server and IIS support (2.47)
+# 2022-05-18 Add FTP_ARGS
+# 2022-11-01 Add FTP_PORT
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
