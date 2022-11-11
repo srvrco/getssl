@@ -1,0 +1,68 @@
+# Hacked together from https://github.com/qemu-riscv-xpack/.github/workflows/build-all.yml
+# and https://github.com/palmetto/palm-cli/blob/develop/.github/workflows/pypi-deploy.yaml
+
+name: getssl Deploy
+
+on:
+  push:
+    # Sequence of patterns matched against refs/tags
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: "getssl"
+
+      - name: Get version number
+        id: get_version
+        run: |
+          echo ::set-output name=VERSION::$(bash ./getssl/getssl --version)
+
+      - name: Check version matches tag
+        run: |
+          if [ "${{ steps.get_version.outputs.VERSION }}" != "getssl V${GITHUB_REF#refs/tags/v}" ]; then
+            echo "Version number in getssl (${{ steps.get_version.outputs.VERSION }}) does not match tag (getssl V${GITHUB_REF#refs/tags/v})"
+            exit 1
+          fi
+
+      - name: build .deb package
+        id: build_deb
+        run: |
+          apt-get update
+          apt-get install -y build-essential devscripts debhelper pax liblocale-gettext-perl
+          wget https://github.com/debbuild/debbuild/releases/download/22.02.1/debbuild_22.02.1-0ubuntu20.04_all.deb
+          dpkg --install debbuild_22.02.1-0ubuntu20.04_all.deb
+          # Line 1959 has an extra ")" bracket
+          patch /usr/bin/debbuild < ./getssl/debbuild.patch
+          mkdir -p /root/debbuild/BUILD
+          mkdir -p /root/debbuild/DEBS/all
+          mkdir -p /root/debbuild/SDEBS
+          mkdir -p /root/debbuild/SOURCES
+          mkdir -p /root/debbuild/SPECS
+          tar -czf /root/debbuild/SOURCES/getssl-${GITHUB_REF#refs/tags/v}.tar.gz ./getssl/* --transform "s/getssl\//getssl-${GITHUB_REF#refs/tags/v}\//"
+          tar --append -f /root/getssl-${GITHUB_REF#refs/tags/v}.sdeb /root/debbuild/SOURCES/getssl-${GITHUB_REF#refs/tags/v}.tar.gz --transform 's,\.,SOURCES,'
+          tar --append -f /root/getssl-${GITHUB_REF#refs/tags/v}.sdeb -C ./getssl getssl.crontab getssl.logrotate --transform 's,^,SOURCES/,'
+          tar --append -f /root/getssl-${GITHUB_REF#refs/tags/v}.sdeb -C ./getssl getssl.spec --transform 's,^,SPECS/,'
+          debbuild --install /root/getssl-${GITHUB_REF#refs/tags/v}.sdeb
+          debbuild -vv -ba /root/debbuild/SPECS/getssl.spec
+
+      - name: create_release
+        id: create_release
+        if: steps.deploy.build_deb
+        uses: ncipollo/release-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag: ${{ github.ref }}
+          name: Draft Release ${{ github.ref }}
+          generateReleaseNotes: true
+          draft: true
+          prerelease: false
+          artifacts: /root/debbuild/DEBS/all/getssl_${GITHUB_REF#refs/tags/v}-*_all.deb
