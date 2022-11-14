@@ -53,9 +53,26 @@ jobs:
           debbuild --install /root/getssl-${GITHUB_REF#refs/tags/v}.sdeb
           debbuild -vv -ba /root/debbuild/SPECS/getssl.spec
 
+      - name: build .rpm package
+        id: build_rpm
+        if: ${{ success() }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: rockylinux:8
+          options: -v ${{ github.workspace }}:/root/getssl -e GITHUB_REF=${{ github.ref }}
+          run: |
+            yum install -y rpm-build make
+            mkdir -p /root/rpmbuild/SOURCES /root/rpmbuild/RPMS/SRPMS /root/rpmbuild/RPMS/noarch
+            tar -czf /root/rpmbuild/SOURCES/getssl-${GITHUB_REF#refs/tags/v}.tar.gz /root/getssl/* --transform "s/root\/getssl\//getssl-${GITHUB_REF#refs/tags/v}\//"
+            cp /root/getssl/getssl.crontab /root/rpmbuild/SOURCES
+            cp /root/getssl/getssl.logrotate /root/rpmbuild/SOURCES
+            rpmbuild -ba /root/getssl/getssl.spec
+            cp /root/rpmbuild/SRPMS/getssl-*.rpm /root/getssl
+            cp /root/rpmbuild/RPMS/noarch/getssl-*.rpm /root/getssl
+
       - name: create_release
         id: create_release
-        if: steps.deploy.build_deb
+        if: ${{ success() }}
         uses: ncipollo/release-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -65,4 +82,7 @@ jobs:
           generateReleaseNotes: true
           draft: true
           prerelease: false
-          artifacts: /root/debbuild/DEBS/all/getssl_${GITHUB_REF#refs/tags/v}-*_all.deb
+          artifacts: |
+            /root/debbuild/DEBS/all/getssl_${GITHUB_REF#refs/tags/v}-*_all.deb
+            /root/getssl-${GITHUB_REF#refs/tags/v}-*.src.rpm
+            /root/getssl-${GITHUB_REF#refs/tags/v}-*.noarch.rpm
