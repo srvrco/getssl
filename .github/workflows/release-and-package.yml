@@ -9,7 +9,7 @@ on:
       tags:
         description: 'Tag to deploy, e.g. 2.47'
         required: true
-        type: boolean
+        type: string
 
 jobs:
   deploy:
