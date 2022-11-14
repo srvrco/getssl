@@ -1,15 +1,15 @@
 # Hacked together from https://github.com/qemu-riscv-xpack/.github/workflows/build-all.yml
 # and https://github.com/palmetto/palm-cli/blob/develop/.github/workflows/pypi-deploy.yaml
 
-name: getssl Deploy
+name: Deploy getssl
 
 on:
-  push:
-    # Sequence of patterns matched against refs/tags
-    tags:
-      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Tag to deploy, e.g. 2.47'
+        required: true
+        type: boolean
 
 jobs:
   deploy:
@@ -27,8 +27,8 @@ jobs:
 
       - name: Check version matches tag
         run: |
-          if [ "${{ steps.get_version.outputs.VERSION }}" != "getssl V${GITHUB_REF#refs/tags/v}" ]; then
-            echo "Version number in getssl (${{ steps.get_version.outputs.VERSION }}) does not match tag (getssl V${GITHUB_REF#refs/tags/v})"
+          if [ "${{ steps.get_version.outputs.VERSION }}" != "getssl V${{ github.event.inputs.tags }}" ]; then
+            echo "Version number in getssl (${{ steps.get_version.outputs.VERSION }}) does not match tag (getssl V${{ github.event.inputs.tags }})"
             exit 1
           fi
 
@@ -46,11 +46,11 @@ jobs:
           mkdir -p /root/debbuild/SDEBS
           mkdir -p /root/debbuild/SOURCES
           mkdir -p /root/debbuild/SPECS
-          tar -czf /root/debbuild/SOURCES/getssl-${GITHUB_REF#refs/tags/v}.tar.gz ./getssl/* --transform "s/getssl\//getssl-${GITHUB_REF#refs/tags/v}\//"
-          tar --append -f /root/getssl-${GITHUB_REF#refs/tags/v}.sdeb /root/debbuild/SOURCES/getssl-${GITHUB_REF#refs/tags/v}.tar.gz --transform 's,\.,SOURCES,'
-          tar --append -f /root/getssl-${GITHUB_REF#refs/tags/v}.sdeb -C ./getssl getssl.crontab getssl.logrotate --transform 's,^,SOURCES/,'
-          tar --append -f /root/getssl-${GITHUB_REF#refs/tags/v}.sdeb -C ./getssl getssl.spec --transform 's,^,SPECS/,'
-          debbuild --install /root/getssl-${GITHUB_REF#refs/tags/v}.sdeb
+          tar -czf /root/debbuild/SOURCES/getssl-${{ github.event.inputs.tags }}.tar.gz ./getssl/* --transform "s/getssl\//getssl-${{ github.event.inputs.tags }}\//"
+          tar --append -f /root/getssl-${{ github.event.inputs.tags }}.sdeb /root/debbuild/SOURCES/getssl-${{ github.event.inputs.tags }}.tar.gz --transform 's,\.,SOURCES,'
+          tar --append -f /root/getssl-${{ github.event.inputs.tags }}.sdeb -C ./getssl getssl.crontab getssl.logrotate --transform 's,^,SOURCES/,'
+          tar --append -f /root/getssl-${{ github.event.inputs.tags }}.sdeb -C ./getssl getssl.spec --transform 's,^,SPECS/,'
+          debbuild --install /root/getssl-${{ github.event.inputs.tags }}.sdeb
           debbuild -vv -ba /root/debbuild/SPECS/getssl.spec
 
       - name: build .rpm package
@@ -63,7 +63,7 @@ jobs:
           run: |
             yum install -y rpm-build make
             mkdir -p /root/rpmbuild/SOURCES /root/rpmbuild/RPMS/SRPMS /root/rpmbuild/RPMS/noarch
-            tar -czf /root/rpmbuild/SOURCES/getssl-${GITHUB_REF#refs/tags/v}.tar.gz /root/getssl/* --transform "s/root\/getssl\//getssl-${GITHUB_REF#refs/tags/v}\//"
+            tar -czf /root/rpmbuild/SOURCES/getssl-${{ github.event.inputs.tags }}.tar.gz /root/getssl/* --transform "s/root\/getssl\//getssl-${{ github.event.inputs.tags }}\//"
             cp /root/getssl/getssl.crontab /root/rpmbuild/SOURCES
             cp /root/getssl/getssl.logrotate /root/rpmbuild/SOURCES
             rpmbuild -ba /root/getssl/getssl.spec
@@ -83,6 +83,6 @@ jobs:
           draft: true
           prerelease: false
           artifacts: |
-            /root/debbuild/DEBS/all/getssl_${GITHUB_REF#refs/tags/v}-*_all.deb
-            /root/getssl-${GITHUB_REF#refs/tags/v}-*.src.rpm
-            /root/getssl-${GITHUB_REF#refs/tags/v}-*.noarch.rpm
+            /root/debbuild/DEBS/all/getssl_${{ github.event.inputs.tags }}-*_all.deb
+            /root/getssl-${{ github.event.inputs.tags }}-*.src.rpm
+            /root/getssl-${{ github.event.inputs.tags }}-*.noarch.rpm
