@@ -35,12 +35,12 @@ jobs:
       - name: build .deb package
         id: build_deb
         run: |
-          apt-get update
-          apt-get install -y build-essential devscripts debhelper pax liblocale-gettext-perl
+          sudo apt-get update
+          sudo apt-get install -y build-essential devscripts debhelper pax liblocale-gettext-perl
           wget https://github.com/debbuild/debbuild/releases/download/22.02.1/debbuild_22.02.1-0ubuntu20.04_all.deb
-          dpkg --install debbuild_22.02.1-0ubuntu20.04_all.deb
+          sudo dpkg --install debbuild_22.02.1-0ubuntu20.04_all.deb
           # Line 1959 has an extra ")" bracket
-          patch /usr/bin/debbuild < ./getssl/debbuild.patch
+          sudo patch /usr/bin/debbuild < ./getssl/debbuild.patch
           mkdir -p /root/debbuild/BUILD
           mkdir -p /root/debbuild/DEBS/all
           mkdir -p /root/debbuild/SDEBS
@@ -61,7 +61,7 @@ jobs:
           image: rockylinux:8
           options: -v ${{ github.workspace }}:/root/getssl -e GITHUB_REF=${{ github.ref }}
           run: |
-            yum install -y rpm-build make
+            sudo yum install -y rpm-build make
             mkdir -p /root/rpmbuild/SOURCES /root/rpmbuild/RPMS/SRPMS /root/rpmbuild/RPMS/noarch
             tar -czf /root/rpmbuild/SOURCES/getssl-${{ github.event.inputs.tags }}.tar.gz /root/getssl/* --transform "s/root\/getssl\//getssl-${{ github.event.inputs.tags }}\//"
             cp /root/getssl/getssl.crontab /root/rpmbuild/SOURCES
