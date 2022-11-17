@@ -41,17 +41,17 @@ jobs:
           sudo dpkg --install debbuild_22.02.1-0ubuntu20.04_all.deb
           # Line 1959 has an extra ")" bracket
           sudo patch /usr/bin/debbuild < ./getssl/debbuild.patch
-          mkdir -p /root/debbuild/BUILD
-          mkdir -p /root/debbuild/DEBS/all
-          mkdir -p /root/debbuild/SDEBS
-          mkdir -p /root/debbuild/SOURCES
-          mkdir -p /root/debbuild/SPECS
-          tar -czf /root/debbuild/SOURCES/getssl-${{ github.event.inputs.tags }}.tar.gz ./getssl/* --transform "s/getssl\//getssl-${{ github.event.inputs.tags }}\//"
-          tar --append -f /root/getssl-${{ github.event.inputs.tags }}.sdeb /root/debbuild/SOURCES/getssl-${{ github.event.inputs.tags }}.tar.gz --transform 's,\.,SOURCES,'
-          tar --append -f /root/getssl-${{ github.event.inputs.tags }}.sdeb -C ./getssl getssl.crontab getssl.logrotate --transform 's,^,SOURCES/,'
-          tar --append -f /root/getssl-${{ github.event.inputs.tags }}.sdeb -C ./getssl getssl.spec --transform 's,^,SPECS/,'
-          debbuild --install /root/getssl-${{ github.event.inputs.tags }}.sdeb
-          debbuild -vv -ba /root/debbuild/SPECS/getssl.spec
+          mkdir -p $HOME/debbuild/BUILD
+          mkdir -p $HOME/debbuild/DEBS/all
+          mkdir -p $HOME/debbuild/SDEBS
+          mkdir -p $HOME/debbuild/SOURCES
+          mkdir -p $HOME/debbuild/SPECS
+          tar -czf $HOME/debbuild/SOURCES/getssl-${{ github.event.inputs.tags }}.tar.gz ./getssl/* --transform "s/getssl\//getssl-${{ github.event.inputs.tags }}\//"
+          tar --append -f $HOME/getssl-${{ github.event.inputs.tags }}.sdeb $HOME/debbuild/SOURCES/getssl-${{ github.event.inputs.tags }}.tar.gz --transform 's,\.,SOURCES,'
+          tar --append -f $HOME/getssl-${{ github.event.inputs.tags }}.sdeb -C ./getssl getssl.crontab getssl.logrotate --transform 's,^,SOURCES/,'
+          tar --append -f $HOME/getssl-${{ github.event.inputs.tags }}.sdeb -C ./getssl getssl.spec --transform 's,^,SPECS/,'
+          debbuild --install $HOME/getssl-${{ github.event.inputs.tags }}.sdeb
+          debbuild -vv -ba $HOME/debbuild/SPECS/getssl.spec
 
       - name: build .rpm package
         id: build_rpm
@@ -83,6 +83,6 @@ jobs:
           draft: true
           prerelease: false
           artifacts: |
-            /root/debbuild/DEBS/all/getssl_${{ github.event.inputs.tags }}-*_all.deb
-            /root/getssl-${{ github.event.inputs.tags }}-*.src.rpm
-            /root/getssl-${{ github.event.inputs.tags }}-*.noarch.rpm
+            $HOME/debbuild/DEBS/all/getssl_${{ github.event.inputs.tags }}-*_all.deb
+            $HOME/getssl-${{ github.event.inputs.tags }}-*.src.rpm
+            $HOME/getssl-${{ github.event.inputs.tags }}-*.noarch.rpm
