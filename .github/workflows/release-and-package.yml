@@ -52,6 +52,8 @@ jobs:
           tar --append -f /root/getssl-${{ github.event.inputs.tags }}.sdeb -C ./getssl getssl.spec --transform 's,^,SPECS/,'
           debbuild --install /root/getssl-${{ github.event.inputs.tags }}.sdeb
           debbuild -vv -ba /root/debbuild/SPECS/getssl.spec
+          echo "::set-output name=deb::/root/getssl-${{ github.event.inputs.tags }}.sdeb"
+
 
       - name: build .rpm package
         id: build_rpm
@@ -69,6 +71,9 @@ jobs:
             rpmbuild -ba /root/getssl/getssl.spec
             cp /root/rpmbuild/SRPMS/getssl-*.rpm /root/getssl
             cp /root/rpmbuild/RPMS/noarch/getssl-*.rpm /root/getssl
+            echo "::set-output name=getssl_rpm::/root/rpmbuild/RPMS/noarch/getssl-*.rpm"
+            echo "::set-output name=getssl_srpm::/root/rpmbuild/SRPMS/getssl-*.rpm"
+
 
       - name: create_release
         id: create_release
@@ -83,6 +88,6 @@ jobs:
           draft: true
           prerelease: false
           artifacts: |
-            /root/debbuild/DEBS/all/getssl_${{ github.event.inputs.tags }}-*_all.deb
-            /root/getssl-${{ github.event.inputs.tags }}-*.src.rpm
-            /root/getssl-${{ github.event.inputs.tags }}-*.noarch.rpm
+            ${{ steps.build_deb.outputs.getssl_deb }}
+            ${{ steps.build_rpm.outputs.getssl_rpm }}
+            ${{ steps.build_rpm.outputs.getssl_srpm }}
