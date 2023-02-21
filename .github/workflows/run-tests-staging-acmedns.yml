@@ -3,12 +3,18 @@ on:
   push:
     paths-ignore:
       - '.github/workflows/*'
+    branches:
+      - master
   pull_request:
     paths-ignore:
       - '.github/workflows/*'
+    branches:
+      - master
   workflow_dispatch:
     paths-ignore:
       - '.github/workflows/*'
+    branches:
+      - master
 
 env:
   DYNU_API_KEY: ${{ secrets.DYNU_API_KEY == '' && '65cXefd35XbYf36546eg5dYcZT6X52Y2' || secrets.DYNU_API_KEY }}
@@ -16,7 +22,6 @@ env:
 jobs:
   test-ubuntu-acmedns:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
