@@ -4,17 +4,22 @@ on:
   push:
     paths-ignore:
       - '.github/workflows/*'
+    branches:
+      - master
   pull_request:
     paths-ignore:
       - '.github/workflows/*'
+    branches:
+      - master
   workflow_dispatch:
     paths-ignore:
       - '.github/workflows/*'
+    branches:
+      - master
 
 jobs:
   lint:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Lint check

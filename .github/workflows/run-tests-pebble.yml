@@ -3,16 +3,21 @@ on:
   push:
     paths-ignore:
       - '.github/workflows/*'
+    branches:
+      - master
   pull_request:
     paths-ignore:
       - '.github/workflows/*'
+    branches:
+      - master
   workflow_dispatch:
     paths-ignore:
       - '.github/workflows/*'
+    branches:
+      - master
 jobs:
   test-alpine:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
@@ -21,7 +26,6 @@ jobs:
         run: test/run-test.sh alpine
   test-bash-4-0:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
@@ -30,7 +34,6 @@ jobs:
         run: test/run-test.sh bash4-0
   test-bash-4-2:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
@@ -39,7 +42,6 @@ jobs:
         run: test/run-test.sh bash4-2
   test-bash-5-0:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
@@ -48,7 +50,6 @@ jobs:
         run: test/run-test.sh bash5-0
   test-centos6:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
@@ -57,7 +58,6 @@ jobs:
         run: test/run-test.sh centos6
   test-centos7:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
@@ -66,7 +66,6 @@ jobs:
         run: test/run-test.sh centos7
   test-centos8:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
@@ -75,7 +74,6 @@ jobs:
         run: test/run-test.sh centos8
   test-debian:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
@@ -84,7 +82,6 @@ jobs:
         run: test/run-test.sh debian
   test-rockylinux8:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
@@ -93,7 +90,6 @@ jobs:
         run: test/run-test.sh rockylinux8
   test-ubuntu:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
@@ -102,7 +98,6 @@ jobs:
         run: test/run-test.sh ubuntu
   test-ubuntu14:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
@@ -111,7 +106,6 @@ jobs:
         run: test/run-test.sh ubuntu14
   test-ubuntu16:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
@@ -120,7 +114,6 @@ jobs:
         run: test/run-test.sh ubuntu16
   test-ubuntu18:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' # run this job only for the master branch
     steps:
       - uses: actions/checkout@v3
       - name: Build the docker-compose stack
