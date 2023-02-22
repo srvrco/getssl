@@ -1090,12 +1090,12 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
         # shellcheck disable=SC2086
         debug curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}${SFTP_PORT}/${ftpdirn}/"
         # shellcheck disable=SC2086
-        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}${SFTP_PORT}/${ftpdirn}/"
+        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}${SFTP_PORT}/${ftpdirn}/"
       else
         # shellcheck disable=SC2086
         debug curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${SFTP_PORT}/${ftpdirn}/"
         # shellcheck disable=SC2086
-        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${SFTP_PORT}/${ftpdirn}/"
+        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${SFTP_PORT}/${ftpdirn}/"
       fi
     else
       if ! mkdir -p "$(dirname "$to")" ; then
