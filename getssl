@@ -1156,7 +1156,7 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
     # create a temporary config file, for portability.
     tmp_conf=$(mktemp 2>/dev/null || mktemp -t getssl) || error_exit "mktemp failed"
     cat "$SSLCONF" > "$tmp_conf"
-    printf "[SAN]\n%s" "$SANLIST" >> "$tmp_conf"
+    printf "\n[SAN]\n%s" "$SANLIST" >> "$tmp_conf"
     # add OCSP Must-Staple to the domain csr
     # if openssl version >= 1.1.0 one can also use "tlsfeature = status_request"
     if [[ "$OCSP_MUST_STAPLE" == "true" ]]; then
