@@ -18,7 +18,7 @@ Source1:          getssl.crontab
 Source2:          getssl.logrotate
 BuildArch:        noarch
 
-Requires:         bash cronie
+Requires:         bash
 BuildRequires:    bash
 
 %description
