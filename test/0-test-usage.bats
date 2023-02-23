@@ -40,6 +40,9 @@ setup() {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
+
+    # Feb-23 Getting semi-repeatable "can't check for upgrades: ''" errors which are because the limit is being exceeded (re-use of github action ip?)
+    check_github_quota 7
     run ${CODE_DIR}/getssl --upgrade
     refute_output
     assert_success
