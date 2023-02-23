@@ -568,7 +568,7 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
 
     # add +noidnout if idn-domain so search for domain in results works
     if [[ "${d}" == xn--* || "${d}" == *".xn--"* ]]; then
-      if [[ "$DNS_CHECK_FUNC" == "nslookup" || "$DNS_CHECK_FUNC" == "host" || ("$DNS_CHECK_FUNC" == "dig" && "$DIG_SUPPORTS_NOIDNOUT" == "false") ]]; then
+      if [[ "$DNS_CHECK_FUNC" == "nslookup" || "$DNS_CHECK_FUNC" == "host" || ("$DNS_CHECK_FUNC" == "$HAS_DIG_OR_DRILL" && "$DIG_SUPPORTS_NOIDNOUT" == "false") ]]; then
         info "Info: idn domain but $DNS_CHECK_FUNC doesn't support +noidnout"
       else
         debug "adding +noidnout to DNS_CHECK_OPTIONS"
