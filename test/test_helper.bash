@@ -1,11 +1,48 @@
 INSTALL_DIR=/root
 CODE_DIR=/getssl
+LIMIT_API="https://api.github.com/rate_limit"
 
 check_certificates()
 {
   assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/chain.crt" ]
   assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" ]
   assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt" ]
+}
+
+# Quota generally shouldn't be an issue - except for tests
+# Rate limits are per-IP address
+check_github_quota() {
+  local need remaining reset limits now
+  need="$1"
+  echo "# Checking github limits"
+  while true ; do
+    limits="$(curl ${_NOMETER:---silent} --user-agent "srvrco/getssl/github-actions" -H 'Accept: application/vnd.github.v3+json' "$LIMIT_API")"
+    echo "# limits = $limits"
+    errcode=$?
+    if [[ $errcode -eq 60 ]]; then
+      echo "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
+      exit 1
+    elif [[ $errcode -gt 0 ]]; then
+      echo "curl error checking releases: $errcode"
+      exit 1
+    fi
+    remaining="$(jq -r '.resources.core.remaining' <<<"$limits")"
+    echo "# Remaining: $remaining"
+    reset="$(jq -r '.resources.core.reset' <<<"$limits")"
+    if [[ "$remaining" -ge "$need" ]] ; then return 0 ; fi
+    limit="$(jq -r '.resources.core.limit' <<<"$limits")"
+    echo "# Limit: $limit"
+    if [[ "$limit" -lt "$need" ]] ; then
+      echo "GitHub API request $need exceeds limit $limit"
+      exit 1
+    fi
+    now="$(date +%s)"
+    while [[ "$now" -lt "$reset" ]] ; do
+      echo "# sleeping $(( "$reset" - "$now" )) seconds for GitHub quota"
+      sleep "$(( "$reset" - "$now" ))"
+      now="$(date +%s)"
+   done
+  done
 }
 
 # Only nginx > 1.11.0 support dual certificates in a single configuration file
