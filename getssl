@@ -1418,6 +1418,8 @@ for d in "${alldomains[@]}"; do
         # get the token and uri from the dns-01 component
         token=$(json_get "$response" "challenges" "type" "dns-01" "token")
         uri=$(json_get "$response" "challenges" "type" "dns-01" "url")
+        # when using pebble this sometimes appears to have a newline which causes problems in send_signed_request
+        uri=$(echo "$uri" | tr -d '\r')
         debug uri "$uri"
       fi
 

@@ -38,8 +38,8 @@ check_github_quota() {
     fi
     now="$(date +%s)"
     while [[ "$now" -lt "$reset" ]] ; do
-      echo "# sleeping $(( "$reset" - "$now" )) seconds for GitHub quota"
-      sleep "$(( "$reset" - "$now" ))"
+      echo "# sleeping $(( reset - now )) seconds for GitHub quota"
+      sleep "$(( reset - now ))"
       now="$(date +%s)"
    done
   done
