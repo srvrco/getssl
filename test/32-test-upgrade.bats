@@ -12,18 +12,17 @@ check_github_quota() {
   local need remaining reset limits now
   need="$1"
   while true ; do
-    limits="$(curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" -H 'Accept: application/vnd.github.v3+json' "$LIMIT_API" | sed -e's/\("[^:]*": *\("[^""]*",\|[^,]*[,}]\)\)/\r\n\1/g' | sed -ne'/"core":/,/}/p')"
+    limits="$(curl ${_NOMETER:---silent} --user-agent "$CURL_USERAGENT" -H 'Accept: application/vnd.github.v3+json' "$LIMIT_API")"
     errcode=$?
     if [[ $errcode -eq 60 ]]; then
       error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
     elif [[ $errcode -gt 0 ]]; then
       error_exit "curl error checking releases: $errcode"
     fi
-    limits="$(sed -e's/^ *//g' <<<"${limits}")"
-    remaining="$(sed -e'/^"remaining": *[0-9]/!d;s/^"remaining": *\([0-9][0-9]*\).*$/\1/' <<<"${limits}")"
-    reset="$(sed -e'/^"reset": *[0-9]/!d;s/^"reset": *\([0-9][0-9]*\).*$/\1/' <<<"${limits}")"
+    remaining="$(jq -r '.resources.core.remaining' <<<"$limits")"
+    reset="$(jq -r '.resources.core.reset' <<<"$limits")"
     if [[ "$remaining" -ge "$need" ]] ; then return 0 ; fi
-    limit="$(sed -e'/^"limit": *[0-9]/!d;s/^"limit": *\([0-9][0-9]*\).*$/\1/' <<<"${limits}")"
+    limit="$(jq -r '.resources.core.limit' <<<"$limits")"
     if [[ "$limit" -lt "$need" ]] ; then
       error_exit "GitHub API request $need exceeds limit $limit"
     fi
