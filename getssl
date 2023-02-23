@@ -2516,7 +2516,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
 
     code="500"
     loop_limit=5
-    while [[ "$code" -eq 500 ]]; do
+    while [[ "$code" == 5* ]]; do
       if [[ "$outfile" ]] ; then
         $CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" > "$outfile"
         errcode=$?
@@ -2562,13 +2562,13 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         fi
       fi
       debug "response status = $response_status"
-      if [[ "$code" -eq 500 ]]; then
-        info "_error on acme server - trying again ...."
+      if [[ "$code" == 5* ]]; then
+        info "_error on acme server - waiting 30s then trying again ...."
         debug "loop_limit = $loop_limit"
-        sleep 5
+        sleep 30
         loop_limit=$((loop_limit - 1))
         if [[ $loop_limit -lt 1 ]]; then
-          error_exit "500 error from ACME server:  $response"
+          error_exit "$code error from ACME server: $response"
         fi
       fi
     done
