@@ -9,8 +9,8 @@ Summary:          getssl ACME Scripts for managing Let's Encrypt certificates
 License:          GPL
 Packager:         getssl developers <https://github.com/srvrco/getssl>
 Name:             getssl
-Version:          2.47
-Release:          2
+Version:          2.48
+Release:          1
 
 URL:              http://github.com/srvrco/getssl/
 Source0:          %{name}-%{version}.tar.gz

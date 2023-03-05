@@ -287,6 +287,8 @@
 # 2022-05-03 Windows Server and IIS support (2.47)
 # 2022-05-18 Add FTP_ARGS
 # 2022-11-01 Add FTP_PORT
+# 2023-02-04 Create newline to ensure [SAN] section can be parsed (#792)(MRigal)
+# 2023-02-22 Remove cronie from deb package dependencies (2.48)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -295,7 +297,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.47"
+VERSION="2.48"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
