@@ -8,8 +8,8 @@
 4. update VERSION in `getssl` and `getssl.spec`
 5. git commit -m"Update version to v2.nn"
 6. git tag -a v2.nn
-7. git push origin release_2_nn
-8. git push --tags
+8. git push origin release_2_nn
+9. git push --tags
 
 ## The github release-and-package action should:
 
@@ -30,3 +30,8 @@
    `dpkg -i getssl_2.nn-1_all.deb`
 5. Check it's installed correctly
    `getssl --version`
+
+## Update the latest tag post-release
+
+1. git tag -f -a latest
+2. git push --force --tags
