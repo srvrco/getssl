@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+# Make sure you enable in the /etc/dnsmasq.conf this line conf-dir=/etc/dnsmasq.d/,*.conf
+
+echo "txt-record=_acme-challenge.\${1},\$2" > /etc/dnsmasq.d/acme-challenge.conf
+
+systemctl restart dnsmasq
