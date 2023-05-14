@@ -11,10 +11,8 @@ on:
     branches:
       - master
   workflow_dispatch:
-    paths-ignore:
-      - '.github/workflows/*'
-    branches:
-      - master
+  schedule:
+    - cron: '15 3 5 * *'
 jobs:
   test-alpine:
     runs-on: ubuntu-latest

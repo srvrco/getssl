@@ -12,10 +12,6 @@ on:
     branches:
       - master
   workflow_dispatch:
-    paths-ignore:
-      - '.github/workflows/*'
-    branches:
-      - master
 
 jobs:
   lint:
