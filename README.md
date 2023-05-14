@@ -1,6 +1,6 @@
 # getssl <!-- omit in toc -->
 
-![Run all tests](https://github.com/srvrco/getssl/workflows/Run%20all%20tests/badge.svg) ![shellcheck](https://github.com/srvrco/getssl/workflows/shellcheck/badge.svg)
+![Run all tests on Pebble](https://github.com/srvrco/getssl/actions/workflows/run-tests-pebble.yml/badge.svg) ![shellcheck](https://github.com/srvrco/getssl/workflows/shellcheck/badge.svg)
 
 Obtain SSL certificates from the letsencrypt.org ACME server. Suitable
 for automating the process on remote servers.
