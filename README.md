@@ -17,6 +17,7 @@ for automating the process on remote servers.
 - [ISPConfig](#ispconfig)
 - [Automating updates](#automating-updates)
 - [Structure](#structure)
+- [Custom template for configuration](#custom-template-for-configuration)
 - [Server-Types](#server-types)
 - [Revoke a certificate](#revoke-a-certificate)
 - [Elliptic curve keys](#elliptic-curve-keys)
@@ -452,6 +453,42 @@ DOMAIN_KEY_LOCATION="/etc/ssl/example.com.key"
 CA_CERT_LOCATION="/etc/ssl/example.com.bundle"
 
 RELOAD_CMD="service apache2 reload"
+
+```
+
+## Custom template for configuration
+
+You can create and customize a template that can be use to generate the `~/.getssl/yourdomain.com/getssl.cfg` config file, instead of the default one.
+
+Choose one of fhe following allowed locations, according to your getssl installation:
+
+```sh
+/etc/getssl/getssl_default.cfg
+/path/of/your/getssl/installation/getssl_default.cfg
+~/.getssl/getssl_default.cfg
+
+```
+
+And dedine the default values, optionally using the dynamic variables, as in the example below:
+
+```sh
+# Additional domains - this could be multiple domains / subdomains in a comma separated list
+# Note: this is Additional domains - so should not include the primary domain.
+SANS="${EX_SANS}"
+
+ACL=('/home/myuser/${DOMAIN}/public_html/.well-known/acme-challenge')
+
+USE_SINGLE_ACL="true"
+
+RELOAD_CMD="sudo /bin/systemctl restart nginx.service"
+
+# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
+# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
+# will be checked for certificate expiry and also will be checked after
+# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+SERVER_TYPE="https"
+#CHECK_REMOTE="true"
+CHECK_REMOTE_WAIT="1" # wait 1 second before checking the remote server
 
 ```
 
