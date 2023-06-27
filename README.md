@@ -460,7 +460,7 @@ RELOAD_CMD="service apache2 reload"
 
 You can create and customize a template that can be use to generate the `~/.getssl/yourdomain.com/getssl.cfg` config file, instead of the default one.
 
-Choose one of fhe following allowed locations, according to your getssl installation:
+Create one of fhe following allowed locations, according to your getssl installation:
 
 ```sh
 /etc/getssl/getssl_default.cfg
@@ -469,7 +469,7 @@ Choose one of fhe following allowed locations, according to your getssl installa
 
 ```
 
-And dedine the default values, optionally using the dynamic variables, as in the example below:
+And define the default values, optionally using the dynamic variables, as in the example below:
 
 ```sh
 # Additional domains - this could be multiple domains / subdomains in a comma separated list
