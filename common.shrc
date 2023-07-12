@@ -1,0 +1,48 @@
+# Simple cURL wrapper to manage nicely error handling:
+#
+# * In case of success, just read body from stdout
+# * In case of HTTP error (status >= 400), first stderr contains "HTTP status: XXX", then body
+# * In case of other error, just print cURL error on stderr
+#
+# This function requires a temporary file. It's created under ${TEMP_DIR} if defined and not empty.
+# Otherwise, it relies on `mktemp` defaults.
+#
+curl.do() {
+  local rc=0
+
+  local mktemp_opts=( '--suffix=.curl' )
+  [[ -z "${TEMP_DIR}" ]] || mktemp_opts+=( "--tempdir=${TEMP_DIR}" )
+  local curl_body_file=''
+  curl_body_file="$(mktemp "${mktemp_opts[@]}")" || {
+    rc=$?
+    echo "Unable to create temporary file for cURL output"
+    return $rc
+  } >&2
+
+  local curl_opts=(
+    --output "${curl_body_file}"
+    --write-out '%{http_code}'
+    --silent
+    --show-error
+    "$@"
+  )
+  local http_code=''
+  http_code="$(curl "${curl_opts[@]}")" || rc=$?
+
+  (( http_code < 400 )) || {
+    (( rc == 0 )) || rc=1
+    echo "HTTP status: ${http_code}"
+  } >&2
+
+  if [[ $rc == 0 ]]; then
+    cat "${curl_body_file}" || rc=$?
+  else
+    cat "${curl_body_file}" >&2
+  fi
+
+  rm -rf "${curl_body_file}" || {
+    (( rc == 0 )) || rc=1
+    echo "Unable to clear temporary file '${curl_body_file}'"
+  } >&2
+  return $rc
+}
