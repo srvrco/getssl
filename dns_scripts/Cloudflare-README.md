@@ -38,14 +38,18 @@ Cloudflare provides a template for creating an API Token with access to edit
 zone records.  Tokens must be created with at least '**DNS:Edit** permissions
 for the domain to add/delete records.
 
-The API requires higher privileges to be able to list zones, therefore this
-method also requires the **Zone ID** from the Overview tab in the Cloudflare
-Dashboard.
-
 Set the following options in the domain-specific `getssl.cfg`
 
 ```
 export CF_API_TOKEN="..."
+```
+
+By default, the associated **Zone ID** is searched automatically. However, it
+is also possible to configure the Zone ID manually. This might be necessary
+if there are a lot of zones. You can find the Zone ID at the Overview tab in
+the Cloudflare Dashboard.
+
+```
 export CF_ZONE_ID="..."
 ```
 
