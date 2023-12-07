@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+. "$(dirname "${BASH_SOURCE}")/../common.shrc" || {
+  echo "Unable to load shared Bash code"
+  exit 1
+} >&2
+
 # ACMEDNS env variables can be set in a config file at domain level
 acme_config="$DOMAIN_DIR/acme-dns.cfg"
 [ -s "$acme_config" ] && . "$acme_config"
@@ -49,14 +54,12 @@ generate_post_data()
 EOF
 }
 
-resp=$(curl --silent \
+curl.do \
   "${curl_params[@]}" \
   -X POST "${API}" \
-  --data "$(generate_post_data)")
-
-# If adding record failed (returned json includes "error" then print error message
-if [[ "$resp" = *"\"error\""* ]]; then
-  echo "Error: DNS challenge not added: unknown error - ${resp}"
+  --data "$(generate_post_data)" \
+  >/dev/null || {
+  echo 'Error: DNS challenge not added: unknown error'
   exit 1
-fi
+} >&2
 exit 0
