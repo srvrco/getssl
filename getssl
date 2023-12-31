@@ -598,6 +598,7 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
           rr_cname=$(grep -i "^${rr}"<<<"${check_output}"|grep 'IN\WCNAME'|awk '{ print $5}')
           debug "cname check=\"$rr_cname\""
           if [[ -n "$rr_cname" ]]; then
+            check_output=$($DNS_CHECK_FUNC $DNS_CHECK_OPTIONS TXT "${rr_cname}" "@${ns}")
             check_result=$(grep -i "^${rr_cname}"<<<"${check_output}"|grep 'IN\WTXT'|awk -F'"' '{ print $2}' | uniq)
           fi
         fi
