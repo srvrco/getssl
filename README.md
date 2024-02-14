@@ -513,6 +513,7 @@ these are available in getssl to check if the certificate is installed correctly
 | xmpp             | 5222 | StartTLS     |
 | xmpps            | 5269 |              |
 | ldaps            | 636  |              |
+| postgres         | 5432 |              |
 | port number      |      |              |
 
 ## Revoke a certificate
