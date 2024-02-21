@@ -598,6 +598,7 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
           rr_cname=$(grep -i "^${rr}"<<<"${check_output}"|grep 'IN\WCNAME'|awk '{ print $5}')
           debug "cname check=\"$rr_cname\""
           if [[ -n "$rr_cname" ]]; then
+            # shellcheck disable=SC2086
             check_output=$($DNS_CHECK_FUNC $DNS_CHECK_OPTIONS TXT "${rr_cname}" "@${ns}")
             check_result=$(grep -i "^${rr_cname}"<<<"${check_output}"|grep 'IN\WTXT'|awk -F'"' '{ print $2}' | uniq)
           fi
@@ -1217,7 +1218,7 @@ create_order() {
     dn=0
     for d in "${alldomains[@]}"; do
       # get authorizations link
-      AuthLink[$dn]=$(json_get "$response" "identifiers" "value" "${d##\*.}" "authorizations" "x")
+      AuthLink[dn]=$(json_get "$response" "identifiers" "value" "${d##\*.}" "authorizations" "x")
       debug "authorizations link for $d - ${AuthLink[$dn]}"
       ((dn++))
     done
@@ -1241,8 +1242,8 @@ create_order() {
         if [[ ( "$lower_d" == "$authdomain" && -z "$wildcard" ) || ( "$lower_d" == "*.${authdomain}" && -n "$wildcard" ) ]]; then
           debug "Saving authorization response for $authdomain for domain alldomains[$dn]"
           debug "Response = ${response//[$'\t\r\n']}"
-          AuthLinkResponse[$dn]=$response
-          AuthLinkResponseHeader[$dn]=$responseHeaders
+          AuthLinkResponse[dn]=$response
+          AuthLinkResponseHeader[dn]=$responseHeaders
         fi
         ((dn++))
       done
