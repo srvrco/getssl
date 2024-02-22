@@ -1,0 +1,26 @@
+#! /usr/bin/env bash
+# NS1 Add DNS Record
+
+if [[ -z "$NS1_API_KEY" ]]; then
+  echo "NS1_API_KEY variable not set"
+  exit 1
+fi
+
+api_url="https://api.nsone.net/v1/"
+api_key=${NS1_API_KEY:-''}
+
+domain="$1"
+challenge="$2"
+
+root=$(echo "$domain" | awk -F\. '{print $(NF-1) FS $NF}')
+subdomain="_acme-challenge.${domain%}"
+
+function delete {
+
+curl "${api_url}/zones/${root}/${subdomain}/TXT" -X DELETE \
+  --header "X-NSONE-Key: $api_key"
+
+}
+
+delete $root $subdomain
+
