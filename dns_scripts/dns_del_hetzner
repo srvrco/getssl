@@ -28,6 +28,10 @@ fi
 # Get Zone ID if not set
 if [ -z "$HETZNER_ZONE_ID" ] ; then
   zone_id=$(curl --silent -X GET "$api_url/zones?name=$HETZNER_ZONE_NAME" -H 'Auth-API-Token: '"$api_key"'' | jq -r '.zones[0].id')
+  if [  "$zone_id" == "null" ] ; then
+    echo "Zone by name not found"
+    exit 1
+  fi
 fi
 
 # domain_root=$(echo "$fulldomain" | awk -F\. '{print $(NF-1) FS $NF FS}')
@@ -37,11 +41,17 @@ txtname="_acme-challenge.$fulldomain."
 
 record_id=$(curl --silent -X GET "$api_url/records?zone_id=$zone_id" -H "Auth-API-Token: $api_key" | jq -r '.records[] | select(.name=="'$txtname'") | .id')
 
-# Create TXT record
-response=$(curl --silent -X DELETE "$api_url/records/$record_id" -H "Auth-API-Token: $api_key")
-
-# errors=$(echo "$response" | egrep -o "\"ERRORARRAY\":\[.*\]")
-if [[ $response != "\"ERRORARRAY\":[]" ]]; then
-    echo "Something went wrong: $errors"
-    exit 1
+if [  "$record_id" == "null" ] ; then
+  echo "Record not found"
+  exit 1
 fi
+
+# Create TXT record
+response=$(curl --silent -X DELETE "$api_url/records/$record_id" -H "Auth-API-Token: $api_key" -o /dev/null -w '%{http_code}')
+
+if [  "$response" != "200" ] ; then
+  echo "Record not deleted"
+  echo "Response code: $response"
+  exit 1
+fi
+
