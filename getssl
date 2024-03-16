@@ -289,6 +289,7 @@
 # 2022-11-01 Add FTP_PORT
 # 2023-02-04 Create newline to ensure [SAN] section can be parsed (#792)(MRigal)
 # 2023-02-22 Remove cronie from deb package dependencies (2.48)
+# 2024-03-16 Use FTP_PORT when deleting ftp tokens. Delete tokens when using sftp, davfs, ftpes, ftps (#693,#839) (tlhackque)
 # 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
 # ----------------------------------------------------------------------------------------
 
@@ -972,6 +973,8 @@ clean_up() { # Perform pre-exit housekeeping
   fi
 }
 
+# When adding a new protocol type here, also add support to delete http01 tokens using it
+# in fulfill_challenges().
 copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
   cert=$1   # descriptive name, just used for display
   from=$2   # current file location
@@ -1543,24 +1546,56 @@ for d in "${alldomains[@]}"; do
           ftplocn=$(echo "${t_loc}"| awk -F: '{print $5}')
           debug "$FTP_COMMAND user=$ftpuser - pass=$ftppass - host=$ftphost location=$ftplocn"
           $FTP_COMMAND <<- EOF
-					open $ftphost
+					open $ftphost $FTP_PORT
 					user $ftpuser $ftppass
 					cd $ftplocn
 					delete ${token:?}
 					EOF
+        elif [[ "${to:0:5}" == "sftp:" ]] ; then
+            debug "using sftp to delete token file"
+            ftpuser=$(echo "$to"| awk -F: '{print $2}')
+            ftppass=$(echo "$to"| awk -F: '{print $3}')
+            ftphost=$(echo "$to"| awk -F: '{print $4}')
+            ftplocn=$(echo "$to"| awk -F: '{print $5}')
+            ftpdirn=$(dirname "$ftplocn")
+            if [ -n "$FTP_PORT" ]; then SFTP_PORT="-P $FTP_PORT"; else SFTP_PORT=""; fi
+            debug "sftp $SFTP_OPTS user=$ftpuser - pass=$ftppass - host=$ftphost port=$FTP_PORT loc=$ftplocn file=${token:?}"
+            # shellcheck disable=SC2086
+            sshpass -p "$ftppass" sftp $SFTP_OPTS $SFTP_PORT "$ftpuser@$ftphost" <<- _EOF
+			cd $ftpdirn
+			rm ./${token:>}
+			_EOF
+        elif [[ "${to:0:5}" == "davs:" ]] ; then
+            debug "using davs to delete the token"
+            davsuser=$(echo "$to"| awk -F: '{print $2}')
+            davspass=$(echo "$to"| awk -F: '{print $3}')
+            davshost=$(echo "$to"| awk -F: '{print $4}')
+            davsport=$(echo "$to"| awk -F: '{print $5}')
+            davslocn=$(echo "$to"| awk -F: '{print $6}')
+            davsdirn=$(dirname "$davslocn")
+            davsdirn=$(echo "${davsdirn}/" | sed 's,//,/,g')
+            davsfile=$(basename "$davslocn")
+            debug "davs user=$davsuser - pass=$davspass - host=$davshost port=$davsport dir=$davsdirn file=$davsfile"
+            # shellcheck disable=SC2086
+            curl ${_NOMETER} -u "${davsuser}:${davspass}" -X "DELETE" "https://${davshost}:${davsport}${davsdirn}${davsfile}"
         elif [[ "${t_loc:0:6}" == "ftpes:" ]] || [[ "${t_loc:0:5}" == "ftps:" ]] ; then
+            if [ -n "$FTP_PORT" ]; then SFTP_PORT=":${FTP_PORT}"; fi
             debug "using ftp to delete the file from $from"
             ftpuser=$(echo "${t_loc}"| awk -F: '{print $2}')
             ftppass=$(echo "${t_loc}"| awk -F: '{print $3}')
             ftphost=$(echo "${t_loc}"| awk -F: '{print $4}')
             ftplocn=$(echo "${t_loc}"| awk -F: '{print $5}')
-            debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost file=${ftplocnn/${token:?}"
+            SFTP_PORT=""
+            if [ -z "$FTP_PORT" ]; then
+                SFTP_PORT=":990"
+            fi
+            debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost file=${ftplocn}/${token:?}"
             if [[ "${to:0:5}" == "ftps:" ]] ; then
             # shellcheck disable=SC2086
-                curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" --silent -Q "DELE ${token:?}}" "ftp://${ftphost}${ftplocn}:990/"
+                curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" --silent -Q "DELE ${token:?}}" "ftp://${ftphost}${SFTP_PORT}/${ftplocn}/"
             else
             # shellcheck disable=SC2086
-                curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" --silent -Q "DELE ${token:?}" "ftp://${ftphost}${ftplocn}/"
+                curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" --silent -Q "DELE ${token:?}" "ftp://${ftphost}${SFTP_PORT}/${ftplocn}/"
             fi
         else
           rm -f "${t_loc:?}/${token:?}"
