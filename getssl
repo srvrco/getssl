@@ -291,6 +291,7 @@
 # 2023-02-22 Remove cronie from deb package dependencies (2.48)
 # 2024-03-16 Use FTP_PORT when deleting ftp tokens. Delete tokens when using sftp, davfs, ftpes, ftps (#693,#839) (tlhackque)
 # 2024 03-16 Fix dns-01's CNAME processing.  (#840) (tlhackque)
+# 2024-03-17 Automatically update the ACCOUNT_EMAIL (#827) (tlhackque)
 # 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
 # ----------------------------------------------------------------------------------------
 
@@ -3453,14 +3454,14 @@ info "Registering account"
 # send the request to the ACME server.
 if [[ $API -eq 1 ]]; then
   if [[ "$ACCOUNT_EMAIL" ]] ; then
-  	regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
+  	regjson='{"resource": "new-reg", "contact": ["mailto:'$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
   else
   	regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
   fi
   send_signed_request "$URL_new_reg"  "$regjson"
 elif [[ $API -eq 2 ]]; then
   if [[ "$ACCOUNT_EMAIL" ]] ; then
-  	regjson='{"termsOfServiceAgreed": true, "contact": ["mailto: '$ACCOUNT_EMAIL'"]}'
+  	regjson='{"termsOfServiceAgreed": true, "contact": ["mailto:'$ACCOUNT_EMAIL'"]}'
   else
   	regjson='{"termsOfServiceAgreed": true}'
   fi
@@ -3483,6 +3484,23 @@ elif [[ "$code" == '200' ]] ; then
   KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
   debug responseHeaders "$responseHeaders"
   debug "Already registered account, AccountId=${KID}"
+  email="$(json_get "$response" "contact")"
+  if [[ "${email#mailto:}" != "$ACCOUNT_EMAIL" ]]; then
+      # Update account E-Mail (Note that a list is allowed by the RFC)
+      if [[ -n "$ACCOUNT_EMAIL" ]]; then
+          info "Updating account contact e-mail from '${email#mailto:}' to '$ACCOUNT_EMAIL'"
+          send_signed_request "$KID" '{"contact": ["mailto:'"$ACCOUNT_EMAIL"'"]}'
+      else
+          info "Removing account contact email '${email#mailto:}'"
+          send_signed_request "$KID" '{"contact": []}'
+      fi
+      if [[ "$code" == '200' ]]; then
+          info " - update succeeded"
+      else
+          info " - updaate failed"
+      fi
+      debug responseHeaders "$responseHeaders"
+  fi
 else
   error_exit "Error registering account ...$responseHeaders ... $(json_get "$response" detail)"
 fi
