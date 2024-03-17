@@ -290,6 +290,7 @@
 # 2023-02-04 Create newline to ensure [SAN] section can be parsed (#792)(MRigal)
 # 2023-02-22 Remove cronie from deb package dependencies (2.48)
 # 2024-03-16 Use FTP_PORT when deleting ftp tokens. Delete tokens when using sftp, davfs, ftpes, ftps (#693,#839) (tlhackque)
+# 2024 03-16 Fix dns-01's CNAME processing.  (#840) (tlhackque)
 # 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
 # ----------------------------------------------------------------------------------------
 
@@ -595,26 +596,12 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
         check_result=$(grep -i "^${rr}"<<<"${check_output}"|grep 'IN\WTXT'|awk -F'"' '{ print $2}')
         debug "check_result=\"$check_result\""
 
-        # Check if rr is a CNAME
-        if [[ -z "$check_result" ]]; then
-          rr_cname=$(grep -i "^${rr}"<<<"${check_output}"|grep 'IN\WCNAME'|awk '{ print $5}')
-          debug "cname check=\"$rr_cname\""
-          if [[ -n "$rr_cname" ]]; then
-            # shellcheck disable=SC2086
-            check_output=$($DNS_CHECK_FUNC $DNS_CHECK_OPTIONS TXT "${rr_cname}" "@${ns}")
-            check_result=$(grep -i "^${rr_cname}"<<<"${check_output}"|grep 'IN\WTXT'|awk -F'"' '{ print $2}' | uniq)
-          fi
-        fi
+        # No need to check if rr is a CNAME, because the CNAME is static and this is called
+        # with the target of the CNAME, which is the record added for verification.
+        # In theory, a chain of CNAMEs might exist.  Not clear that an issuer would follow
+        # more than one.  The code previously present here only tried to handle one.
+        # If there is no CMAME (the usual case), ${rr} is always in ${d}.
 
-        if [[ -z "$check_result" ]]; then
-          # shellcheck disable=SC2086
-          debug "$DNS_CHECK_FUNC" $DNS_CHECK_OPTIONS ANY "${rr}" "@${ns}"
-          # shellcheck disable=SC2086
-          check_result=$($DNS_CHECK_FUNC $DNS_CHECK_OPTIONS ANY "${rr}" "@${ns}" \
-                      | grep -i "^${rr}" \
-                      | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
-          debug "check_result=\"$check_result\""
-        fi
       elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
         debug "$DNS_CHECK_FUNC" -t TXT "${rr}" "${ns}"
         check_result=$($DNS_CHECK_FUNC -t TXT "${rr}" "${ns}" \
@@ -1442,21 +1429,24 @@ for d in "${alldomains[@]}"; do
         | sed -e 's:=*$::g' -e 'y:+/:-_:')
       debug auth_key "$auth_key"
 
-      add_dns_rr "${d}" "${auth_key}" \
-        || error_exit "DNS_ADD_COMMAND failed for domain $d"
-
       # shellcheck disable=SC2018,SC2019
       rr="_acme-challenge.$(printf '%s' "${d#\*.}" | tr 'A-Z' 'a-z')"
 
-      # find a primary / authoritative DNS server for the domain
-      if [[ -z "$AUTH_DNS_SERVER" ]]; then
-        # Find authorative dns server for _acme-challenge.{domain} (for CNAMES/acme-dns)
-        get_auth_dns "${rr}"
-        if test -n "${cname}"; then
+      # find a primary / authoritative DNS server for the domain & see if RR is a CNAME
+      # DNS add drivers will always prefix the domain with _acme-challenge for the TXT record.
+      # Therefore, the target of a CNAME must start with _acme-challenge.${d}  (Not an RFC
+      # constraint.)  Note that the target of a CNAME can be ANYWHERE on the web, including
+      # a different TLD or a subdomain of the domain being verified..
+      get_auth_dns "${rr}"
+      if [[ -n "${cname}" ]]; then
+          if ! [[ "${cname}" =~ ^"_acme-challenge.${d}.".. ]]; then
+              error_exit "${d}: $rr uses a CNAME to ${cname}, which does not start with '_acme-challenge.${d}', which is required by getssl"
+          fi
           rr=${cname}
-        fi
+      fi
 
-        # If no authorative dns server found, try again for {domain}
+      if [[ -z "$AUTH_DNS_SERVER" ]]; then
+        # If no authoritative dns server defined and RR search failed, try again for {domain}
         if [[ -z "$primary_ns" ]]; then
           get_auth_dns "$d"
         fi
@@ -1467,13 +1457,16 @@ for d in "${alldomains[@]}"; do
       fi
       debug set primary_ns = "$primary_ns"
 
-      # internal check
-      check_challenge_completion_dns "${d}" "${rr}" "${primary_ns}" "${auth_key}"
+      add_dns_rr "${rr/#_acme-challenge./}" "${auth_key}" \
+        || error_exit "DNS_ADD_COMMAND failed to add _acme-challenge.${rr/#_acme-challenge./} for domain $d"
+
+      # internal check for visibility of the record just added.
+      check_challenge_completion_dns "${d}" "_acme-challenge.${rr/#_acme-challenge./}" "${primary_ns}" "${auth_key}"
 
       # let Let's Encrypt check
       check_challenge_completion "${uri}" "${d}" "${keyauthorization}"
 
-      del_dns_rr "${d}" "${auth_key}"
+      del_dns_rr "${rr/#_acme-challenge./}" "${auth_key}"
     else      # set up the correct http token for verification
       if [[ $API -eq 1 ]]; then
         # get the token from the http component
