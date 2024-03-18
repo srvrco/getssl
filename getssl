@@ -293,6 +293,7 @@
 # 2024 03-16 Fix dns-01's CNAME processing.  (#840) (tlhackque)
 # 2024-03-17 Automatically update the ACCOUNT_EMAIL (#827) (tlhackque)
 # 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
+# 2024-08-18 Implement --new-account-key and --DEACTIVATE-account (tlhackque)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -365,8 +366,10 @@ DNS_WAIT_RETRY_ADD="false"      # Try the dns_add_command again if the DNS recor
 _CHECK_ALL=0
 _CREATE_CONFIG=0
 _CURL_VERSION=""
+_DEACTIVATE_ACCOUNT=0
 _FORCE_RENEW=0
 _MUTE=0
+_NEW_ACCOUNT_KEY=0
 _NOTIFY_VALID=0
 _NOMETER=""
 _QUIET=0
@@ -2080,6 +2083,8 @@ help_message() { # print out the help message
 	  -w working_dir "Working directory"
 	  --preferred-chain "chain" Use an alternate chain for the certificate
 	  --account-id       Display account id and exit
+	  --new-account-key  Replace the account key with a new one
+	  --DEACTIVATE-account Permanently deactivate account
 
 	_EOF_
 }
@@ -2327,11 +2332,13 @@ obtain_ca_resource_locations()
     URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
     URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
     URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
+    URL_keyChange=$(echo "$ca_all_loc" | grep "key-change" | awk -F'"' '{print $4}')
     #API v2
     URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
     URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
     URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
     URL_revoke=$(echo "$ca_all_loc" | grep "revokeCert" | awk -F'"' '{print $4}')
+    URL_keyChange=$(echo "$ca_all_loc" | grep "keyChange" | awk -F'"' '{print $4}')
 
     if [[ -n "$URL_new_reg" ]] || [[ -n "$URL_newAccount" ]]; then
       break
@@ -2712,7 +2719,7 @@ urlbase64_decode() {
 usage() { # echos out the program usage
   echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet]"\
        "[-Q|--mute] [-u|--upgrade] [-X|--experimental tag] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir]"\
-       "[--preferred-chain chain] [--account-id] domain"
+       "[--preferred-chain chain] [--account-id] [--new-account-key] [--DEACTIVATE-account] domain"
 }
 
 write_domain_template() { # write out a template file for a domain.
@@ -2948,6 +2955,10 @@ while [[ -n ${1+defined} ]]; do
       shift; PREFERRED_CHAIN="$1" ;;
     --account-id)
       _SHOW_ACCOUNT_ID=1 ;;
+    --new-account-key)
+      _NEW_ACCOUNT_KEY=1 ;;
+    --DEACTIVATE-account)
+      _DEACTIVATE_ACCOUNT=1 ;;
     --source)
       return ;;
     -*)
@@ -3497,7 +3508,7 @@ elif [[ "$code" == '200' ]] ; then
       if [[ "$code" == '200' ]]; then
           info " - update succeeded"
       else
-          info " - updaate failed"
+          info " - update failed"
       fi
       debug responseHeaders "$responseHeaders"
   fi
@@ -3510,6 +3521,54 @@ if [[ ${_SHOW_ACCOUNT_ID} -eq 1 ]]; then
   graceful_exit
 fi
 # end of registering account with CA
+
+# Current account key is OK, create a new one if requested
+if [[ ${_NEW_ACCOUNT_KEY} == 1 ]]; then
+    info "creating a new ${ACCOUNT_KEY_TYPE} account key"
+    create_key "$ACCOUNT_KEY_TYPE" "${ACCOUNT_KEY}.new" "$ACCOUNT_KEY_LENGTH"
+    # Inner = old key, signed by new
+    inpay='{"account":"'"$KID"'","oldKey":'"$jwk"'}'
+    debug "Inner payload: $inpay"
+    inpay64="$(printf '%s' "$inpay" | urlbase64)"
+    get_signing_params "${ACCOUNT_KEY}.new"
+    inprot='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "url":"'"$URL_keyChange"'"}'
+    debug "Inner protected: $inprot"
+    inprot64="$(printf '%s' "$inprot" | urlbase64)"
+    sign_string "$(printf '%s' "${inprot64}.${inpay64}")" "${ACCOUNT_KEY}.new" "$signalg"
+    inner='{"protected":"'"$inprot64"'","payload":"'"$inpay64"'","signature":"'"$signed64"'"}'
+    debug "Inner body: $inner"
+    # Outer = inner, signed by old
+    get_signing_params "${ACCOUNT_KEY}"
+    send_signed_request "$URL_keyChange" "$inner"
+    debug responseHeaders "$responseHeaders"
+    if [[ "$code" == '200' ]]; then
+        info " - update succeeded"
+        mv "${ACCOUNT_KEY}" "${ACCOUNT_KEY}.old"
+        mv "${ACCOUNT_KEY}.new" "${ACCOUNT_KEY}"
+    else
+        info " - update failed"
+        rm -f "${ACCOUNT_KEY}.new"
+        if [[ "$code" == '409' ]]; then
+            other=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
+            error_exit "new key is in use by $other"
+        fi
+    fi
+    graceful_exit
+fi
+# end of new account key
+
+# Permanently deactivate account
+if [[ ${_DEACTIVATE_ACCOUNT} -eq 1 ]]; then
+    echo "PERMANENTLY deactivating account"
+    send_signed_request "$KID" '{"status":"deactivated"}'
+    if [[ "$code" == '200' ]]; then
+        info " - Account has been deactivated - it can NOT be revived"
+      else
+        info " - deactivation failed"
+    fi
+    debug responseHeaders "$responseHeaders"
+fi
+# end of deactivate account
 
 # verify each domain
 info "Verify each domain"

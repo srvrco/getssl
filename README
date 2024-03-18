@@ -100,7 +100,10 @@ domain(s) -X –experimental tag Allow upgrade to a specified version of
 getssl -U, –nocheck Do not check if a more recent version is available
 -v –version Display current version of getssl -w working_dir “Working
 directory” –preferred-chain “chain” Use an alternate chain for the
-certificate ```
+certificate --account-id Display account id and exit  --new-account-key
+Replace the account key with a new one   --DEACTIVATE-account
+Permanently deactivate account
+```
 
 
 Quick Start Guide
