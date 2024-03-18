@@ -2440,6 +2440,9 @@ set_server_type() { # uses SERVER_TYPE to set REMOTE_PORT and REMOTE_EXTRA
     REMOTE_PORT=5269
   elif [[ ${SERVER_TYPE} == "ldaps" ]]; then
     REMOTE_PORT=636
+  elif [[ ${SERVER_TYPE} == "postgres" ]]; then
+    REMOTE_PORT=5432
+    REMOTE_EXTRA="-starttls postgres"
   elif [[ ${SERVER_TYPE} =~ ^[0-9]+$ ]]; then
     REMOTE_PORT=${SERVER_TYPE}
   else
