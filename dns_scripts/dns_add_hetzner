@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+fulldomain="${1}"
+token="${2}"
+api_url="https://dns.hetzner.com/api/v1"
+api_key=${HETZNER_KEY:-''}
+zone_id=${HETZNER_ZONE_ID:-''}
+zone_name=${HETZNER_ZONE_NAME:-''}
+
+# Verify that required parameters are set
+if [[ -z "$fulldomain" ]]; then
+  echo "DNS script requires full domain name as first parameter"
+  exit 1
+fi
+if [[ -z "$token" ]]; then
+  echo "DNS script requires challenge token as second parameter"
+  exit 1
+fi
+if [[ -z "$HETZNER_KEY" ]]; then
+  echo "HETZNER_KEY variable not set"
+  exit 1
+fi
+if [[ -z "$HETZNER_ZONE_ID" && -z "$HETZNER_ZONE_NAME" ]] ; then
+  echo "HETZNER_ZONE_ID and HETZNER_ZONE_NAME variables not set"
+  exit 1
+fi
+
+# Get Zone ID if not set
+if [[ -z "$HETZNER_ZONE_ID" ]] ; then
+  zone_id=$(curl --silent -X GET "$api_url/zones?name=$zone_name" -H 'Auth-API-Token: '"$api_key"'' | jq -r '.zones[0].id')
+  if [[ "$zone_id" == "null" ]] ; then
+    echo "Zone ID not found"
+    exit 1
+  fi
+fi
+
+txtname="_acme-challenge.$fulldomain."
+
+# Create TXT record
+response=$(curl --silent -X POST "$api_url/records" \
+     -H 'Content-Type: application/json' \
+     -H "Auth-API-Token: $api_key" \
+     -d '{"value": "'"$token"'","ttl": 60,"type": "TXT","name": "'"$txtname"'","zone_id": "'"$zone_id"'"}' \
+     -o /dev/null -w '%{http_code}')
+
+if [[ "$response" != "200" ]] ; then
+  echo "Record not created"
+  echo "Response code: $response"
+  exit 1
+fi
