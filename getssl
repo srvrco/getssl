@@ -292,8 +292,8 @@
 # 2024-03-16 Use FTP_PORT when deleting ftp tokens. Delete tokens when using sftp, davfs, ftpes, ftps (#693,#839) (tlhackque)
 # 2024 03-16 Fix dns-01's CNAME processing.  (#840) (tlhackque)
 # 2024-03-17 Automatically update the ACCOUNT_EMAIL (#827) (tlhackque)
-# 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
-# 2024-08-18 Implement --new-account-key and --DEACTIVATE-account (tlhackque)
+# 2024-03-18 Implement --new-account-key and --DEACTIVATE-account (tlhackque)
+# 2024-03-18 Implement token substitution in ACLs (#267) (tlhackque)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -728,6 +728,10 @@ check_config() { # check the config files for all obvious errors
     else
       DOMAIN_ACL="${ACL[$dn]}"
     fi
+    # shellcheck disable=SC2016
+    DOMAIN_ACL="$(sed -e's/\${DOMAIN}\|\$DOMAIN/'"$DOMAIN"'/g' <<<"$DOMAIN_ACL")"
+    # shellcheck disable=SC2016
+    DOMAIN_ACL="$(sed -e's/\${SAN}\|\$SAN/'"$d"'/g' <<<"$DOMAIN_ACL")"
 
     if [[ $VALIDATE_VIA_DNS != "true" ]]; then # using http-01 challenge
       if [[ -z "${DOMAIN_ACL}" ]]; then
@@ -1382,6 +1386,10 @@ for d in "${alldomains[@]}"; do
   else
     DOMAIN_ACL="${ACL[$dn]}"
   fi
+  # shellcheck disable=SC2016
+  DOMAIN_ACL="$(sed -e's/\${DOMAIN}\|\$DOMAIN/'"$DOMAIN"'/g' <<<"$DOMAIN_ACL")"
+  # shellcheck disable=SC2016
+  DOMAIN_ACL="$(sed -e's/\${SAN}\|\$SAN/'"$d"'/g' <<<"$DOMAIN_ACL")"
 
   # request a challenge token from ACME server
   if [[ $API -eq 1 ]]; then
@@ -2763,11 +2771,13 @@ write_domain_template() { # write out a template file for a domain.
 		# You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
 		# password, host, port (explicitly needed even if using default port 443) and path on the server.
 		# Multiple locations can be defined for a file by separating the locations with a semi-colon.
+		# The tokens '\$DOMAIN', '\${DOMAIN}', '\$SAN', and '\${SAN}' can be used to minimize the number of ACL
+		# entries when the challenge location follows a pattern (Often true with multiple vertual hosts). Also "USE_SINGLE_ACL":
 		#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 		#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 		#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 		#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
-		#     'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge'
+		#     'davs:davsuserid:davspassword:${DOMAIN}:443:/web/.well-known/acme-challenge'
 		#     'ftps:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
 		#     'ftpes:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
 
@@ -2882,7 +2892,7 @@ write_getssl_template() { # write out the main template file
 	# PUBLIC_DNS_SERVER="8.8.8.8"
 
 	# If getssl is unable to determine the authoritative nameserver for a domain
-	# it will as you to enter AUTH_DNS_SERVER.  This is a server that
+	# it will ask you to enter AUTH_DNS_SERVER.  This is a server that
 	# can answer queries for the zone - a master or a slave, not a recursive server.
 	# AUTH_DNS_SERVER="10.0.0.14"
 	_EOF_getssl_
