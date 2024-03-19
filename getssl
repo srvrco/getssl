@@ -294,6 +294,7 @@
 # 2024-03-17 Automatically update the ACCOUNT_EMAIL (#827) (tlhackque)
 # 2024-03-18 Implement --new-account-key and --DEACTIVATE-account (tlhackque)
 # 2024-03-18 Implement token substitution in ACLs (#267) (tlhackque)
+# 2024-03-19 Implement DNS_NSUPDATE_LOCALIP in dns_{add,del}_nsupdate (#801) (tlhackque)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -2768,7 +2769,7 @@ write_domain_template() { # write out a template file for a domain.
 		# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
 		# ftp: uses regular ftp; ftpes: ftp over explicit TLS (port 21); ftps: ftp over implicit TLS (port 990).
 		# ftps/ftpes support FTPS_OPTIONS, e.g. to add "--insecure" to the curl command for hosts with self-signed certificates.
-		# You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
+		# You can also use WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
 		# password, host, port (explicitly needed even if using default port 443) and path on the server.
 		# Multiple locations can be defined for a file by separating the locations with a semi-colon.
 		# The tokens '\$DOMAIN', '\${DOMAIN}', '\$SAN', and '\${SAN}' can be used to minimize the number of ACL
