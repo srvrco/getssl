@@ -295,6 +295,7 @@
 # 2024-03-18 Implement --new-account-key and --DEACTIVATE-account (tlhackque)
 # 2024-03-18 Implement token substitution in ACLs (#267) (tlhackque)
 # 2024-03-19 Implement DNS_NSUPDATE_LOCALIP in dns_{add,del}_nsupdate (#801) (tlhackque)
+# 2024-03-21 Relax restrictions on dns-01 CNAMEs to allow for hased targets. (tlhackque)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -1447,13 +1448,13 @@ for d in "${alldomains[@]}"; do
 
       # find a primary / authoritative DNS server for the domain & see if RR is a CNAME
       # DNS add drivers will always prefix the domain with _acme-challenge for the TXT record.
-      # Therefore, the target of a CNAME must start with _acme-challenge.${d}  (Not an RFC
+      # Therefore, the target of a CNAME must start with _acme-challenge.  (Not an RFC
       # constraint.)  Note that the target of a CNAME can be ANYWHERE on the web, including
       # a different TLD or a subdomain of the domain being verified..
       get_auth_dns "${rr}"
       if [[ -n "${cname}" ]]; then
-          if ! [[ "${cname}" =~ ^"_acme-challenge.${d}.".. ]]; then
-              error_exit "${d}: $rr uses a CNAME to ${cname}, which does not start with '_acme-challenge.${d}', which is required by getssl"
+          if ! [[ "${cname}" =~ ^"_acme-challenge.".. ]]; then
+              error_exit "${d}: $rr uses a CNAME to ${cname}, which does not start with '_acme-challenge.', which is required by getssl"
           fi
           rr=${cname}
       fi
