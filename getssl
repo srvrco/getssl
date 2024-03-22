@@ -296,6 +296,7 @@
 # 2024-03-18 Implement token substitution in ACLs (#267) (tlhackque)
 # 2024-03-19 Implement DNS_NSUPDATE_LOCALIP in dns_{add,del}_nsupdate (#801) (tlhackque)
 # 2024-03-21 Relax restrictions on dns-01 CNAMEs to allow for hased targets. (tlhackque)
+# 2024-03-21 Ensure that --all doesn't run --new-account-key or --DEACTIVATE-account more than once. (tlhackque)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -3047,6 +3048,8 @@ if [[ $_UPGRADE_CHECK -eq 1 ]]; then
      && [[ ${_CHECK_ALL} -ne 1 ]] \
      && [[ ${_REVOKE} -ne 1 ]] \
      && [ "${_ONLY_CHECK_CONFIG}" -ne 1 ] \
+     && [[ "_NEW_ACCOUNT_KEY" -ne 1 ]] \
+     && [[ "_DEACTIVATE_ACCOUNT" -ne 1 ]] \
      && [[ ${_SHOW_ACCOUNT_ID} -ne 1 ]]; then
     # if nothing in command line, print help before exit.
     if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ ${_UPGRADE} -ne 1 ]]; then
