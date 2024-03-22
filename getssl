@@ -297,6 +297,7 @@
 # 2024-03-19 Implement DNS_NSUPDATE_LOCALIP in dns_{add,del}_nsupdate (#801) (tlhackque)
 # 2024-03-21 Relax restrictions on dns-01 CNAMEs to allow for hased targets. (tlhackque)
 # 2024-03-21 Ensure that --all doesn't run --new-account-key or --DEACTIVATE-account more than once. (tlhackque)
+# 2024-03-21 Avoid domain processing when the action is account management. (tlhackque)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -3048,8 +3049,8 @@ if [[ $_UPGRADE_CHECK -eq 1 ]]; then
      && [[ ${_CHECK_ALL} -ne 1 ]] \
      && [[ ${_REVOKE} -ne 1 ]] \
      && [ "${_ONLY_CHECK_CONFIG}" -ne 1 ] \
-     && [[ "_NEW_ACCOUNT_KEY" -ne 1 ]] \
-     && [[ "_DEACTIVATE_ACCOUNT" -ne 1 ]] \
+     && [[ "${_NEW_ACCOUNT_KEY}" -ne 1 ]] \
+     && [[ "${_DEACTIVATE_ACCOUNT}" -ne 1 ]] \
      && [[ ${_SHOW_ACCOUNT_ID} -ne 1 ]]; then
     # if nothing in command line, print help before exit.
     if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ ${_UPGRADE} -ne 1 ]]; then
@@ -3079,7 +3080,7 @@ fi
 AGREEMENT=$(curl --user-agent "$CURL_USERAGENT" -I "${CA}/terms" 2>/dev/null | awk 'tolower($1) ~ "location:" {print $2}'|tr -d '\r')
 
 # if nothing in command line, print help and exit.
-if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]]; then
+if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTIVATE_ACCOUNT -eq 0 ]]; then
   help_message
   graceful_exit
 fi
@@ -3132,7 +3133,8 @@ fi
 export OPENSSL_CONF=$SSLCONF
 
 # if "-a" option then check other parameters and create run for each domain.
-if [[ ${_CHECK_ALL} -eq 1 ]]; then
+if [[ ${_CHECK_ALL} -eq 1 ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTIVATE_ACCOUNT -eq 0 ]]; then
+
   info "Check all certificates"
 
   if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
@@ -3170,107 +3172,119 @@ if [[ ${_CHECK_ALL} -eq 1 ]]; then
 fi
 # end of "-a" option (looping through all domains)
 
-# if "-c|--create" option used, then create config files.
-if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
-  # If main config file does not exists then create it.
-  if [[ ! -s "$WORKING_DIR/getssl.cfg" ]]; then
-    info "creating main config file $WORKING_DIR/getssl.cfg"
-    if [[ ! -s "$SSLCONF" ]]; then
-      SSLCONF="$WORKING_DIR/openssl.cnf"
-      write_openssl_conf "$SSLCONF"
+if [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTIVATE_ACCOUNT -eq 0 ]]; then
+  # if "-c|--create" option used, then create config files.
+  if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
+    # If main config file does not exists then create it.
+    if [[ ! -s "$WORKING_DIR/getssl.cfg" ]]; then
+      info "creating main config file $WORKING_DIR/getssl.cfg"
+      if [[ ! -s "$SSLCONF" ]]; then
+        SSLCONF="$WORKING_DIR/openssl.cnf"
+        write_openssl_conf "$SSLCONF"
+      fi
+      write_getssl_template "$WORKING_DIR/getssl.cfg"
     fi
-    write_getssl_template "$WORKING_DIR/getssl.cfg"
+     # If domain and domain config don't exist then create them.
+     if [[ ! -d "$DOMAIN_DIR" ]]; then
+      info "Making domain directory - $DOMAIN_DIR"
+      mkdir -p "$DOMAIN_DIR"
+     fi
+    if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
+      info "domain config already exists $DOMAIN_DIR/getssl.cfg"
+    else
+      info "creating domain config file in $DOMAIN_DIR/getssl.cfg"
+      # if domain has an existing cert, copy from domain and use to create defaults.
+      EX_CERT=$(echo \
+        | openssl s_client -servername "${DOMAIN##\*.}" -connect "${DOMAIN##\*.}:443" 2>/dev/null \
+        | openssl x509 2>/dev/null)
+      EX_SANS="www.${DOMAIN##\*.}"
+      if [[ -n "${EX_CERT}" ]]; then
+        escaped_d=${DOMAIN/\*/\\\*}
+        EX_SANS=$(echo "$EX_CERT" \
+          | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
+          | grep -Eo "DNS:[a-zA-Z 0-9.\*-]*" | sed "s@DNS:${escaped_d}@@g" | grep -v '^$' | cut -c 5-)
+        EX_SANS=${EX_SANS//$'\n'/','}
+      fi
+      if [[ -n "${EX_SANS}" ]]; then
+        info "Adding SANS=$EX_SANS from certificate installed on ${DOMAIN##\*.} to new configuration file"
+      fi
+      write_domain_template "$DOMAIN_DIR/getssl.cfg"
+      info "created domain config file in $DOMAIN_DIR/getssl.cfg"
+    fi
+    TEMP_DIR="$DOMAIN_DIR/tmp"
+    # end of "-c|--create" option, so exit
+    graceful_exit
   fi
-  # If domain and domain config don't exist then create them.
+  # end of "-c|--create" option to create config file.
+
+  # if domain directory doesn't exist, then create it.
   if [[ ! -d "$DOMAIN_DIR" ]]; then
-    info "Making domain directory - $DOMAIN_DIR"
+    debug "Making working directory - $DOMAIN_DIR"
     mkdir -p "$DOMAIN_DIR"
   fi
-  if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
-    info "domain config already exists $DOMAIN_DIR/getssl.cfg"
-  else
-    info "creating domain config file in $DOMAIN_DIR/getssl.cfg"
-    # if domain has an existing cert, copy from domain and use to create defaults.
-    EX_CERT=$(echo \
-      | openssl s_client -servername "${DOMAIN##\*.}" -connect "${DOMAIN##\*.}:443" 2>/dev/null \
-      | openssl x509 2>/dev/null)
-    EX_SANS="www.${DOMAIN##\*.}"
-    if [[ -n "${EX_CERT}" ]]; then
-      escaped_d=${DOMAIN/\*/\\\*}
-      EX_SANS=$(echo "$EX_CERT" \
-        | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
-        | grep -Eo "DNS:[a-zA-Z 0-9.\*-]*" | sed "s@DNS:${escaped_d}@@g" | grep -v '^$' | cut -c 5-)
-      EX_SANS=${EX_SANS//$'\n'/','}
-    fi
-    if [[ -n "${EX_SANS}" ]]; then
-      info "Adding SANS=$EX_SANS from certificate installed on ${DOMAIN##\*.} to new configuration file"
-    fi
-    write_domain_template "$DOMAIN_DIR/getssl.cfg"
-    info "created domain config file in $DOMAIN_DIR/getssl.cfg"
-  fi
+
+  # define a temporary directory, and if it doesn't exist, create it.
   TEMP_DIR="$DOMAIN_DIR/tmp"
-  # end of "-c|--create" option, so exit
-  graceful_exit
+  if [[ ! -d "${TEMP_DIR}" ]]; then
+    debug "Making temp directory - ${TEMP_DIR}"
+    mkdir -p "${TEMP_DIR}"
+  fi
+
+  # read any variables from config in domain directory
+  if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
+    debug "reading config from $DOMAIN_DIR/getssl.cfg"
+    # shellcheck source=/dev/null
+    . "$DOMAIN_DIR/getssl.cfg"
+  fi
+
+  # Ensure SANS is comma separated by replacing any number of commas or spaces with a single comma
+  # shellcheck disable=SC2001
+  SANS=$(echo "$SANS" | sed 's/[, ]\+/,/g')
+
+  # from SERVER_TYPE set REMOTE_PORT and REMOTE_EXTRA
+  set_server_type
+
+  # check what dns utils are installed
+  find_dns_utils
+
+  # Find what ftp client is installed
+  find_ftp_command
+
+  # auto upgrade clients to v2
+  auto_upgrade_v2
+
+  # check config for typical errors.
+  check_config
+
+  # exit if just checking config (used for testing)
+  if [ "${_ONLY_CHECK_CONFIG}" -eq 1 ]; then
+    info "Configuration check successful"
+    graceful_exit
+  fi
+
+  # if -i|--install install certs, reload and exit
+  if [ "0${_CERT_INSTALL}" -eq 1 ]; then
+    cert_install
+    reload_service
+    graceful_exit
+  fi
+
+  if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
+    rm -f "$DOMAIN_DIR/FORCE_RENEWAL" || error_exit "problem deleting file $DOMAIN_DIR/FORCE_RENEWAL"
+    _FORCE_RENEW=1
+    info "${DOMAIN}: forcing renewal (due to FORCE_RENEWAL file)"
+  fi
+else
+  # Account management commands
+  auto_upgrade_v2
+  DOMAIN="__none__"
+  TEMP_DIR="$DOMAIN_STORAGE/tmp"
+  if [[ ! -d "${TEMP_DIR}" ]]; then
+    debug "Making temp directory - ${TEMP_DIR}"
+    mkdir -p "${TEMP_DIR}"
+  fi
 fi
-# end of "-c|--create" option to create config file.
-
-# if domain directory doesn't exist, then create it.
-if [[ ! -d "$DOMAIN_DIR" ]]; then
-  debug "Making working directory - $DOMAIN_DIR"
-  mkdir -p "$DOMAIN_DIR"
-fi
-
-# define a temporary directory, and if it doesn't exist, create it.
-TEMP_DIR="$DOMAIN_DIR/tmp"
-if [[ ! -d "${TEMP_DIR}" ]]; then
-  debug "Making temp directory - ${TEMP_DIR}"
-  mkdir -p "${TEMP_DIR}"
-fi
-
-# read any variables from config in domain directory
-if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
-  debug "reading config from $DOMAIN_DIR/getssl.cfg"
-  # shellcheck source=/dev/null
-  . "$DOMAIN_DIR/getssl.cfg"
-fi
-
-# Ensure SANS is comma separated by replacing any number of commas or spaces with a single comma
-# shellcheck disable=SC2001
-SANS=$(echo "$SANS" | sed 's/[, ]\+/,/g')
-
-# from SERVER_TYPE set REMOTE_PORT and REMOTE_EXTRA
-set_server_type
-
-# check what dns utils are installed
-find_dns_utils
-
-# Find what ftp client is installed
-find_ftp_command
-
-# auto upgrade clients to v2
-auto_upgrade_v2
-
-# check config for typical errors.
-check_config
-
-# exit if just checking config (used for testing)
-if [ "${_ONLY_CHECK_CONFIG}" -eq 1 ]; then
-  info "Configuration check successful"
-  graceful_exit
-fi
-
-# if -i|--install install certs, reload and exit
-if [ "0${_CERT_INSTALL}" -eq 1 ]; then
-  cert_install
-  reload_service
-  graceful_exit
-fi
-
-if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
-  rm -f "$DOMAIN_DIR/FORCE_RENEWAL" || error_exit "problem deleting file $DOMAIN_DIR/FORCE_RENEWAL"
-  _FORCE_RENEW=1
-  info "${DOMAIN}: forcing renewal (due to FORCE_RENEWAL file)"
-fi
+# end exclusion of account-only command
 
 obtain_ca_resource_locations
 
@@ -3283,7 +3297,7 @@ if [[ $API -eq 2 ]]; then
 fi
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
-if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
+if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTIVATE_ACCOUNT -eq 0 ]]; then
   real_d=${DOMAIN##\*.}
   debug "getting certificate for $DOMAIN from remote server ($real_d)"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
@@ -3375,67 +3389,70 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]] && [[ $_SHOW_A
 fi
 # end of .... check_remote is true then connect and obtain the current certificate
 
-#create SAN
-if [[ -z "$SANS" ]]; then
-  SANLIST="subjectAltName=DNS:${DOMAIN}"
-elif [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
-  SANLIST="subjectAltName=DNS:${SANS//[, ]/,DNS:}"
-else
-  SANLIST="subjectAltName=DNS:${DOMAIN},DNS:${SANS//[, ]/,DNS:}"
-fi
-debug "created SAN list = $SANLIST"
+if [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTIVATE_ACCOUNT -eq 0 ]]; then
+  #create SAN
+  if [[ -z "$SANS" ]]; then
+    SANLIST="subjectAltName=DNS:${DOMAIN}"
+  elif [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
+    SANLIST="subjectAltName=DNS:${SANS//[, ]/,DNS:}"
+  else
+    SANLIST="subjectAltName=DNS:${DOMAIN},DNS:${SANS//[, ]/,DNS:}"
+  fi
+  debug "created SAN list = $SANLIST"
 
-# check if private key alg has changed from RSA to EC (or vice versa)
-if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
-  case "${PRIVATE_KEY_ALG}" in
-    rsa)
-      if grep -q -- "-----BEGIN EC PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
-        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
-        _FORCE_RENEW=1
-      fi ;;
-    prime256v1|secp384r1|secp521r1)
-      if grep -q -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key" \
-      || grep -q -- "-----BEGIN PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
-        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
-        _FORCE_RENEW=1
-      fi ;;
-  esac
-fi
+  # check if private key alg has changed from RSA to EC (or vice versa)
+  if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
+    case "${PRIVATE_KEY_ALG}" in
+      rsa)
+        if grep -q -- "-----BEGIN EC PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+          rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+          _FORCE_RENEW=1
+        fi ;;
+      prime256v1|secp384r1|secp521r1)
+        if grep -q -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key" \
+        || grep -q -- "-----BEGIN PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+          rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+          _FORCE_RENEW=1
+        fi ;;
+    esac
+  fi
 
-# if there is an existing certificate file, check details.
-if [[ -s "$CERT_FILE" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
-  debug "certificate $CERT_FILE exists"
-  enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
-  debug "local cert is valid until $enddate"
-  existing_sanlist=$(openssl x509 -in "$CERT_FILE" -noout -text | grep "DNS:" | sed '{ s/ *DNS://g; y/,/\n/; }' | sort -u | xargs | sed 's/ /,/g')
-  sorted_sanlist=$(echo "$SANLIST" | sed '{ s/subjectAltName=//; s/ *DNS://g; y/,/\n/; }' | sort -u | xargs | sed 's/ /,/g')
-  debug "local cert is for domains: ${existing_sanlist}"
-  if [[ "$enddate" != "-" ]]; then
-    enddate_s=$(date_epoc "$enddate")
-    if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]] && [[ "$existing_sanlist" == "$sorted_sanlist" ]]; then
-      issuer=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null)
-      if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v02.api.letsencrypt.org" ]]; then
-        debug "upgrading from fake cert to real"
+  # if there is an existing certificate file, check details.
+  if [[ -s "$CERT_FILE" ]]; then
+    debug "certificate $CERT_FILE exists"
+    enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
+    debug "local cert is valid until $enddate"
+    existing_sanlist=$(openssl x509 -in "$CERT_FILE" -noout -text | grep "DNS:" | sed '{ s/ *DNS://g; y/,/\n/; }' | sort -u | xargs | sed 's/ /,/g')
+    sorted_sanlist=$(echo "$SANLIST" | sed '{ s/subjectAltName=//; s/ *DNS://g; y/,/\n/; }' | sort -u | xargs | sed 's/ /,/g')
+    debug "local cert is for domains: ${existing_sanlist}"
+    if [[ "$enddate" != "-" ]]; then
+      enddate_s=$(date_epoc "$enddate")
+      if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]] && [[ "$existing_sanlist" == "$sorted_sanlist" ]]; then
+        issuer=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null)
+        if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v02.api.letsencrypt.org" ]]; then
+          debug "upgrading from fake cert to real"
+        else
+          info "${DOMAIN}: certificate is valid for more than $RENEW_ALLOW days (until $enddate)"
+          # everything is OK, so exit, if requested with the --notify-valid, exit with code 2
+          graceful_exit $_NOTIFY_VALID
+        fi
       else
-        info "${DOMAIN}: certificate is valid for more than $RENEW_ALLOW days (until $enddate)"
-        # everything is OK, so exit, if requested with the --notify-valid, exit with code 2
-        graceful_exit $_NOTIFY_VALID
+        if [[ "$existing_sanlist" != "$sorted_sanlist" ]]; then
+          info "Domain list in existing certificate ($existing_sanlist) does not match domains requested ($sorted_sanlist), so recreating certificate"
+        fi
+        debug "${DOMAIN}: certificate needs renewal"
       fi
-    else
-      if [[ "$existing_sanlist" != "$sorted_sanlist" ]]; then
-        info "Domain list in existing certificate ($existing_sanlist) does not match domains requested ($sorted_sanlist), so recreating certificate"
-      fi
-      debug "${DOMAIN}: certificate needs renewal"
     fi
   fi
-fi
-# end of .... if there is an existing certificate file, check details.
+  # end of .... if there is an existing certificate file, check details.
 
-if [[ ! -t 0 ]] && [[ "$PREVENT_NON_INTERACTIVE_RENEWAL" = "true" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
-  errmsg="$DOMAIN due for renewal,"
-  errmsg="${errmsg} but not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
-  error_exit "$errmsg"
+  if [[ ! -t 0 ]] && [[ "$PREVENT_NON_INTERACTIVE_RENEWAL" = "true" ]]; then
+    errmsg="$DOMAIN due for renewal,"
+    errmsg="${errmsg} but not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
+    error_exit "$errmsg"
+  fi
 fi
+# End account only command exclusion
 
 # create account key if it doesn't exist.
 if [[ -s "$ACCOUNT_KEY" ]]; then
@@ -3445,31 +3462,33 @@ else
   create_key "$ACCOUNT_KEY_TYPE" "$ACCOUNT_KEY" "$ACCOUNT_KEY_LENGTH"
 fi
 
-# if not reusing private key, then remove the old keys
-if [[ "$REUSE_PRIVATE_KEY" != "true" ]]; then
-  if [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
-    rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+if [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTIVATE_ACCOUNT -eq 0 ]]; then
+  # if not reusing private key, then remove the old keys
+  if [[ "$REUSE_PRIVATE_KEY" != "true" ]]; then
+    if [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
+      rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+    fi
+    if [[ -s "$DOMAIN_DIR/${DOMAIN}.ec.key" ]]; then
+      rm -f "$DOMAIN_DIR/${DOMAIN}.ec.key"
+    fi
   fi
-  if [[ -s "$DOMAIN_DIR/${DOMAIN}.ec.key" ]]; then
-    rm -f "$DOMAIN_DIR/${DOMAIN}.ec.key"
+
+  # create new domain keys if they don't already exist
+  if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
+    create_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LENGTH"
+  else
+    create_key "rsa" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LENGTH"
+    create_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.ec.key" "$DOMAIN_KEY_LENGTH"
   fi
-fi
+  # End of creating domain keys.
 
-# create new domain keys if they don't already exist
-if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
-  create_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LENGTH"
-else
-  create_key "rsa" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LENGTH"
-  create_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.ec.key" "$DOMAIN_KEY_LENGTH"
-fi
-# End of creating domain keys.
-
-#create CSR's
-if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
-  create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
-else
-  create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
-  create_csr "$DOMAIN_DIR/${DOMAIN}.ec.csr" "$DOMAIN_DIR/${DOMAIN}.ec.key"
+  #create CSR's
+  if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
+    create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
+  else
+    create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
+    create_csr "$DOMAIN_DIR/${DOMAIN}.ec.csr" "$DOMAIN_DIR/${DOMAIN}.ec.key"
+  fi
 fi
 
 # use account key to register with CA
