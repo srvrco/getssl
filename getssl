@@ -391,6 +391,7 @@ _USE_DEBUG=0
 _ONLY_CHECK_CONFIG=0
 config_errors="false"
 export LANG=C
+export LC_ALL=C
 API=1
 
 # store copy of original command in case of upgrading script and re-running
