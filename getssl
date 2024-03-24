@@ -298,6 +298,7 @@
 # 2024-03-21 Relax restrictions on dns-01 CNAMEs to allow for hased targets. (tlhackque)
 # 2024-03-21 Ensure that --all doesn't run --new-account-key or --DEACTIVATE-account more than once. (tlhackque)
 # 2024-03-21 Avoid domain processing when the action is account management. (tlhackque)
+# 2024-03-24 Implement multiple ACCOUNT_EMAIL addresses (tlhackque)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -433,6 +434,23 @@ cert_archive() {  # Archive certificate file by copying files to dated archive d
 
 base64url_decode() {
     awk '{ if (length($0) % 4 == 3) print $0"="; else if (length($0) % 4 == 2) print $0"=="; else print $0; }' | tr -- '-_' '+/' | base64 -d
+}
+
+# Convert arguments to comma-separated list
+function Join() {
+  local IFS=","
+  printf '%s' "$*"
+}
+
+# Sort array "sortin" to "sortout" (with -u)
+function sorta() {
+  local i _line
+  sorted=()
+  while IFS=$'\n' read -r _line ; do
+    sorted+=( "$_line" )
+  done < <( for (( i=0; i < "${#sortin[@]}"; ++i )); do
+    printf '%s\n' "${sortin["$i"]}"
+  done | sort -u )
 }
 
 cert_install() {  # copy certs to the correct location (creating concatenated files as required)
@@ -2845,8 +2863,10 @@ write_getssl_template() { # write out the main template file
 	# The agreement that must be signed with the CA, if not defined the default agreement will be used
 	#AGREEMENT="$AGREEMENT"
 
-	# Set an email address associated with your account - generally set at account level rather than domain.
+	# Set one or more email addresses associated with your account - generally set at account level rather than domain.
 	#ACCOUNT_EMAIL="me@example.com"
+	#ACCOUNT_EMAIL=("me@example.com" "you@example.com")
+
 	ACCOUNT_KEY_LENGTH=4096
 	ACCOUNT_KEY="$WORKING_DIR/account.key"
 
@@ -3496,58 +3516,84 @@ fi
 get_signing_params "$ACCOUNT_KEY"
 
 info "Registering account"
+
+# Convert contact e-mail addresses to mailto: format.  Sort for comparisons.
+if [[ -n "${ACCOUNT_EMAIL[*]}" ]] ; then
+  IFS=',' read -ra "ACCOUNT_EMAIL" <<<"$(Join "${ACCOUNT_EMAIL[@]}")"
+  sortin=()
+  for em in "${ACCOUNT_EMAIL[@]}"; do
+      sortin+=("\"mailto:$em\"")
+  done
+  sorta
+  ACCOUNT_EMAIL=("${sorted[@]}")
+  account_emails="$(Join "${ACCOUNT_EMAIL[@]}")"
+else
+  account_emails=
+fi
+
 # send the request to the ACME server.
 if [[ $API -eq 1 ]]; then
-  if [[ "$ACCOUNT_EMAIL" ]] ; then
-  	regjson='{"resource": "new-reg", "contact": ["mailto:'$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
+  if [[ -n "$account_emails" ]]; then
+  	regjson='{"resource": "new-reg", "agreement": "'"$AGREEMENT"'", "contact": [ '"${account_emails}"' ]}'
   else
-  	regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
+  	regjson='{"resource": "new-reg", "agreement": "'"$AGREEMENT"'"}'
   fi
   send_signed_request "$URL_new_reg"  "$regjson"
 elif [[ $API -eq 2 ]]; then
-  if [[ "$ACCOUNT_EMAIL" ]] ; then
-  	regjson='{"termsOfServiceAgreed": true, "contact": ["mailto:'$ACCOUNT_EMAIL'"]}'
+  if [[ -n "$account_emails" ]] ; then
+  	regjson='{"termsOfServiceAgreed": true, "contact": [ '"${account_emails}"' ]}'
   else
   	regjson='{"termsOfServiceAgreed": true}'
   fi
   send_signed_request "$URL_newAccount"  "$regjson"
 else
-	debug "cant determine account API"
-	graceful_exit
+  debug "cant determine account API"
+  graceful_exit
 fi
 
 if [[ "$code" == "" ]] || [[ "$code" == '201' ]] ; then
   info "Registered"
   KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
   debug "AccountId=$KID}"
-  echo "$response" > "$TEMP_DIR/account.json"
-elif [[ "$code" == '409' ]] ; then
-  KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
-  debug responseHeaders "$responseHeaders"
-  debug "Already registered, AccountId=$KID"
-elif [[ "$code" == '200' ]] ; then
-  KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
-  debug responseHeaders "$responseHeaders"
-  debug "Already registered account, AccountId=${KID}"
-  email="$(json_get "$response" "contact")"
-  if [[ "${email#mailto:}" != "$ACCOUNT_EMAIL" ]]; then
-      # Update account E-Mail (Note that a list is allowed by the RFC)
-      if [[ -n "$ACCOUNT_EMAIL" ]]; then
-          info "Updating account contact e-mail from '${email#mailto:}' to '$ACCOUNT_EMAIL'"
-          send_signed_request "$KID" '{"contact": ["mailto:'"$ACCOUNT_EMAIL"'"]}'
-      else
-          info "Removing account contact email '${email#mailto:}'"
-          send_signed_request "$KID" '{"contact": []}'
-      fi
-      if [[ "$code" == '200' ]]; then
-          info " - update succeeded"
-      else
-          info " - update failed"
-      fi
-      debug responseHeaders "$responseHeaders"
-  fi
 else
-  error_exit "Error registering account ...$responseHeaders ... $(json_get "$response" detail)"
+    if [[ "$code" == '409' ]] ; then
+      KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
+      debug responseHeaders "$responseHeaders"
+      debug "Already registered with 'conflict' response (boulder issue 3327), AccountId=$KID"
+    elif [[ "$code" == '200' ]] ; then
+      KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
+      debug responseHeaders "$responseHeaders"
+      debug "Already registered account, AccountId=${KID}"
+    else
+      error_exit "Error registering account ...$responseHeaders ... $(json_get "$response" detail)"
+    fi
+
+    #email="$(json_get "$response" "contact")"
+    #if schemes other than mailto: are supported, this will need to change
+    r="$(tr '\n\t' '  ' <<<"$response")"
+    reg_mailto=
+    if [[ "$r" =~ '"contact"'\ *:\ *'['\ *(('"mailto:'[^\"]*\",?\ *)+\ *)']' ]]; then
+      sortin=()
+      IFS=',' read -ra "sortin" < <(sed -e's/, */,/g;s/ *$//' <<<"${BASH_REMATCH[1]}")
+      sorta; reg_mailto="$(Join "${sorted[@]}")"
+    fi
+    unset r
+    if [[ "${reg_mailto}" != "${account_emails}" ]]; then
+        # Update account E-Mail
+        if [[ -n "${account_emails}" ]]; then
+            info "Updating account contact e-mail from '${reg_mailto}' to '${account_emails}'"
+            send_signed_request "$KID" '{"contact": [ '"${account_emails}"' ]}'
+        else
+            info "Removing account contact email '${account_emails}'"
+            send_signed_request "$KID" '{"contact": []}'
+        fi
+        if [[ "$code" == '200' ]]; then
+            info " - update succeeded"
+        else
+            info " - update failed"
+        fi
+        debug responseHeaders "$responseHeaders"
+    fi
 fi
 
 if [[ ${_SHOW_ACCOUNT_ID} -eq 1 ]]; then
@@ -3601,6 +3647,7 @@ if [[ ${_DEACTIVATE_ACCOUNT} -eq 1 ]]; then
         info " - deactivation failed"
     fi
     debug responseHeaders "$responseHeaders"
+    graceful_exit
 fi
 # end of deactivate account
 
