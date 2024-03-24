@@ -2500,15 +2500,15 @@ requires() { # check if required function is available
 function find_service_port() {
   local name="$1" line
   # "extra" commands from IANA port number
-  local extra_cmds=([21]="-starttls ftp" [143]="-starttls imap" [110]="-starttls pop3"
+  declare -ar extra_cmds=([21]="-starttls ftp" [143]="-starttls imap" [110]="-starttls pop3"
      [25]="-starttls smtp" [587]="-starttls smtp" [5222]="-starttls xmpp"
      [5432]="-starttls postgres")
   # Standard name IANA-assigned name from previous conventions
-  declare -A  aliases=(["webserver"]="https" ["ftpi"]="ftps" ["smtps_deprecated"]="smtps"
+  declare -Ar  aliases=(["webserver"]="https" ["ftpi"]="ftps" ["smtps_deprecated"]="smtps"
       ["smtps"]="submission" ["smtp_submission"]="submission" ["xmpp"]="xmpp-client"
       ["xmpps"]="xmpp-server")
   # Fallback name => port mapping (what previous code did)
-  declare -A defaults=(["https"]=443 ["ftp"]=21 ["ftps"]=990 ["imap"]=143 ["imaps"]=993
+  declare -Ar defaults=(["https"]=443 ["ftp"]=21 ["ftps"]=990 ["imap"]=143 ["imaps"]=993
       ["pop3"]=110 ["pop3s"]=995 ["smtp"]=25 ["smtps"]=465 ["submission"]=587
       ["xmpp-client"]=5222 ["xmpp-server"]=5369 ["ldaps"]=636 ["postgres"]=5432)
 
@@ -2864,6 +2864,7 @@ write_domain_template() { # write out a template file for a domain.
 		# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
 		# will be checked for certificate expiry and also will be checked after
 		# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+		# Any TCP port named in /etc/services can also be used as a server type.
 		#SERVER_TYPE="https"
 		#CHECK_REMOTE="true"
 		#CHECK_REMOTE_WAIT="2" # wait 2 seconds before checking the remote server
@@ -2924,6 +2925,7 @@ write_getssl_template() { # write out the main template file
 	# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
 	# will be checked for certificate expiry and also will be checked after
 	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+	# Any TCP port named in /etc/services can also be used as a server type.
 	SERVER_TYPE="https"
 	CHECK_REMOTE="true"
 
