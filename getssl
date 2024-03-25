@@ -3324,8 +3324,19 @@ if [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTI
 else
   # Account management commands
   auto_upgrade_v2
-  DOMAIN="__none__"
-  TEMP_DIR="$DOMAIN_STORAGE/tmp"
+  if [ -n "$DOMAIN" ]; then
+    if ! [ -d "${DOMAIN_DIR}" ] && [ -s "${DOMAIN_DIR}/${DOMAIN}/getssl.cfg" ]; then
+      error_exit "$DOMAIN: does not exist"
+    fi
+    # Read any (account) variables from config in specified domain's directory
+    debug "reading config from $DOMAIN_DIR/getssl.cfg"
+    # shellcheck source=/dev/null
+    . "$DOMAIN_DIR/getssl.cfg"
+  else
+    # No domain specified, process using globally-specified account
+    DOMAIN="__none__"
+    TEMP_DIR="$DOMAIN_STORAGE/tmp"
+  fi
   if [[ ! -d "${TEMP_DIR}" ]]; then
     debug "Making temp directory - ${TEMP_DIR}"
     mkdir -p "${TEMP_DIR}"
@@ -3504,6 +3515,10 @@ fi
 # create account key if it doesn't exist.
 if [[ -s "$ACCOUNT_KEY" ]]; then
   debug "Account key exists at $ACCOUNT_KEY skipping generation"
+elif [[ "${_NEW_ACCOUNT_KEY}" -eq 1 ]] || [[ "${_DEACTIVATE_ACCOUNT}" -eq 1 ]]; then
+  # It's useful for show account id to create a key
+  info "Operation requires an account key. $ACCOUNT_KEY does not exist"
+  graceful_exit 1
 else
   info "creating account key $ACCOUNT_KEY"
   create_key "$ACCOUNT_KEY_TYPE" "$ACCOUNT_KEY" "$ACCOUNT_KEY_LENGTH"
@@ -3666,7 +3681,16 @@ fi
 
 # Permanently deactivate account
 if [[ ${_DEACTIVATE_ACCOUNT} -eq 1 ]]; then
-    echo "PERMANENTLY deactivating account"
+    info "PERMANENTLY deactivating account $KID"
+    info "                         using $ACCOUNT_KEY"
+    while true; do
+      if ! read -rp "This action is irreversible.  Proceed? (no, YES):" 'REPLY' || [[ "$REPLY" =~ ^([nN][oO]?)?$ ]]; then
+          info "Aborted, no action taken"
+          graceful_exit 1
+      fi
+      [[ "$REPLY" == 'YES' ]] && break
+    done
+    info "Proceeding with deactivation"
     send_signed_request "$KID" '{"status":"deactivated"}'
     if [[ "$code" == '200' ]]; then
         info " - Account has been deactivated - it can NOT be revived"
