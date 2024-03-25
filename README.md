@@ -93,6 +93,9 @@ Options:
   -v  --version      Display current version of getssl
   -w working_dir "Working directory"
     --preferred-chain "chain" Use an alternate chain for the certificate
+    --account-id       Display account id and exit
+    --new-account-key  Replace the account key with a new one
+    --DEACTIVATE-account Permanently deactivate account
 ```
 
 ## Quick Start Guide 
