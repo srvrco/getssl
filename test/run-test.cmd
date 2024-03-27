@@ -1,10 +1,15 @@
-@echo off
+@echo on
 IF %1.==. GOTO NoOS
 SET OS=%1
 
 :CheckCommand
 IF %2.==. GOTO NoCmd
 SET COMMAND=%2 %3
+
+:CheckBats
+IF NOT %3.==. GOTO CheckAlias
+SET COMMAND=bats %2
+IF NOT "%COMMAND:~5,12%"=="/getssl/test" SET COMMAND=bats /getssl/test/%2
 
 :CheckAlias
 REM check if OS *contains* staging
