@@ -292,6 +292,7 @@
 # 2024-03-16 Use FTP_PORT when deleting ftp tokens. Delete tokens when using sftp, davfs, ftpes, ftps (#693,#839) (tlhackque)
 # 2024 03-16 Fix dns-01's CNAME processing.  (#840) (tlhackque)
 # 2024-03-17 Automatically update the ACCOUNT_EMAIL (#827) (tlhackque)
+# 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
 # 2024-03-18 Implement --new-account-key and --DEACTIVATE-account (tlhackque)
 # 2024-03-18 Implement token substitution in ACLs (#267) (tlhackque)
 # 2024-03-19 Implement DNS_NSUPDATE_LOCALIP in dns_{add,del}_nsupdate (#801) (tlhackque)
@@ -300,6 +301,7 @@
 # 2024-03-21 Avoid domain processing when the action is account management. (tlhackque)
 # 2024-03-24 Implement multiple ACCOUNT_EMAIL addresses (tlhackque)
 # 2024-03-24 Use /etc/services (or similar) to translate port names.  (tlhackque)
+# 2024-04-12 Add all starttls protocols currently documented by openssl. Ensure that REMOTE_EXTRA overides built-ins (tlhackque)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -2498,10 +2500,12 @@ requires() { # check if required function is available
 
 function find_service_port() {
   local name="$1" line
-  # "extra" commands from IANA port number
-  declare -ar extra_cmds=([21]="-starttls ftp" [143]="-starttls imap" [110]="-starttls pop3"
-     [25]="-starttls smtp" [587]="-starttls smtp" [5222]="-starttls xmpp"
-     [5432]="-starttls postgres")
+  # "extra" command options for openssl s_client from IANA port number
+  declare -ar extra_cmds=([25]="-starttls smtp" [587]="-starttls smtp" [110]="-starttls pop3"
+      [143]="-starttls imap" [21]="-starttls ftp" [5222]="-starttls xmpp"
+      [5269]="-starttls xmpp-server" [194]="-starttls irc" [5432]="-starttls postgres"
+      [3306]="-starttls mysql" [24]="-starttls lmtp" [119]="-starttls nntp"
+      [2000]="-starttls sieve" [389]="-starttls ldap")
   # Standard name IANA-assigned name from previous conventions
   declare -Ar  aliases=(["webserver"]="https" ["ftpi"]="ftps" ["smtps_deprecated"]="smtps"
       ["smtps"]="submission" ["smtp_submission"]="submission" ["xmpp"]="xmpp-client"
@@ -2509,7 +2513,7 @@ function find_service_port() {
   # Fallback name => port mapping (what previous code did)
   declare -Ar defaults=(["https"]=443 ["ftp"]=21 ["ftps"]=990 ["imap"]=143 ["imaps"]=993
       ["pop3"]=110 ["pop3s"]=995 ["smtp"]=25 ["smtps"]=465 ["submission"]=587
-      ["xmpp-client"]=5222 ["xmpp-server"]=5369 ["ldaps"]=636 ["postgres"]=5432)
+      ["xmpp-client"]=5222 ["xmpp-server"]=5269 ["ldaps"]=636 ["postgres"]=5432)
 
   # Numeric name => just check for extras
   if [[ "$name" =~ ^([0-9]+)$ ]]; then
@@ -2549,11 +2553,11 @@ function find_service_port() {
 set_server_type() { # uses SERVER_TYPE to set REMOTE_PORT and REMOTE_EXTRA
   if find_service_port "$SERVER_TYPE" ; then
     REMOTE_PORT="$_PORT"
-    REMOTE_EXTRA="$_EXTRA"
-  else
-    info "${DOMAIN}: unknown server type \"$SERVER_TYPE\" in SERVER_TYPE"
-    config_errors=true
+    [[ -z "$REMOTE_EXTRA" ]] && REMOTE_EXTRA="$_EXTRA"
+    return 0
   fi
+  info "${DOMAIN}: unknown server type \"$SERVER_TYPE\" in SERVER_TYPE"
+  return 1
 }
 
 send_signed_request() { # Sends a request to the ACME server, signed with your private key.
@@ -3294,7 +3298,9 @@ if [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTI
   SANS=$(echo "$SANS" | sed 's/[, ]\+/,/g')
 
   # from SERVER_TYPE set REMOTE_PORT and REMOTE_EXTRA
-  set_server_type
+  if ! set_server_type; then
+      config_errors=true
+  fi
 
   # check what dns utils are installed
   find_dns_utils
