@@ -11,10 +11,11 @@
 7. git push origin release_2_nn
 8. git push --tags
 
-## The github release-and-package action should
+## Manually start the github release-and-package action
 
 1. Build the .deb and .rpm packages
 2. create a draft release containing the packages and the release note
+3. **IMPORTANT** make sure that the release references tag **v**N.NN otherwise getssl -u fails!
 
 ## Can test the .deb file using the following steps
 
