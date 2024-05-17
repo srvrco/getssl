@@ -1,6 +1,6 @@
 
 
-GETSSL 
+GETSSL
 
 
 [Run all tests] [shellcheck]
@@ -9,7 +9,7 @@ Obtain SSL certificates from the letsencrypt.org ACME server. Suitable
 for automating the process on remote servers.
 
 
-Table of Contents 
+Table of Contents
 
 -   Upgrade broken in v2.43
 -   Features
@@ -163,7 +163,7 @@ INSTALLING SOURCE PACKAGES
 To install the source package with the rpm package manager for RedHat,
 CentOS, SuSe, Oracle Linux, or AWS Linux distributions:
 
-    rpm -i getssl-2.47-1.src.rpm 
+    rpm -i getssl-2.47-1.src.rpm
 
 _(Note: rpm installs the source code files in /root/rpmbuild/ as top
 directory for RedHat, CentOS, Oracle Linux, and AWS Linux platforms.
@@ -183,12 +183,12 @@ SPECS and SOURCES directory tree structure. Subsequently, an SDEB can
 also be extracted and installed with the TAR -XVF COMMAND or the files
 listed with the TAR -TVF COMMAND:
 
-    [root@localhost getssl]$ tar -tvf /root/debbuild/SDEBS/getssl-2.47-1.sdeb 
+    [root@localhost getssl]$ tar -tvf /root/debbuild/SDEBS/getssl-2.47-1.sdeb
     -rw-r--r-- root/root   1772110 2022-10-12 20:42 SOURCES/getssl-2.47.tar.gz
     -rw-r--r-- root/root       192 2022-08-02 15:02 SOURCES/getssl.crontab
     -rw-r--r-- root/root       126 2022-08-02 15:02 SOURCES/getssl.logrotate
     -rw-r--r-- root/root      1537 2022-08-02 15:02 SPECS/getssl.spec
-    [root@localhost getssl]$ 
+    [root@localhost getssl]$
 
 For building or rebuilding RPMS or DEB Packages after you have installed
 the associated source packages on your platform, refer to the following:
@@ -473,21 +473,21 @@ certificate is installed correctly
 
   Server-Type        Port   Extra
   ------------------ ------ --------------
-  https              443    
+  https              443
   ftp                21     FTP Explicit
   ftpi               990    FTP Implicit
   imap               143    StartTLS
-  imaps              993    
+  imaps              993
   pop3               110    StartTLS
-  pop3s              995    
+  pop3s              995
   smtp               25     StartTLS
-  smtps_deprecated   465    
+  smtps_deprecated   465
   smtps              587    StartTLS
   smtp_submission    587    StartTLS
   xmpp               5222   StartTLS
-  xmpps              5269   
-  ldaps              636    
-  port number               
+  xmpps              5269
+  ldaps              636
+  port number
 
 
 Revoke a certificate
