@@ -1,3 +1,13 @@
+---------------------------------------------------------------------------
+  NOTE: GoDaddy updated their domain API requirements in 2024!
+
+  It's now required to have at least 10-50 domains in your account.
+  Another option is to purchase the "Discount Domain Club" (Premium!)
+  to gain access to the API.
+
+  Source: https://www.reddit.com/r/godaddy/comments/1bl0f5r/
+---------------------------------------------------------------------------
+
 Using GoDaddy DNS for LetsEncrypt domain validation.
 
 Quick guide to setting up getssl for domain validation of
@@ -22,7 +32,7 @@ There are two prerequisites to using getssl with GoDaddy DNS:
 
 With those in hand, the installation procedure is:
 
-1) Put JSON.sh in the getssl DNS scripts directory 
+1) Put JSON.sh in the getssl DNS scripts directory
    Default: /usr/share/getssl/dns_scripts
 
 2) Open your config file (the global file in ~/.getssl/getssl.cfg
