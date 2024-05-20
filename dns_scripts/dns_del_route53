@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Delete token from Route53 dns using dns_route53 bash version
+
+fulldomain="$1"
+token="$2"
+
+[ -z "$ROUTE53_SCRIPT" ] && ROUTE53_SCRIPT="/usr/share/getssl/dns_scripts/dns_route53"
+[[ "$ROUTE53_SCRIPT" =~ ^~ ]] && \
+    eval 'ROUTE53_SCRIPT=`readlink -nf ' $ROUTE53_SCRIPT '`'
+
+if [ ! -x "$ROUTE53_SCRIPT" ]; then
+    echo "$ROUTE53_SCRIPT: not found.  Please install, softlink or set ROUTE53_SCRIPT to its full path"
+    echo "See ROUTE53-README.txt for complete instructions."
+    exit 3
+fi
+
+$ROUTE53_SCRIPT -q del "${fulldomain}." "${token}"

@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+VERSION="1.0"
+PROG="$(basename "$0")"
+
+QUIET=n
+
+while getopts 'dhp:t:z:i:qv' opt; do
+    case $opt in
+        d) DEBUG="Y"                                   ;;
+        p) AWS_CLI_PROFILE="$OPTARG"                   ;;
+        q) QUIET=                                      ;;
+        v) echo "dns_route53 version $VERSION"; exit 0 ;;
+        z) ROUTE53_HOSTED_ZONE_NAME="$OPTARG"          ;;
+        i) ROUTE53_HOSTED_ZONE_ID="$OPTARG"            ;;
+        *)
+            cat <<EOF
+Usage
+    $PROG [-dt -q] add name data [ttl]
+    $PROG [-dt -h -p "aws-profile-name" -q] del name data
+
+Add or delete TXT records from Route53 Hosted Zone
+
+You must have the AWS CLI installed and a profile configured for this script to work.
+	The IAM user that the profile uses requires the following action permissions in AWS:
+	- route53:ListHostedZones - Not necessary if zone ID is available to this script
+	- route53:ChangeResourceRecordSets
+
+With getssl, this script is called from the dns_add_route53 and
+dns_del_route53 wrapper scripts.
+
+Arguments:
+    add - add the specified record to the domain
+
+    del - remove the specified record from the domain
+
+    name is the fully qualified record name to create the challenge for e.g. www.example.org. Note that trailing '.' is necessary.  Also note that _acme-challenge. will automatically be prepended by this script
+
+    data is the record data, e.g. "myverificationtoken"
+
+    ttl is optional and will default to 120 if not specified
+
+    If it is necessary to turn on debugging externally, define
+    ROUTE53_DEBUG="y" (any non-null string will do).
+    For minimal trace output (to override -q), define ROUTE53_TRACE="y".
+
+Options
+    -d    Provide debugging output - all requests and responses
+    -h    This help.
+    -i:   The hosted zone ID
+    -p:   The AWS CLI profile to use.  Will use default if not specified
+    -q:   Quiet - omit normal success messages
+    -z:   The hosted zone name. Will be used to determine the zone ID if ID was not provided
+
+    All output, except for this help text, is to stderr.
+
+Environment variables
+    ROUTE53_SCRIPT   location of this script
+    ROUTE53_HOSTED_ZONE_NAME The name of the hosted zone name.  If not specified, then the name will be determined from the record name provided to this script
+    ROUTE53_HOSTED_ZONE_ID The id of the hosted zone to be used instead of trying to automatically determine the ID
+    AWS_CLI_PROFILE  the aws cli profile to use if not using default
+
+BUGS
+    Report any issues to https://github.com/xyide/getssl/issues
+EOF
+            exit 0
+            ;;
+    esac
+done
+shift $((OPTIND-1))
+
+if [ -z "$AWS_CLI_PROFILE" ]; then
+    echo "AWS_CLI_PROFILE not defined.  Using default" >&2
+    AWS_CLI_PROFILE=default
+fi
+
+op="$1"
+if ! [[ "$op" =~ ^(add|del)$ ]]; then
+    echo "Operation must be \"add\" or \"del\"" >&2
+    exit 3
+fi
+name="$2"
+if [ -z "$name" ]; then
+    echo "'name' parameter is required, see -h" >&2
+    exit 3
+fi
+data="$3"
+if [ -z "$data" ]; then
+    echo "'data' parameter is required, see -h" >&2
+    exit 3
+fi
+
+if [ "$op" = 'del' ]; then
+    ttl=120
+elif [ -z "$5" ]; then
+    ttl="120"
+elif ! [[ "$5" =~ ^[0-9]+$ ]]; then
+    echo "TTL $5 is not numeric" >&2
+    exit 3
+elif [ "$5" -lt 120 ]; then
+    [ -n "$VERB" ] && \
+        echo "$5 is too small.  Using TTL of 120 instead" >&2
+    ttl="120"
+else
+    ttl="$5"
+fi
+
+# end processing parameters
+
+[ -n "$DEBUG" ] && \
+    echo "$PROG: $op $name \"$data\" $ttl" >&2
+
+# Determine what actual hosted zone to use.
+
+HOSTED_ZONE_NAME=$ROUTE53_HOSTED_ZONE_NAME
+HOSTED_ZONE_ID=$ROUTE53_HOSTED_ZONE_ID
+RR_NAME="_acme-challenge.${name}"
+RR_VALUE="${data}"
+
+# Function to parse through the segments in the supplied name
+# to determine the zone and its id
+function determine_hosted_zone_name_and_id() {
+    TMP_NAME=$name
+    TMP_RR_NAME=
+	while [[ "$TMP_NAME" =~ ^([^.]+)\.([^.]+.*) ]]; do
+		if [ -n "${TMP_RR_NAME}" ]; then 
+			TMP_RR_NAME="${TMP_RR_NAME}."; 
+		fi
+		TMP_RR_NAME="${TMP_RR_NAME}${BASH_REMATCH[1]}"
+		testdomain="${BASH_REMATCH[2]}"
+		[ -n "$DEBUG" ] && echo "Testing hosted zone ${testdomain}"
+		TMP_NAME=$testdomain
+		if [[ ! "$TMP_NAME" =~ [^.]+\.[^.]+ ]]; then
+			[ -n "$DEBUG" ] && echo "No segments left"
+				exit 1
+		fi
+	
+		TMP_ZONE_ID=$(aws --profile=${AWS_CLI_PROFILE} route53 list-hosted-zones --query "HostedZones[?Name=='${testdomain}'].Id | [0]" | sed -e 's/^"//' -e 's/"$//')
+	
+		
+		if [ "${TMP_ZONE_ID}" != "null" ]; then
+			[ -n "$DEBUG" ] && echo "Found hosted zone ${testdomain}"
+			HOSTED_ZONE_NAME=${testdomain}
+			HOSTED_ZONE_ID=$TMP_ZONE_ID
+			break
+		fi
+	done
+}
+
+# If zone ID is specified, then use it to determine the hosted zone name
+if [ -n "${HOSTED_ZONE_ID}" ]; then
+	HOSTED_ZONE_NAME=$(aws --profile=${AWS_CLI_PROFILE} route53 list-hosted-zones --query "HostedZones[?Id=='${ZONE_ID}'].Name | [0]" | sed -e 's/^"//' -e 's/"$//')
+# If zone name is specified, then use it to get the zone id
+elif [ -n "${HOSTED_ZONE_NAME}" ]; then
+	HOSTED_ZONE_ID=$(aws --profile=${AWS_CLI_PROFILE} route53 list-hosted-zones --query "HostedZones[?Name=='${HOSTED_ZONE_NAME}'].Id | [0]" | sed -e 's/^"//' -e 's/"$//')
+else
+	determine_hosted_zone_name_and_id
+fi
+
+
+	if [ -z "${HOSTED_ZONE_ID}" ]; then
+	echo "Hosted zone id not specified or determined" >&2
+    exit 3
+fi
+
+if [ "$op" = "add" ]; then
+	ACTION="UPSERT"
+elif [ "$op" = "del" ]; then
+	ACTION="DELETE"
+else
+	echo "Unsupported Operation: $op" >&2
+fi
+
+CHANGE_BATCH='
+{
+    "Comment": "GetSSL LetsEncrypt DNS Challenge",
+    "Changes": [{
+      "Action"             : "'"$ACTION"'",
+      "ResourceRecordSet"  : {
+        "Name"             : "'"$RR_NAME"'",
+        "Type"             : "TXT",
+        "TTL"              : '${ttl}',
+        "ResourceRecords"  : [{
+            "Value"         : "\"'$RR_VALUE'\""
+        }]
+      }
+    }]
+  }
+'
+
+
+[ -n "$DEBUG" ] && echo "${CHANGE_BATCH}" >&2
+
+aws \
+	--profile=${AWS_CLI_PROFILE} \
+	route53 \
+	change-resource-record-sets \
+	--hosted-zone-id=${HOSTED_ZONE_ID} \
+	--change-batch "${CHANGE_BATCH}"
+exit $?
