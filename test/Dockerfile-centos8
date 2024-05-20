@@ -2,6 +2,10 @@ FROM centos:centos8
 
 # Note this image does not have drill
 
+# Centos 8 is EOL and is no longer available from the usual mirrors, so switch to https://vault.centos.org
+RUN sed -i 's/^mirrorlist/#mirrorlist/g' /etc/yum.repos.d/*.repo && \
+    sed -i 's;^#baseurl=http://mirror;baseurl=https://vault;g' /etc/yum.repos.d/*.repo
+
 # Update and install required software
 RUN yum -y update
 RUN yum -y install glibc-all-langpacks
@@ -34,7 +38,7 @@ RUN chown -R www-data.www-data /var/www
 RUN chmod g+w -R /var/www
 
 # BATS (Bash Automated Testings)
-RUN git clone --depth 1 https://github.com/bats-core/bats-core.git /bats-core --branch v1.2.1
+RUN git clone --depth 1 https://github.com/bats-core/bats-core.git /bats-core
 RUN git clone --depth 1 https://github.com/bats-core/bats-support /bats-support
 RUN git clone --depth 1 https://github.com/bats-core/bats-assert /bats-assert
 RUN /bats-core/install.sh /usr/local

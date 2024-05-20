@@ -1,10 +1,15 @@
-@echo off
+@echo on
 IF %1.==. GOTO NoOS
 SET OS=%1
 
 :CheckCommand
 IF %2.==. GOTO NoCmd
 SET COMMAND=%2 %3
+
+:CheckBats
+IF NOT %3.==. GOTO CheckAlias
+SET COMMAND=bats %2
+IF NOT "%COMMAND:~5,12%"=="/getssl/test" SET COMMAND=bats /getssl/test/%2
 
 :CheckAlias
 REM check if OS *contains* staging
@@ -77,6 +82,8 @@ docker run -it ^
   --network-alias j.%OS%.getssl.test ^
   --network-alias k.%OS%.getssl.test ^
   --network-alias wild-%ALIAS% ^
+  --hostname getssl-%OS% ^
+  --dns 8.8.8.8 ^
   --name getssl-%OS% ^
   getssl-%OS% ^
   %COMMAND%

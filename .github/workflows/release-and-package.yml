@@ -1,0 +1,127 @@
+# ==========================
+# Can test locally using act (https://github.com/nektos/act)
+# ==========================
+# ./bin/act -s GITHUB_TOKEN=<fine-grained-token> --directory runner --workflows "../.github/workflows/" -e ../payloads.json --no-skip-checkout -j deploy
+#
+# where payloads.json is:
+# {
+# 	"inputs": {
+#         "tags": "2.47"
+#     }
+# }
+#
+# ==========================
+# Can debug remotely on github actions instance by uncommenting the 'tmate' section below
+# ==========================
+
+
+name: Deploy getssl
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Tag to deploy, e.g. 2.47'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: prepare
+        # Keep the outputs persistent outside the docker container to use for the other steps
+        run: |
+          mkdir -p ${{ github.workspace }}/bin
+          mkdir -p ${{ github.workspace }}/debbuild/BUILD
+          mkdir -p ${{ github.workspace }}/debbuild/DEBS/all
+          mkdir -p ${{ github.workspace }}/debbuild/SDEBS
+          mkdir -p ${{ github.workspace }}/debbuild/SOURCES
+          mkdir -p ${{ github.workspace }}/debbuild/SPECS
+          mkdir -p ${{ github.workspace }}/rpmbuild/SOURCES
+          mkdir -p ${{ github.workspace }}/rpmbuild/RPMS/noarch
+          mkdir -p ${{ github.workspace }}/rpmbuild/RPMS/SRPMS
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: source
+
+      - name: Get version number
+        id: get_version
+        run: |
+          echo "VERSION=$(bash ${{ github.workspace }}/source/getssl --version)" >> $GITHUB_OUTPUT
+
+      - name: Get release
+        id: get_release
+        run: |
+          echo "RELEASE=$(grep Release source/getssl.spec | awk '{ print $2 }')" >> $GITHUB_OUTPUT
+
+      - name: Check version matches tag
+        run: |
+          if [ "${{ steps.get_version.outputs.VERSION }}" != "getssl V${{ github.event.inputs.tags }}" ]; then
+            echo "Version number in getssl (${{ steps.get_version.outputs.VERSION }}) does not match tag (getssl V${{ github.event.inputs.tags }})"
+            exit 1
+          fi
+
+      - name: build .deb package
+        id: build_deb
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -qq -y build-essential devscripts debhelper pax liblocale-gettext-perl wget
+          wget https://github.com/debbuild/debbuild/releases/download/22.02.1/debbuild_22.02.1-0ubuntu20.04_all.deb
+          sudo dpkg --install debbuild_22.02.1-0ubuntu20.04_all.deb
+          # Line 1959 has an extra ")" bracket
+          sudo chmod +w /usr/bin/debbuild
+          sudo patch /usr/bin/debbuild < ${GITHUB_WORKSPACE}/source/debbuild.patch
+          tar --absolute-names -czf ${GITHUB_WORKSPACE}/getssl-${{ github.event.inputs.tags }}.tar.gz ${GITHUB_WORKSPACE}/source/* --transform "s,${GITHUB_WORKSPACE}/source,getssl-${{ github.event.inputs.tags }},"
+          tar --absolute-names -cf ${GITHUB_WORKSPACE}/debbuild/SDEBS/getssl-${{ github.event.inputs.tags }}.sdeb ${GITHUB_WORKSPACE}/getssl-${{ github.event.inputs.tags }}.tar.gz --transform "s,${GITHUB_WORKSPACE},SOURCES,"
+          tar --append -f ${GITHUB_WORKSPACE}/debbuild/SDEBS/getssl-${{ github.event.inputs.tags }}.sdeb -C ${GITHUB_WORKSPACE}/source getssl.crontab getssl.logrotate --transform 's,^,SOURCES/,'
+          tar --append -f ${GITHUB_WORKSPACE}/debbuild/SDEBS/getssl-${{ github.event.inputs.tags }}.sdeb -C ${GITHUB_WORKSPACE}/source getssl.spec --transform 's,^,SPECS/,'
+          ln -s ${GITHUB_WORKSPACE}/debbuild ${HOME}/debbuild
+          /usr/bin/debbuild -vv --install ${GITHUB_WORKSPACE}/debbuild/SDEBS/getssl-${{ github.event.inputs.tags }}.sdeb
+          /usr/bin/debbuild -vv -ba ${GITHUB_WORKSPACE}/debbuild/SPECS/getssl.spec
+          echo "getssl_deb=${GITHUB_WORKSPACE}/debbuild/DEBS/all/getssl_${{ github.event.inputs.tags }}-${{ steps.get_release.outputs.RELEASE }}_all.deb" >> $GITHUB_OUTPUT
+
+      # *** Uncomment this to debug remotely ***
+      # - name: Setup tmate session
+      #   if: ${{ failure() }}
+      #   uses: mxschmitt/action-tmate@v3
+
+      - name: build .rpm package
+        id: build_rpm
+        if: ${{ success() }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: rockylinux:8
+          options: -v ${{ github.workspace }}:/root -e GITHUB_REF=${{ github.ref }}
+          run: |
+            yum install -y rpm-build make
+            tar -czf /root/rpmbuild/SOURCES/getssl-${{ github.event.inputs.tags }}.tar.gz /root/source/* --transform "s/root\/source\//getssl-${{ github.event.inputs.tags }}\//"
+            cp /root/source/getssl.crontab /root/rpmbuild/SOURCES
+            cp /root/source/getssl.logrotate /root/rpmbuild/SOURCES
+            rpmbuild -ba /root/source/getssl.spec
+
+      - name: output .rpm packages
+        id: output_rpm
+        if: ${{ success() }}
+        run: |
+          echo "getssl_rpm=${GITHUB_WORKSPACE}/rpmbuild/RPMS/noarch/getssl-${{ github.event.inputs.tags }}-${{ steps.get_release.outputs.RELEASE }}.noarch.rpm" >> $GITHUB_OUTPUT
+          echo "getssl_srpm=${GITHUB_WORKSPACE}/rpmbuild/SRPMS/getssl-${{ github.event.inputs.tags }}-${{ steps.get_release.outputs.RELEASE }}.src.rpm" >> $GITHUB_OUTPUT
+
+      - name: create_release
+        id: create_release
+        if: ${{ success() }}
+        uses: ncipollo/release-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag: ${{ github.event.inputs.tags }}
+          name: Draft Release ${{ github.event.inputs.tags }}
+          generateReleaseNotes: true
+          draft: true
+          prerelease: false
+          artifacts: |
+            ${{ steps.build_deb.outputs.getssl_deb }}
+            ${{ steps.output_rpm.outputs.getssl_rpm }}
+            ${{ steps.output_rpm.outputs.getssl_srpm }}

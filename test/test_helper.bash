@@ -1,11 +1,48 @@
 INSTALL_DIR=/root
 CODE_DIR=/getssl
+LIMIT_API="https://api.github.com/rate_limit"
 
 check_certificates()
 {
   assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/chain.crt" ]
   assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" ]
   assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt" ]
+}
+
+# Quota generally shouldn't be an issue - except for tests
+# Rate limits are per-IP address
+check_github_quota() {
+  local need remaining reset limits now
+  need="$1"
+  echo "# Checking github limits"
+  while true ; do
+    limits="$(curl ${_NOMETER:---silent} --user-agent "srvrco/getssl/github-actions" -H 'Accept: application/vnd.github.v3+json' "$LIMIT_API")"
+    echo "# limits = $limits"
+    errcode=$?
+    if [[ $errcode -eq 60 ]]; then
+      echo "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
+      exit 1
+    elif [[ $errcode -gt 0 ]]; then
+      echo "curl error checking releases: $errcode"
+      exit 1
+    fi
+    remaining="$(jq -r '.resources.core.remaining' <<<"$limits")"
+    echo "# Remaining: $remaining"
+    reset="$(jq -r '.resources.core.reset' <<<"$limits")"
+    if [[ "$remaining" -ge "$need" ]] ; then return 0 ; fi
+    limit="$(jq -r '.resources.core.limit' <<<"$limits")"
+    echo "# Limit: $limit"
+    if [[ "$limit" -lt "$need" ]] ; then
+      echo "GitHub API request $need exceeds limit $limit"
+      exit 1
+    fi
+    now="$(date +%s)"
+    while [[ "$now" -lt "$reset" ]] ; do
+      echo "# sleeping $(( reset - now )) seconds for GitHub quota"
+      sleep "$(( reset - now ))"
+      now="$(date +%s)"
+   done
+  done
 }
 
 # Only nginx > 1.11.0 support dual certificates in a single configuration file
@@ -24,8 +61,8 @@ check_nginx() {
 
 check_output_for_errors() {
   refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-  refute_output --regexp '[^_][Ee][Rr][Rr][Oo][Rr][^:nonce]'
-  refute_output --regexp '[Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+  refute_output --regexp '[^_][Ee][Rr][Rr][Oo][Rr][^:badNonce]'
+  refute_output --regexp '[^_][Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
   refute_line --partial 'command not found'
 }
 
@@ -68,16 +105,16 @@ setup_environment() {
 # shellcheck disable=SC2153 # Ignore GETSSL_OS looks like typo of GETSSL_IP
 if [[ -f /usr/bin/supervisord && -f /etc/supervisord.conf ]]; then
   if [[ ! $(pgrep supervisord) ]]; then
-    /usr/bin/supervisord -c /etc/supervisord.conf >&3-
-    # Give supervisord time to start
-    sleep 1
+   /usr/bin/supervisord -c /etc/supervisord.conf 3>&- 4>&-
+   # Give supervisord time to start
+   sleep 1
   fi
 elif [[ "$GETSSL_OS" == "centos"[78] || "$GETSSL_OS" == "rockylinux"* ]]; then
   if [ -z "$(pgrep nginx)" ]; then
-    nginx 3>&-
+    nginx 3>&- 4>&-
   fi
   if [ -z "$(pgrep vsftpd)" ] && [ "$(command -v vsftpd)" ]; then
-    vsftpd 3>&-
+    vsftpd 3>&- 4>&-
   fi
 fi
 

@@ -1,9 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Copyright (C) 2017,2018 Timothe Litt  litt at acm _dot org
 
 VERSION="2.0"
-PROG="`basename $0`"
+PROG="$(basename "$0")"
 
 # This script is used to update TXT records in GoDaddy DNS server
 # It depends on JSON.sh from https://github.com/dominictarr/JSON.sh
@@ -27,11 +27,10 @@ GETJSON='https://github.com/dominictarr/JSON.sh'
 VERB="y"
 DEBUG="$GODADDY_DEBUG"
 [ -z "$JSON" ] && JSON="$GODADDY_JSON"
-[ -z "$JSON" ] && JSON="`dirname $0`/JSON.sh"
+[ -z "$JSON" ] && JSON="$(dirname "$0")/JSON.sh"
 
 while getopts 'dhj:k:s:t:qv' opt; do
     case $opt in
-        b) GODADDY_BASE="$OPTARG"                      ;;
         d) DEBUG="Y"                                   ;;
         j) JSON="$OPTARG"                              ;;
         k) GODADDY_KEY="$OPTARG"                       ;;
@@ -73,7 +72,7 @@ Arguments:
 Options
     -d    Provide debugging output - all requests and responses
     -h    This help.
-    -j:   Location of JSON.sh Default `dirname $0`/JSON.sh, or
+    -j:   Location of JSON.sh Default $(dirname "$0")/JSON.sh, or
           the GODADDY_JSON variable.
     -k:   The GoDaddy API key    Default from GODADDY_KEY
     -s:   The GoDaddy API secret Default from GODADDY_SECRET
@@ -112,7 +111,7 @@ shift $((OPTIND-1))
 # we assume they'll be deleted later & don't want to strand them.
 
 [[ "$JSON" =~ ^~ ]] && \
-    eval 'JSON=`readlink -nf ' $JSON '`'
+    eval 'JSON=`readlink -nf ' "$JSON" '`'
 if [ ! -x "$JSON" ]; then
     cat <<EOF >&2
 $0: requires JSON.sh as "$JSON"
@@ -148,7 +147,6 @@ if [ -z "$name" ]; then
     echo "'name' parameter is required, see -h" >&2
     exit 3
 fi
-! [[ "$name" =~ [.]$ ]] && name="${name}.${domain}."
 data="$3"
 if [ -z "$data" ]; then
     echo "'data' parameter is required, see -h" >&2
@@ -162,7 +160,7 @@ elif [ -z "$5" ]; then
 elif ! [[ "$5" =~ ^[0-9]+$ ]]; then
     echo "TTL $5 is not numeric" >&2
     exit 3
-elif [ $5 -lt 600 ]; then
+elif [ "$5" -lt 600 ]; then
     [ -n "$VERB" ] && \
         echo "$5 is less than GoDaddy minimum of 600; increased to 600" >&2
     ttl="600"
@@ -173,14 +171,14 @@ fi
 # --- Done with parameters
 
 [ -n "$DEBUG" ] && \
-    echo "$PROG: $op $domain $name \"$data\" $ttl" >&2
+    echo "$PROG: $op $name \"$data\" $ttl" >&2
 
 # Authorization header has secret and key
 
 authhdr="Authorization: sso-key $GODADDY_KEY:$GODADDY_SECRET"
 
 if [ -n "$TRACE" ]; then
-    function timestamp { local tm="`LC_TIME=C date '+%T.%N'`"
+    function timestamp { local tm="$(LC_TIME=C date '+%T.%N')"
         local class="$1"; shift
         echo "${tm:0:15} ** ${class}: $*" >>"$TRACE"
     }
@@ -264,7 +262,7 @@ EOF
             break
         fi
 
-        code="`echo "$response" | grep '"code":' | sed -e's/^.*"code":"//; s/\".*$//'`"
+        code="$(echo "$response" | grep '"code":' | sed -e's/^.*"code":"//; s/\".*$//')"
         if [ "$code" = 'NOT_FOUND' ]; then
                 continue
         fi
@@ -309,11 +307,11 @@ EOF
         exit $sts
     fi
     if ! echo "$result" | grep -q '^HTTP/.* 200 '; then
-        code="`echo "$result" | grep '"code":' | sed -e's/^.*"code":"//; s/\".*$//'`"
-        msg="`echo "$result" | grep '"message":' | sed -e's/^.*"message":"//; s/\".*$//'`"
+        code="$(echo "$result" | grep '"code":' | sed -e's/^.*"code":"//; s/\".*$//')"
+        msg="$(echo "$result" | grep '"message":' | sed -e's/^.*"message":"//; s/\".*$//')"
         if [ "$code" = "DUPLICATE_RECORD" ]; then
             if [ -n "$VERB" ]; then
-                echo "$msg in $domain" >&2
+                echo "$msg in $reqdomain" >&2
             fi
             exit 0 # Duplicate record is still success
         fi
@@ -349,9 +347,9 @@ $current
 --------
 EOF
 
-    if ! echo "$current" | grep -q '^HTTP/.* 200 '; then
-        code="`echo "$current" | grep '"code":' | sed -e's/^.*"code":"//; s/\".*$//'`"
-        msg="`echo "$current" | grep '"message":' | sed -e's/^.*"message":"//; s/\".*$//'`"
+    if ! echo "$current" | grep -q '^HTTP/.* 204 '; then
+        code="$(echo "$current" | grep '"code":' | sed -e's/^.*"code":"//; s/\".*$//')"
+        msg="$(echo "$current" | grep '"message":' | sed -e's/^.*"message":"//; s/\".*$//')"
         echo "Request failed $msg" >&2
         exit 1
     fi

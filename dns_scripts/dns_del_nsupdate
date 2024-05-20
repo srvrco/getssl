@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # example of script to remove token from local dns using nsupdate
 

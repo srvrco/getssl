@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 echo "In the DNS, the following DNS record should be deleted ;"
 echo "_acme-challenge.${1}"

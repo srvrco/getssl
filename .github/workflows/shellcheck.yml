@@ -4,18 +4,20 @@ on:
   push:
     paths-ignore:
       - '.github/workflows/*'
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-  workflow_dispatch:
     branches:
       - master
+  pull_request:
+    paths-ignore:
+      - '.github/workflows/*'
+    branches:
+      - master
+  workflow_dispatch:
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Lint check
         uses: azohra/shell-linter@latest
         with:

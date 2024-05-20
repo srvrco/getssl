@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # need to add your Token for duckdns below
 token=${DUCKDNS_TOKEN:-}

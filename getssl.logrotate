@@ -1,0 +1,9 @@
+/var/log/getssl.log {
+    monthly
+    rotate 10
+    copytruncate
+    delaycompress
+    compress
+    notifempty
+    missingok
+}

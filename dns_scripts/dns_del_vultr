@@ -1,0 +1,26 @@
+#! /usr/bin/env bash
+# Vultr Delete DNS Record 
+# This script requires jq to be installed on the machine running it
+
+api_url="https://api.vultr.com/v2"
+api_key=${VULTR_API_KEY:-''}
+
+
+domain="$1"
+
+root=$(echo "$domain" | awk -F\. '{print $(NF-1) FS $NF}')
+subdomain="_acme-challenge.${domain%.$root}"
+
+if [[ -z "$VULTR_API_KEY" ]]; then
+  echo "VULTR_API_KEY variable not set"
+  exit 1
+fi
+
+function delete {
+  recordID=$(curl "${api_url}/domains/$1/records" --silent -X GET -H "Authorization: Bearer ${VULTR_API_KEY}" | jq -r ".records[] | select(.name==\"$2\").id")
+
+  curl "${api_url}/domains/$1/records/$recordID" -X DELETE -H "Authorization: Bearer ${VULTR_API_KEY}" 
+}
+
+
+delete $root $subdomain

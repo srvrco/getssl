@@ -1,19 +1,31 @@
 #!/usr/bin/env bash
+
+. "$(dirname "${BASH_SOURCE}")/../common.shrc" || {
+  echo "Unable to load shared Bash code"
+  exit 1
+} >&2
+
+# ACMEDNS env variables can be set in a config file at domain level
+acme_config="$DOMAIN_DIR/acme-dns.cfg"
+[ -s "$acme_config" ] && . "$acme_config"
+
 # Need to add your API user and key below or set as env variable
 apiuser=${ACMEDNS_API_USER:-''}
 apikey=${ACMEDNS_API_KEY:-''}
 apisubdomain=${ACMEDNS_SUBDOMAIN:-''}
 
-# This script adds a token to acme-dns.io DNS for the ACME challenge
-# usage dns_add_acme-dns "domain name" "token"
-# return codes are;
+# This script adds a token to an ACME DNS (default to acme-dns.io) for the ACME challenge
+# usage: dns_add_acme-dns "domain name" "token"
+# return codes are:
 # 0 - success
 # 1 - error returned from server
 
 fulldomain="${1}"
 token="${2}"
 
-API='https://auth.acme-dns.io/update'
+# You can set the env var ACMEDNS_URL to use a specific ACME-DNS server
+# Otherwise we use acme-dns.io
+API=${ACMEDNS_URL:-'https://auth.acme-dns.io'}/update
 
 # Check initial parameters
 if [[ -z "$fulldomain" ]]; then
@@ -42,14 +54,12 @@ generate_post_data()
 EOF
 }
 
-resp=$(curl --silent \
+curl.do \
   "${curl_params[@]}" \
   -X POST "${API}" \
-  --data "$(generate_post_data)")
-
-echo $resp
-# If adding record failed (returned json includes "error" then print error message
-if [[ "$resp" = *"\"error\""* ]]; then
-  echo "Error: DNS challenge not added: unknown error - ${resp}"
+  --data "$(generate_post_data)" \
+  >/dev/null || {
+  echo 'Error: DNS challenge not added: unknown error'
   exit 1
-fi
+} >&2
+exit 0

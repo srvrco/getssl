@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 fulldomain="${1}"
 token="${2}"
-api_url="https://api.linode.com/api/"
+api_url="https://api.linode.com/v4"
 api_key=${LINODE_KEY:-''}
 
 # Verify that required parameters are set
@@ -19,26 +19,37 @@ if [[ -z "$LINODE_KEY" ]]; then
   exit 1
 fi
 
-domain_root=$(echo "$fulldomain" | awk -F\. '{print $(NF-1) FS $NF}')
-domain=${fulldomain%.$domain_root}
-txtname="_acme-challenge.$domain"
+# Get Domain List
+response=$(curl --silent ${api_url}/domains \
+  -H "User-Agent: getssl/0.1" -H "Authorization: Bearer ${api_key}")
 
-# Get Domain ID
-response=$(curl --silent -X POST "$api_url" \
-  -H "Accept: application/json" -H "User-Agent: getssl/0.1" -H "application/x-www-form-urlencoded" \
-  -d "api_key=${api_key}&api_action=domain.list" )
-domain_id=$(echo "$response" | egrep -o "{\"DOMAIN\":\"$domain_root\".*\"DOMAINID\":([0-9]+)" | egrep -o "[0-9]+$")
-if [[ $domain_id == "" ]]; then
+# Get Domain ID for longest match
+domain_root="$fulldomain"
+domain=""
+
+while [[ "$domain_root" == *.* ]] ; do
+	domain_id=$(echo "$response" | jq ".data[]? | select (.domain==\"$domain_root\") | .id")
+	if [[ "$domain_id" != "" ]] ; then
+		break
+	fi
+	domain_root=${domain_root#*.}
+	domain=${fulldomain%.$domain_root}
+done
+
+if [[ "$domain_id" == "" ]]; then
   echo "Failed to fetch DomainID"
   exit 1
 fi
 
+txtname="_acme-challenge${domain:+.$domain}"
+
 # Create TXT record
-response=$(curl --silent -X POST "$api_url" \
-  -H "Accept: application/json" -H "User-Agent: getssl/0.1" -H "application/x-www-form-urlencoded" \
-  -d "api_key=$api_key&api_action=domain.resource.create&DomainID=$domain_id&Type=TXT&Name=$txtname&Target=$token" )
-errors=$(echo "$response" | egrep -o "\"ERRORARRAY\":\[.*\]")
-if [[ $errors != "\"ERRORARRAY\":[]" ]]; then
+
+response=$(curl --silent -X POST ${api_url}/domains/${domain_id}/records \
+  -H "Content-Type: application/json" -H "User-Agent: getssl/0.1" -H "Authorization: Bearer ${api_key}" \
+  -d '{"type": "TXT", "name": "'${txtname}'", "target": "'$token'", "ttl_sec": 30}')
+errors=$(echo "$response" | jq ".errors[]?.reason")
+if [[ "$errors" != "" ]]; then
     echo "Something went wrong: $errors"
     exit 1
 fi

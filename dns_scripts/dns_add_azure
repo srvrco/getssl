@@ -37,4 +37,4 @@ recordset="_acme-challenge.${fulldomain/.$zone_id/}"
 # E.g. domain = *.sub.example.com the recordset is _acme-challenge.sub
 #      domain = example.com the record set is _acme-challenge
 [[ "$recordset" == "_acme-challenge.$fulldomain" ]] && recordset="_acme-challenge"
-az network dns record-set txt add-record -g "$AZURE_RESOURCE_GROUP" -z "$zone_id" -n "$recordset" -v "$token"
+az network dns record-set txt add-record -g "$AZURE_RESOURCE_GROUP" -z "$zone_id" -n "$recordset" --value="$token"

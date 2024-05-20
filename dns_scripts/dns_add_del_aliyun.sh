@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #https://blog.aymar.cn
 #https://protocol.aymar.cn
 PROGNAME=${0##*/}

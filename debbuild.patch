@@ -1,0 +1,11 @@
+--- /usr/bin/debbuild	2022-11-11 15:34:22.529876000 +0000
++++ /usr/bin/debbuild.fix	2022-11-11 15:34:53.137410000 +0000
+@@ -1956,7 +1956,7 @@
+   my $srcpkg = shift;
+   die _('Can\'t install ').$srcpkg."\n" unless $srcpkg =~ /\.sdeb$/;
+   $srcpkg = abs_path($srcpkg);
+-  system(expandmacros("cd %{_topdir}; %{__pax} -r -f $srcpkg)")) == 0 and
++  system(expandmacros("cd %{_topdir}; %{__pax} -r -f $srcpkg")) == 0 and
+   $finalmessages .= _('Extracted source package ').$srcpkg.
+     _(" to %{_topdir}.\n");
+ } # end install_sdeb()

@@ -1,0 +1,30 @@
+#! /usr/bin/env bash
+# Vultr Add DNS Record 
+
+api_url="https://api.vultr.com/v2"
+api_key=${VULTR_API_KEY:-''}
+
+
+domain="$1"
+challenge="$2"
+
+root=$(echo "$domain" | awk -F\. '{print $(NF-1) FS $NF}')
+subdomain="_acme-challenge.${domain%.$root}"
+
+if [[ -z "$VULTR_API_KEY" ]]; then
+  echo "VULTR_API_KEY variable not set"
+  exit 1
+fi
+
+function create {
+curl "${api_url}/domains/$1/records" -s -o /dev/null -X POST -H "Authorization: Bearer ${VULTR_API_KEY}" -H "Content-Type: application/json" \
+  --data "{
+    \"name\" : \"$2\",
+    \"type\" : \"TXT\",
+    \"data\" : \"${challenge}\",
+    \"ttl\" : 300,
+    \"priority\" : 0
+  }"
+}
+
+create $root $subdomain

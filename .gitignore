@@ -8,3 +8,5 @@
 *.orig
 JSON.sh
 .vscode/settings.json
+push.json
+bin/

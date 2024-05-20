@@ -279,6 +279,17 @@
 # 2021-10-22 Copy fullchain to DOMAIN_CHAIN_LOCATION (amartin-git)
 # 2021-11-10 Detect Solaris and use gnu tools (#701)(miesi)
 # 2021-11-12 Support acme-dns and fix CNAME issues (#722)(#308)
+# 2021-12-14 Enhancements for GoDaddy (support more levels of domain names, no longer require GODADDY_BASE, and actual deletion of resource records)
+# 2021-12-22 Don't show usage if run with --upgrade (#728)
+# 2021-12-23 Don't use +idnout if dig shows a warning (#688)
+# 2022-01-06 Support --account-id (#716)(2.46)
+# 2022-03-09 Support for ISPConfig API
+# 2022-05-03 Windows Server and IIS support (2.47)
+# 2022-05-18 Add FTP_ARGS
+# 2022-11-01 Add FTP_PORT
+# 2023-02-04 Create newline to ensure [SAN] section can be parsed (#792)(MRigal)
+# 2023-02-22 Remove cronie from deb package dependencies (2.48)
+# 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -287,7 +298,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.45"
+VERSION="2.49"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -312,6 +323,8 @@ DOMAIN_KEY_LENGTH=4096
 DUAL_RSA_ECDSA="false"
 FTP_OPTIONS=""
 FTPS_OPTIONS=""
+FTP_ARGS=""
+FTP_PORT=""
 FULL_CHAIN_INCLUDE_ROOT="false"
 GETSSL_IGNORE_CP_PRESERVE="false"
 HTTP_TOKEN_CHECK_WAIT=0
@@ -357,6 +370,7 @@ _QUIET=0
 _RECREATE_CSR=0
 _REDIRECT_OUTPUT="1>/dev/null 2>&1"
 _REVOKE=0
+_SHOW_ACCOUNT_ID=0
 _TEST_SKIP_CNAME_CALL=0
 _TEST_SKIP_SOA_CALL=0
 _UPGRADE=0
@@ -405,6 +419,10 @@ cert_archive() {  # Archive certificate file by copying files to dated archive d
   umask "$ORIG_UMASK"
   debug "purging old GetSSL archives"
   purge_archive "$DOMAIN_DIR"
+}
+
+base64url_decode() {
+    awk '{ if (length($0) % 4 == 3) print $0"="; else if (length($0) % 4 == 2) print $0"=="; else print $0; }' | tr -- '-_' '+/' | base64 -d
 }
 
 cert_install() {  # copy certs to the correct location (creating concatenated files as required)
@@ -553,7 +571,7 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
 
     # add +noidnout if idn-domain so search for domain in results works
     if [[ "${d}" == xn--* || "${d}" == *".xn--"* ]]; then
-      if [[ "$DNS_CHECK_FUNC" == "nslookup" || "$DNS_CHECK_FUNC" == "host" || ("$DNS_CHECK_FUNC" == "dig" && "$DIG_SUPPORTS_NOIDNOUT" == "false") ]]; then
+      if [[ "$DNS_CHECK_FUNC" == "nslookup" || "$DNS_CHECK_FUNC" == "host" || ("$DNS_CHECK_FUNC" == "$HAS_DIG_OR_DRILL" && "$DIG_SUPPORTS_NOIDNOUT" == "false") ]]; then
         info "Info: idn domain but $DNS_CHECK_FUNC doesn't support +noidnout"
       else
         debug "adding +noidnout to DNS_CHECK_OPTIONS"
@@ -564,8 +582,8 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
     ntries=0
     check_dns="fail"
     while [[ "$check_dns" == "fail" ]]; do
-      if [[ "$os" == "cygwin" ]]; then
-        check_result=$(nslookup -type=txt "${rr}" "${ns}" \
+      if [[ "$os" == "cygwin" || "$os" == "mingw64_nt"  || "$os" == "msys_nt" ]]; then
+        check_result=$(nslookup -type=txt "${rr}." "${ns}" \
                       | grep ^_acme -A2\
                       | grep '"'|awk -F'"' '{ print $2}')
       elif [[ "$DNS_CHECK_FUNC" == "drill" ]] || [[ "$DNS_CHECK_FUNC" == "dig" ]]; then
@@ -581,6 +599,8 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
           rr_cname=$(grep -i "^${rr}"<<<"${check_output}"|grep 'IN\WCNAME'|awk '{ print $5}')
           debug "cname check=\"$rr_cname\""
           if [[ -n "$rr_cname" ]]; then
+            # shellcheck disable=SC2086
+            check_output=$($DNS_CHECK_FUNC $DNS_CHECK_OPTIONS TXT "${rr_cname}" "@${ns}")
             check_result=$(grep -i "^${rr_cname}"<<<"${check_output}"|grep 'IN\WTXT'|awk -F'"' '{ print $2}' | uniq)
           fi
         fi
@@ -797,7 +817,9 @@ check_getssl_upgrade() { # check if a more recent release is available
     error_exit "curl error checking releases: $errcode"
   fi
   # Replace error in release description with _error (which is ignored by check_output_for_errors() in the tests)
-  debug "${release_data//error/_error}"
+  sanitised_release_data=${release_data//error/_error}
+  sanitised_release_data=${sanitised_release_data//warning/_warning}
+  debug "${sanitised_release_data//error/_error}"
   # awk from https://stackoverflow.com/questions/1761341/awk-print-next-record-following-matched-record
   release_tag=$(awk -F'"' '/tag_name/ {f=NR} f&&NR-1==f' RS=":|," <<<"${release_data}" | sed -e's/"//g')
   if [[ "${release_tag:0:1}" != 'v' ]] ; then
@@ -841,7 +863,7 @@ check_getssl_upgrade() { # check if a more recent release is available
   # shellcheck disable=SC2086
   status=$(curl ${_NOMETER:---silent} -w "%{http_code}" --user-agent "$CURL_USERAGENT" "$CODE_LOCATION" --output "$TEMP_UPGRADE_FILE")
   errcode=$?
-debug errcode=$errcode
+  debug curl errcode=$errcode
 
   if [[ $errcode -eq 60 ]]; then
     error_exit "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
@@ -999,7 +1021,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       ftpfile=$(basename "$ftplocn")
       fromdir=$(dirname "$from")
       fromfile=$(basename "$from")
-      debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost dir=$ftpdirn file=$ftpfile"
+      debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost port=$FTP_PORT dir=$ftpdirn file=$ftpfile"
       debug "from dir=$fromdir  file=$fromfile"
       if [ -n "$FTP_OPTIONS" ]; then
         # Use eval to expand any variables in FTP_OPTIONS
@@ -1007,7 +1029,7 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
         debug "FTP_OPTIONS=$FTP_OPTIONS"
       fi
       $FTP_COMMAND <<- _EOF
-			open $ftphost
+			open $ftphost $FTP_PORT
 			user $ftpuser $ftppass
 			$FTP_OPTIONS
 			cd $ftpdirn
@@ -1024,10 +1046,11 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       ftpfile=$(basename "$ftplocn")
       fromdir=$(dirname "$from")
       fromfile=$(basename "$from")
-      debug "sftp $SFTP_OPTS user=$ftpuser - pass=$ftppass - host=$ftphost dir=$ftpdirn file=$ftpfile"
+      if [ -n "$FTP_PORT" ]; then SFTP_PORT="-P $FTP_PORT"; else SFTP_PORT=""; fi
+      debug "sftp $SFTP_OPTS user=$ftpuser - pass=$ftppass - host=$ftphost port=$FTP_PORT dir=$ftpdirn file=$ftpfile"
       debug "from dir=$fromdir  file=$fromfile"
       # shellcheck disable=SC2086
-      sshpass -p "$ftppass" sftp $SFTP_OPTS "$ftpuser@$ftphost" <<- _EOF
+      sshpass -p "$ftppass" sftp $SFTP_OPTS $SFTP_PORT "$ftpuser@$ftphost" <<- _EOF
 			cd $ftpdirn
 			lcd $fromdir
 			put ./$fromfile
@@ -1049,7 +1072,8 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       # shellcheck disable=SC2086
       curl ${_NOMETER} -u "${davsuser}:${davspass}" -T "${fromdir}/${fromfile}" "https://${davshost}:${davsport}${davsdirn}${davsfile}"
     elif [[ "${to:0:6}" == "ftpes:" ]] || [[ "${to:0:5}" == "ftps:" ]] ; then
-      debug "using ftp to copy the file from $from"
+      # FTPES (FTP over explicit TLS/SSL, port 21) and FTPS (FTP over implicit TLS/SSL, port 990).
+      debug "using ${to:0:5} to copy the file from $from"
       ftpuser=$(echo "$to"| awk -F: '{print $2}')
       ftppass=$(echo "$to"| awk -F: '{print $3}')
       ftphost=$(echo "$to"| awk -F: '{print $4}')
@@ -1058,14 +1082,25 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
       ftpfile=$(basename "$ftplocn")
       fromdir=$(dirname "$from")
       fromfile=$(basename "$from")
-      debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost dir=$ftpdirn file=$ftpfile"
+
+      SFTP_PORT="";
+      if [ -n "$FTP_PORT" ]; then SFTP_PORT=":${FTP_PORT}"; fi
+      debug "${to:0:5} user=$ftpuser - pass=$ftppass - host=$ftphost port=$FTP_PORT dir=$ftpdirn file=$ftpfile"
       debug "from dir=$fromdir  file=$fromfile"
       if [[ "${to:0:5}" == "ftps:" ]] ; then
+        # if no FTP_PORT is specified, then use default
+        if [ -z "$FTP_PORT" ]; then
+          SFTP_PORT=":990"
+        fi
         # shellcheck disable=SC2086
-        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}:990/"
+        debug curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}${SFTP_PORT}/${ftpdirn}/"
+        # shellcheck disable=SC2086
+        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}${SFTP_PORT}/${ftpdirn}/"
       else
         # shellcheck disable=SC2086
-        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${ftpdirn}/"
+        debug curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${SFTP_PORT}/${ftpdirn}/"
+        # shellcheck disable=SC2086
+        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${SFTP_PORT}/${ftpdirn}/"
       fi
     else
       if ! mkdir -p "$(dirname "$to")" ; then
@@ -1126,7 +1161,7 @@ create_csr() { # create a csr using a given key (if it doesn't already exist)
     # create a temporary config file, for portability.
     tmp_conf=$(mktemp 2>/dev/null || mktemp -t getssl) || error_exit "mktemp failed"
     cat "$SSLCONF" > "$tmp_conf"
-    printf "[SAN]\n%s" "$SANLIST" >> "$tmp_conf"
+    printf "\n[SAN]\n%s" "$SANLIST" >> "$tmp_conf"
     # add OCSP Must-Staple to the domain csr
     # if openssl version >= 1.1.0 one can also use "tlsfeature = status_request"
     if [[ "$OCSP_MUST_STAPLE" == "true" ]]; then
@@ -1184,7 +1219,7 @@ create_order() {
     dn=0
     for d in "${alldomains[@]}"; do
       # get authorizations link
-      AuthLink[$dn]=$(json_get "$response" "identifiers" "value" "${d##\*.}" "authorizations" "x")
+      AuthLink[dn]=$(json_get "$response" "identifiers" "value" "${d##\*.}" "authorizations" "x")
       debug "authorizations link for $d - ${AuthLink[$dn]}"
       ((dn++))
     done
@@ -1208,8 +1243,8 @@ create_order() {
         if [[ ( "$lower_d" == "$authdomain" && -z "$wildcard" ) || ( "$lower_d" == "*.${authdomain}" && -n "$wildcard" ) ]]; then
           debug "Saving authorization response for $authdomain for domain alldomains[$dn]"
           debug "Response = ${response//[$'\t\r\n']}"
-          AuthLinkResponse[$dn]=$response
-          AuthLinkResponseHeader[$dn]=$responseHeaders
+          AuthLinkResponse[dn]=$response
+          AuthLinkResponseHeader[dn]=$responseHeaders
         fi
         ((dn++))
       done
@@ -1273,49 +1308,52 @@ error_exit() { # give error message on error exit
 }
 
 find_dns_utils() {
-    HAS_NSLOOKUP=false
-    HAS_DIG_OR_DRILL=""
-    DIG_SUPPORTS_NOIDNOUT=false
-    HAS_HOST=false
-    if [[ -n "$(command -v nslookup 2>/dev/null)" ]]; then
-        debug "HAS NSLOOKUP=true"
-        HAS_NSLOOKUP=true
+  HAS_NSLOOKUP=false
+  HAS_DIG_OR_DRILL=""
+  DIG_SUPPORTS_NOIDNOUT=false
+  HAS_HOST=false
+  if [[ -n "$(command -v nslookup 2>/dev/null)" ]]; then
+    debug "HAS NSLOOKUP=true"
+    HAS_NSLOOKUP=true
+  fi
+
+  if [[ -n "$(command -v drill 2>/dev/null)" ]]; then
+    HAS_DIG_OR_DRILL="drill"
+  elif [[ -n "$(command -v dig 2>/dev/null)" ]] && dig >/dev/null 2>&1; then
+    if dig -r >/dev/null 2>&1; then
+      # use dig -r so ~/.digrc is not used
+      HAS_DIG_OR_DRILL="dig -r"
+    else
+      HAS_DIG_OR_DRILL="dig"
+    fi
+  fi
+
+  if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
+    if dig_output=$($HAS_DIG_OR_DRILL +noidnout localhost 2>&1 >/dev/null); then
+      # dig +noidnout on Ubuntu 18 succeeds, but outputs warning message to stderr - issue #688)
+      if [[ "$dig_output" != ";; IDN support not enabled" ]]; then
+        DIG_SUPPORTS_NOIDNOUT=true
+      fi
     fi
 
-    if [[ -n "$(command -v drill 2>/dev/null)" ]]; then
-        HAS_DIG_OR_DRILL="drill"
-    elif [[ -n "$(command -v dig 2>/dev/null)" ]] && dig >/dev/null 2>&1; then
-        if dig -r >/dev/null 2>&1; then
-          # use dig -r so ~/.digrc is not used
-          HAS_DIG_OR_DRILL="dig -r"
-        else
-          HAS_DIG_OR_DRILL="dig"
-        fi
-    fi
+    debug "HAS DIG_OR_DRILL=$HAS_DIG_OR_DRILL"
+    debug "DIG_SUPPORTS_NOIDNOUT=$DIG_SUPPORTS_NOIDNOUT"
+  fi
 
-    if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
-        if $HAS_DIG_OR_DRILL +noidnout >/dev/null 2>&1; then
-          DIG_SUPPORTS_NOIDNOUT=true
-        fi
-
-        debug "HAS DIG_OR_DRILL=$HAS_DIG_OR_DRILL"
-        debug "DIG_SUPPORTS_NOIDNOUT=$DIG_SUPPORTS_NOIDNOUT"
-    fi
-
-    if [[ -n "$(command -v host 2>/dev/null)" ]]; then
-        debug "HAS HOST=true"
-        HAS_HOST=true
-    fi
+  if [[ -n "$(command -v host 2>/dev/null)" ]]; then
+    debug "HAS HOST=true"
+    HAS_HOST=true
+  fi
 }
 
 find_ftp_command() {
   FTP_COMMAND=""
   if [[ -n "$(command -v ftp 2>/dev/null)" ]]; then
     debug "Has ftp"
-    FTP_COMMAND="ftp -n"
+    FTP_COMMAND="ftp $FTP_ARGS -n"
   elif [[ -n "$(command -v lftp 2>/dev/null)" ]]; then
     debug "Has lftp"
-    FTP_COMMAND="lftp"
+    FTP_COMMAND="lftp $FTP_ARGS"
   fi
 }
 
@@ -1385,6 +1423,8 @@ for d in "${alldomains[@]}"; do
         # get the token and uri from the dns-01 component
         token=$(json_get "$response" "challenges" "type" "dns-01" "token")
         uri=$(json_get "$response" "challenges" "type" "dns-01" "url")
+        # when using pebble this sometimes appears to have a newline which causes problems in send_signed_request
+        uri=$(echo "$uri" | tr -d '\r')
         debug uri "$uri"
       fi
 
@@ -1543,20 +1583,20 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
   fi
 
   if [[ -n "$HAS_DIG_OR_DRILL" ]]; then
-    if [[ -n "$gad_s" ]]; then
-      gad_s="@$gad_s"
+    if [[ -n "${gad_s}" ]]; then
+      gad_s="@${gad_s}"
     fi
 
     # Two options here; either dig CNAME will return the CNAME and the NS or just the CNAME
-    debug "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME $gad_d $gad_s"
+    debug "Using $HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} CNAME ${gad_d}"
     # shellcheck disable=SC2086
-    res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME "$gad_d" $gad_s| grep "^$gad_d")
+    res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} CNAME "${gad_d}"| grep "^${gad_d}")
     cname=$(echo "$res"| awk '$4 ~ "CNAME" {print $5}' |sed 's/\.$//g')
 
     if [[ $_TEST_SKIP_CNAME_CALL == 0 ]]; then
       debug Checking if CNAME result contains NS records
       # shellcheck disable=SC2086
-      res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS CNAME "$gad_d" $gad_s| grep -E "IN\W(NS|SOA)\W")
+      res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} CNAME "${gad_d}"| grep -E "IN\W(NS|SOA)\W")
     else
       res=
     fi
@@ -1572,19 +1612,19 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
     if [[ -z "$res" ]] && [[ $_TEST_SKIP_SOA_CALL == 0 ]]; then
       # shellcheck disable=SC2086
       if [[ "$HAS_DIG_OR_DRILL" == "drill" ]]; then
-        debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T SOA $gad_d $gad_s" to find primary nameserver
-        res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T SOA "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
+        debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T ${gad_s} SOA ${gad_d}" to find primary nameserver
+        res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS -T ${gad_s} SOA "${gad_d}" 2>/dev/null | grep "IN\WNS\W")
       else
-        debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS SOA +trace +nocomments $gad_d $gad_s" to find primary nameserver
-        res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS SOA +trace +nocomments "$gad_d" $gad_s 2>/dev/null | grep "IN\WNS\W")
+        debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} SOA +trace +nocomments ${gad_d}" to find primary nameserver
+        res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} SOA +trace +nocomments "${gad_d}" 2>/dev/null | grep "IN\WNS\W")
       fi
     fi
 
     # Query for NS records
     if [[ -z "$res" ]]; then
-      debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS NS $gad_d $gad_s" to find primary nameserver
+      debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} NS ${gad_d}" to find primary nameserver
       # shellcheck disable=SC2086
-      res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS NS "$gad_d" $gad_s | grep -E "IN\W(NS|SOA)\W")
+      res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} NS "${gad_d}"| grep -E "IN\W(NS|SOA)\W")
     fi
 
     if [[ -n "$res" ]]; then
@@ -1622,12 +1662,12 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
   if [[ "$HAS_HOST" == "true" ]]; then
     gad_d="$orig_gad_d"
-    debug Using "host -t NS" to find primary name server for "$gad_d"
+    debug Using "host -t NS" to find primary name server for "${gad_d}"
     # shellcheck disable=SC2086
-    if [[ -z "$gad_s" ]]; then
-      res=$(host $DNS_CHECK_OPTIONS -t NS "$gad_d"| grep "name server")
+    if [[ -z "${gad_s}" ]]; then
+      res=$(host $DNS_CHECK_OPTIONS -t NS "${gad_d}"| grep "name server")
     else
-      res=$(host $DNS_CHECK_OPTIONS -t NS "$gad_d" $gad_s| grep "name server")
+      res=$(host $DNS_CHECK_OPTIONS -t NS "${gad_d}" ${gad_s}| grep "name server")
     fi
     if [[ -n "$res" ]]; then
       all_auth_dns_servers=$(echo "$res" | awk '{print $4}' | sed 's/\.$//g'|tr '\n' ' ')
@@ -1648,17 +1688,17 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
   if [[ "$HAS_NSLOOKUP" == "true" ]]; then
     gad_d="$orig_gad_d"
-    debug Using "nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns $gad_d $gad_s" to find primary name server
+    debug Using "nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns ${gad_d} ${gad_s}" to find primary name server
     # shellcheck disable=SC2086
-    res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" ${gad_s})
+    res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "${gad_d}" ${gad_s})
 
     # check for CNAME (assumes gad_d is _acme-challenge.{host})
     if [[ "$(grep -c "NXDOMAIN"<<<"$res")" -gt 0 ]]; then
-      debug "Cannot find nameserver record for $gad_d, using parent domain ${gad_d#*.}"
+      debug "Cannot find nameserver record for ${gad_d}, using parent domain ${gad_d#*.}"
       gad_d="${gad_d#*.}"
-      debug "nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns $gad_d ${gad_s}"
+      debug "nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns ${gad_d} ${gad_s}"
       # shellcheck disable=SC2086
-      res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" ${gad_s})
+      res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "${gad_d}" ${gad_s})
     fi
 
     if [[ "$(echo "$res" | grep -c "Non-authoritative")" -gt 0 ]]; then
@@ -1667,14 +1707,14 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
       gad_s=$(echo "$res" | awk '$2 ~ "nameserver" {print $4; exit }' |sed 's/\.$//g')
       # If the previous line fails to find the nameserver, use the original
-      if [[ -z "$gad_s" ]]; then
+      if [[ -z "${gad_s}" ]]; then
         gad_s="$orig_gad_s"
       fi
 
       if [[ "$(echo "$res" | grep -c "canonical name")" -gt 0 ]]; then
-        debug "$gad_d" appears to be a CNAME
+        debug "${gad_d}" appears to be a CNAME
         gad_d=$(echo "$res" | awk ' $2 ~ "canonical" {print $5; exit }' |sed 's/\.$//g')
-        debug "Using $gad_d instead"
+        debug "Using ${gad_d} instead"
       elif [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
         # if domain name doesn't exist, then find auth servers for next level up
         debug "Couldn't find NS or SOA for domain name, using nslookup $DNS_CHECK_OPTIONS -debug ${gad_d#*.} ${orig_gad_s}"
@@ -1683,28 +1723,28 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         gad_s=$(echo "$res" | awk '$1 ~ "origin" {print $3; exit }')
         gad_d=$(echo "$res" | awk '$1 ~ "->" {print $2; exit}')
         # handle scenario where awk returns nothing
-        if [[ -z "$gad_d" ]]; then
+        if [[ -z "${gad_d}" ]]; then
           gad_d="${orig_gad_d}"
         fi
       fi
 
-      debug "Using nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns $gad_d ${gad_s}"
+      debug "Using nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns ${gad_d} ${gad_s}"
       # shellcheck disable=SC2086
-      res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" ${gad_s})
+      res=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "${gad_d}" ${gad_s})
     fi
 
     if [[ "$(echo "$res" | grep -c "an't find")" -gt 0 ]]; then
       gad_s=$(echo "$res" | awk ' $1 ~ "origin" {print $3; exit }')
       gad_d=$(echo "$res"| awk '$1 ~ "->" {print $2; exit}')
       # handle scenario where awk returns nothing
-      if [[ -z "$gad_d" ]]; then
+      if [[ -z "${gad_d}" ]]; then
         gad_d="$orig_gad_d"
       fi
     fi
 
     # shellcheck disable=SC2086
     # not quoting gad_s fixes the nslookup: couldn't get address for '': not found warning (#332)
-    all_auth_dns_servers=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "$gad_d" $gad_s \
+    all_auth_dns_servers=$(nslookup $DNS_CHECK_OPTIONS -debug -type=soa -type=ns "${gad_d}" ${gad_s} \
                           | awk '$1 ~ "nameserver" {print $3}' \
                           | sed 's/\.$//g'| tr '\n' ' ')
 
@@ -1813,7 +1853,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
     fi
 
     awk -v CERT_FILE="$gc_certfile" -v CA_CERT="$gc_cafile" 'BEGIN {outfile=CERT_FILE} split_after==1 {outfile=CA_CERT;split_after=0} /-----END CERTIFICATE-----/ {split_after=1} {print > outfile}' "$gc_fullchain"
-    if [[ "$FULL_CHAIN_INCLUDE_ROOT" = "true" ]]; then
+    if [[ "$FULL_CHAIN_INCLUDE_ROOT" == "true" ]]; then
       # Some of the code below was copied from zakjan/cert-chain-resolver
 
       # Download the certificate for the issuer using the "CA Issuers" attribute from the AIA x509 extension
@@ -1850,6 +1890,37 @@ get_cr() { # get curl response
   return $ret
 }
 
+get_eab_json() { # calculate json block for external account bindings, v2 only
+  if [ ${#EAB_PARAMS[@]} -eq 1 ]; then
+    # single param, assume file path and read into array
+    debug "Using EAB FILE ${EAB_PARAMS[0]}"
+    [[ -s "${EAB_PARAMS[0]}" ]] || error_exit "missing path ${EAB_PARAMS[0]} for eab file"
+    # shellcheck disable=SC2207
+    EAB_PARAMS=( $(cat "${EAB_PARAMS[0]}") )
+  fi
+  if [ ${#EAB_PARAMS[@]} -eq 2 ]; then
+    # two params - kid and mac key from CA
+    debug "Using EAB KID ${EAB_PARAMS[0]}"
+    debug "Using EAB HMAC ${EAB_PARAMS[1]}"
+    eab_protected="{\"alg\": \"HS256\", \"kid\": \"${EAB_PARAMS[0]}\", \"url\": \"${URL_newAccount}\"}"
+    eab_protected64=$(printf '%s' "${eab_protected}" | urlbase64)
+    eab_payload="${jwk}"
+    eab_payload64=$(printf '%s' "${eab_payload}" | urlbase64)
+    signing_input=$(printf '%s' "${eab_protected64}.${eab_payload64}")
+    keyhex=$(printf '%s' "${EAB_PARAMS[1]}" | base64url_decode | xxd -p | tr -d '\n')
+    debug "SIGN INPUT $signing_input"
+    debug "HMAC-SHA256 HEXKEY $keyhex"
+    eab_signature=$(printf '%s' "$signing_input" | openssl dgst -sha256 -mac hmac -macopt "hexkey:${keyhex}" -binary | urlbase64)
+    EAB_JSON="{"
+    EAB_JSON="${EAB_JSON}\"protected\": \"${eab_protected64}\","
+    EAB_JSON="${EAB_JSON}\"payload\": \"${eab_payload64}\","
+    EAB_JSON="${EAB_JSON}\"signature\": \"${eab_signature}\"}"
+    debug "EAB_JSON ${EAB_JSON}"
+  else
+    EAB_JSON=""
+  fi
+}
+
 get_os() { # function to get the current Operating System
   uname_res=$(uname -s)
   if [[ $(date -h 2>&1 | grep -ic busybox) -gt 0 ]]; then
@@ -1862,6 +1933,10 @@ get_os() { # function to get the current Operating System
     os="mac"
   elif [[ ${uname_res:0:6} == "CYGWIN" ]]; then
     os="cygwin"
+  elif [[ ${uname_res:0:10} == "MSYS_NT" ]]; then
+    os="msys_nt"
+  elif [[ ${uname_res:0:10} == "MINGW64_NT" ]]; then
+    os="mingw64_nt"
   elif [[ ${uname_res:0:5} == "MINGW" ]]; then
     os="mingw"
   elif [[ ${uname_res} == "SunOS" ]]; then
@@ -1954,13 +2029,14 @@ help_message() { # print out the help message
 	  -i, --install      Install certificates and reload service
 	  -q, --quiet        Quiet mode (only outputs on error, success of new cert, or getssl was upgraded)
 	  -Q, --mute         Like -q, but also mute notification about successful upgrade
-	  -r, --revoke   "cert" "key" [CA_server] Revoke a certificate (the cert and key are required)
+	  -r, --revoke "cert" "key" [CA_server]    Revoke a certificate (the cert and key are required)
 	  -u, --upgrade      Upgrade getssl if a more recent version is available - can be used with or without domain(s)
 	  -X, --experimental tag  Upgrade to experimental releases, specified by tag (e.g. v9.43)
 	  -U, --nocheck      Do not check if a more recent version is available
 	  -v  --version      Display current version of $PROGNAME
 	  -w working_dir "Working directory"
 	  --preferred-chain "chain" Use an alternate chain for the certificate
+	  --account-id       Display account id and exit
 
 	_EOF_
 }
@@ -2365,6 +2441,9 @@ set_server_type() { # uses SERVER_TYPE to set REMOTE_PORT and REMOTE_EXTRA
     REMOTE_PORT=5269
   elif [[ ${SERVER_TYPE} == "ldaps" ]]; then
     REMOTE_PORT=636
+  elif [[ ${SERVER_TYPE} == "postgres" ]]; then
+    REMOTE_PORT=5432
+    REMOTE_EXTRA="-starttls postgres"
   elif [[ ${SERVER_TYPE} =~ ^[0-9]+$ ]]; then
     REMOTE_PORT=${SERVER_TYPE}
   else
@@ -2447,7 +2526,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
 
     code="500"
     loop_limit=5
-    while [[ "$code" -eq 500 ]]; do
+    while [[ "$code" == 5* ]]; do
       if [[ "$outfile" ]] ; then
         $CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" > "$outfile"
         errcode=$?
@@ -2493,13 +2572,13 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         fi
       fi
       debug "response status = $response_status"
-      if [[ "$code" -eq 500 ]]; then
-        info "_error on acme server - trying again ...."
+      if [[ "$code" == 5* ]]; then
+        info "_error on acme server - waiting 30s then trying again ...."
         debug "loop_limit = $loop_limit"
-        sleep 5
+        sleep 30
         loop_limit=$((loop_limit - 1))
         if [[ $loop_limit -lt 1 ]]; then
-          error_exit "500 error from ACME server:  $response"
+          error_exit "$code error from ACME server: $response"
         fi
       fi
     done
@@ -2590,7 +2669,7 @@ urlbase64_decode() {
 usage() { # echos out the program usage
   echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet]"\
        "[-Q|--mute] [-u|--upgrade] [-X|--experimental tag] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir]"\
-       "[--preferred-chain chain] domain"
+       "[--preferred-chain chain] [--account-id] domain"
 }
 
 write_domain_template() { # write out a template file for a domain.
@@ -2824,6 +2903,8 @@ while [[ -n ${1+defined} ]]; do
       shift; WORKING_DIR="$1" ;;
     -preferred-chain | --preferred-chain)
       shift; PREFERRED_CHAIN="$1" ;;
+    --account-id)
+      _SHOW_ACCOUNT_ID=1 ;;
     --source)
       return ;;
     -*)
@@ -2896,9 +2977,13 @@ if [[ $_UPGRADE_CHECK -eq 1 ]]; then
   check_getssl_upgrade
   # if nothing in command line and no revocation and not only config check,
   # then exit after upgrade
-  if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ ${_REVOKE} -ne 1 ]] && [ "${_ONLY_CHECK_CONFIG}" -ne 1 ]; then
+  if [[ -z "$DOMAIN" ]] \
+     && [[ ${_CHECK_ALL} -ne 1 ]] \
+     && [[ ${_REVOKE} -ne 1 ]] \
+     && [ "${_ONLY_CHECK_CONFIG}" -ne 1 ] \
+     && [[ ${_SHOW_ACCOUNT_ID} -ne 1 ]]; then
     # if nothing in command line, print help before exit.
-    if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]]; then
+    if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ ${_UPGRADE} -ne 1 ]]; then
       help_message
     fi
     graceful_exit
@@ -2965,12 +3050,12 @@ fi
 # Define defaults for variables not set in the main config.
 ACCOUNT_KEY="${ACCOUNT_KEY:=$WORKING_DIR/account.key}"
 DOMAIN_STORAGE="${DOMAIN_STORAGE:=$WORKING_DIR}"
-DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
+export DOMAIN_DIR="$DOMAIN_STORAGE/$DOMAIN"
 CERT_FILE="$DOMAIN_DIR/${DOMAIN}.crt"
 FULL_CHAIN="$DOMAIN_DIR/fullchain.crt"
 CA_CERT="$DOMAIN_DIR/chain.crt"
 TEMP_DIR="$DOMAIN_DIR/tmp"
-if [[ "$os" == "mingw" ]]; then
+if [[ "$os" == "mingw" || "$os" == "mingw64_nt" ]]; then
   CSR_SUBJECT="//"
 fi
 
@@ -3129,7 +3214,7 @@ if [[ $API -eq 2 ]]; then
 fi
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
-if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]]; then
+if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
   real_d=${DOMAIN##\*.}
   debug "getting certificate for $DOMAIN from remote server ($real_d)"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
@@ -3240,7 +3325,8 @@ if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; t
         _FORCE_RENEW=1
       fi ;;
     prime256v1|secp384r1|secp521r1)
-      if grep -q -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+      if grep -q -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key" \
+      || grep -q -- "-----BEGIN PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
         rm -f "$DOMAIN_DIR/${DOMAIN}.key"
         _FORCE_RENEW=1
       fi ;;
@@ -3248,7 +3334,7 @@ if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; t
 fi
 
 # if there is an existing certificate file, check details.
-if [[ -s "$CERT_FILE" ]]; then
+if [[ -s "$CERT_FILE" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
   debug "certificate $CERT_FILE exists"
   enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
   debug "local cert is valid until $enddate"
@@ -3276,7 +3362,7 @@ if [[ -s "$CERT_FILE" ]]; then
 fi
 # end of .... if there is an existing certificate file, check details.
 
-if [[ ! -t 0 ]] && [[ "$PREVENT_NON_INTERACTIVE_RENEWAL" = "true" ]]; then
+if [[ ! -t 0 ]] && [[ "$PREVENT_NON_INTERACTIVE_RENEWAL" = "true" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
   errmsg="$DOMAIN due for renewal,"
   errmsg="${errmsg} but not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
   error_exit "$errmsg"
@@ -3325,16 +3411,16 @@ info "Registering account"
 # send the request to the ACME server.
 if [[ $API -eq 1 ]]; then
   if [[ "$ACCOUNT_EMAIL" ]] ; then
-	regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
+  	regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
   else
-	regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
+  	regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
   fi
   send_signed_request "$URL_new_reg"  "$regjson"
 elif [[ $API -eq 2 ]]; then
   if [[ "$ACCOUNT_EMAIL" ]] ; then
-	regjson='{"termsOfServiceAgreed": true, "contact": ["mailto: '$ACCOUNT_EMAIL'"]}'
+  	regjson='{"termsOfServiceAgreed": true, "contact": ["mailto: '$ACCOUNT_EMAIL'"]}'
   else
-	regjson='{"termsOfServiceAgreed": true}'
+  	regjson='{"termsOfServiceAgreed": true}'
   fi
   send_signed_request "$URL_newAccount"  "$regjson"
 else
@@ -3345,18 +3431,23 @@ fi
 if [[ "$code" == "" ]] || [[ "$code" == '201' ]] ; then
   info "Registered"
   KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
-  debug "KID=_$KID}_"
+  debug "AccountId=$KID}"
   echo "$response" > "$TEMP_DIR/account.json"
 elif [[ "$code" == '409' ]] ; then
   KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
   debug responseHeaders "$responseHeaders"
-  debug "Already registered KID=$KID"
+  debug "Already registered, AccountId=$KID"
 elif [[ "$code" == '200' ]] ; then
   KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
   debug responseHeaders "$responseHeaders"
-  debug "Already registered account, KID=${KID}"
+  debug "Already registered account, AccountId=${KID}"
 else
   error_exit "Error registering account ...$responseHeaders ... $(json_get "$response" detail)"
+fi
+
+if [[ ${_SHOW_ACCOUNT_ID} -eq 1 ]]; then
+  echo "Account Id is: $KID"
+  graceful_exit
 fi
 # end of registering account with CA
 

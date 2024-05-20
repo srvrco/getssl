@@ -1,24 +1,31 @@
 # getssl <!-- omit in toc -->
 
-![Run all tests](https://github.com/srvrco/getssl/workflows/Run%20all%20tests/badge.svg) ![shellcheck](https://github.com/srvrco/getssl/workflows/shellcheck/badge.svg)
+![Run all tests on Pebble](https://github.com/srvrco/getssl/actions/workflows/run-tests-pebble.yml/badge.svg) ![shellcheck](https://github.com/srvrco/getssl/workflows/shellcheck/badge.svg)
 
 Obtain SSL certificates from the letsencrypt.org ACME server. Suitable
 for automating the process on remote servers.
 
 ## Table of Contents <!-- omit in toc -->
+- [Upgrade broken in v2.43](#upgrade-broken-in-v243)
 - [Features](#features)
-- [Installation](#installation)
 - [Overview](#overview)
+- [Quick Start Guide](#quick-start-guide)
+- [Manual Installation](#manual-installation)
 - [Getting started](#getting-started)
 - [Detailed guide to getting started with more examples](#detailed-guide-to-getting-started-with-more-examples)
 - [Wildcard certificates](#wildcard-certificates)
+- [ISPConfig](#ispconfig)
 - [Automating updates](#automating-updates)
 - [Structure](#structure)
+- [Custom template for configuration](#custom-template-for-configuration)
 - [Server-Types](#server-types)
 - [Revoke a certificate](#revoke-a-certificate)
 - [Elliptic curve keys](#elliptic-curve-keys)
 - [Preferred Chain](#preferred-chain)
 - [Include Root certificate in full chain](#include-root-certificate-in-full-chain)
+- [Windows Server and IIS Support](#windows-server-and-iis-support)
+- [Building getssl as an RPM Package (Redhat/CentOS/SuSe/Oracle/AWS)](#building-as-an-rpm-package)
+- [Building getssl as a Debian Package (Debian/Ubuntu)](#building-as-a-debian-package)
 - [Issues / problems / help](#issues--problems--help)
 
 ## Upgrade broken in v2.43
@@ -57,35 +64,6 @@ The automatic upgrade in v2.43 is broken as the url is incorrect.  If you have t
   relevant services (e.g. apache/nginx/postfix) can be reloaded.
 * **ACME v1 and V2** - Supports both ACME versions 1 and 2 (note ACMEv1 is deprecated and clients will automatically use v2)
 
-## Installation
-
-Since the script is only one file, you can use the following command for
-a quick installation of GetSSL only:
-
-```sh
-curl --silent https://raw.githubusercontent.com/srvrco/getssl/latest/getssl > getssl ; chmod 700 getssl
-```
-
-This will copy the getssl Bash script to the current location and change
-the permissions to make it executable for you.
-
-For a more comprehensive installation (e.g. install also helper scripts)
-use the provided Makefile with each release tarball. Use the `install`
-target.
-
-You'll find the latest version in the git repository:
-
-```sh
-git clone https://github.com/srvrco/getssl.git
-```
-
-For Arch Linux there are packages in the AUR, see
-[here](https://aur.archlinux.org/packages/getssl/) and
-[there](https://aur.archlinux.org/packages/getssl-git/).
-
-If you use puppet, there is a [GetSSL Puppet
-module](https://github.com/dthielking/puppet_getssl) by dthielking
-
 ## Overview
 
 GetSSL was written in standard bash ( so it can be run on a server, a
@@ -116,6 +94,114 @@ Options:
   -w working_dir "Working directory"
     --preferred-chain "chain" Use an alternate chain for the certificate
 ```
+
+## Quick Start Guide 
+
+You can download precompiled RPM packages and Debian (DEB) packages from
+the [release page](https://github.com/jeffmerkey/getssl/releases) for 
+this project, or you can manually build and install the program from the git sources.   
+
+If you want to manually install the program from scratch with the git sources rather than use the pre-compiled RPMS and DEB packages, or if your target platform does not support Linux RPM or DEB packages, then please skip to the section [Manual Installation](#manual-installation) for instructions on installing the getssl program manually. 
+ 
+Packages are provided in binary and source versions, and can be downloaded and 
+installed directly or rebuilt. Package types are
+Red Hat Package Manager (RPM) packages and Debian (DEB) packages for binary installation and 
+Source RPM packages (SRPMS) and Debbuild SDEB packages for source code installation.  
+
+RPM and DEB packages for each release include a binary architecture specific package
+and a source package which can be downloaded and built/rebuilt and which contains the source code.
+
+For example, the release v2.49 contains the following packages in the release section:
+
+### **RPM Based Packages (RedHat, CentOS, SuSe, Oracle Linux, AWS Linux)**
+
+- [getssl-2.49-1.src.rpm](https://github.com/srvrco/getssl/releases/download/2.49/getssl-2.49-1.src.rpm) (source)
+- [getssl-2.49-1.noarch.rpm](https://github.com/srvrco/getssl/releases/download/2.49/getssl-2.49-1.noarch.rpm) (binary)
+
+### **Debian Based Packages (Debian, Ubuntu)**
+
+- [getssl_2.49-1_all.deb](https://github.com/srvrco/getssl/releases/download/2.49/getssl_2.49-1_all.deb) (binary)
+
+### **Installing Binary Packages**
+
+To install the binary package with the rpm package manager for RedHat, CentOS, SuSe, Oracle Linux, or AWS Linux distributions:
+```sh
+rpm -i getssl-2.49-1.noarch.rpm
+```
+
+To deinstall the RPM binary package:
+```sh
+rpm -e getssl
+```
+
+To install the binary package with the Debian dpkg package manager for Debian and Ubuntu Linux distributions:
+```sh
+dpkg -i getssl_2.49-1_all.deb
+```
+
+To deinstall the Debian dpkg binary package:
+```sh
+dpkg -r getssl
+```
+
+### **Installing Source Packages**
+
+To install the source package with the rpm package manager for RedHat, CentOS, SuSe, Oracle Linux, or AWS Linux distributions:
+```sh
+rpm -i getssl-2.48-1.src.rpm 
+```
+*(Note: rpm installs the source code files in /root/rpmbuild/ as top directory for RedHat, CentOS, Oracle Linux, and AWS Linux platforms.  SuSe platforms install the source code files in /usr/src/packages/)*
+
+To install the source package with the Debbuild package tool for Debian or Ubuntu Linux distributions:
+```sh
+debbuild -i getssl-2.49-1.sdeb
+```
+*(Note: Debbuild installs the source code files in /root/debbuild/ as top directory)*
+
+One item of note is that SDEB packages are actually just tar.gz archives renamed with an .sdeb file extension with the files organized into a SPECS and SOURCES directory tree structure.  Subsequently, an SDEB can also be extracted and installed with the **tar -xvf command** or the files listed with the **tar -tvf command**:
+
+```sh
+[root@localhost getssl]$ tar -tvf /root/debbuild/SDEBS/getssl-2.49-1.sdeb 
+-rw-r--r-- root/root   1772110 2022-10-12 20:42 SOURCES/getssl-2.49.tar.gz
+-rw-r--r-- root/root       192 2022-08-02 15:02 SOURCES/getssl.crontab
+-rw-r--r-- root/root       126 2022-08-02 15:02 SOURCES/getssl.logrotate
+-rw-r--r-- root/root      1537 2022-08-02 15:02 SPECS/getssl.spec
+[root@localhost getssl]$ 
+```
+
+For building or rebuilding RPMS or DEB Packages after you have installed the associated source packages on your platform, refer to the following:
+
+- [Building getssl as an RPM Package (Redhat/CentOS/SuSe/Oracle/AWS)](#building-as-an-rpm-package)
+- [Building getssl as a Debian Package (Debian/Ubuntu)](#building-as-a-debian-package)
+
+## Manual Installation
+
+Since the script is only one file, you can use the following command for
+a quick installation of GetSSL only:
+
+```sh
+curl --silent https://raw.githubusercontent.com/srvrco/getssl/latest/getssl > getssl ; chmod 700 getssl
+```
+
+This will copy the getssl Bash script to the current location and change
+the permissions to make it executable for you.
+
+For a more comprehensive installation (e.g. install also helper scripts)
+use the provided Makefile with each release tarball. Use the `install`
+target.
+
+You'll find the latest version in the git repository:
+
+```sh
+git clone https://github.com/srvrco/getssl.git
+```
+
+For Arch Linux there are packages in the AUR, see
+[here](https://aur.archlinux.org/packages/getssl/) and
+[there](https://aur.archlinux.org/packages/getssl-git/).
+
+If you use puppet, there is a [GetSSL Puppet
+module](https://github.com/dthielking/puppet_getssl) by dthielking
 
 ## Getting started
 
@@ -192,6 +278,25 @@ export CPANEL_APITOKEN='1ABC2DEF3GHI4JKL5MNO6PQR7STU8VWX9YZA'
 DNS_ADD_COMMAND=/home/root/getssl/dns_scripts/dns_add_cpanel
 DNS_DEL_COMMAND=/home/root/getssl/dns_scripts/dns_del_cpanel
 ```
+
+
+## ISPConfig
+
+There is a need to create a remote user in `ISPConfig` to enable the remote API access.
+
+You need to go to `System -> Remote Users` and then enable the features for the remote user such as `DNS zone functions`.
+
+PHP is required to exeucte soap functions in file ispconfig_soap.php.
+```sh
+DNS_ADD_COMMAND="/home/root/getssl/dns_scripts/dns_add_ispconfig"
+DNS_DEL_COMMAND="/home/root/getssl/dns_scripts/dns_del_ispconfig"
+
+export ISPCONFIG_REMOTE_USER_NAME="ussename"
+export ISPCONFIG_REMOTE_USER_PASSWORD="password"
+export ISPCONFIG_SOAP_LOCATION="https://localhost:8080/remote/index.php"
+export ISPCONFIG_SOAP_URL="https://localhost:8080/remote/"
+```
+
 
 Create the wildcard certificate (need to use quotes to prevent globbing):
 
@@ -350,6 +455,42 @@ RELOAD_CMD="service apache2 reload"
 
 ```
 
+## Custom template for configuration
+
+You can create and customize a template that can be use to generate the `~/.getssl/yourdomain.com/getssl.cfg` config file, instead of the default one.
+
+Create one of fhe following allowed locations, according to your getssl installation:
+
+```sh
+/etc/getssl/getssl_default.cfg
+/path/of/your/getssl/installation/getssl_default.cfg
+~/.getssl/getssl_default.cfg
+
+```
+
+And define the default values, optionally using the dynamic variables, as in the example below:
+
+```sh
+# Additional domains - this could be multiple domains / subdomains in a comma separated list
+# Note: this is Additional domains - so should not include the primary domain.
+SANS="${EX_SANS}"
+
+ACL=('/home/myuser/${DOMAIN}/public_html/.well-known/acme-challenge')
+
+USE_SINGLE_ACL="true"
+
+RELOAD_CMD="sudo /bin/systemctl restart nginx.service"
+
+# Define the server type. This can be https, ftp, ftpi, imap, imaps, pop3, pop3s, smtp,
+# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
+# will be checked for certificate expiry and also will be checked after
+# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+SERVER_TYPE="https"
+#CHECK_REMOTE="true"
+CHECK_REMOTE_WAIT="1" # wait 1 second before checking the remote server
+
+```
+
 ## Server-Types
 
 OpenSSL has built-in support for getting the certificate from a number of SSL services
@@ -371,6 +512,7 @@ these are available in getssl to check if the certificate is installed correctly
 | xmpp             | 5222 | StartTLS     |
 | xmpps            | 5269 |              |
 | ldaps            | 636  |              |
+| postgres         | 5432 |              |
 | port number      |      |              |
 
 ## Revoke a certificate
@@ -420,6 +562,380 @@ adding the following line to `getssl.cfg`
 
 ```sh
 FULL_CHAIN_INCLUDE_ROOT="true"
+```
+
+## Windows Server and IIS Support
+
+**System and software requirements**:
+
+-   Windows Server with DNS and IIS services
+
+-   One of
+
+    -   WSL Windows Sub for Linux
+
+        -   Ubuntu or any other distro
+
+        -   gettssl can be installed inside WSL or using `/mnt/` path to windows
+
+    -   Bash - gettssl should be installed in Windows
+
+        -   Git Bash - <https://git-scm.com/downloads>
+
+        -   Rtools4.0 - <https://cran.r-project.org/bin/windows/Rtools/>
+
+**WSL**
+
+-   Installing and configuring WSL 2
+
+    -   Add remove Windows features and choose "Windows for sub Linux"
+
+    -   Install a distro like Ubuntu or any other Linux platform
+
+        -   If newly added to the system a reboot is required to continue
+
+        -   wsl --install -d ubuntu
+
+        -   Any user will work
+
+        -   Copying files to WSL
+
+            -   From Windows open `Windows Explorer` and browse to `\\wsl$\Ubuntu\home\user\` and then place the getssl files and folders `.getssl` and `getssl` into users home directory `\\wsl$\Ubuntu\home\user\.getssl .` or in Windows
+
+        -   Open `cmd` in Widnows and type\
+            `wsl -d Ubuntu /bin/bash /home/UserName/getssl/getssl domain.eu && exit`
+
+        -   Using a specific distro if not set as default in WSL then use the `wsl -d distro` command
+
+    **Notes:**
+
+    -   While configuring WSL please do check the `/etc/hosts` file if the IP of the domain is correct since it overrides the DNS server.
+
+    -   Make sure running version 2.
+
+**GIT Bash** - MINGW64_NT
+
+-   Install git GIT Bash
+
+-   `"C:\Program Files\Git\bin\bash.exe" --login -i -- path_to/getssl/getssl domain.eu`
+
+**Rtools Bash** - MSYS_NT
+
+-   Make sure that the path of `\rtools42\usr\bin` in Windows system environment variables is right before `c:\windows\system32\` so that getssl will use the `Rtools` applications instead of Windows applications such as `sort.exe` that crashes or speify full path to sort.
+
+-   `\rtools42\usr\bin\bash.exe \Users\Administrator\getssl\getssl domain.eu 2>&1 1>out.txt`
+
+**Updating DNS TXT records**
+
+-   Using `PowerShell` to add and delete `_acme-challenge` records
+
+    -   dns_add_windows_dnsserver
+
+    -   dns_del_windows_dnsserver
+
+    **Notes:** The script supports optional second level `TLDs`. `sub.domain.co.uk` You can update the reqexp `.(co|com).uk` to fit your needs.
+
+**IIS internet information service**
+
+-   Under folder `other_scripts` you can find a `PowerSheell` script `iis_install_certeficate.ps1` which generates `PFX` certificate to be installed in `IIS` and binds the domains to the `PFX` certificate.
+
+-   WSL
+
+    -   `RELOAD_CMD=("powershell.exe -ExecutionPolicy Bypass -File "\\\\wsl$\\Ubuntu\\home\\user\\getssl\\other_scripts\\iis_install_certeficate.ps1" "domain.eu" "IIS SiteName" "\\\\wsl$\\Ubuntu\\home\\user\\ssl\\" "path_to_ssl_dir" )`
+
+-   GIT and Rtools4 Bash
+
+    -   `RELOAD_CMD=("powershell.exe /c/Users/Administrator/getssl/other_scripts/iis_install_certeficate.ps1 domain.eu domain path_to_ssl_dir")`
+
+## Building as an RPM Package
+
+In order to build getssl as an RPM, the program must be compressed into a tar.gz
+file and the tar.gz file named to match the versioning information contained in the 
+associated .spec file.  
+
+Spec files are special files which contain instructions on how to build a particular package
+from a source code archive.  On Red Hat, CentOS, Oracle Linux, and AWS Linux systems, RPMS are built in the /root/rpmbuild/ top directory.  SuSe systems build RPMS in the /usr/src/packages/ as top directory.  These "top directories" will contain BUILD, BUILDROOT, SPECS, RPMS, SRPMS, and SOURCES subdirectories.  
+
+The SPECS directory contains the \*.spec files used to build RPMS and SRPMS packages.  The SOURCES subdirectory will contain the soure code archive file referred to in the \*.spec file used to build the 
+RPM package.
+
+See the [Quick Start Guide](#quick-start-guide) on instructions for installing the 
+source rpm which installs both the .spec file and source archive file (tar.gz) into 
+the rpm build top directory (i.e. /root/rpmbuild/).  You should have previously 
+installed the src.rpm file before attempting to build the rpm.  You can also 
+manually install the .spec file into the \<top directory\>/SPECS/ directory and 
+the source code tarball in the \<top directory\/SOURCES/ directory, then attempt 
+to build the rpm package.
+
+To build getssl using the rpm tool, change directories (cd) into the /root/rpmbuild/SPECS/ directory (/usr/src/packages/SPECS/ for SuSe) and enter the following command:
+```sh
+rpmbuild -ba getssl.spec <enter>
+```
+The program should output the following if the build is successful and verify that the program
+wrote both the RPMS and SRPMS packages:
+
+```sh
+Executing(%prep): /bin/sh -e /var/tmp/rpm-tmp.BYQw0V
++ umask 022
++ cd /root/rpmbuild/BUILD
++ cd /root/rpmbuild/BUILD
++ rm -rf getssl-2.49
++ /usr/bin/gzip -dc /root/rpmbuild/SOURCES/getssl-2.49.tar.gz
++ /usr/bin/tar -xof -
++ STATUS=0
++ '[' 0 -ne 0 ']'
++ cd getssl-2.49
++ /usr/bin/chmod -Rf a+rX,u+w,g-w,o-w .
++ exit 0
+Executing(%build): /bin/sh -e /var/tmp/rpm-tmp.xpA456
++ umask 022
++ cd /root/rpmbuild/BUILD
++ cd getssl-2.49
++ exit 0
+Executing(%install): /bin/sh -e /var/tmp/rpm-tmp.zQs24R
++ umask 022
++ cd /root/rpmbuild/BUILD
++ '[' /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64 '!=' / ']'
++ rm -rf /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64
+++ dirname /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64
++ mkdir -p /root/rpmbuild/BUILDROOT
++ mkdir /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64
++ cd getssl-2.49
++ '[' -n /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64 -a /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64 '!=' / ']'
++ /usr/bin/rm -rf /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64
++ /usr/bin/mkdir -p /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/bin
++ /usr/bin/mkdir -p /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts
++ /usr/bin/mkdir -p /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/other_scripts
++ /usr/bin/make DESTDIR=/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64 install
+mkdir -p /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64
+install -Dvm755 getssl /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/bin/getssl
+'getssl' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/bin/getssl'
+install -dvm755 /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl
+for dir in *_scripts; do install -dv /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/$dir; install -pv $dir/* /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/$dir/; done
+'dns_scripts/Azure-README.txt' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/Azure-README.txt'
+'dns_scripts/Cloudflare-README.md' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/Cloudflare-README.md'
+'dns_scripts/DNS_IONOS.md' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/DNS_IONOS.md'
+'dns_scripts/DNS_ROUTE53.md' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/DNS_ROUTE53.md'
+'dns_scripts/GoDaddy-README.txt' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/GoDaddy-README.txt'
+'dns_scripts/dns_add_acmedns' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_acmedns'
+'dns_scripts/dns_add_azure' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_azure'
+'dns_scripts/dns_add_challtestsrv' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_challtestsrv'
+'dns_scripts/dns_add_clouddns' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_clouddns'
+'dns_scripts/dns_add_cloudflare' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_cloudflare'
+'dns_scripts/dns_add_cpanel' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_cpanel'
+'dns_scripts/dns_add_del_aliyun.sh' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_del_aliyun.sh'
+'dns_scripts/dns_add_dnspod' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_dnspod'
+'dns_scripts/dns_add_duckdns' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_duckdns'
+'dns_scripts/dns_add_dynu' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_dynu'
+'dns_scripts/dns_add_godaddy' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_godaddy'
+'dns_scripts/dns_add_hostway' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_hostway'
+'dns_scripts/dns_add_ionos' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_ionos'
+'dns_scripts/dns_add_ispconfig' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_ispconfig'
+'dns_scripts/dns_add_joker' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_joker'
+'dns_scripts/dns_add_lexicon' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_lexicon'
+'dns_scripts/dns_add_linode' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_linode'
+'dns_scripts/dns_add_manual' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_manual'
+'dns_scripts/dns_add_nsupdate' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_nsupdate'
+'dns_scripts/dns_add_ovh' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_ovh'
+'dns_scripts/dns_add_pdns-mysql' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_pdns-mysql'
+'dns_scripts/dns_add_vultr' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_vultr'
+'dns_scripts/dns_add_windows_dns_server' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_add_windows_dns_server'
+'dns_scripts/dns_del_acmedns' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_acmedns'
+'dns_scripts/dns_del_azure' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_azure'
+'dns_scripts/dns_del_challtestsrv' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_challtestsrv'
+'dns_scripts/dns_del_clouddns' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_clouddns'
+'dns_scripts/dns_del_cloudflare' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_cloudflare'
+'dns_scripts/dns_del_cpanel' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_cpanel'
+'dns_scripts/dns_del_dnspod' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_dnspod'
+'dns_scripts/dns_del_duckdns' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_duckdns'
+'dns_scripts/dns_del_dynu' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_dynu'
+'dns_scripts/dns_del_godaddy' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_godaddy'
+'dns_scripts/dns_del_hostway' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_hostway'
+'dns_scripts/dns_del_ionos' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_ionos'
+'dns_scripts/dns_del_ispconfig' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_ispconfig'
+'dns_scripts/dns_del_joker' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_joker'
+'dns_scripts/dns_del_lexicon' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_lexicon'
+'dns_scripts/dns_del_linode' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_linode'
+'dns_scripts/dns_del_manual' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_manual'
+'dns_scripts/dns_del_nsupdate' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_nsupdate'
+'dns_scripts/dns_del_ovh' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_ovh'
+'dns_scripts/dns_del_pdns-mysql' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_pdns-mysql'
+'dns_scripts/dns_del_vultr' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_vultr'
+'dns_scripts/dns_del_windows_dns_server' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_del_windows_dns_server'
+'dns_scripts/dns_freedns.sh' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_freedns.sh'
+'dns_scripts/dns_godaddy' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_godaddy'
+'dns_scripts/dns_route53.py' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/dns_route53.py'
+'dns_scripts/ispconfig_soap.php' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/dns_scripts/ispconfig_soap.php'
+'other_scripts/cpanel_cert_upload' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/other_scripts/cpanel_cert_upload'
+'other_scripts/iis_install_certeficate.ps1' -> '/root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/usr/share/getssl/other_scripts/iis_install_certeficate.ps1'
++ install -Dpm 644 /root/rpmbuild/SOURCES/getssl.crontab /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/etc/cron.d/getssl
++ install -Dpm 644 /root/rpmbuild/SOURCES/getssl.logrotate /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64/etc/logrotate.d/getssl
++ /usr/lib/rpm/check-buildroot
++ /usr/lib/rpm/redhat/brp-ldconfig
+/sbin/ldconfig: Warning: ignoring configuration file that cannot be opened: /etc/ld.so.conf: No such file or directory
++ /usr/lib/rpm/brp-compress
++ /usr/lib/rpm/brp-strip /usr/bin/strip
++ /usr/lib/rpm/brp-strip-comment-note /usr/bin/strip /usr/bin/objdump
++ /usr/lib/rpm/brp-strip-static-archive /usr/bin/strip
++ /usr/lib/rpm/brp-python-bytecompile '' 1
++ /usr/lib/rpm/brp-python-hardlink
++ /usr/bin/true
+Processing files: getssl-2.49-1.noarch
+Provides: getssl = 2.49-1
+Requires(interp): /bin/sh /bin/sh /bin/sh /bin/sh
+Requires(rpmlib): rpmlib(CompressedFileNames) <= 3.0.4-1 rpmlib(FileDigests) <= 4.6.0-1 rpmlib(PayloadFilesHavePrefix) <= 4.0-1
+Requires(pre): /bin/sh
+Requires(post): /bin/sh
+Requires(preun): /bin/sh
+Requires(postun): /bin/sh
+Requires: /bin/bash /usr/bin/env
+Checking for unpackaged file(s): /usr/lib/rpm/check-files /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64
+Wrote: /root/rpmbuild/SRPMS/getssl-2.49-1.src.rpm
+Wrote: /root/rpmbuild/RPMS/noarch/getssl-2.49-1.noarch.rpm
+Executing(%clean): /bin/sh -e /var/tmp/rpm-tmp.hgma8Q
++ umask 022
++ cd /root/rpmbuild/BUILD
++ cd getssl-2.49
++ /usr/bin/rm -rf /root/rpmbuild/BUILDROOT/getssl-2.49-1.x86_64
++ exit 0
+```
+
+## Building as a Debian Package
+
+In order to build getssl as a Debian package, the program must be compressed into a tar.gz
+file and the tar.gz file named to match the versioning information contained in the associated .spec file. Spec files are special files which contain instructions on how to build a particular package from a source code archive.  
+
+Debian Packages can be built using a utility called "debbuild" and use a top directory structure which is similar to that used by the RPM tool but using /root/debbuild/ as the "top directory".  These "top directories" will contain BUILD, BUILDROOT, SPECS, DEBS, SDEBS, and SOURCES subdirectories and follows a similar layout that is used for RPM files.  
+
+The SPECS directory contains the \*.spec files used to build DEB and SDEB packages.  The SOURCES subdirectory will contain the soure code archive file referred to in the \*.spec file used to build the 
+DEB and SDEB packages.
+
+See the [Quick Start Guide](#quick-start-guide) on instructions for installing the 
+source SDEB which installs both the .spec file and source archive file (tar.gz) into 
+the debbuild top directory (i.e. /root/debbuild/).  You should have previously installed 
+the SDEB file before attempting to build the DEB package.  You can also manually 
+install the .spec file into the \<top directory\>/SPECS/ directory and the source 
+code tarball in the \<top directory\/SOURCES/ directory, then attempt to build the 
+DEB package.
+
+To build getssl using debbuild, change directories (cd) into the /root/debbuild/SPECS/ directory and enter the following command:
+```sh
+debbuild -vv -ba getssl.spec <enter>
+```
+The program should output the following if the build is successful and verify that the program
+wrote both the DEB and SDEB packages:
+
+```sh
+This is debbuild, version 22.02.1\ndebconfigdir:/usr/lib/debbuild\nsysconfdir:/etc\n
+Lua: No Lua module loaded
+Executing (%prep): /bin/sh -e /var/tmp/deb-tmp.prep.92007
++ umask 022
++ cd /root/debbuild/BUILD
++ /bin/rm -rf getssl-2.49
++ /bin/gzip -dc /root/debbuild/SOURCES/getssl-2.49.tar.gz
++ /bin/tar -xf -
++ STATUS=0
++ '[' 0 -ne 0 ']'
++ cd getssl-2.49
++ /bin/chmod -Rf a+rX,u+w,go-w .
++ exit 0
+Executing (%build): /bin/sh -e /var/tmp/deb-tmp.build.40956
++ umask 022
++ cd /root/debbuild/BUILD
++ cd getssl-2.49
++ exit 0
+Executing (%install): /bin/sh -e /var/tmp/deb-tmp.install.36647
++ umask 022
++ cd /root/debbuild/BUILD
++ cd getssl-2.49
++ '[' -n /root/debbuild/BUILDROOT/getssl-2.49-1.amd64 -a /root/debbuild/BUILDROOT/getssl-2.49-1.amd64 '!=' / ']'
++ /bin/rm -rf /root/debbuild/BUILDROOT/getssl-2.49-1.amd64
++ /bin/mkdir -p /root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/bin
++ /bin/mkdir -p /root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts
++ /bin/mkdir -p /root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/other_scripts
++ /usr/bin/make DESTDIR=/root/debbuild/BUILDROOT/getssl-2.49-1.amd64 install
+mkdir -p /root/debbuild/BUILDROOT/getssl-2.49-1.amd64
+install -Dvm755 getssl /root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/bin/getssl
+'getssl' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/bin/getssl'
+install -dvm755 /root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl
+for dir in *_scripts; do install -dv /root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/$dir; install -pv $dir/* /root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/$dir/; done
+'dns_scripts/Azure-README.txt' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/Azure-README.txt'
+'dns_scripts/Cloudflare-README.md' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/Cloudflare-README.md'
+'dns_scripts/DNS_IONOS.md' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/DNS_IONOS.md'
+'dns_scripts/DNS_ROUTE53.md' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/DNS_ROUTE53.md'
+'dns_scripts/GoDaddy-README.txt' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/GoDaddy-README.txt'
+'dns_scripts/dns_add_acmedns' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_acmedns'
+'dns_scripts/dns_add_azure' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_azure'
+'dns_scripts/dns_add_challtestsrv' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_challtestsrv'
+'dns_scripts/dns_add_clouddns' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_clouddns'
+'dns_scripts/dns_add_cloudflare' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_cloudflare'
+'dns_scripts/dns_add_cpanel' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_cpanel'
+'dns_scripts/dns_add_del_aliyun.sh' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_del_aliyun.sh'
+'dns_scripts/dns_add_dnspod' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_dnspod'
+'dns_scripts/dns_add_duckdns' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_duckdns'
+'dns_scripts/dns_add_dynu' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_dynu'
+'dns_scripts/dns_add_godaddy' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_godaddy'
+'dns_scripts/dns_add_hostway' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_hostway'
+'dns_scripts/dns_add_ionos' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_ionos'
+'dns_scripts/dns_add_ispconfig' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_ispconfig'
+'dns_scripts/dns_add_joker' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_joker'
+'dns_scripts/dns_add_lexicon' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_lexicon'
+'dns_scripts/dns_add_linode' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_linode'
+'dns_scripts/dns_add_manual' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_manual'
+'dns_scripts/dns_add_nsupdate' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_nsupdate'
+'dns_scripts/dns_add_ovh' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_ovh'
+'dns_scripts/dns_add_pdns-mysql' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_pdns-mysql'
+'dns_scripts/dns_add_vultr' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_vultr'
+'dns_scripts/dns_add_windows_dns_server' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_add_windows_dns_server'
+'dns_scripts/dns_del_acmedns' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_acmedns'
+'dns_scripts/dns_del_azure' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_azure'
+'dns_scripts/dns_del_challtestsrv' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_challtestsrv'
+'dns_scripts/dns_del_clouddns' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_clouddns'
+'dns_scripts/dns_del_cloudflare' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_cloudflare'
+'dns_scripts/dns_del_cpanel' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_cpanel'
+'dns_scripts/dns_del_dnspod' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_dnspod'
+'dns_scripts/dns_del_duckdns' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_duckdns'
+'dns_scripts/dns_del_dynu' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_dynu'
+'dns_scripts/dns_del_godaddy' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_godaddy'
+'dns_scripts/dns_del_hostway' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_hostway'
+'dns_scripts/dns_del_ionos' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_ionos'
+'dns_scripts/dns_del_ispconfig' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_ispconfig'
+'dns_scripts/dns_del_joker' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_joker'
+'dns_scripts/dns_del_lexicon' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_lexicon'
+'dns_scripts/dns_del_linode' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_linode'
+'dns_scripts/dns_del_manual' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_manual'
+'dns_scripts/dns_del_nsupdate' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_nsupdate'
+'dns_scripts/dns_del_ovh' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_ovh'
+'dns_scripts/dns_del_pdns-mysql' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_pdns-mysql'
+'dns_scripts/dns_del_vultr' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_vultr'
+'dns_scripts/dns_del_windows_dns_server' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_del_windows_dns_server'
+'dns_scripts/dns_freedns.sh' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_freedns.sh'
+'dns_scripts/dns_godaddy' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_godaddy'
+'dns_scripts/dns_route53.py' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/dns_route53.py'
+'dns_scripts/ispconfig_soap.php' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/dns_scripts/ispconfig_soap.php'
+'other_scripts/cpanel_cert_upload' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/other_scripts/cpanel_cert_upload'
+'other_scripts/iis_install_certeficate.ps1' -> '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/usr/share/getssl/other_scripts/iis_install_certeficate.ps1'
++ install -Dpm 644 /root/debbuild/SOURCES/getssl.crontab /root/debbuild/BUILDROOT/getssl-2.49-1.amd64/etc/cron.d/getssl
++ install -Dpm 644 /root/debbuild/SOURCES/getssl.logrotate /root/debbuild/BUILDROOT/getssl-2.49-1.amd64/etc/logrotate.d/getssl
++ exit 0
+Checking library requirements...
+Executing (package-creation): /bin/sh -e /var/tmp/deb-tmp.pkg.6107 for getssl
++ umask 022
++ cd /root/debbuild/BUILD
++ /usr/bin/fakeroot -- /usr/bin/dpkg-deb -b /root/debbuild/BUILDROOT/getssl-2.49-1.amd64/main /root/debbuild/DEBS/all/getssl_2.49-1_all.deb
+dpkg-deb: warning: parsing file '/root/debbuild/BUILDROOT/getssl-2.49-1.amd64/main/DEBIAN/control' near line 10 package 'getssl':
+ missing 'Maintainer' field
+dpkg-deb: warning: ignoring 1 warning about the control file(s)
+dpkg-deb: building package 'getssl' in '/root/debbuild/DEBS/all/getssl_2.49-1_all.deb'.
++ exit 0
+Executing (%clean): /bin/sh -e /var/tmp/deb-tmp.clean.52780
++ umask 022
++ cd /root/debbuild/BUILD
++ '[' /root/debbuild/BUILDROOT/getssl-2.49-1.amd64 '!=' / ']'
++ /bin/rm -rf /root/debbuild/BUILDROOT/getssl-2.49-1.amd64
++ exit 0
+Wrote source package getssl-2.49-1.sdeb in /root/debbuild/SDEBS.
+Wrote binary package getssl_2.49-1_all.deb in /root/debbuild/DEBS/all
 ```
 
 ## Issues / problems / help
