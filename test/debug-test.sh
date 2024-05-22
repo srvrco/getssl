@@ -28,3 +28,4 @@ fi
 cp "${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_HOST}/getssl.cfg"
 # shellcheck disable=SC2086
 "${CODE_DIR}/getssl" -U ${DEBUG} -f "$GETSSL_HOST" 3>&1
+#bash

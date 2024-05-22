@@ -548,7 +548,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
 
     # if ACME response is pending (they haven't completed checks yet)
     # or valid (completed checks but not created certificate) then wait and try again.
-    if [[ "$status" == "pending" ]] || [[ "$status" == "valid" ]]; then
+    if [[ "$status" == "pending" ]] || [[ "$status" == "valid" ]] || [[ "$status" == "processing" ]]; then
       info "Pending"
     else
       err_detail=$(echo "$response" | grep "detail")
