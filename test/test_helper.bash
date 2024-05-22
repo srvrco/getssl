@@ -16,9 +16,11 @@ check_github_quota() {
   need="$1"
   echo "# Checking github limits"
   while true ; do
+    # shellcheck disable=SC2086
     limits="$(curl ${_NOMETER:---silent} --user-agent "srvrco/getssl/github-actions" -H 'Accept: application/vnd.github.v3+json' "$LIMIT_API")"
-    echo "# limits = $limits"
+    # save error code before calling echo
     errcode=$?
+    echo "# limits = $limits"
     if [[ $errcode -eq 60 ]]; then
       echo "curl needs updating, your version does not support SNI (multiple SSL domains on a single IP)"
       exit 1
@@ -41,7 +43,7 @@ check_github_quota() {
       echo "# sleeping $(( reset - now )) seconds for GitHub quota"
       sleep "$(( reset - now ))"
       now="$(date +%s)"
-   done
+    done
   done
 }
 
