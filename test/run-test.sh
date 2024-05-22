@@ -10,6 +10,14 @@ OS=$1
 if [ $# -gt 1 ]; then
   shift
   COMMAND=$*
+  if [[ $COMMAND != "bats /getssl/test"* ]]; then
+    COMMAND="bats /getssl/test/$COMMAND"
+  elif [[ $COMMAND == /getssl/test* ]]; then
+    COMMAND="bats $COMMAND"
+  fi
+  if [[ $COMMAND != *.bats ]]; then
+    COMMAND="${COMMAND}.bats"
+  fi
 else
   COMMAND="bats /getssl/test --timing"
 fi
