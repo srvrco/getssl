@@ -98,7 +98,16 @@ EOF
     # assert_line --partial "SSL connection using TLSv1.3"
     assert_line --partial "200 PROT now Private"
 
-    check_output_for_errors
+    # 22-May-2024 skip assert_success on ubuntu16 as ftp output contains the
+    # message "error fetching CN from cert:The requested data were not available."
+    if [[ $GETSSL_OS == ubuntu16 ]]; then
+        refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
+        refute_output --regexp '[^_][Ee][Rr][Rr][Oo][Rr][^:badNonce|^ fetching CN from cert]'
+        refute_output --regexp '[^_][Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+        refute_line --partial 'command not found'
+    else
+        check_output_for_errors
+    fi
 }
 
 
@@ -163,5 +172,14 @@ EOF
     create_certificate
     assert_success
     assert_line --partial "200 PROT now Private"
-    check_output_for_errors
+    # 22-May-2024 skip assert_success on ubuntu16 as ftp output contains the
+    # message "error fetching CN from cert:The requested data were not available."
+    if [[ $GETSSL_OS == ubuntu16 ]]; then
+        refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
+        refute_output --regexp '[^_][Ee][Rr][Rr][Oo][Rr][^:badNonce|^ fetching CN from cert]'
+        refute_output --regexp '[^_][Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
+        refute_line --partial 'command not found'
+    else
+        check_output_for_errors
+    fi
 }
