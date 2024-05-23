@@ -11,7 +11,7 @@ token="$2"
 # DNS_NSUPDATE_GETKEY  - command to execute if access to the key file requires
 #                        some special action: mounting a disk, decrypting a file..
 #                        Called with the operation 'add' and action 'open" / 'close'
-
+# DNS_NSUPDATE_LOCALIP - IP source address for update (TSIG is preferred)  Can be address<space>port.
 
 if [ -n "${DNS_NSUPDATE_KEYFILE}" ]; then
   if [ -n "${DNS_NSUPDATE_KEY_HOOK}" ] && ! ${DNS_NSUPDATE_KEY_HOOK} 'add' 'open' "${fulldomain}" ; then
@@ -26,6 +26,7 @@ if [ -n "${DNS_SERVER}" ]; then
   cmd+="server ${DNS_SERVER}\n"
 fi
 
+[ -n "$DNS_NSUPDATE_LOCALIP" ] && cmd+="local ${DNS_NSUPDATE_LOCALIP}\n"
 cmd+="update add  ${DNS_ZONE:-"_acme-challenge.${fulldomain}."} 300 in TXT \"${token}\"\n"
 cmd+="\n" # blank line is a "send" command to nsupdate
 
