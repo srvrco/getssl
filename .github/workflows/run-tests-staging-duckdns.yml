@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Build the docker-compose stack
-        run: docker-compose up -d --build
+      - name: Build the docker compose stack
+        run: docker compose up -d --build
       - name: Run test suite on CentOS7 against Staging using DuckDNS
         run: test/run-test.sh centos7-duckdns
   test-ubuntu-duckdns:
@@ -20,7 +20,7 @@ jobs:
     needs: test-centos7-duckdns
     steps:
       - uses: actions/checkout@v3
-      - name: Build the docker-compose stack
-        run: docker-compose up -d --build
+      - name: Build the docker compose stack
+        run: docker compose up -d --build
       - name: Run test suite on Ubuntu against Staging using DuckDNS
         run: test/run-test.sh ubuntu-duckdns

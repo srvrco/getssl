@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Build the docker-compose stack
-        run: docker-compose up -d --build
+      - name: Build the docker compose stack
+        run: docker compose up -d --build
       - name: Run test suite on Ubuntu against Staging using acmedns
         run: test/run-test.sh ubuntu-acmedns
