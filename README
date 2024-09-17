@@ -1,76 +1,70 @@
 
-
-GETSSL
-
+# GETSSL
 
 [Run all tests] [shellcheck]
 
 Obtain SSL certificates from the letsencrypt.org ACME server. Suitable
 for automating the process on remote servers.
 
-
 Table of Contents
 
--   Upgrade broken in v2.43
--   Features
--   Overview
--   Quick Start Guide
--   Manual Installation
--   Getting started
--   Detailed guide to getting started with more examples
--   Wildcard certificates
--   ISPConfig
--   Automating updates
--   Structure
--   Server-Types
--   Revoke a certificate
--   Elliptic curve keys
--   Preferred Chain
--   Include Root certificate in full chain
--   Windows Server and IIS Support
--   Building getssl as an RPM Package (Redhat/CentOS/SuSe/Oracle/AWS)
--   Building getssl as a Debian Package (Debian/Ubuntu)
--   Issues / problems / help
-
+- Upgrade broken in v2.43
+- Features
+- Overview
+- Quick Start Guide
+- Manual Installation
+- Getting started
+- Detailed guide to getting started with more examples
+- Wildcard certificates
+- ISPConfig
+- Automating updates
+- Structure
+- Server-Types
+- Revoke a certificate
+- Elliptic curve keys
+- Preferred Chain
+- Include Root certificate in full chain
+- Windows Server and IIS Support
+- Building getssl as an RPM Package (Redhat/CentOS/SuSe/Oracle/AWS)
+- Building getssl as a Debian Package (Debian/Ubuntu)
+- Issues / problems / help
 
 Upgrade broken in v2.43
 
 The automatic upgrade in v2.43 is broken as the url is incorrect. If you
 have this version installed you’ll need to manually upgrade using:
-curl --silent --user-agent getssl/manual https://raw.githubusercontent.com/srvrco/getssl/latest/getssl --output getssl
-
+curl --silent --user-agent getssl/manual <https://raw.githubusercontent.com/srvrco/getssl/latest/getssl> --output getssl
 
 Features
 
--   BASH - It runs on virtually all unix machines, including BSD, most
+- BASH - It runs on virtually all unix machines, including BSD, most
     Linux distributions, macOS.
--   GET CERTIFICATES FOR REMOTE SERVERS - The tokens used to provide
+- GET CERTIFICATES FOR REMOTE SERVERS - The tokens used to provide
     validation of domain ownership, and the certificates themselves can
     be automatically copied to remote servers (via ssh, sftp or ftp for
     tokens). The script doesn’t need to run on the server itself. This
     can be useful if you don’t have access to run such scripts on the
     server itself, e.g. if it’s a shared server.
--   RUNS AS A DAILY CRON - so certificates will be automatically renewed
+- RUNS AS A DAILY CRON - so certificates will be automatically renewed
     when required.
--   AUTOMATIC CERTIFICATE RENEWALS
--   CHECKS CERTIFICATES ARE CORRECTLY LOADED - After installation of a
+- AUTOMATIC CERTIFICATE RENEWALS
+- CHECKS CERTIFICATES ARE CORRECTLY LOADED - After installation of a
     new certificate it will test the port specified ( see Server-Types
     for options ) that the certificate is actually being used correctly.
--   AUTOMATICALLY UPDATES - The script can automatically update itself
+- AUTOMATICALLY UPDATES - The script can automatically update itself
     with bug fixes etc if required.
--   EXTENSIVELY CONFIGURABLE - With a simple configuration file for each
+- EXTENSIVELY CONFIGURABLE - With a simple configuration file for each
     certificate it is possible to configure it exactly for your needs,
     whether a simple single domain or multiple domains across multiple
     servers on the same certificate.
--   SUPPORTS HTTP AND DNS CHALLENGES - Full ACME implementation
--   SIMPLE AND EASY TO USE
--   DETAILED DEBUG INFO - Whilst it shouldn’t be needed, detailed debug
+- SUPPORTS HTTP AND DNS CHALLENGES - Full ACME implementation
+- SIMPLE AND EASY TO USE
+- DETAILED DEBUG INFO - Whilst it shouldn’t be needed, detailed debug
     information is available.
--   RELOAD SERVICES - After a new certificate is obtained then the
+- RELOAD SERVICES - After a new certificate is obtained then the
     relevant services (e.g. apache/nginx/postfix) can be reloaded.
--   ACME V1 AND V2 - Supports both ACME versions 1 and 2 (note ACMEv1 is
+- ACME V1 AND V2 - Supports both ACME versions 1 and 2 (note ACMEv1 is
     deprecated and clients will automatically use v2)
-
 
 Overview
 
