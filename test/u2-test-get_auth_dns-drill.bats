@@ -136,6 +136,7 @@ teardown() {
     CHECK_PUBLIC_DNS_SERVER=false
     CHECK_ALL_AUTH_DNS=false
 
+    echo "# Checking we can find the primary_ns server"
     run get_auth_dns www.duckdns.org
 
     # Assert that we've found the primary_ns server
@@ -146,11 +147,13 @@ teardown() {
     assert_line --regexp 'Using drill.* NS'
 
     # Check all Authoritive DNS servers are returned if requested
+    echo "# Checking all authoritive DNS servers are returned if requested"
     CHECK_ALL_AUTH_DNS=true
     run get_auth_dns www.duckdns.org
     assert_output --regexp 'set primary_ns = ns.*\.awsdns.*\.net'
 
     # Check that we also check the public DNS server if requested
+    echo "# Checking we use the public DNS server if requested"
     CHECK_PUBLIC_DNS_SERVER=true
     run get_auth_dns www.duckdns.org
     assert_output --regexp 'set primary_ns = ns.*\.awsdns.*\.net 1\.0\.0\.1'

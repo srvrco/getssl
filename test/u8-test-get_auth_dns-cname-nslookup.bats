@@ -22,9 +22,9 @@ setup() {
     NSLOOKUP_VERSION=$(echo "" | nslookup -version 2>/dev/null | awk -F"[ -]" '{ print $2 }')
     # Version 9.11.3 on Ubuntu -debug doesn't work inside docker in my test env, version 9.16.1 does
     if [[ "${NSLOOKUP_VERSION}" != "Invalid" ]] && check_version "${NSLOOKUP_VERSION}" "9.11.4" ; then
-      DNS_CHECK_OPTIONS="$DNS_CHECK_OPTIONS -debug"
+        DNS_CHECK_OPTIONS="$DNS_CHECK_OPTIONS -debug"
     else
-      skip "This version of nslookup either doesn't support -debug or it doesn't work in local docker"
+        skip "This version of nslookup either doesn't support -debug or it doesn't work in local docker"
     fi
 }
 
