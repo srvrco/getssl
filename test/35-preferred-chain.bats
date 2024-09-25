@@ -53,8 +53,8 @@ EOF
 
 @test "Use PREFERRED_CHAIN to select the default root" {
     if [ -n "$STAGING" ]; then
-        PREFERRED_CHAIN="\(STAGING\) Doctored Durian Root CA X3"
-        CHECK_CHAIN="(STAGING) Doctored Durian Root CA X3"
+        PREFERRED_CHAIN="\(STAGING\) Pretend Pear X1"
+        CHECK_CHAIN="(STAGING) Pretend Pear X1"
     else
         PREFERRED_CHAIN=$(curl --silent https://pebble:15000/roots/0 | openssl x509 -text -noout | grep Issuer: | awk -F"CN *= *" '{ print $2 }')
         PREFERRED_CHAIN="${PREFERRED_CHAIN# }" # remove leading whitespace
