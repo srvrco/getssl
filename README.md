@@ -120,7 +120,7 @@ For example, the release v2.49 contains the following packages in the release se
 
 ### **Debian Based Packages (Debian, Ubuntu)**
 
-- [getssl_2.49-1_all.deb](https://github.com/srvrco/getssl/releases/download/2.49/getssl_2.49-1_all.deb) (binary)
+- [getssl_2.49-1_all.deb](https://github.com/srvrco/getssl/releases/download/v2.49/getssl_2.49-1_all.deb) (binary)
 
 ### **Installing Binary Packages**
 
