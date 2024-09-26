@@ -1622,9 +1622,15 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
 
     # Query for NS records
     if [[ -z "$res" ]]; then
-      debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} NS ${gad_d}" to find primary nameserver
-      # shellcheck disable=SC2086
-      res=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} NS "${gad_d}"| grep -E "IN\W(NS|SOA)\W")
+      out="SERVFAIL"
+      i=0
+      while [[ "$out" == *"SERVFAIL"* ]] && [[ $i -lt 5 ]]; do
+        debug Using "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} NS ${gad_d}" to find primary nameserver
+        # shellcheck disable=SC2086
+        out=$($HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} NS "${gad_d}")
+        res=$(echo "$out"| grep -E "IN\W(NS|SOA)\W")
+        ((i++))
+      done
     fi
 
     if [[ -n "$res" ]]; then
