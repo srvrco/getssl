@@ -8,12 +8,12 @@ RUN yum -y install epel-release
 RUN yum -y install git curl bind-utils ldns wget which nginx jq
 
 # Set locale
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
-ENV staging "true"
-ENV dynamic_dns "dynu"
+ENV staging="true"
+ENV dynamic_dns="dynu"
 
 WORKDIR /root
 RUN mkdir -p /etc/nginx/pki/private

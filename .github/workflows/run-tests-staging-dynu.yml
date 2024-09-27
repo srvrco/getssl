@@ -1,15 +1,13 @@
 name: Run tests against Staging server using Dynu
 on:
-  workflow_dispatch:
-    branches:
-      - master
+  workflow_dispatch
 env:
   DYNU_API_KEY: ${{ secrets.DYNU_API_KEY == '' && '65cXefd35XbYf36546eg5dYcZT6X52Y2' || secrets.DYNU_API_KEY }}
 jobs:
   test-centos7-dynu:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build the docker compose stack
         run: docker compose up -d --build
       - name: Run test suite on CentOS7 against Staging using Dynu
@@ -19,7 +17,7 @@ jobs:
     if: always()
     needs: test-centos7-dynu
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build the docker compose stack
         run: docker compose up -d --build
       - name: Run test suite on Ubuntu against Staging using Dynu

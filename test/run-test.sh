@@ -14,6 +14,8 @@ if [ $# -gt 1 ]; then
     if [[ $COMMAND != "bats /getssl/test"* ]]; then
       if [[ $COMMAND == /getssl/test* ]]; then
         COMMAND="bats $COMMAND"
+      elif [[ $COMMAND == test/* ]]; then
+        COMMAND="bats /getssl/$COMMAND"
       else
         COMMAND="bats /getssl/test/$COMMAND"
       fi

@@ -50,7 +50,6 @@ teardown_file() {
     check_output_for_errors
     run openssl x509 -noout -text -in "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt"
     # verify certificate is for wildcard domain with non-wildcard domain in the Subject Alternative Name list
-    # assert_output --regexp "Subject: CN[ ]?=[ ]?\*.wild-${GETSSL_HOST}"
     assert_output --partial "DNS:${GETSSL_HOST}"
 }
 
@@ -69,6 +68,5 @@ teardown_file() {
     check_output_for_errors
     run openssl x509 -noout -text -in "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt"
     # verify certificate is for non-wildcard domain with wildcard domain in the Subject Alternative Name list
-    # assert_output --regexp "Subject: CN[ ]?=[ ]?${GETSSL_HOST}"
     assert_output --partial "DNS:*.wild-${GETSSL_HOST}"
 }

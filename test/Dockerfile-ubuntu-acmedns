@@ -3,14 +3,14 @@ FROM ubuntu:latest
 # Note this image uses mawk1.3
 
 # Set noninteractive otherwise tzdata hangs
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Ensure tests in this image use the staging server
-ENV staging "true"
+ENV staging="true"
 # 2016ENV dynamic_dns "acme-dns"
-ENV ACMEDNS_API_USER 49ac5f6d-74cd-4aca-acfe-f9457af7894c
-ENV ACMEDNS_API_KEY 2NPGF8cH7PeTrHZWXImi1prhTsQGz2pdCC7Za5zE
-ENV ACMEDNS_SUBDOMAIN 7268181b-7075-4dce-be51-9c20c205cf6e
+ENV ACMEDNS_API_USER=49ac5f6d-74cd-4aca-acfe-f9457af7894c
+ENV ACMEDNS_API_KEY=2NPGF8cH7PeTrHZWXImi1prhTsQGz2pdCC7Za5zE
+ENV ACMEDNS_SUBDOMAIN=7268181b-7075-4dce-be51-9c20c205cf6e
 
 # Update and install required software
 RUN apt-get update --fix-missing
@@ -20,9 +20,9 @@ RUN apt-get install -y locales # for idn testing
 
 # Set locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
 WORKDIR /root
 

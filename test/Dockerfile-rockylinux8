@@ -10,9 +10,9 @@ RUN yum -y update && \
         glibc-locale-source glibc-langpack-en # for en_US.UTF-8 support
 
 # Set locale
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
 WORKDIR /root
 RUN mkdir -p /etc/nginx/pki/private

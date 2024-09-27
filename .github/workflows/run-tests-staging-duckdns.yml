@@ -1,15 +1,13 @@
 name: Run tests against Staging server using DuckDNS
 on:
   workflow_dispatch:
-    branches:
-      - master
 env:
   DUCKDNS_TOKEN: ${{ secrets.DUCKDNS_TOKEN == '' && '1d616aa9-b8e4-4bb4-b312-3289de82badb' || secrets.DUCKDNS_TOKEN }}
 jobs:
   test-centos7-duckdns:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build the docker compose stack
         run: docker compose up -d --build
       - name: Run test suite on CentOS7 against Staging using DuckDNS
@@ -19,7 +17,7 @@ jobs:
     if: always()
     needs: test-centos7-duckdns
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build the docker compose stack
         run: docker compose up -d --build
       - name: Run test suite on Ubuntu against Staging using DuckDNS
