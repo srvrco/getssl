@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# For debugging, use this as the DNS update "delete" driver
+#
+# It will log whatever seems interesting in /tmp/dns_nodelete.log, but
+# it will NOT delete the tokens.  Currently used with nsupdate, but
+# variables for other drivers are welcome.  This is mainly for debugging
+# CNAME aliasing & token cleanup tools.
+
+(
+NOLOG="/tmp/dns_nodelete.log"
+NOSTAMP="$(date +'%a, %d-%b-%Y %T.%N'): "
+NODOMAIN="$1"
+NOTOKEN="$2"
+NOVARS="DNS_.*|*NODOMAIN|NOTOKEN*"
+
+set | grep -E "^($NOVARS)=" | while read -r ; do echo "${NOSTAMP}$REPLY" >>$NOLOG; done
+
+echo "${NOSTAMP}update delete  ${DNS_ZONE:-"_acme-challenge.${NODOMAIN}."} 300 in TXT \"${NOTOKEN}\"\n" >>"$NOLOG"
+)

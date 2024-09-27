@@ -289,7 +289,19 @@
 # 2022-11-01 Add FTP_PORT
 # 2023-02-04 Create newline to ensure [SAN] section can be parsed (#792)(MRigal)
 # 2023-02-22 Remove cronie from deb package dependencies (2.48)
+# 2024-03-16 Use FTP_PORT when deleting ftp tokens. Delete tokens when using sftp, davfs, ftpes, ftps (#693,#839) (tlhackque)
+# 2024 03-16 Fix dns-01's CNAME processing.  (#840) (tlhackque)
+# 2024-03-17 Automatically update the ACCOUNT_EMAIL (#827) (tlhackque)
 # 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
+# 2024-03-18 Implement --new-account-key and --DEACTIVATE-account (tlhackque)
+# 2024-03-18 Implement token substitution in ACLs (#267) (tlhackque)
+# 2024-03-19 Implement DNS_NSUPDATE_LOCALIP in dns_{add,del}_nsupdate (#801) (tlhackque)
+# 2024-03-21 Relax restrictions on dns-01 CNAMEs to allow for hased targets. (tlhackque)
+# 2024-03-21 Ensure that --all doesn't run --new-account-key or --DEACTIVATE-account more than once. (tlhackque)
+# 2024-03-21 Avoid domain processing when the action is account management. (tlhackque)
+# 2024-03-24 Implement multiple ACCOUNT_EMAIL addresses (tlhackque)
+# 2024-03-24 Use /etc/services (or similar) to translate port names.  (tlhackque)
+# 2024-04-12 Add all starttls protocols currently documented by openssl. Ensure that REMOTE_EXTRA overides built-ins (tlhackque)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -362,8 +374,10 @@ DNS_WAIT_RETRY_ADD="false"      # Try the dns_add_command again if the DNS recor
 _CHECK_ALL=0
 _CREATE_CONFIG=0
 _CURL_VERSION=""
+_DEACTIVATE_ACCOUNT=0
 _FORCE_RENEW=0
 _MUTE=0
+_NEW_ACCOUNT_KEY=0
 _NOTIFY_VALID=0
 _NOMETER=""
 _QUIET=0
@@ -380,6 +394,7 @@ _USE_DEBUG=0
 _ONLY_CHECK_CONFIG=0
 config_errors="false"
 export LANG=C
+export LC_ALL=C
 API=1
 
 # store copy of original command in case of upgrading script and re-running
@@ -423,6 +438,23 @@ cert_archive() {  # Archive certificate file by copying files to dated archive d
 
 base64url_decode() {
     awk '{ if (length($0) % 4 == 3) print $0"="; else if (length($0) % 4 == 2) print $0"=="; else print $0; }' | tr -- '-_' '+/' | base64 -d
+}
+
+# Convert arguments to comma-separated list
+function Join() {
+  local IFS=","
+  printf '%s' "$*"
+}
+
+# Sort array "sortin" to "sortout" (with -u)
+function sorta() {
+  local i _line
+  sorted=()
+  while IFS=$'\n' read -r _line ; do
+    sorted+=( "$_line" )
+  done < <( for (( i=0; i < "${#sortin[@]}"; ++i )); do
+    printf '%s\n' "${sortin["$i"]}"
+  done | sort -u )
 }
 
 cert_install() {  # copy certs to the correct location (creating concatenated files as required)
@@ -594,26 +626,12 @@ check_challenge_completion_dns() { # perform validation via DNS challenge
         check_result=$(grep -i "^${rr}"<<<"${check_output}"|grep 'IN\WTXT'|awk -F'"' '{ print $2}')
         debug "check_result=\"$check_result\""
 
-        # Check if rr is a CNAME
-        if [[ -z "$check_result" ]]; then
-          rr_cname=$(grep -i "^${rr}"<<<"${check_output}"|grep 'IN\WCNAME'|awk '{ print $5}')
-          debug "cname check=\"$rr_cname\""
-          if [[ -n "$rr_cname" ]]; then
-            # shellcheck disable=SC2086
-            check_output=$($DNS_CHECK_FUNC $DNS_CHECK_OPTIONS TXT "${rr_cname}" "@${ns}")
-            check_result=$(grep -i "^${rr_cname}"<<<"${check_output}"|grep 'IN\WTXT'|awk -F'"' '{ print $2}' | uniq)
-          fi
-        fi
+        # No need to check if rr is a CNAME, because the CNAME is static and this is called
+        # with the target of the CNAME, which is the record added for verification.
+        # In theory, a chain of CNAMEs might exist.  Not clear that an issuer would follow
+        # more than one.  The code previously present here only tried to handle one.
+        # If there is no CMAME (the usual case), ${rr} is always in ${d}.
 
-        if [[ -z "$check_result" ]]; then
-          # shellcheck disable=SC2086
-          debug "$DNS_CHECK_FUNC" $DNS_CHECK_OPTIONS ANY "${rr}" "@${ns}"
-          # shellcheck disable=SC2086
-          check_result=$($DNS_CHECK_FUNC $DNS_CHECK_OPTIONS ANY "${rr}" "@${ns}" \
-                      | grep -i "^${rr}" \
-                      | grep 'IN\WTXT'|awk -F'"' '{ print $2}')
-          debug "check_result=\"$check_result\""
-        fi
       elif [[ "$DNS_CHECK_FUNC" == "host" ]]; then
         debug "$DNS_CHECK_FUNC" -t TXT "${rr}" "${ns}"
         check_result=$($DNS_CHECK_FUNC -t TXT "${rr}" "${ns}" \
@@ -736,6 +754,10 @@ check_config() { # check the config files for all obvious errors
     else
       DOMAIN_ACL="${ACL[$dn]}"
     fi
+    # shellcheck disable=SC2016
+    DOMAIN_ACL="$(sed -e's/\${DOMAIN}\|\$DOMAIN/'"$DOMAIN"'/g' <<<"$DOMAIN_ACL")"
+    # shellcheck disable=SC2016
+    DOMAIN_ACL="$(sed -e's/\${SAN}\|\$SAN/'"$d"'/g' <<<"$DOMAIN_ACL")"
 
     if [[ $VALIDATE_VIA_DNS != "true" ]]; then # using http-01 challenge
       if [[ -z "${DOMAIN_ACL}" ]]; then
@@ -972,6 +994,8 @@ clean_up() { # Perform pre-exit housekeeping
   fi
 }
 
+# When adding a new protocol type here, also add support to delete http01 tokens using it
+# in fulfill_challenges().
 copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
   cert=$1   # descriptive name, just used for display
   from=$2   # current file location
@@ -1093,14 +1117,14 @@ copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
           SFTP_PORT=":990"
         fi
         # shellcheck disable=SC2086
-        debug curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}${SFTP_PORT}/${ftpdirn}/"
+        debug curl ${_NOMETER} $FTPS_OPTIONS "${_CURL_SSL_REQD}" -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}${SFTP_PORT}/${ftpdirn}/"
         # shellcheck disable=SC2086
-        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}${SFTP_PORT}/${ftpdirn}/"
+        curl ${_NOMETER} $FTPS_OPTIONS "${_CURL_SSL_REQD}" -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftps://${ftphost}${SFTP_PORT}/${ftpdirn}/"
       else
         # shellcheck disable=SC2086
-        debug curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${SFTP_PORT}/${ftpdirn}/"
+        debug curl ${_NOMETER} $FTPS_OPTIONS "${_CURL_SSL_REQD}" -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${SFTP_PORT}/${ftpdirn}/"
         # shellcheck disable=SC2086
-        curl ${_NOMETER} $FTPS_OPTIONS --ftp-ssl-reqd -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${SFTP_PORT}/${ftpdirn}/"
+        curl ${_NOMETER} $FTPS_OPTIONS "${_CURL_SSL_REQD}" -u "${ftpuser}:${ftppass}" -T "${fromdir}/${fromfile}" "ftp://${ftphost}${SFTP_PORT}/${ftpdirn}/"
       fi
     else
       if ! mkdir -p "$(dirname "$to")" ; then
@@ -1388,6 +1412,10 @@ for d in "${alldomains[@]}"; do
   else
     DOMAIN_ACL="${ACL[$dn]}"
   fi
+  # shellcheck disable=SC2016
+  DOMAIN_ACL="$(sed -e's/\${DOMAIN}\|\$DOMAIN/'"$DOMAIN"'/g' <<<"$DOMAIN_ACL")"
+  # shellcheck disable=SC2016
+  DOMAIN_ACL="$(sed -e's/\${SAN}\|\$SAN/'"$d"'/g' <<<"$DOMAIN_ACL")"
 
   # request a challenge token from ACME server
   if [[ $API -eq 1 ]]; then
@@ -1439,21 +1467,24 @@ for d in "${alldomains[@]}"; do
         | sed -e 's:=*$::g' -e 'y:+/:-_:')
       debug auth_key "$auth_key"
 
-      add_dns_rr "${d}" "${auth_key}" \
-        || error_exit "DNS_ADD_COMMAND failed for domain $d"
-
       # shellcheck disable=SC2018,SC2019
       rr="_acme-challenge.$(printf '%s' "${d#\*.}" | tr 'A-Z' 'a-z')"
 
-      # find a primary / authoritative DNS server for the domain
-      if [[ -z "$AUTH_DNS_SERVER" ]]; then
-        # Find authorative dns server for _acme-challenge.{domain} (for CNAMES/acme-dns)
-        get_auth_dns "${rr}"
-        if test -n "${cname}"; then
+      # find a primary / authoritative DNS server for the domain & see if RR is a CNAME
+      # DNS add drivers will always prefix the domain with _acme-challenge for the TXT record.
+      # Therefore, the target of a CNAME must start with _acme-challenge.  (Not an RFC
+      # constraint.)  Note that the target of a CNAME can be ANYWHERE on the web, including
+      # a different TLD or a subdomain of the domain being verified..
+      get_auth_dns "${rr}"
+      if [[ -n "${cname}" ]]; then
+          if ! [[ "${cname}" =~ ^"_acme-challenge.".. ]]; then
+              error_exit "${d}: $rr uses a CNAME to ${cname}, which does not start with '_acme-challenge.', which is required by getssl"
+          fi
           rr=${cname}
-        fi
+      fi
 
-        # If no authorative dns server found, try again for {domain}
+      if [[ -z "$AUTH_DNS_SERVER" ]]; then
+        # If no authoritative dns server defined and RR search failed, try again for {domain}
         if [[ -z "$primary_ns" ]]; then
           get_auth_dns "$d"
         fi
@@ -1464,13 +1495,16 @@ for d in "${alldomains[@]}"; do
       fi
       debug set primary_ns = "$primary_ns"
 
-      # internal check
-      check_challenge_completion_dns "${d}" "${rr}" "${primary_ns}" "${auth_key}"
+      add_dns_rr "${rr/#_acme-challenge./}" "${auth_key}" \
+        || error_exit "DNS_ADD_COMMAND failed to add _acme-challenge.${rr/#_acme-challenge./} for domain $d"
+
+      # internal check for visibility of the record just added.
+      check_challenge_completion_dns "${d}" "_acme-challenge.${rr/#_acme-challenge./}" "${primary_ns}" "${auth_key}"
 
       # let Let's Encrypt check
       check_challenge_completion "${uri}" "${d}" "${keyauthorization}"
 
-      del_dns_rr "${d}" "${auth_key}"
+      del_dns_rr "${rr/#_acme-challenge./}" "${auth_key}"
     else      # set up the correct http token for verification
       if [[ $API -eq 1 ]]; then
         # get the token from the http component
@@ -1543,11 +1577,56 @@ for d in "${alldomains[@]}"; do
           ftplocn=$(echo "${t_loc}"| awk -F: '{print $5}')
           debug "$FTP_COMMAND user=$ftpuser - pass=$ftppass - host=$ftphost location=$ftplocn"
           $FTP_COMMAND <<- EOF
-					open $ftphost
+					open $ftphost $FTP_PORT
 					user $ftpuser $ftppass
 					cd $ftplocn
 					delete ${token:?}
 					EOF
+        elif [[ "${to:0:5}" == "sftp:" ]] ; then
+            debug "using sftp to delete token file"
+            ftpuser=$(echo "$to"| awk -F: '{print $2}')
+            ftppass=$(echo "$to"| awk -F: '{print $3}')
+            ftphost=$(echo "$to"| awk -F: '{print $4}')
+            ftplocn=$(echo "$to"| awk -F: '{print $5}')
+            ftpdirn=$(dirname "$ftplocn")
+            if [ -n "$FTP_PORT" ]; then SFTP_PORT="-P $FTP_PORT"; else SFTP_PORT=""; fi
+            debug "sftp $SFTP_OPTS user=$ftpuser - pass=$ftppass - host=$ftphost port=$FTP_PORT loc=$ftplocn file=${token:?}"
+            # shellcheck disable=SC2086
+            sshpass -p "$ftppass" sftp $SFTP_OPTS $SFTP_PORT "$ftpuser@$ftphost" <<- _EOF
+			cd $ftpdirn
+			rm ./${token:>}
+			_EOF
+        elif [[ "${to:0:5}" == "davs:" ]] ; then
+            debug "using davs to delete the token"
+            davsuser=$(echo "$to"| awk -F: '{print $2}')
+            davspass=$(echo "$to"| awk -F: '{print $3}')
+            davshost=$(echo "$to"| awk -F: '{print $4}')
+            davsport=$(echo "$to"| awk -F: '{print $5}')
+            davslocn=$(echo "$to"| awk -F: '{print $6}')
+            davsdirn=$(dirname "$davslocn")
+            davsdirn=$(echo "${davsdirn}/" | sed 's,//,/,g')
+            davsfile=$(basename "$davslocn")
+            debug "davs user=$davsuser - pass=$davspass - host=$davshost port=$davsport dir=$davsdirn file=$davsfile"
+            # shellcheck disable=SC2086
+            curl ${_NOMETER} -u "${davsuser}:${davspass}" -X "DELETE" "https://${davshost}:${davsport}${davsdirn}${davsfile}"
+        elif [[ "${t_loc:0:6}" == "ftpes:" ]] || [[ "${t_loc:0:5}" == "ftps:" ]] ; then
+            # FTPES (FTP over explicit TLS/SSL, port 21) and FTPS (FTP over implicit TLS/SSL, port 990).
+            debug "using ftp to delete the file from $from"
+            ftpuser=$(echo "${t_loc}"| awk -F: '{print $2}')
+            ftppass=$(echo "${t_loc}"| awk -F: '{print $3}')
+            ftphost=$(echo "${t_loc}"| awk -F: '{print $4}')
+            ftplocn=$(echo "${t_loc}"| awk -F: '{print $5}')
+
+            if [ -n "$FTP_PORT" ]; then SFTP_PORT=":${FTP_PORT}"; else SFTP_PORT=""; fi
+            debug "ftp user=$ftpuser - pass=$ftppass - host=$ftphost file=${ftplocn}/${token:?}"
+            if [[ "${to:0:5}" == "ftps:" ]] ; then
+              [ -z "$FTP_PORT" ] && SFTP_PORT=":990"
+                # shellcheck disable=SC2086
+                curl ${_NOMETER} $FTPS_OPTIONS "${_CURL_SSL_REQD}" -u "${ftpuser}:${ftppass}" --silent -Q "DELE /${ftplocn}/${token:?}}" "ftp://${ftphost}${SFTP_PORT}/${ftplocn}/"
+            else
+                # shellcheck disable=SC2086
+                curl ${_NOMETER} $FTPS_OPTIONS "${_CURL_SSL_REQD}" -u "${ftpuser}:${ftppass}" --silent -Q "DELE /${ftplocn}/${token:?}" "ftp://${ftphost}${SFTP_PORT}/${ftplocn}/"
+            fi
         else
           rm -f "${t_loc:?}/${token:?}"
         fi
@@ -2048,6 +2127,8 @@ help_message() { # print out the help message
 	  -w working_dir "Working directory"
 	  --preferred-chain "chain" Use an alternate chain for the certificate
 	  --account-id       Display account id and exit
+	  --new-account-key  Replace the account key with a new one
+	  --DEACTIVATE-account Permanently deactivate account
 
 	_EOF_
 }
@@ -2295,11 +2376,13 @@ obtain_ca_resource_locations()
     URL_new_reg=$(echo "$ca_all_loc" | grep "new-reg" | awk -F'"' '{print $4}')
     URL_new_authz=$(echo "$ca_all_loc" | grep "new-authz" | awk -F'"' '{print $4}')
     URL_new_cert=$(echo "$ca_all_loc" | grep "new-cert" | awk -F'"' '{print $4}')
+    URL_keyChange=$(echo "$ca_all_loc" | grep "key-change" | awk -F'"' '{print $4}')
     #API v2
     URL_newAccount=$(echo "$ca_all_loc" | grep "newAccount" | awk -F'"' '{print $4}')
     URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
     URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
     URL_revoke=$(echo "$ca_all_loc" | grep "revokeCert" | awk -F'"' '{print $4}')
+    URL_keyChange=$(echo "$ca_all_loc" | grep "keyChange" | awk -F'"' '{print $4}')
 
     if [[ -n "$URL_new_reg" ]] || [[ -n "$URL_newAccount" ]]; then
       break
@@ -2419,48 +2502,73 @@ requires() { # check if required function is available
   fi
 }
 
-set_server_type() { # uses SERVER_TYPE to set REMOTE_PORT and REMOTE_EXTRA
-  if [[ ${SERVER_TYPE} == "https" ]] || [[ ${SERVER_TYPE} == "webserver" ]]; then
-    REMOTE_PORT=443
-  elif [[ ${SERVER_TYPE} == "ftp" ]]; then
-    REMOTE_PORT=21
-    REMOTE_EXTRA="-starttls ftp"
-  elif [[ ${SERVER_TYPE} == "ftpi" ]]; then
-    REMOTE_PORT=990
-  elif [[ ${SERVER_TYPE} == "imap" ]]; then
-    REMOTE_PORT=143
-    REMOTE_EXTRA="-starttls imap"
-  elif [[ ${SERVER_TYPE} == "imaps" ]]; then
-    REMOTE_PORT=993
-  elif [[ ${SERVER_TYPE} == "pop3" ]]; then
-    REMOTE_PORT=110
-    REMOTE_EXTRA="-starttls pop3"
-  elif [[ ${SERVER_TYPE} == "pop3s" ]]; then
-    REMOTE_PORT=995
-  elif [[ ${SERVER_TYPE} == "smtp" ]]; then
-    REMOTE_PORT=25
-    REMOTE_EXTRA="-starttls smtp"
-  elif [[ ${SERVER_TYPE} == "smtps_deprecated" ]]; then
-    REMOTE_PORT=465
-  elif [[ ${SERVER_TYPE} == "smtps" ]] || [[ ${SERVER_TYPE} == "smtp_submission" ]]; then
-    REMOTE_PORT=587
-    REMOTE_EXTRA="-starttls smtp"
-  elif [[ ${SERVER_TYPE} == "xmpp" ]]; then
-    REMOTE_PORT=5222
-    REMOTE_EXTRA="-starttls xmpp"
-  elif [[ ${SERVER_TYPE} == "xmpps" ]]; then
-    REMOTE_PORT=5269
-  elif [[ ${SERVER_TYPE} == "ldaps" ]]; then
-    REMOTE_PORT=636
-  elif [[ ${SERVER_TYPE} == "postgres" ]]; then
-    REMOTE_PORT=5432
-    REMOTE_EXTRA="-starttls postgres"
-  elif [[ ${SERVER_TYPE} =~ ^[0-9]+$ ]]; then
-    REMOTE_PORT=${SERVER_TYPE}
-  else
-    info "${DOMAIN}: unknown server type \"$SERVER_TYPE\" in SERVER_TYPE"
-    config_errors=true
+# Find remote port number and any special connect commands (e.g. starttls)
+# Consults /etc/services (or whatever SERVICES_FILE is set to) if available.
+# Aliases name to (sometimes weird) conventions used by previous versions
+# of getssl.  If /etc/services is available, ALL registered port names can
+# be used.  No new aliases should be created.  Add extra_cmds as/if openssl
+# provides STARTTLS support of other needs arise.  true if success, false on fail.
+
+function find_service_port() {
+  local name="$1" line
+  # "extra" command options for openssl s_client from IANA port number
+  declare -ar extra_cmds=([25]="-starttls smtp" [587]="-starttls smtp" [110]="-starttls pop3"
+      [143]="-starttls imap" [21]="-starttls ftp" [5222]="-starttls xmpp"
+      [5269]="-starttls xmpp-server" [194]="-starttls irc" [5432]="-starttls postgres"
+      [3306]="-starttls mysql" [24]="-starttls lmtp" [119]="-starttls nntp"
+      [2000]="-starttls sieve" [389]="-starttls ldap")
+  # Standard name IANA-assigned name from previous conventions
+  declare -Ar  aliases=(["webserver"]="https" ["ftpi"]="ftps" ["smtps_deprecated"]="smtps"
+      ["smtps"]="submission" ["smtp_submission"]="submission" ["xmpp"]="xmpp-client"
+      ["xmpps"]="xmpp-server")
+  # Fallback name => port mapping (what previous code did)
+  declare -Ar defaults=(["https"]=443 ["ftp"]=21 ["ftps"]=990 ["imap"]=143 ["imaps"]=993
+      ["pop3"]=110 ["pop3s"]=995 ["smtp"]=25 ["smtps"]=465 ["submission"]=587
+      ["xmpp-client"]=5222 ["xmpp-server"]=5269 ["ldaps"]=636 ["postgres"]=5432)
+
+  # Numeric name => just check for extras
+  if [[ "$name" =~ ^([0-9]+)$ ]]; then
+    _PORT="$name"
+    _EXTRA="${extra_cmds[$_PORT]}"
+    return 0
   fi
+
+  # If customized non-IANA aliase, convert to IANA (standard) name
+  [ -n "${aliases["$name"]}" ] && name="${aliases["$name"]}"
+
+  # Default and search the SERVICES_FILE.  (Grep does a preliminary match for speed.)
+  [ -z "$SERVICES_FILE" ] && SERVICES_FILE="/etc/services"
+  _PORT=
+  _EXTRA=
+  if [ -r "$SERVICES_FILE" ]; then
+    while read -r "line" ; do
+    line="$(tr -s ' \t' '  ' <<<"${line/\#*/}")"
+    [[ "$line" =~ ^\ *$ ]] && continue
+    if [[ "$line" =~ ^"$name "([[:digit:]]+)[/,]tcp(\ |$) ]] ||
+       [[ "$line" =~ ^[a-zA-Z0-9_-]+\ ([[:digit:]]+)[/,]tcp.*" $name"(\ |$) ]]; then
+      _PORT="${BASH_REMATCH[1]}"
+      _EXTRA="${extra_cmds[$_PORT]}"
+      return 0
+    fi
+    done <<<"$(grep "$name" "$SERVICES_FILE")"
+  fi
+
+  # No file or no match, try fallback defaults.
+
+  _PORT="${defaults[$name]}"
+  [ -z "$_PORT" ] && return 1
+  _EXTRA="${extra_cmds[$_PORT]}"
+  return 0
+}
+
+set_server_type() { # uses SERVER_TYPE to set REMOTE_PORT and REMOTE_EXTRA
+  if find_service_port "$SERVER_TYPE" ; then
+    REMOTE_PORT="$_PORT"
+    [[ -z "$REMOTE_EXTRA" ]] && REMOTE_EXTRA="$_EXTRA"
+    return 0
+  fi
+  info "${DOMAIN}: unknown server type \"$SERVER_TYPE\" in SERVER_TYPE"
+  return 1
 }
 
 send_signed_request() { # Sends a request to the ACME server, signed with your private key.
@@ -2680,7 +2788,7 @@ urlbase64_decode() {
 usage() { # echos out the program usage
   echo "Usage: $PROGNAME [-h|--help] [-d|--debug] [-c|--create] [-f|--force] [-a|--all] [-q|--quiet]"\
        "[-Q|--mute] [-u|--upgrade] [-X|--experimental tag] [-U|--nocheck] [-r|--revoke cert key] [-w working_dir]"\
-       "[--preferred-chain chain] [--account-id] domain"
+       "[--preferred-chain chain] [--account-id] [--new-account-key] [--DEACTIVATE-account] domain"
 }
 
 write_domain_template() { # write out a template file for a domain.
@@ -2721,14 +2829,16 @@ write_domain_template() { # write out a template file for a domain.
 		# where "/path/to/your/website/folder/" is the path, on your web server, to the web root for your domain.
 		# ftp: uses regular ftp; ftpes: ftp over explicit TLS (port 21); ftps: ftp over implicit TLS (port 990).
 		# ftps/ftpes support FTPS_OPTIONS, e.g. to add "--insecure" to the curl command for hosts with self-signed certificates.
-		# You can also user WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
+		# You can also use WebDAV over HTTPS as transport mechanism. To do so, start with davs: followed by username,
 		# password, host, port (explicitly needed even if using default port 443) and path on the server.
 		# Multiple locations can be defined for a file by separating the locations with a semi-colon.
+		# The tokens '\$DOMAIN', '\${DOMAIN}', '\$SAN', and '\${SAN}' can be used to minimize the number of ACL
+		# entries when the challenge location follows a pattern (Often true with multiple vertual hosts). Also "USE_SINGLE_ACL":
 		#ACL=('/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 		#     'ssh:server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 		#     'ssh:sshuserid@server5:/var/www/${DOMAIN}/web/.well-known/acme-challenge'
 		#     'ftp:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
-		#     'davs:davsuserid:davspassword:{DOMAIN}:443:/web/.well-known/acme-challenge'
+		#     'davs:davsuserid:davspassword:${DOMAIN}:443:/web/.well-known/acme-challenge'
 		#     'ftps:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge'
 		#     'ftpes:ftpuserid:ftppassword:${DOMAIN}:/web/.well-known/acme-challenge')
 
@@ -2768,6 +2878,7 @@ write_domain_template() { # write out a template file for a domain.
 		# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
 		# will be checked for certificate expiry and also will be checked after
 		# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+		# Any TCP port named in /etc/services can also be used as a server type.
 		#SERVER_TYPE="https"
 		#CHECK_REMOTE="true"
 		#CHECK_REMOTE_WAIT="2" # wait 2 seconds before checking the remote server
@@ -2792,8 +2903,10 @@ write_getssl_template() { # write out the main template file
 	# The agreement that must be signed with the CA, if not defined the default agreement will be used
 	#AGREEMENT="$AGREEMENT"
 
-	# Set an email address associated with your account - generally set at account level rather than domain.
+	# Set one or more email addresses associated with your account - generally set at account level rather than domain.
 	#ACCOUNT_EMAIL="me@example.com"
+	#ACCOUNT_EMAIL=("me@example.com" "you@example.com")
+
 	ACCOUNT_KEY_LENGTH=4096
 	ACCOUNT_KEY="$WORKING_DIR/account.key"
 
@@ -2826,6 +2939,7 @@ write_getssl_template() { # write out the main template file
 	# smtps_deprecated, smtps, smtp_submission, xmpp, xmpps, ldaps or a port number which
 	# will be checked for certificate expiry and also will be checked after
 	# an update to confirm correct certificate is running (if CHECK_REMOTE) is set to true
+	# Any TCP port named in /etc/services can also be used as a server type.
 	SERVER_TYPE="https"
 	CHECK_REMOTE="true"
 
@@ -2843,7 +2957,7 @@ write_getssl_template() { # write out the main template file
 	# PUBLIC_DNS_SERVER="8.8.8.8"
 
 	# If getssl is unable to determine the authoritative nameserver for a domain
-	# it will as you to enter AUTH_DNS_SERVER.  This is a server that
+	# it will ask you to enter AUTH_DNS_SERVER.  This is a server that
 	# can answer queries for the zone - a master or a slave, not a recursive server.
 	# AUTH_DNS_SERVER="10.0.0.14"
 	_EOF_getssl_
@@ -2916,6 +3030,10 @@ while [[ -n ${1+defined} ]]; do
       shift; PREFERRED_CHAIN="$1" ;;
     --account-id)
       _SHOW_ACCOUNT_ID=1 ;;
+    --new-account-key)
+      _NEW_ACCOUNT_KEY=1 ;;
+    --DEACTIVATE-account)
+      _DEACTIVATE_ACCOUNT=1 ;;
     --source)
       return ;;
     -*)
@@ -2974,6 +3092,12 @@ if check_version "${_CURL_VERSION}" "7.67" ; then
     _NOMETER="--no-progress-meter"
 fi
 
+if check_version "${_CURL_VERSION}" "7.20" ; then
+    _CURL_SSL_REQD="--ssl-reqd"
+else
+    _CURL_SSL_REQD="--ftp-ssl-reqd"
+fi
+
 # Make sure mktemp works before going too far
 MKDIR_TEST_FILE="$(mktemp 2>/dev/null || mktemp -t getssl.XXXXXX)"
 if [ "$MKDIR_TEST_FILE" == "" ]; then
@@ -2992,6 +3116,8 @@ if [[ $_UPGRADE_CHECK -eq 1 ]]; then
      && [[ ${_CHECK_ALL} -ne 1 ]] \
      && [[ ${_REVOKE} -ne 1 ]] \
      && [ "${_ONLY_CHECK_CONFIG}" -ne 1 ] \
+     && [[ "${_NEW_ACCOUNT_KEY}" -ne 1 ]] \
+     && [[ "${_DEACTIVATE_ACCOUNT}" -ne 1 ]] \
      && [[ ${_SHOW_ACCOUNT_ID} -ne 1 ]]; then
     # if nothing in command line, print help before exit.
     if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ ${_UPGRADE} -ne 1 ]]; then
@@ -3021,7 +3147,7 @@ fi
 AGREEMENT=$(curl --user-agent "$CURL_USERAGENT" -I "${CA}/terms" 2>/dev/null | awk 'tolower($1) ~ "location:" {print $2}'|tr -d '\r')
 
 # if nothing in command line, print help and exit.
-if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]]; then
+if [[ -z "$DOMAIN" ]] && [[ ${_CHECK_ALL} -ne 1 ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTIVATE_ACCOUNT -eq 0 ]]; then
   help_message
   graceful_exit
 fi
@@ -3074,7 +3200,8 @@ fi
 export OPENSSL_CONF=$SSLCONF
 
 # if "-a" option then check other parameters and create run for each domain.
-if [[ ${_CHECK_ALL} -eq 1 ]]; then
+if [[ ${_CHECK_ALL} -eq 1 ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTIVATE_ACCOUNT -eq 0 ]]; then
+
   info "Check all certificates"
 
   if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
@@ -3112,107 +3239,132 @@ if [[ ${_CHECK_ALL} -eq 1 ]]; then
 fi
 # end of "-a" option (looping through all domains)
 
-# if "-c|--create" option used, then create config files.
-if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
-  # If main config file does not exists then create it.
-  if [[ ! -s "$WORKING_DIR/getssl.cfg" ]]; then
-    info "creating main config file $WORKING_DIR/getssl.cfg"
-    if [[ ! -s "$SSLCONF" ]]; then
-      SSLCONF="$WORKING_DIR/openssl.cnf"
-      write_openssl_conf "$SSLCONF"
+if [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTIVATE_ACCOUNT -eq 0 ]]; then
+  # if "-c|--create" option used, then create config files.
+  if [[ ${_CREATE_CONFIG} -eq 1 ]]; then
+    # If main config file does not exists then create it.
+    if [[ ! -s "$WORKING_DIR/getssl.cfg" ]]; then
+      info "creating main config file $WORKING_DIR/getssl.cfg"
+      if [[ ! -s "$SSLCONF" ]]; then
+        SSLCONF="$WORKING_DIR/openssl.cnf"
+        write_openssl_conf "$SSLCONF"
+      fi
+      write_getssl_template "$WORKING_DIR/getssl.cfg"
     fi
-    write_getssl_template "$WORKING_DIR/getssl.cfg"
+     # If domain and domain config don't exist then create them.
+     if [[ ! -d "$DOMAIN_DIR" ]]; then
+      info "Making domain directory - $DOMAIN_DIR"
+      mkdir -p "$DOMAIN_DIR"
+     fi
+    if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
+      info "domain config already exists $DOMAIN_DIR/getssl.cfg"
+    else
+      info "creating domain config file in $DOMAIN_DIR/getssl.cfg"
+      # if domain has an existing cert, copy from domain and use to create defaults.
+      EX_CERT=$(echo \
+        | openssl s_client -servername "${DOMAIN##\*.}" -connect "${DOMAIN##\*.}:443" 2>/dev/null \
+        | openssl x509 2>/dev/null)
+      EX_SANS="www.${DOMAIN##\*.}"
+      if [[ -n "${EX_CERT}" ]]; then
+        escaped_d=${DOMAIN/\*/\\\*}
+        EX_SANS=$(echo "$EX_CERT" \
+          | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
+          | grep -Eo "DNS:[a-zA-Z 0-9.\*-]*" | sed "s@DNS:${escaped_d}@@g" | grep -v '^$' | cut -c 5-)
+        EX_SANS=${EX_SANS//$'\n'/','}
+      fi
+      if [[ -n "${EX_SANS}" ]]; then
+        info "Adding SANS=$EX_SANS from certificate installed on ${DOMAIN##\*.} to new configuration file"
+      fi
+      write_domain_template "$DOMAIN_DIR/getssl.cfg"
+      info "created domain config file in $DOMAIN_DIR/getssl.cfg"
+    fi
+    TEMP_DIR="$DOMAIN_DIR/tmp"
+    # end of "-c|--create" option, so exit
+    graceful_exit
   fi
-  # If domain and domain config don't exist then create them.
+  # end of "-c|--create" option to create config file.
+
+  # if domain directory doesn't exist, then create it.
   if [[ ! -d "$DOMAIN_DIR" ]]; then
-    info "Making domain directory - $DOMAIN_DIR"
+    debug "Making working directory - $DOMAIN_DIR"
     mkdir -p "$DOMAIN_DIR"
   fi
-  if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
-    info "domain config already exists $DOMAIN_DIR/getssl.cfg"
-  else
-    info "creating domain config file in $DOMAIN_DIR/getssl.cfg"
-    # if domain has an existing cert, copy from domain and use to create defaults.
-    EX_CERT=$(echo \
-      | openssl s_client -servername "${DOMAIN##\*.}" -connect "${DOMAIN##\*.}:443" 2>/dev/null \
-      | openssl x509 2>/dev/null)
-    EX_SANS="www.${DOMAIN##\*.}"
-    if [[ -n "${EX_CERT}" ]]; then
-      escaped_d=${DOMAIN/\*/\\\*}
-      EX_SANS=$(echo "$EX_CERT" \
-        | openssl x509 -noout -text 2>/dev/null| grep "Subject Alternative Name" -A2 \
-        | grep -Eo "DNS:[a-zA-Z 0-9.\*-]*" | sed "s@DNS:${escaped_d}@@g" | grep -v '^$' | cut -c 5-)
-      EX_SANS=${EX_SANS//$'\n'/','}
-    fi
-    if [[ -n "${EX_SANS}" ]]; then
-      info "Adding SANS=$EX_SANS from certificate installed on ${DOMAIN##\*.} to new configuration file"
-    fi
-    write_domain_template "$DOMAIN_DIR/getssl.cfg"
-    info "created domain config file in $DOMAIN_DIR/getssl.cfg"
-  fi
+
+  # define a temporary directory, and if it doesn't exist, create it.
   TEMP_DIR="$DOMAIN_DIR/tmp"
-  # end of "-c|--create" option, so exit
-  graceful_exit
+  if [[ ! -d "${TEMP_DIR}" ]]; then
+    debug "Making temp directory - ${TEMP_DIR}"
+    mkdir -p "${TEMP_DIR}"
+  fi
+
+  # read any variables from config in domain directory
+  if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
+    debug "reading config from $DOMAIN_DIR/getssl.cfg"
+    # shellcheck source=/dev/null
+    . "$DOMAIN_DIR/getssl.cfg"
+  fi
+
+  # Ensure SANS is comma separated by replacing any number of commas or spaces with a single comma
+  # shellcheck disable=SC2001
+  SANS=$(echo "$SANS" | sed 's/[, ]\+/,/g')
+
+  # from SERVER_TYPE set REMOTE_PORT and REMOTE_EXTRA
+  if ! set_server_type; then
+      config_errors=true
+  fi
+
+  # check what dns utils are installed
+  find_dns_utils
+
+  # Find what ftp client is installed
+  find_ftp_command
+
+  # auto upgrade clients to v2
+  auto_upgrade_v2
+
+  # check config for typical errors.
+  check_config
+
+  # exit if just checking config (used for testing)
+  if [ "${_ONLY_CHECK_CONFIG}" -eq 1 ]; then
+    info "Configuration check successful"
+    graceful_exit
+  fi
+
+  # if -i|--install install certs, reload and exit
+  if [ "0${_CERT_INSTALL}" -eq 1 ]; then
+    cert_install
+    reload_service
+    graceful_exit
+  fi
+
+  if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
+    rm -f "$DOMAIN_DIR/FORCE_RENEWAL" || error_exit "problem deleting file $DOMAIN_DIR/FORCE_RENEWAL"
+    _FORCE_RENEW=1
+    info "${DOMAIN}: forcing renewal (due to FORCE_RENEWAL file)"
+  fi
+else
+  # Account management commands
+  auto_upgrade_v2
+  if [ -n "$DOMAIN" ]; then
+    if ! [ -d "${DOMAIN_DIR}" ] && [ -s "${DOMAIN_DIR}/${DOMAIN}/getssl.cfg" ]; then
+      error_exit "$DOMAIN: does not exist"
+    fi
+    # Read any (account) variables from config in specified domain's directory
+    debug "reading config from $DOMAIN_DIR/getssl.cfg"
+    # shellcheck source=/dev/null
+    . "$DOMAIN_DIR/getssl.cfg"
+  else
+    # No domain specified, process using globally-specified account
+    DOMAIN="__none__"
+    TEMP_DIR="$DOMAIN_STORAGE/tmp"
+  fi
+  if [[ ! -d "${TEMP_DIR}" ]]; then
+    debug "Making temp directory - ${TEMP_DIR}"
+    mkdir -p "${TEMP_DIR}"
+  fi
 fi
-# end of "-c|--create" option to create config file.
-
-# if domain directory doesn't exist, then create it.
-if [[ ! -d "$DOMAIN_DIR" ]]; then
-  debug "Making working directory - $DOMAIN_DIR"
-  mkdir -p "$DOMAIN_DIR"
-fi
-
-# define a temporary directory, and if it doesn't exist, create it.
-TEMP_DIR="$DOMAIN_DIR/tmp"
-if [[ ! -d "${TEMP_DIR}" ]]; then
-  debug "Making temp directory - ${TEMP_DIR}"
-  mkdir -p "${TEMP_DIR}"
-fi
-
-# read any variables from config in domain directory
-if [[ -s "$DOMAIN_DIR/getssl.cfg" ]]; then
-  debug "reading config from $DOMAIN_DIR/getssl.cfg"
-  # shellcheck source=/dev/null
-  . "$DOMAIN_DIR/getssl.cfg"
-fi
-
-# Ensure SANS is comma separated by replacing any number of commas or spaces with a single comma
-# shellcheck disable=SC2001
-SANS=$(echo "$SANS" | sed 's/[, ]\+/,/g')
-
-# from SERVER_TYPE set REMOTE_PORT and REMOTE_EXTRA
-set_server_type
-
-# check what dns utils are installed
-find_dns_utils
-
-# Find what ftp client is installed
-find_ftp_command
-
-# auto upgrade clients to v2
-auto_upgrade_v2
-
-# check config for typical errors.
-check_config
-
-# exit if just checking config (used for testing)
-if [ "${_ONLY_CHECK_CONFIG}" -eq 1 ]; then
-  info "Configuration check successful"
-  graceful_exit
-fi
-
-# if -i|--install install certs, reload and exit
-if [ "0${_CERT_INSTALL}" -eq 1 ]; then
-  cert_install
-  reload_service
-  graceful_exit
-fi
-
-if [[ -e "$DOMAIN_DIR/FORCE_RENEWAL" ]]; then
-  rm -f "$DOMAIN_DIR/FORCE_RENEWAL" || error_exit "problem deleting file $DOMAIN_DIR/FORCE_RENEWAL"
-  _FORCE_RENEW=1
-  info "${DOMAIN}: forcing renewal (due to FORCE_RENEWAL file)"
-fi
+# end exclusion of account-only command
 
 obtain_ca_resource_locations
 
@@ -3225,7 +3377,7 @@ if [[ $API -eq 2 ]]; then
 fi
 
 # if check_remote is true then connect and obtain the current certificate (if not forcing renewal)
-if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
+if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTIVATE_ACCOUNT -eq 0 ]]; then
   real_d=${DOMAIN##\*.}
   debug "getting certificate for $DOMAIN from remote server ($real_d)"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
@@ -3317,101 +3469,110 @@ if [[ "${CHECK_REMOTE}" == "true" ]] && [[ $_FORCE_RENEW -eq 0 ]] && [[ $_SHOW_A
 fi
 # end of .... check_remote is true then connect and obtain the current certificate
 
-#create SAN
-if [[ -z "$SANS" ]]; then
-  SANLIST="subjectAltName=DNS:${DOMAIN}"
-elif [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
-  SANLIST="subjectAltName=DNS:${SANS//[, ]/,DNS:}"
-else
-  SANLIST="subjectAltName=DNS:${DOMAIN},DNS:${SANS//[, ]/,DNS:}"
-fi
-debug "created SAN list = $SANLIST"
+if [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTIVATE_ACCOUNT -eq 0 ]]; then
+  #create SAN
+  if [[ -z "$SANS" ]]; then
+    SANLIST="subjectAltName=DNS:${DOMAIN}"
+  elif [[ "$IGNORE_DIRECTORY_DOMAIN" == "true" ]]; then
+    SANLIST="subjectAltName=DNS:${SANS//[, ]/,DNS:}"
+  else
+    SANLIST="subjectAltName=DNS:${DOMAIN},DNS:${SANS//[, ]/,DNS:}"
+  fi
+  debug "created SAN list = $SANLIST"
 
-# check if private key alg has changed from RSA to EC (or vice versa)
-if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
-  case "${PRIVATE_KEY_ALG}" in
-    rsa)
-      if grep -q -- "-----BEGIN EC PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
-        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
-        _FORCE_RENEW=1
-      fi ;;
-    prime256v1|secp384r1|secp521r1)
-      if grep -q -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key" \
-      || grep -q -- "-----BEGIN PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
-        rm -f "$DOMAIN_DIR/${DOMAIN}.key"
-        _FORCE_RENEW=1
-      fi ;;
-  esac
-fi
+  # check if private key alg has changed from RSA to EC (or vice versa)
+  if [[ "$DUAL_RSA_ECDSA" == "false" ]] && [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
+    case "${PRIVATE_KEY_ALG}" in
+      rsa)
+        if grep -q -- "-----BEGIN EC PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+          rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+          _FORCE_RENEW=1
+        fi ;;
+      prime256v1|secp384r1|secp521r1)
+        if grep -q -- "-----BEGIN RSA PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key" \
+        || grep -q -- "-----BEGIN PRIVATE KEY-----" "$DOMAIN_DIR/${DOMAIN}.key"; then
+          rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+          _FORCE_RENEW=1
+        fi ;;
+    esac
+  fi
 
-# if there is an existing certificate file, check details.
-if [[ -s "$CERT_FILE" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
-  debug "certificate $CERT_FILE exists"
-  enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
-  debug "local cert is valid until $enddate"
-  existing_sanlist=$(openssl x509 -in "$CERT_FILE" -noout -text | grep "DNS:" | sed '{ s/ *DNS://g; y/,/\n/; }' | sort -u | xargs | sed 's/ /,/g')
-  sorted_sanlist=$(echo "$SANLIST" | sed '{ s/subjectAltName=//; s/ *DNS://g; y/,/\n/; }' | sort -u | xargs | sed 's/ /,/g')
-  debug "local cert is for domains: ${existing_sanlist}"
-  if [[ "$enddate" != "-" ]]; then
-    enddate_s=$(date_epoc "$enddate")
-    if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]] && [[ "$existing_sanlist" == "$sorted_sanlist" ]]; then
-      issuer=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null)
-      if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v02.api.letsencrypt.org" ]]; then
-        debug "upgrading from fake cert to real"
+  # if there is an existing certificate file, check details.
+  if [[ -s "$CERT_FILE" ]]; then
+    debug "certificate $CERT_FILE exists"
+    enddate=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null| cut -d= -f 2-)
+    debug "local cert is valid until $enddate"
+    existing_sanlist=$(openssl x509 -in "$CERT_FILE" -noout -text | grep "DNS:" | sed '{ s/ *DNS://g; y/,/\n/; }' | sort -u | xargs | sed 's/ /,/g')
+    sorted_sanlist=$(echo "$SANLIST" | sed '{ s/subjectAltName=//; s/ *DNS://g; y/,/\n/; }' | sort -u | xargs | sed 's/ /,/g')
+    debug "local cert is for domains: ${existing_sanlist}"
+    if [[ "$enddate" != "-" ]]; then
+      enddate_s=$(date_epoc "$enddate")
+      if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]] && [[ "$existing_sanlist" == "$sorted_sanlist" ]]; then
+        issuer=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null)
+        if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v02.api.letsencrypt.org" ]]; then
+          debug "upgrading from fake cert to real"
+        else
+          info "${DOMAIN}: certificate is valid for more than $RENEW_ALLOW days (until $enddate)"
+          # everything is OK, so exit, if requested with the --notify-valid, exit with code 2
+          graceful_exit $_NOTIFY_VALID
+        fi
       else
-        info "${DOMAIN}: certificate is valid for more than $RENEW_ALLOW days (until $enddate)"
-        # everything is OK, so exit, if requested with the --notify-valid, exit with code 2
-        graceful_exit $_NOTIFY_VALID
+        if [[ "$existing_sanlist" != "$sorted_sanlist" ]]; then
+          info "Domain list in existing certificate ($existing_sanlist) does not match domains requested ($sorted_sanlist), so recreating certificate"
+        fi
+        debug "${DOMAIN}: certificate needs renewal"
       fi
-    else
-      if [[ "$existing_sanlist" != "$sorted_sanlist" ]]; then
-        info "Domain list in existing certificate ($existing_sanlist) does not match domains requested ($sorted_sanlist), so recreating certificate"
-      fi
-      debug "${DOMAIN}: certificate needs renewal"
     fi
   fi
-fi
-# end of .... if there is an existing certificate file, check details.
+  # end of .... if there is an existing certificate file, check details.
 
-if [[ ! -t 0 ]] && [[ "$PREVENT_NON_INTERACTIVE_RENEWAL" = "true" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
-  errmsg="$DOMAIN due for renewal,"
-  errmsg="${errmsg} but not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
-  error_exit "$errmsg"
+  if [[ ! -t 0 ]] && [[ "$PREVENT_NON_INTERACTIVE_RENEWAL" = "true" ]]; then
+    errmsg="$DOMAIN due for renewal,"
+    errmsg="${errmsg} but not completed due to PREVENT_NON_INTERACTIVE_RENEWAL=true in config"
+    error_exit "$errmsg"
+  fi
 fi
+# End account only command exclusion
 
 # create account key if it doesn't exist.
 if [[ -s "$ACCOUNT_KEY" ]]; then
   debug "Account key exists at $ACCOUNT_KEY skipping generation"
+elif [[ "${_NEW_ACCOUNT_KEY}" -eq 1 ]] || [[ "${_DEACTIVATE_ACCOUNT}" -eq 1 ]]; then
+  # It's useful for show account id to create a key
+  info "Operation requires an account key. $ACCOUNT_KEY does not exist"
+  graceful_exit 1
 else
   info "creating account key $ACCOUNT_KEY"
   create_key "$ACCOUNT_KEY_TYPE" "$ACCOUNT_KEY" "$ACCOUNT_KEY_LENGTH"
 fi
 
-# if not reusing private key, then remove the old keys
-if [[ "$REUSE_PRIVATE_KEY" != "true" ]]; then
-  if [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
-    rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+if [[ $_SHOW_ACCOUNT_ID -eq 0 ]] && [[ $_NEW_ACCOUNT_KEY -eq 0 ]] && [[ $_DEACTIVATE_ACCOUNT -eq 0 ]]; then
+  # if not reusing private key, then remove the old keys
+  if [[ "$REUSE_PRIVATE_KEY" != "true" ]]; then
+    if [[ -s "$DOMAIN_DIR/${DOMAIN}.key" ]]; then
+      rm -f "$DOMAIN_DIR/${DOMAIN}.key"
+    fi
+    if [[ -s "$DOMAIN_DIR/${DOMAIN}.ec.key" ]]; then
+      rm -f "$DOMAIN_DIR/${DOMAIN}.ec.key"
+    fi
   fi
-  if [[ -s "$DOMAIN_DIR/${DOMAIN}.ec.key" ]]; then
-    rm -f "$DOMAIN_DIR/${DOMAIN}.ec.key"
+
+  # create new domain keys if they don't already exist
+  if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
+    create_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LENGTH"
+  else
+    create_key "rsa" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LENGTH"
+    create_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.ec.key" "$DOMAIN_KEY_LENGTH"
   fi
-fi
+  # End of creating domain keys.
 
-# create new domain keys if they don't already exist
-if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
-  create_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LENGTH"
-else
-  create_key "rsa" "$DOMAIN_DIR/${DOMAIN}.key" "$DOMAIN_KEY_LENGTH"
-  create_key "${PRIVATE_KEY_ALG}" "$DOMAIN_DIR/${DOMAIN}.ec.key" "$DOMAIN_KEY_LENGTH"
-fi
-# End of creating domain keys.
-
-#create CSR's
-if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
-  create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
-else
-  create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
-  create_csr "$DOMAIN_DIR/${DOMAIN}.ec.csr" "$DOMAIN_DIR/${DOMAIN}.ec.key"
+  #create CSR's
+  if [[ "$DUAL_RSA_ECDSA" == "false" ]]; then
+    create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
+  else
+    create_csr "$DOMAIN_DIR/${DOMAIN}.csr" "$DOMAIN_DIR/${DOMAIN}.key"
+    create_csr "$DOMAIN_DIR/${DOMAIN}.ec.csr" "$DOMAIN_DIR/${DOMAIN}.ec.key"
+  fi
 fi
 
 # use account key to register with CA
@@ -3419,41 +3580,84 @@ fi
 get_signing_params "$ACCOUNT_KEY"
 
 info "Registering account"
+
+# Convert contact e-mail addresses to mailto: format.  Sort for comparisons.
+if [[ -n "${ACCOUNT_EMAIL[*]}" ]] ; then
+  IFS=',' read -ra "ACCOUNT_EMAIL" <<<"$(Join "${ACCOUNT_EMAIL[@]}")"
+  sortin=()
+  for em in "${ACCOUNT_EMAIL[@]}"; do
+      sortin+=("\"mailto:$em\"")
+  done
+  sorta
+  ACCOUNT_EMAIL=("${sorted[@]}")
+  account_emails="$(Join "${ACCOUNT_EMAIL[@]}")"
+else
+  account_emails=
+fi
+
 # send the request to the ACME server.
 if [[ $API -eq 1 ]]; then
-  if [[ "$ACCOUNT_EMAIL" ]] ; then
-  	regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
+  if [[ -n "$account_emails" ]]; then
+  	regjson='{"resource": "new-reg", "agreement": "'"$AGREEMENT"'", "contact": [ '"${account_emails}"' ]}'
   else
-  	regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
+  	regjson='{"resource": "new-reg", "agreement": "'"$AGREEMENT"'"}'
   fi
   send_signed_request "$URL_new_reg"  "$regjson"
 elif [[ $API -eq 2 ]]; then
-  if [[ "$ACCOUNT_EMAIL" ]] ; then
-  	regjson='{"termsOfServiceAgreed": true, "contact": ["mailto: '$ACCOUNT_EMAIL'"]}'
+  if [[ -n "$account_emails" ]] ; then
+  	regjson='{"termsOfServiceAgreed": true, "contact": [ '"${account_emails}"' ]}'
   else
   	regjson='{"termsOfServiceAgreed": true}'
   fi
   send_signed_request "$URL_newAccount"  "$regjson"
 else
-	debug "cant determine account API"
-	graceful_exit
+  debug "cant determine account API"
+  graceful_exit
 fi
 
 if [[ "$code" == "" ]] || [[ "$code" == '201' ]] ; then
   info "Registered"
   KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
   debug "AccountId=$KID}"
-  echo "$response" > "$TEMP_DIR/account.json"
-elif [[ "$code" == '409' ]] ; then
-  KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
-  debug responseHeaders "$responseHeaders"
-  debug "Already registered, AccountId=$KID"
-elif [[ "$code" == '200' ]] ; then
-  KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
-  debug responseHeaders "$responseHeaders"
-  debug "Already registered account, AccountId=${KID}"
 else
-  error_exit "Error registering account ...$responseHeaders ... $(json_get "$response" detail)"
+    if [[ "$code" == '409' ]] ; then
+      KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
+      debug responseHeaders "$responseHeaders"
+      debug "Already registered with 'conflict' response (boulder issue 3327), AccountId=$KID"
+    elif [[ "$code" == '200' ]] ; then
+      KID=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
+      debug responseHeaders "$responseHeaders"
+      debug "Already registered account, AccountId=${KID}"
+    else
+      error_exit "Error registering account ...$responseHeaders ... $(json_get "$response" detail)"
+    fi
+
+    #email="$(json_get "$response" "contact")"
+    #if schemes other than mailto: are supported, this will need to change
+    r="$(tr '\n\t' '  ' <<<"$response")"
+    reg_mailto=
+    if [[ "$r" =~ '"contact"'\ *:\ *'['\ *(('"mailto:'[^\"]*\",?\ *)+\ *)']' ]]; then
+      sortin=()
+      IFS=',' read -ra "sortin" < <(sed -e's/, */,/g;s/ *$//' <<<"${BASH_REMATCH[1]}")
+      sorta; reg_mailto="$(Join "${sorted[@]}")"
+    fi
+    unset r
+    if [[ "${reg_mailto}" != "${account_emails}" ]]; then
+        # Update account E-Mail
+        if [[ -n "${account_emails}" ]]; then
+            info "Updating account contact e-mail from '${reg_mailto}' to '${account_emails}'"
+            send_signed_request "$KID" '{"contact": [ '"${account_emails}"' ]}'
+        else
+            info "Removing account contact email '${account_emails}'"
+            send_signed_request "$KID" '{"contact": []}'
+        fi
+        if [[ "$code" == '200' ]]; then
+            info " - update succeeded"
+        else
+            info " - update failed"
+        fi
+        debug responseHeaders "$responseHeaders"
+    fi
 fi
 
 if [[ ${_SHOW_ACCOUNT_ID} -eq 1 ]]; then
@@ -3461,6 +3665,64 @@ if [[ ${_SHOW_ACCOUNT_ID} -eq 1 ]]; then
   graceful_exit
 fi
 # end of registering account with CA
+
+# Current account key is OK, create a new one if requested
+if [[ ${_NEW_ACCOUNT_KEY} == 1 ]]; then
+    info "creating a new ${ACCOUNT_KEY_TYPE} account key"
+    create_key "$ACCOUNT_KEY_TYPE" "${ACCOUNT_KEY}.new" "$ACCOUNT_KEY_LENGTH"
+    # Inner = old key, signed by new
+    inpay='{"account":"'"$KID"'","oldKey":'"$jwk"'}'
+    debug "Inner payload: $inpay"
+    inpay64="$(printf '%s' "$inpay" | urlbase64)"
+    get_signing_params "${ACCOUNT_KEY}.new"
+    inprot='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"', "url":"'"$URL_keyChange"'"}'
+    debug "Inner protected: $inprot"
+    inprot64="$(printf '%s' "$inprot" | urlbase64)"
+    sign_string "$(printf '%s' "${inprot64}.${inpay64}")" "${ACCOUNT_KEY}.new" "$signalg"
+    inner='{"protected":"'"$inprot64"'","payload":"'"$inpay64"'","signature":"'"$signed64"'"}'
+    debug "Inner body: $inner"
+    # Outer = inner, signed by old
+    get_signing_params "${ACCOUNT_KEY}"
+    send_signed_request "$URL_keyChange" "$inner"
+    debug responseHeaders "$responseHeaders"
+    if [[ "$code" == '200' ]]; then
+        info " - update succeeded"
+        mv "${ACCOUNT_KEY}" "${ACCOUNT_KEY}.old"
+        mv "${ACCOUNT_KEY}.new" "${ACCOUNT_KEY}"
+    else
+        info " - update failed"
+        rm -f "${ACCOUNT_KEY}.new"
+        if [[ "$code" == '409' ]]; then
+            other=$(echo "$responseHeaders" | grep -i "^location" | awk '{print $2}'| tr -d '\r\n ')
+            error_exit "new key is in use by $other"
+        fi
+    fi
+    graceful_exit
+fi
+# end of new account key
+
+# Permanently deactivate account
+if [[ ${_DEACTIVATE_ACCOUNT} -eq 1 ]]; then
+    info "PERMANENTLY deactivating account $KID"
+    info "                         using $ACCOUNT_KEY"
+    while true; do
+      if ! read -rp "This action is irreversible.  Proceed? (no, YES):" 'REPLY' || [[ "$REPLY" =~ ^([nN][oO]?)?$ ]]; then
+          info "Aborted, no action taken"
+          graceful_exit 1
+      fi
+      [[ "$REPLY" == 'YES' ]] && break
+    done
+    info "Proceeding with deactivation"
+    send_signed_request "$KID" '{"status":"deactivated"}'
+    if [[ "$code" == '200' ]]; then
+        info " - Account has been deactivated - it can NOT be revived"
+      else
+        info " - deactivation failed"
+    fi
+    debug responseHeaders "$responseHeaders"
+    graceful_exit
+fi
+# end of deactivate account
 
 # verify each domain
 info "Verify each domain"
