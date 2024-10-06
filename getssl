@@ -1632,7 +1632,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         if [[ "$out" == *SERVFAIL* ]]; then
           debug Output from "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} NS ${gad_d}" contains SERVFAIL
           debug "$out"
-          sleep 2
+          sleep 5
         fi
         ((i++))
       done
@@ -1824,6 +1824,13 @@ get_certificate() { # get certificate for csr, if all domains validated.
   else # APIv2
     info "Requesting Finalize Link"
     send_signed_request "$FinalizeLink" "{\"csr\": \"$der\"}" "needbase64"
+    # if ACME response is processing (still creating certificates) then wait and try again.
+    while [[ "$response_status" == "processing" ]]; do
+      info "ACME server still Finalizing certificates"
+      sleep 5
+      send_signed_request "$FinalizeLink" ""
+    done
+
     info Requesting Order Link
     debug "order link was $OrderLink"
     send_signed_request "$OrderLink" ""
@@ -1833,6 +1840,7 @@ get_certificate() { # get certificate for csr, if all domains validated.
       sleep 5
       send_signed_request "$OrderLink" ""
     done
+
     info "Requesting certificate"
     CertData=$(json_get "$response" "certificate")
     send_signed_request "$CertData" "" "" "$gc_fullchain"
