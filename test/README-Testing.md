@@ -44,7 +44,8 @@ For individual accounts, \<reponame> is your github account name.
 
 1. Start `pebble` and `challtestsrv` using ```docker compose up -d --build```
 2. ```run-test.sh <os> /getssl/test/debug-test.sh <getssl config file>```
-3. e.g. `test/run-test.sh ubuntu /getssl/test/debug-test.sh -d /getssl/test/test-config/getssl-http01-cfg`
+3. e.g. `test/run-test.sh ubuntu /getssl/test/debug-test.sh -d /getssl/test/test-config/getssl-http01.cfg`
+4. or (`test/run-test.sh ubuntu /getssl/test/debug-test.sh -d getssl-http01.cfg`)
 
 ## TODO
 

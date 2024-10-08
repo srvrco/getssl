@@ -3,6 +3,8 @@
 if [ $# -eq 0 ]; then
   echo "Usage: $(basename "$0") <os> [<command>]"
   echo "e.g. $(basename "$0") alpine bats /getssl/test"
+  echo "e.g. $(basename "$0") ubuntu 11-mixed-case.bats"
+  echo "e.g. $(basename "$0") ubuntu /getssl/test/debug-test.sh -d getssl-http01.cfg"
   exit 1
 fi
 OS=$1
@@ -10,7 +12,7 @@ OS=$1
 if [ $# -gt 1 ]; then
   shift
   COMMAND=$*
-  if [[ $COMMAND != bash ]]; then
+  if [[ $COMMAND != bash ]] && [[ $COMMAND != /getssl/test/debug-test.sh* ]]; then
     if [[ $COMMAND != "bats /getssl/test"* ]]; then
       if [[ $COMMAND == /getssl/test* ]]; then
         COMMAND="bats $COMMAND"
@@ -27,6 +29,7 @@ if [ $# -gt 1 ]; then
 else
   COMMAND="bats /getssl/test --timing"
 fi
+echo "Running $COMMAND"
 
 REPO=""
 if [ -n "$GITHUB_REPOSITORY" ] ; then

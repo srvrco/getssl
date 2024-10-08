@@ -539,11 +539,11 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
       break;
     fi
 
-    # if ACME response is that their check gave an invalid response, error exit
+    # if ACME response is "invalid" then abandon the order request - returns error so it can be retried
     if [[ "$status" == "invalid" ]] ; then
       err_detail=$(echo "$response" | grep "detail")
-      # TODO need to check for "DNS problem: SERVFAIL looking up CAA ..." and retry
-      error_exit "$domain:Verify error:$err_detail"
+      info "$domain:Verify error:$err_detail"
+      return 1
     fi
 
     # if ACME response is pending (they haven't completed checks yet)
@@ -557,6 +557,7 @@ check_challenge_completion() { # checks with the ACME server if our challenge is
     debug "sleep 5 secs before testing verify again"
     sleep 5
   done
+  return 0
 }
 
 check_challenge_completion_dns() { # perform validation via DNS challenge
@@ -1469,8 +1470,12 @@ for d in "${alldomains[@]}"; do
 
       # let Let's Encrypt check
       check_challenge_completion "${uri}" "${d}" "${keyauthorization}"
-
+      result=$?
       del_dns_rr "${d}" "${auth_key}"
+      if [[ $result -eq 1 ]]; then
+        # check_challenge_completion failed with "invalid" - order creation cancelled, return error so we can retryS
+        return 1
+      fi
     else      # set up the correct http token for verification
       if [[ $API -eq 1 ]]; then
         # get the token from the http component
@@ -1523,6 +1528,7 @@ for d in "${alldomains[@]}"; do
       fi
 
       check_challenge_completion "$uri" "$d" "$keyauthorization"
+      result=$?
 
       debug "remove token from ${DOMAIN_ACL}"
       IFS=\; read -r -a token_locations <<<"$DOMAIN_ACL"
@@ -1552,12 +1558,17 @@ for d in "${alldomains[@]}"; do
           rm -f "${t_loc:?}/${token:?}"
         fi
       done
+      if [[ $result -eq 1 ]]; then
+        # check_challenge_completion failed with "invalid" - order creation cancelled, return error so we can retryS
+        return 1
+      fi
     fi
     # increment domain-counter
     ((dn++))
   fi
 done # end of ... loop through domains for cert ( from SANS list)
 #end of verify each domain.
+return 0
 }
 
 get_auth_dns() { # get the authoritative dns server for a domain (sets primary_ns )
@@ -1632,7 +1643,7 @@ get_auth_dns() { # get the authoritative dns server for a domain (sets primary_n
         if [[ "$out" == *SERVFAIL* ]]; then
           debug Output from "$HAS_DIG_OR_DRILL $DNS_CHECK_OPTIONS ${gad_s} NS ${gad_d}" contains SERVFAIL
           debug "$out"
-          sleep 2
+          sleep 5
         fi
         ((i++))
       done
@@ -1824,15 +1835,24 @@ get_certificate() { # get certificate for csr, if all domains validated.
   else # APIv2
     info "Requesting Finalize Link"
     send_signed_request "$FinalizeLink" "{\"csr\": \"$der\"}" "needbase64"
-    info Requesting Order Link
-    debug "order link was $OrderLink"
+
+    info Checking Finalize status
+    debug "POST-as-GET order link ($OrderLink) to check status"
     send_signed_request "$OrderLink" ""
-    # if ACME response is processing (still creating certificates) then wait and try again.
-    while [[ "$response_status" == "processing" ]]; do
+
+    # if ACME response is pending (they haven't completed checks yet) or ready (awaiting finalization)
+    # or processing (still creating certificates) then wait and check again.
+    count=0
+    while [[ "$response_status" != "valid" ]]; do
       info "ACME server still Processing certificates"
       sleep 5
       send_signed_request "$OrderLink" ""
+      ((count++))
+      if [[ $count -gt 10 ]]; then
+        error_exit "Finalize failed - checked server 10 times but certificate still not ready"
+      fi
     done
+
     info "Requesting certificate"
     CertData=$(json_get "$response" "certificate")
     send_signed_request "$CertData" "" "" "$gc_fullchain"
@@ -3472,11 +3492,25 @@ else
   read -r -a alldomains <<< "$(echo "$DOMAIN,$SANS" | sed "s/,/ /g")"
 fi
 
-if [[ $API -eq 2 ]]; then
-  create_order
-fi
+# Try again if order creation fails (means check_challenge_completion returned "invalid" - generally DNS failure)
+retry=0
+while [[ $retry -lt 3 ]]
+do
+  if [[ $API -eq 2 ]]; then
+    create_order
+  fi
 
-fulfill_challenges
+  fulfill_challenges
+  result=$?
+  if [[ $result -eq 0 ]]; then
+    break
+  fi
+  ((retry++))
+done
+
+if [[ $retry -ge 3 ]]; then
+  error_exit "$domain: fulfill_challenges failed 3 times"
+fi
 
 # Verification has been completed for all SANS, so request certificate.
 info "Verification completed, obtaining certificate."
