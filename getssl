@@ -290,6 +290,7 @@
 # 2023-02-04 Create newline to ensure [SAN] section can be parsed (#792)(MRigal)
 # 2023-02-22 Remove cronie from deb package dependencies (2.48)
 # 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
+# 2024-03-26 Test for "true" in wildcard property of authorization responses
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -1241,7 +1242,7 @@ create_order() {
       for d in "${alldomains[@]}"; do
         # Convert domain to lowercase as response from server will be in lowercase
         lower_d=$(echo "$d" | tr "[:upper:]" "[:lower:]")
-        if [[ ( "$lower_d" == "$authdomain" && -z "$wildcard" ) || ( "$lower_d" == "*.${authdomain}" && -n "$wildcard" ) ]]; then
+        if [[ ( "$lower_d" == "$authdomain" && "$wildcard" != "true" ) || ( "$lower_d" == "*.${authdomain}" && "$wildcard" == "true" ) ]]; then
           debug "Saving authorization response for $authdomain for domain alldomains[$dn]"
           debug "Response = ${response//[$'\t\r\n']}"
           AuthLinkResponse[dn]=$response
