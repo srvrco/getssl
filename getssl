@@ -1293,8 +1293,7 @@ debug() { # write out debug info if the debug flag has been set
     if [[ -n ${BATS_RUN_TMPDIR} ]]; then
       echo "$(date "+%b %d %T") ${FUNCNAME[1]}:${BASH_LINENO[1]}" "$@"
     else
-      echo " "
-      echo "$@"
+      echo -e "\n$@"
     fi
   fi
 }
