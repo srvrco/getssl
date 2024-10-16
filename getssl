@@ -291,6 +291,7 @@
 # 2023-02-22 Remove cronie from deb package dependencies (2.48)
 # 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
 # 2024-03-26 Test for "true" in wildcard property of authorization responses
+# 2024-10-16 Add newlines to /directory response (#765)(#859)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
