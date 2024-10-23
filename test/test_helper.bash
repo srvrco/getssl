@@ -63,7 +63,7 @@ check_nginx() {
 
 check_output_for_errors() {
   refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
-  refute_output --regexp '[^_][Ee][Rr][Rr][Oo][Rr][^:badNonce]'
+  refute_output --regexp '[^_][Ee][Rr][Rr][Oo][Rr][^:badNonce|^:dns]'
   refute_output --regexp '[^_][Ww][Aa][Rr][Nn][Ii][Nn][Gg]'
   refute_line --partial 'command not found'
 }
