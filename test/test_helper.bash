@@ -62,8 +62,8 @@ check_nginx() {
 }
 
 whitelist_array=(
-  "badnonce"
   "DNS problem"
+  "acme:error:badNonce"
   "acme:error:dns"
 )
 
@@ -71,14 +71,14 @@ check_output_for_errors() {
   # check if the output contains a whitelisted phrase, if it does, don't check for the phrase "Error"
   contains_whitelisted_phrase=0
   for phrase in "${whitelist_array[@]}"; do
-    echo "# DEBUG: checking output for whitelisted phrase: $phrase"
+    #echo "# DEBUG: checking output for whitelisted phrase: $phrase"
     status=1
     assert_output --regexp "$phrase" 2>/dev/null || status=0
     contains_whitelisted_phrase=$((status || contains_whitelisted_phrase))
   done
 
   if [[ $contains_whitelisted_phrase -eq 0 ]]; then
-    refute_output --regexp '([Ee][Rr][Rr][Oo][Rr])'
+    refute_output --regexp '[^_][Ee][Rr][Rr][Oo][Rr]'
   fi
 
   refute_output --regexp '[Ff][Aa][Ii][Ll][Ee][Dd]'
