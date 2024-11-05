@@ -2963,6 +2963,11 @@ fi
 # Main logic
 ############
 
+# log results to system log - if the logger utility is in the path
+if [ $(which logger) ] ; then
+  exec 1> >(logger -s -t $(basename $0)) 2>&1
+fi
+
 # Get the current OS, so the correct functions can be used for that OS. (sets the variable os)
 get_os
 
