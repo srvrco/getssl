@@ -115,8 +115,8 @@ For example, the release v2.49 contains the following packages in the release se
 
 ### **RPM Based Packages (RedHat, CentOS, SuSe, Oracle Linux, AWS Linux)**
 
-- [getssl-2.49-1.src.rpm](https://github.com/srvrco/getssl/releases/download/2.49/getssl-2.49-1.src.rpm) (source)
-- [getssl-2.49-1.noarch.rpm](https://github.com/srvrco/getssl/releases/download/2.49/getssl-2.49-1.noarch.rpm) (binary)
+- [getssl-2.49-1.src.rpm](https://github.com/srvrco/getssl/releases/download/v2.49/getssl-2.49-1.src.rpm) (source)
+- [getssl-2.49-1.noarch.rpm](https://github.com/srvrco/getssl/releases/download/v2.49/getssl-2.49-1.noarch.rpm) (binary)
 
 ### **Debian Based Packages (Debian, Ubuntu)**
 
