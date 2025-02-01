@@ -292,6 +292,7 @@
 # 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
 # 2024-03-26 Test for "true" in wildcard property of authorization responses
 # 2024-10-16 Add newlines to /directory response (#765)(#859)
+# 2025-02-02 Fix cPanel support for API zone record updates and wildcard domain support
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -300,7 +301,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.49"
+VERSION="2.50"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
