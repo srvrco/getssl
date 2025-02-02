@@ -5,6 +5,7 @@
 # use with RELOAD_CMD="${HOME}/cpanel_cert_upload domain.com"
 
 domain="$1"
+nowild=$(echo "${1//\*\./}")
 
 rawurlencode() {
   local string
@@ -28,4 +29,4 @@ ecert=$( rawurlencode "${HOME}/.getssl/${domain}/${domain}.crt" )
 ekey=$( rawurlencode "${HOME}/.getssl/${domain}/${domain}.key" )
 echain=$( rawurlencode "${HOME}/.getssl/${domain}/chain.crt" )
 
-uapi SSL install_ssl domain="${domain}" cert="${ecert}" key="${ekey}" cabundle="${echain}"
+uapi SSL install_ssl domain="${nowild}" cert="${ecert}" key="${ekey}" cabundle="${echain}"
