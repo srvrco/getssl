@@ -347,7 +347,7 @@ USE_SINGLE_ACL="false"
 WORKING_DIR_CANDIDATES=("/etc/getssl" "${PROGDIR}/conf" "${PROGDIR}/.getssl" "${HOME}/.getssl")
 
 # Variables used when validating using a DNS entry
-VALIDATE_VIA_DNS=""             # Set this to "true" to enable DNS validation or set a list of domains to only enable DNS from them.
+VALIDATE_VIA_DNS=""             # Set this to "true" to enable DNS validation or set a list of domains to only enable DNS for them.
 export AUTH_DNS_SERVER=""       # Use this DNS server to check the challenge token has been set
 export DNS_CHECK_OPTIONS=""     # Options (such as TSIG file) required by DNS_CHECK_FUNC
 export PUBLIC_DNS_SERVER=""     # Use this DNS server to find the authoritative DNS servers for the domain
@@ -365,7 +365,7 @@ validate_via_dns() { # Check dns validation. Return 0 if some domain, or the giv
 
   # Only dot and wilcard are valid chars for a domain that should be escaped. Full match is ensured between espaces or commas.
   local d=$1; d=${d//\./\\.}; d=${d//\*/\\*}
-  [[ -z $1 || $VALIDATE_VIA_DNS =~ (true|(^|[ ,])${1//\./\\.}($|[ ,])) ]] && return 0
+  [[ -z $d || $VALIDATE_VIA_DNS =~ (true|(^|[ ,])${d}($|[ ,])) ]] && return 0
 }
 
 # Private variables
