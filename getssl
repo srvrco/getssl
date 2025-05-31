@@ -363,7 +363,7 @@ DNS_WAIT_RETRY_ADD="false"      # Try the dns_add_command again if the DNS recor
 validate_via_dns() { # Check dns validation. Return 0 if some domain, or the given domain, requires DNS validation.
   [[ -z $VALIDATE_VIA_DNS || $VALIDATE_VIA_DNS == "false" ]] && return 1
 
-  # Only dot and wilcard ard valid chars for a domain that should be escaped. Full match is ensured between espaces or commas.
+  # Only dot and wilcard are valid chars for a domain that should be escaped. Full match is ensured between espaces or commas.
   local d=$1; d=${d//\./\\.}; d=${d//\*/\\*}
   [[ -z $1 || $VALIDATE_VIA_DNS =~ (true|(^|[ ,])${1//\./\\.}($|[ ,])) ]] && return 0
 }
