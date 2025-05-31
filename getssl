@@ -347,7 +347,7 @@ USE_SINGLE_ACL="false"
 WORKING_DIR_CANDIDATES=("/etc/getssl" "${PROGDIR}/conf" "${PROGDIR}/.getssl" "${HOME}/.getssl")
 
 # Variables used when validating using a DNS entry
-VALIDATE_VIA_DNS=""             # Set this to "true" to enable DNS validation
+VALIDATE_VIA_DNS=""             # Set this to "true" to enable DNS validation or set a list of domains to only enable DNS from them.
 export AUTH_DNS_SERVER=""       # Use this DNS server to check the challenge token has been set
 export DNS_CHECK_OPTIONS=""     # Options (such as TSIG file) required by DNS_CHECK_FUNC
 export PUBLIC_DNS_SERVER=""     # Use this DNS server to find the authoritative DNS servers for the domain
@@ -359,6 +359,14 @@ DNS_WAIT_COUNT=100              # How many times to wait for the DNS record to u
 DNS_WAIT=10                     # How long to wait before checking the DNS record again
 DNS_EXTRA_WAIT=60               # How long to wait after the DNS entries are visible to us before telling the ACME server to check.
 DNS_WAIT_RETRY_ADD="false"      # Try the dns_add_command again if the DNS record hasn't updated
+
+validate_via_dns() { # Check dns validation. Return 0 if some domain, or the given domain, requires DNS validation.
+  [[ -z $VALIDATE_VIA_DNS || $VALIDATE_VIA_DNS == "false" ]] && return 1
+
+  # Only dot and wilcard ard valid chars for a domain that should be escaped. Full match is ensured between espaces or commas.
+  local d=$1; d=${d//\./\\.}; d=${d//\*/\\*}
+  [[ -z $1 || $VALIDATE_VIA_DNS =~ (true|(^|[ ,])${1//\./\\.}($|[ ,])) ]] && return 0
+}
 
 # Private variables
 _CHECK_ALL=0
@@ -708,13 +716,13 @@ check_config() { # check the config files for all obvious errors
     config_errors=true
   fi
 
-  if [[ $VALIDATE_VIA_DNS == "true" ]]; then # using dns-01 challenge
+  if [[ validate_via_dns ]]; then # using dns-01 challenge
     if [[ -z "$DNS_ADD_COMMAND" ]]; then
-      info "${DOMAIN}: DNS_ADD_COMMAND not defined (whilst VALIDATE_VIA_DNS=\"true\")"
+      info "${DOMAIN}: DNS_ADD_COMMAND not defined (whilst VALIDATE_VIA_DNS='${VALIDATE_VIA_DNS}')"
       config_errors=true
     fi
     if [[ -z "$DNS_DEL_COMMAND" ]]; then
-      info "${DOMAIN}: DNS_DEL_COMMAND not defined (whilst VALIDATE_VIA_DNS=\"true\")"
+      info "${DOMAIN}: DNS_DEL_COMMAND not defined (whilst VALIDATE_VIA_DNS='${VALIDATE_VIA_DNS}')"
       config_errors=true
     fi
   fi
@@ -727,7 +735,7 @@ check_config() { # check the config files for all obvious errors
     if [[ "$(grep "^${d}$" "$tmplist")" = "$d" ]]; then
       info "${DOMAIN}: $d appears to be duplicated in domain, SAN list"
       config_errors=true
-    elif [[ "$d" != "${d##\*.}" ]] && [[ "$VALIDATE_VIA_DNS" != "true" ]]; then
+    elif [[ "$d" != "${d##\*.}" ]] && ! validate_via_dns $d; then
       info "${DOMAIN}: cannot use http-01 validation for wildcard domains"
       config_errors=true
     else
@@ -740,7 +748,7 @@ check_config() { # check the config files for all obvious errors
       DOMAIN_ACL="${ACL[$dn]}"
     fi
 
-    if [[ $VALIDATE_VIA_DNS != "true" ]]; then # using http-01 challenge
+    if ! validate_via_dns $d; then # using http-01 challenge
       if [[ -z "${DOMAIN_ACL}" ]]; then
         info "${DOMAIN}: ACL location not specified for domain $d in $DOMAIN_DIR/getssl.cfg"
         config_errors=true
@@ -955,7 +963,7 @@ check_version() { # true if version string $1 >= $2
 
 clean_up() { # Perform pre-exit housekeeping
   umask "$ORIG_UMASK"
-  if [[ $VALIDATE_VIA_DNS == "true" ]]; then
+  if validate_via_dns; then
     # Tidy up DNS entries if things failed part way though.
     shopt -s nullglob
     for dnsfile in "$TEMP_DIR"/dns_verify/*; do
@@ -1414,7 +1422,7 @@ for d in "${alldomains[@]}"; do
     ((dn++))
   else
     PREVIOUSLY_VALIDATED="false"
-    if [[ $VALIDATE_VIA_DNS == "true" ]]; then # set up the correct DNS token for verification
+    if validate_via_dns $d; then # set up the correct DNS token for verification
       if [[ $API -eq 1 ]]; then
         # get the dns component of the ACME response
         # get the token and uri from the dns component
@@ -2852,7 +2860,7 @@ write_getssl_template() { # write out the main template file
 	CHECK_REMOTE="true"
 
 	# Use the following 3 variables if you want to validate via DNS
-	#VALIDATE_VIA_DNS="true"
+	#VALIDATE_VIA_DNS="true" or "domain1,domain2,..." to use DNS validation only for listed domains.
 	#DNS_ADD_COMMAND=
 	#DNS_DEL_COMMAND=
 
