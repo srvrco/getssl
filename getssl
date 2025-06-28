@@ -1210,9 +1210,8 @@ create_order() {
     dstring="${dstring}{\"type\":\"dns\",\"value\":\"$d\"},"
   done
   dstring="${dstring::${#dstring}-1}]"
-  # request NewOrder currently seems to ignore the dates ....
-  #  dstring="${dstring},\"notBefore\": \"$(date -d "-1 hour" --utc +%FT%TZ)\""
-  #  dstring="${dstring},\"notAfter\": \"$(date -d "2 days" --utc +%FT%TZ)\""
+
+  # Check if the server supports profiles using the URL_profiles variable
   if [[ -z "$URL_profiles" ]]; then
     request="{\"identifiers\": $dstring}"
   else
@@ -2332,7 +2331,7 @@ obtain_ca_resource_locations()
     URL_profiles=""
     # Check if we have a profiles element
     if echo "$ca_all_loc" | grep -q '"profiles"'; then
-      URL_profiles=$(echo "$ca_all_loc" | sed 's/.*{//; s/}.*//' | grep -o '"[^"]*"[[:space:]]*:' | sed 's/"//g; s/[[:space:]]*://')
+      URL_profiles=$(echo "$ca_all_loc" | sed -n '/"profiles"/,/^[[:space:]]*}/p' | sed 's/.*{//; s/}.*//' | grep -o '"[^"]*"[[:space:]]*:' | sed 's/"//g; s/[[:space:]]*://')
       IFS=$'\n' read -r -d '' -a URL_profiles_array <<< "$URL_profiles"
 
       debug "Server supports profiles"
