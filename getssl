@@ -336,6 +336,7 @@ ORIG_UMASK=$(umask)
 PREFERRED_CHAIN=""              # Set this to use an alternative root certificate
 PREVIOUSLY_VALIDATED="true"
 PRIVATE_KEY_ALG="rsa"
+PROFILE=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
 REUSE_PRIVATE_KEY="true"
@@ -1211,7 +1212,11 @@ create_order() {
   # request NewOrder currently seems to ignore the dates ....
   #  dstring="${dstring},\"notBefore\": \"$(date -d "-1 hour" --utc +%FT%TZ)\""
   #  dstring="${dstring},\"notAfter\": \"$(date -d "2 days" --utc +%FT%TZ)\""
-  request="{\"identifiers\": $dstring}"
+  if [[ -z "$URL_profiles" ]]; then
+    request="{\"identifiers\": $dstring}"
+  else
+    request="{\"identifiers\": $dstring, \"profile\": \"$PROFILE\"}"
+  fi
   send_signed_request "$URL_newOrder" "$request"
   OrderLink=$(echo "$responseHeaders" | grep -i location | awk '{print $2}'| tr -d '\r\n ')
   debug "Order link $OrderLink"
@@ -2323,6 +2328,24 @@ obtain_ca_resource_locations()
     URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
     URL_revoke=$(echo "$ca_all_loc" | grep "revokeCert" | awk -F'"' '{print $4}')
 
+    URL_profiles=""
+    # Check if we have a profiles element
+    if echo "$ca_all_loc" | grep -q '"profiles"'; then
+      URL_profiles=$(echo $ca_all_loc | sed 's/.*{//; s/}.*//' | grep -o '"[^"]*"[[:space:]]*:' | sed 's/"//g; s/[[:space:]]*://')
+      IFS=$'\n' read -r -d '' -a URL_profiles_array <<< "$URL_profiles"
+
+      debug "Server supports profiles"
+      debug "profile list:"
+      for key in "${URL_profiles_array[@]}"; do
+        debug "$key"
+      done
+
+      # if the profile isn't set, then use the first value in the profile array
+      if [[ -z "$PROFILE" ]]; then
+        PROFILE=${URL_profiles_array[0]}
+      fi
+    fi
+
     if [[ -n "$URL_new_reg" ]] || [[ -n "$URL_newAccount" ]]; then
       break
     fi
@@ -3374,6 +3397,7 @@ if [[ -s "$CERT_FILE" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
   existing_sanlist=$(openssl x509 -in "$CERT_FILE" -noout -text | grep "DNS:" | sed '{ s/ *DNS://g; y/,/\n/; }' | sort -u | xargs | sed 's/ /,/g')
   sorted_sanlist=$(echo "$SANLIST" | sed '{ s/subjectAltName=//; s/ *DNS://g; y/,/\n/; }' | sort -u | xargs | sed 's/ /,/g')
   debug "local cert is for domains: ${existing_sanlist}"
+  debug "existing cert is for domains: ${sorted_sanlist}"
   if [[ "$enddate" != "-" ]]; then
     enddate_s=$(date_epoc "$enddate")
     if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]] && [[ "$existing_sanlist" == "$sorted_sanlist" ]]; then
@@ -3616,3 +3640,8 @@ echo "certificate obtained for ${DOMAIN}"
 
 # gracefully exit ( tidying up temporary files etc).
 graceful_exit
+
+# spell-checker:ignore ldaps,secp,nfsv,errcode,nullglob,NEWCMD,PROGDIR,wolfaba,glynge,sigalgs,mhameed,alldomains,vietw,atisne,DAVS,ionos,atisne
+# spell-checker:ignore digrc,Benno,softins,Mischa,tlhackque,noidnout,ftpes,makuhama,amartin,miesi,GODADDY,Rigal,cronie,USERAGENT,SSLCONF,TSIG
+# spell-checker:ignore idnout,NOMETER,ORIGCMD,OLDCA,keyauthorization,ntries,msys,tmplist,NOMETER,dnsfile,bname,tofile,ftpuser,ftppass,ftphost
+# spell-checker:ignore ftplocn,ftpfile
