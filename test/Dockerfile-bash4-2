@@ -20,7 +20,7 @@ RUN adduser -D ftpuser
 RUN echo 'ftpuser:ftpuser' | chpasswd
 RUN adduser ftpuser www-data
 RUN adduser root www-data
-RUN chown -R ftpuser.www-data /var/www
+RUN chown -R ftpuser:www-data /var/www
 RUN chmod g+w -R /var/www
 
 # BATS (Bash Automated Testings)
