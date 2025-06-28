@@ -292,6 +292,7 @@
 # 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
 # 2024-03-26 Test for "true" in wildcard property of authorization responses
 # 2024-10-16 Add newlines to /directory response (#765)(#859)
+# 2025-06-18 Support profiles
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -2331,7 +2332,7 @@ obtain_ca_resource_locations()
     URL_profiles=""
     # Check if we have a profiles element
     if echo "$ca_all_loc" | grep -q '"profiles"'; then
-      URL_profiles=$(echo $ca_all_loc | sed 's/.*{//; s/}.*//' | grep -o '"[^"]*"[[:space:]]*:' | sed 's/"//g; s/[[:space:]]*://')
+      URL_profiles=$(echo "$ca_all_loc" | sed 's/.*{//; s/}.*//' | grep -o '"[^"]*"[[:space:]]*:' | sed 's/"//g; s/[[:space:]]*://')
       IFS=$'\n' read -r -d '' -a URL_profiles_array <<< "$URL_profiles"
 
       debug "Server supports profiles"
@@ -3640,8 +3641,3 @@ echo "certificate obtained for ${DOMAIN}"
 
 # gracefully exit ( tidying up temporary files etc).
 graceful_exit
-
-# spell-checker:ignore ldaps,secp,nfsv,errcode,nullglob,NEWCMD,PROGDIR,wolfaba,glynge,sigalgs,mhameed,alldomains,vietw,atisne,DAVS,ionos,atisne
-# spell-checker:ignore digrc,Benno,softins,Mischa,tlhackque,noidnout,ftpes,makuhama,amartin,miesi,GODADDY,Rigal,cronie,USERAGENT,SSLCONF,TSIG
-# spell-checker:ignore idnout,NOMETER,ORIGCMD,OLDCA,keyauthorization,ntries,msys,tmplist,NOMETER,dnsfile,bname,tofile,ftpuser,ftppass,ftphost
-# spell-checker:ignore ftplocn,ftpfile
