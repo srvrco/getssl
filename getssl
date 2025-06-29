@@ -2297,6 +2297,187 @@ json_get() { # get values from json
   fi
 }
 
+get_json_value() {
+  local raw_json_string="$1"
+  local target_key="$2"
+  # remove newlines otherwise parsing logic fails
+  local json_string=$(echo $raw_json_string | tr -d '\n')
+
+  # Validate inputs
+  if [[ -z "$json_string" ]] || [[ -z "$target_key" ]]; then
+    debug "get_json_value \"$json_string\" \"$target_key\" requires two arguments"
+    exit 1
+  fi
+
+  # Check if key exists in JSON
+  if ! echo "$json_string" | grep -q "\"$target_key\""; then
+      echo ""
+      return 0
+  fi
+
+  # Extract the value using sed
+  local value
+
+  # Try to match string values first (quoted values)
+  value=$(echo "$json_string" | sed -n "s/.*\"$target_key\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p")
+  if [[ -n "$value" ]]; then
+      echo "$value"
+      return 0
+  fi
+
+  # Try to match boolean values (true/false)
+  value=$(echo "$json_string" | sed -n "s/.*\"$target_key\"[[:space:]]*:[[:space:]]*\(true\|false\)[[:space:]]*[,}].*/\1/p")
+  if [[ -n "$value" ]]; then
+      echo "$value"
+      return 0
+  fi
+
+  # Try to match null values
+  value=$(echo "$json_string" | sed -n "s/.*\"$target_key\"[[:space:]]*:[[:space:]]*\(null\)[[:space:]]*[,}].*/\1/p")
+  if [[ -n "$value" ]]; then
+      echo "$value"
+      return 0
+  fi
+
+  # Try to match numeric values (integers and floats)
+  value=$(echo "$json_string" | sed -n "s/.*\"$target_key\"[[:space:]]*:[[:space:]]*\(-\?[0-9]*\.?[0-9]\+\)[[:space:]]*[,}].*/\1/p")
+  if [[ -n "$value" ]]; then
+      echo "$value"
+      return 0
+  fi
+
+  # Try to match object values (nested JSON objects)
+  # This is more complex - we'll extract from the opening brace to matching closing brace
+  value=$(echo "$json_string" | sed 's/.*"'$target_key'"[[:space:]]*:[[:space:]]*\({.*\)/\1/' | extract_object)
+  if [[ -n "$value" ]]; then
+      echo "$value"
+      return 0
+  fi
+
+  # Try to match array values
+  value=$(echo "$json_string" | sed 's/.*"'$target_key'"[[:space:]]*:[[:space:]]*\(\[.*\)/\1/' | extract_array)
+  if [[ -n "$value" ]]; then
+      echo "$value"
+      return 0
+  fi
+
+  echo ""
+  return 1
+}
+
+extract_object() {
+  local input
+  read -r input
+
+  # Count braces to find the matching closing brace
+  local brace_count=0
+  local result=""
+  local in_quotes=false
+  local escape_next=false
+
+  for (( i=0; i<${#input}; i++ )); do
+    char="${input:$i:1}"
+    result+="$char"
+
+    if [[ "$escape_next" == true ]]; then
+      escape_next=false
+      continue
+    fi
+
+    case "$char" in
+      '"')
+        if [[ "$in_quotes" == true ]]; then
+          in_quotes=false
+        else
+          in_quotes=true
+        fi
+        ;;
+      '\')
+        if [[ "$in_quotes" == true ]]; then
+          escape_next=true
+        fi
+        ;;
+      '{')
+        if [[ "$in_quotes" == false ]]; then
+          ((brace_count++))
+        fi
+        ;;
+      '}')
+        if [[ "$in_quotes" == false ]]; then
+          ((brace_count--))
+          if [[ $brace_count -eq 0 ]]; then
+            echo "$result"
+            return 0
+          fi
+        fi
+        ;;
+    esac
+  done
+
+  echo "$result"
+}
+
+extract_array() {
+  local input
+  read -r input
+
+  # Count brackets to find the matching closing bracket
+  local bracket_count=0
+  local result=""
+  local in_quotes=false
+  local escape_next=false
+
+  for (( i=0; i<${#input}; i++ )); do
+    char="${input:$i:1}"
+    result+="$char"
+
+    if [[ "$escape_next" == true ]]; then
+      escape_next=false
+      continue
+    fi
+
+    case "$char" in
+      '"')
+        if [[ "$in_quotes" == true ]]; then
+          in_quotes=false
+        else
+          in_quotes=true
+        fi
+        ;;
+      '\')
+        if [[ "$in_quotes" == true ]]; then
+          escape_next=true
+        fi
+        ;;
+      '[')
+        if [[ "$in_quotes" == false ]]; then
+          ((bracket_count++))
+        fi
+        ;;
+      ']')
+        if [[ "$in_quotes" == false ]]; then
+          ((bracket_count--))
+          if [[ $bracket_count -eq 0 ]]; then
+            echo "$result"
+            return 0
+          fi
+        fi
+        ;;
+    esac
+  done
+
+  echo "$result"
+}
+
+get_json_keys() {
+    local json_string="$1"
+
+    # Extract all keys using sed and grep
+    keys=$(echo "$json_string" | grep -o '"[^"]*"[[:space:]]*:' | sed 's/"//g' | sed 's/[[:space:]]*://g')
+    IFS=$'\n' key_array=($keys)
+    echo "${key_array[@]}"
+}
+
 obtain_ca_resource_locations()
 {
   CURL_RESPONSE_FILE="$(mktemp 2>/dev/null || mktemp -t getssl.XXXXXX)"
@@ -2331,8 +2512,9 @@ obtain_ca_resource_locations()
     URL_profiles=""
     # Check if we have a profiles element
     if echo "$ca_all_loc" | grep -q '"profiles"'; then
-      URL_profiles=$(echo "$ca_all_loc" | sed -n '/"profiles"/,/^[[:space:]]*}/p' | sed 's/.*{//; s/}.*//' | grep -o '"[^"]*"[[:space:]]*:' | sed 's/"//g; s/[[:space:]]*://')
-      IFS=$'\n' read -r -d '' -a URL_profiles_array <<< "$URL_profiles"
+      meta=$(get_json_value "$ca_all_loc" "meta")
+      URL_profiles=$(get_json_value "$meta", "profiles")
+      URL_profiles_array=($(get_json_keys "$URL_profiles"))
 
       debug "Server supports profiles"
       debug "profile list:"
