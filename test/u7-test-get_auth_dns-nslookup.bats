@@ -101,15 +101,15 @@ teardown() {
     assert_line --regexp 'Using nslookup.*-type=soa'
     assert_line --regexp 'Using nslookup.*-type=ns'
 
-    # Check all Authoritive DNS servers are returned if requested
+    # Check all Authoritative DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
     run get_auth_dns _acme-challenge.ubuntu-getssl.ignorelist.com
-    assert_output --regexp 'set primary_ns=(ns[1-3]+\.afraid\.org )+'
+    assert_output --regexp 'set primary_ns=(ns[1-3]+\.afraid\.org )+' || echo "warn $BATS_TEST_NUMBER $BATS_TEST_DESCRIPTION Can't find authoritative DNS servers for duckdns using local DNS server" >&3
 
     # Check that we also check the public DNS server if requested
     CHECK_PUBLIC_DNS_SERVER=true
     run get_auth_dns _acme-challenge.ubuntu-getssl.ignorelist.com
-    assert_output --regexp 'set primary_ns=(ns[1-3]+\.afraid\.org )+ 1\.0\.0\.1' || echo "warn $BATS_TEST_NUMBER $BATS_TEST_DESCRIPTION No authoritative DNS servers found" >&3
+    assert_output --regexp 'set primary_ns=(ns[1-3]+\.afraid\.org )+ 1\.0\.0\.1' || echo "warn $BATS_TEST_NUMBER $BATS_TEST_DESCRIPTION Can't find authoritative servers for duckdns using Public DNS server" >&3
 }
 
 
