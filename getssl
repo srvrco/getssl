@@ -2301,7 +2301,9 @@ get_json_value() {
   local raw_json_string="$1"
   local target_key="$2"
   # remove newlines otherwise parsing logic fails
-  local json_string=$(echo $raw_json_string | tr -d '\n')
+  local json_string
+
+  json_string=$(echo "$raw_json_string" | tr -d '\n')
 
   # Validate inputs
   if [[ -z "$json_string" ]] || [[ -z "$target_key" ]]; then
@@ -2348,14 +2350,14 @@ get_json_value() {
 
   # Try to match object values (nested JSON objects)
   # This is more complex - we'll extract from the opening brace to matching closing brace
-  value=$(echo "$json_string" | sed 's/.*"'$target_key'"[[:space:]]*:[[:space:]]*\({.*\)/\1/' | extract_object)
+  value=$(echo "$json_string" | sed 's/.*"'"$target_key"'"[[:space:]]*:[[:space:]]*\({.*\)/\1/' | extract_object)
   if [[ -n "$value" ]]; then
       echo "$value"
       return 0
   fi
 
   # Try to match array values
-  value=$(echo "$json_string" | sed 's/.*"'$target_key'"[[:space:]]*:[[:space:]]*\(\[.*\)/\1/' | extract_array)
+  value=$(echo "$json_string" | sed 's/.*"'"$target_key"'"[[:space:]]*:[[:space:]]*\(\[.*\)/\1/' | extract_array)
   if [[ -n "$value" ]]; then
       echo "$value"
       return 0
@@ -2392,7 +2394,7 @@ extract_object() {
           in_quotes=true
         fi
         ;;
-      '\')
+      \')
         if [[ "$in_quotes" == true ]]; then
           escape_next=true
         fi
@@ -2444,7 +2446,7 @@ extract_array() {
           in_quotes=true
         fi
         ;;
-      '\')
+      \')
         if [[ "$in_quotes" == true ]]; then
           escape_next=true
         fi
@@ -2474,7 +2476,7 @@ get_json_keys() {
 
     # Extract all keys using sed and grep
     keys=$(echo "$json_string" | grep -o '"[^"]*"[[:space:]]*:' | sed 's/"//g' | sed 's/[[:space:]]*://g')
-    IFS=$'\n' key_array=($keys)
+    IFS=$'\n' read -r -d '' -a key_array < <(printf '%s\0' "$keys")
     echo "${key_array[@]}"
 }
 
@@ -2514,7 +2516,7 @@ obtain_ca_resource_locations()
     if echo "$ca_all_loc" | grep -q '"profiles"'; then
       meta=$(get_json_value "$ca_all_loc" "meta")
       URL_profiles=$(get_json_value "$meta", "profiles")
-      URL_profiles_array=($(get_json_keys "$URL_profiles"))
+      read -r -a URL_profiles_array <<< "$(get_json_keys "$URL_profiles")"
 
       debug "Server supports profiles"
       debug "profile list:"
