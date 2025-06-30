@@ -70,7 +70,7 @@ teardown() {
     # Assert that we had to use drill NS
     assert_line --regexp 'Using drill.* NS'
 
-    # Check all Authoritive DNS servers are returned if requested
+    # Check all Authoritative DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
     run get_auth_dns ubuntu-getssl.ignorelist.com
     assert_output --regexp 'set primary_ns = (ns[1-4]+\.afraid\.org ?)+'
@@ -78,9 +78,6 @@ teardown() {
 
 
 @test "Check get_auth_dns using drill SOA" {
-    # FIXME: stopped working Jun-2025 and don't have time to investigate why
-    skip
-
     if [ ! -f /usr/bin/drill ]; then
         # Can't find drill package for centos8
         skip "Drill not installed on this system"
@@ -107,7 +104,7 @@ teardown() {
     assert_line --regexp 'Using drill.* SOA'
     refute_line --regexp 'Using drill.* NS'
 
-    # Check all Authoritive DNS servers are returned if requested
+    # Check all Authoritative DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
     run get_auth_dns ubuntu-getssl.duckdns.org
     assert_output --regexp 'set primary_ns = (ns[1-9]+\.duckdns\.org )+'
@@ -149,8 +146,8 @@ teardown() {
     assert_line --regexp 'Using drill.* CNAME'
     assert_line --regexp 'Using drill.* NS'
 
-    # Check all Authoritive DNS servers are returned if requested
-    echo "# Checking all authoritive DNS servers are returned if requested"
+    # Check all Authoritative DNS servers are returned if requested
+    echo "# Checking all authoritative DNS servers are returned if requested"
     CHECK_ALL_AUTH_DNS=true
     run get_auth_dns www.duckdns.org
     assert_output --regexp 'set primary_ns = ns.*\.awsdns.*\.net'
