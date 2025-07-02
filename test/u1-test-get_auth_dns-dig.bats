@@ -64,7 +64,7 @@ teardown() {
     # Assert that we had to use dig NS
     assert_line --regexp 'Using dig.* NS'
 
-    # Check all Authoritive DNS servers are returned if requested
+    # Check all Authoritative DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
     run get_auth_dns ubuntu-getssl.ignorelist.com
     assert_output --regexp 'set primary_ns = (ns[1-3]+\.afraid\.org ?)+'
@@ -93,7 +93,7 @@ teardown() {
     assert_line --regexp 'Using dig.* SOA'
     refute_line --regexp 'Using dig.* NS'
 
-    # Check all Authoritive DNS servers are returned if requested
+    # Check all Authoritative DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
     run get_auth_dns ubuntu-getssl.duckdns.org
     assert_output --regexp 'set primary_ns = (ns[1-9]+\.duckdns\.org )+'
@@ -129,7 +129,7 @@ teardown() {
     assert_line --regexp 'Using dig.* CNAME'
     assert_line --regexp 'Using dig.* NS'
 
-    # Check all Authoritive DNS servers are returned if requested
+    # Check all Authoritative DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
     run get_auth_dns www.duckdns.org
     assert_output --regexp 'set primary_ns = ns.*\.awsdns.*\.net'

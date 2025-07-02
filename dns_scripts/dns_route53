@@ -4,6 +4,7 @@ PROG="$(basename "$0")"
 
 QUIET=n
 
+# shellcheck disable=SC2034
 while getopts 'dhp:t:z:i:qv' opt; do
     case $opt in
         d) DEBUG="Y"                                   ;;
@@ -122,8 +123,8 @@ function determine_hosted_zone_name_and_id() {
     TMP_NAME=$name
     TMP_RR_NAME=
 	while [[ "$TMP_NAME" =~ ^([^.]+)\.([^.]+.*) ]]; do
-		if [ -n "${TMP_RR_NAME}" ]; then 
-			TMP_RR_NAME="${TMP_RR_NAME}."; 
+		if [ -n "${TMP_RR_NAME}" ]; then
+			TMP_RR_NAME="${TMP_RR_NAME}.";
 		fi
 		TMP_RR_NAME="${TMP_RR_NAME}${BASH_REMATCH[1]}"
 		testdomain="${BASH_REMATCH[2]}"
@@ -133,10 +134,10 @@ function determine_hosted_zone_name_and_id() {
 			[ -n "$DEBUG" ] && echo "No segments left"
 				exit 1
 		fi
-	
-		TMP_ZONE_ID=$(aws --profile=${AWS_CLI_PROFILE} route53 list-hosted-zones --query "HostedZones[?Name=='${testdomain}'].Id | [0]" | sed -e 's/^"//' -e 's/"$//')
-	
-		
+
+		TMP_ZONE_ID=$(aws --profile="${AWS_CLI_PROFILE}" route53 list-hosted-zones --query "HostedZones[?Name=='${testdomain}'].Id | [0]" | sed -e 's/^"//' -e 's/"$//')
+
+
 		if [ "${TMP_ZONE_ID}" != "null" ]; then
 			[ -n "$DEBUG" ] && echo "Found hosted zone ${testdomain}"
 			HOSTED_ZONE_NAME=${testdomain}
@@ -148,10 +149,10 @@ function determine_hosted_zone_name_and_id() {
 
 # If zone ID is specified, then use it to determine the hosted zone name
 if [ -n "${HOSTED_ZONE_ID}" ]; then
-	HOSTED_ZONE_NAME=$(aws --profile=${AWS_CLI_PROFILE} route53 list-hosted-zones --query "HostedZones[?Id=='${ZONE_ID}'].Name | [0]" | sed -e 's/^"//' -e 's/"$//')
+	HOSTED_ZONE_NAME=$(aws --profile="${AWS_CLI_PROFILE}" route53 list-hosted-zones --query "HostedZones[?Id=='${ZONE_ID}'].Name | [0]" | sed -e 's/^"//' -e 's/"$//')
 # If zone name is specified, then use it to get the zone id
 elif [ -n "${HOSTED_ZONE_NAME}" ]; then
-	HOSTED_ZONE_ID=$(aws --profile=${AWS_CLI_PROFILE} route53 list-hosted-zones --query "HostedZones[?Name=='${HOSTED_ZONE_NAME}'].Id | [0]" | sed -e 's/^"//' -e 's/"$//')
+	HOSTED_ZONE_ID=$(aws --profile="${AWS_CLI_PROFILE}" route53 list-hosted-zones --query "HostedZones[?Name=='${HOSTED_ZONE_NAME}'].Id | [0]" | sed -e 's/^"//' -e 's/"$//')
 else
 	determine_hosted_zone_name_and_id
 fi
@@ -191,9 +192,9 @@ CHANGE_BATCH='
 [ -n "$DEBUG" ] && echo "${CHANGE_BATCH}" >&2
 
 aws \
-	--profile=${AWS_CLI_PROFILE} \
+	--profile="${AWS_CLI_PROFILE}" \
 	route53 \
 	change-resource-record-sets \
-	--hosted-zone-id=${HOSTED_ZONE_ID} \
+	--hosted-zone-id="${HOSTED_ZONE_ID}" \
 	--change-batch "${CHANGE_BATCH}"
 exit $?

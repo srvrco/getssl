@@ -292,6 +292,7 @@
 # 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
 # 2024-03-26 Test for "true" in wildcard property of authorization responses
 # 2024-10-16 Add newlines to /directory response (#765)(#859)
+# 2025-06-18 Support profiles
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -336,6 +337,7 @@ ORIG_UMASK=$(umask)
 PREFERRED_CHAIN=""              # Set this to use an alternative root certificate
 PREVIOUSLY_VALIDATED="true"
 PRIVATE_KEY_ALG="rsa"
+PROFILE=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
 REUSE_PRIVATE_KEY="true"
@@ -1208,10 +1210,13 @@ create_order() {
     dstring="${dstring}{\"type\":\"dns\",\"value\":\"$d\"},"
   done
   dstring="${dstring::${#dstring}-1}]"
-  # request NewOrder currently seems to ignore the dates ....
-  #  dstring="${dstring},\"notBefore\": \"$(date -d "-1 hour" --utc +%FT%TZ)\""
-  #  dstring="${dstring},\"notAfter\": \"$(date -d "2 days" --utc +%FT%TZ)\""
-  request="{\"identifiers\": $dstring}"
+
+  # Check if the server supports profiles using the URL_profiles variable
+  if [[ -z "$URL_profiles" ]]; then
+    request="{\"identifiers\": $dstring}"
+  else
+    request="{\"identifiers\": $dstring, \"profile\": \"$PROFILE\"}"
+  fi
   send_signed_request "$URL_newOrder" "$request"
   OrderLink=$(echo "$responseHeaders" | grep -i location | awk '{print $2}'| tr -d '\r\n ')
   debug "Order link $OrderLink"
@@ -2292,6 +2297,189 @@ json_get() { # get values from json
   fi
 }
 
+get_json_value() {
+  local raw_json_string="$1"
+  local target_key="$2"
+  # remove newlines otherwise parsing logic fails
+  local json_string
+
+  json_string=$(echo "$raw_json_string" | tr -d '\n')
+
+  # Validate inputs
+  if [[ -z "$json_string" ]] || [[ -z "$target_key" ]]; then
+    debug "get_json_value \"$json_string\" \"$target_key\" requires two arguments"
+    exit 1
+  fi
+
+  # Check if key exists in JSON
+  if ! echo "$json_string" | grep -q "\"$target_key\""; then
+      echo ""
+      return 0
+  fi
+
+  # Extract the value using sed
+  local value
+
+  # Try to match string values first (quoted values)
+  value=$(echo "$json_string" | sed -n "s/.*\"$target_key\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p")
+  if [[ -n "$value" ]]; then
+      echo "$value"
+      return 0
+  fi
+
+  # Try to match boolean values (true/false)
+  value=$(echo "$json_string" | sed -n "s/.*\"$target_key\"[[:space:]]*:[[:space:]]*\(true\|false\)[[:space:]]*[,}].*/\1/p")
+  if [[ -n "$value" ]]; then
+      echo "$value"
+      return 0
+  fi
+
+  # Try to match null values
+  value=$(echo "$json_string" | sed -n "s/.*\"$target_key\"[[:space:]]*:[[:space:]]*\(null\)[[:space:]]*[,}].*/\1/p")
+  if [[ -n "$value" ]]; then
+      echo "$value"
+      return 0
+  fi
+
+  # Try to match numeric values (integers and floats)
+  value=$(echo "$json_string" | sed -n "s/.*\"$target_key\"[[:space:]]*:[[:space:]]*\(-\?[0-9]*\.?[0-9]\+\)[[:space:]]*[,}].*/\1/p")
+  if [[ -n "$value" ]]; then
+      echo "$value"
+      return 0
+  fi
+
+  # Try to match object values (nested JSON objects)
+  # This is more complex - we'll extract from the opening brace to matching closing brace
+  value=$(echo "$json_string" | sed 's/.*"'"$target_key"'"[[:space:]]*:[[:space:]]*\({.*\)/\1/' | extract_object)
+  if [[ -n "$value" ]]; then
+      echo "$value"
+      return 0
+  fi
+
+  # Try to match array values
+  value=$(echo "$json_string" | sed 's/.*"'"$target_key"'"[[:space:]]*:[[:space:]]*\(\[.*\)/\1/' | extract_array)
+  if [[ -n "$value" ]]; then
+      echo "$value"
+      return 0
+  fi
+
+  echo ""
+  return 1
+}
+
+extract_object() {
+  local input
+  read -r input
+
+  # Count braces to find the matching closing brace
+  local brace_count=0
+  local result=""
+  local in_quotes=false
+  local escape_next=false
+
+  for (( i=0; i<${#input}; i++ )); do
+    char="${input:$i:1}"
+    result+="$char"
+
+    if [[ "$escape_next" == true ]]; then
+      escape_next=false
+      continue
+    fi
+
+    case "$char" in
+      '"')
+        if [[ "$in_quotes" == true ]]; then
+          in_quotes=false
+        else
+          in_quotes=true
+        fi
+        ;;
+      \')
+        if [[ "$in_quotes" == true ]]; then
+          escape_next=true
+        fi
+        ;;
+      '{')
+        if [[ "$in_quotes" == false ]]; then
+          ((brace_count++))
+        fi
+        ;;
+      '}')
+        if [[ "$in_quotes" == false ]]; then
+          ((brace_count--))
+          if [[ $brace_count -eq 0 ]]; then
+            echo "$result"
+            return 0
+          fi
+        fi
+        ;;
+    esac
+  done
+
+  echo "$result"
+}
+
+extract_array() {
+  local input
+  read -r input
+
+  # Count brackets to find the matching closing bracket
+  local bracket_count=0
+  local result=""
+  local in_quotes=false
+  local escape_next=false
+
+  for (( i=0; i<${#input}; i++ )); do
+    char="${input:$i:1}"
+    result+="$char"
+
+    if [[ "$escape_next" == true ]]; then
+      escape_next=false
+      continue
+    fi
+
+    case "$char" in
+      '"')
+        if [[ "$in_quotes" == true ]]; then
+          in_quotes=false
+        else
+          in_quotes=true
+        fi
+        ;;
+      \')
+        if [[ "$in_quotes" == true ]]; then
+          escape_next=true
+        fi
+        ;;
+      '[')
+        if [[ "$in_quotes" == false ]]; then
+          ((bracket_count++))
+        fi
+        ;;
+      ']')
+        if [[ "$in_quotes" == false ]]; then
+          ((bracket_count--))
+          if [[ $bracket_count -eq 0 ]]; then
+            echo "$result"
+            return 0
+          fi
+        fi
+        ;;
+    esac
+  done
+
+  echo "$result"
+}
+
+get_json_keys() {
+    local json_string="$1"
+
+    # Extract all keys using sed and grep
+    keys=$(echo "$json_string" | grep -o '"[^"]*"[[:space:]]*:' | sed 's/"//g' | sed 's/[[:space:]]*://g')
+    IFS=$'\n' read -r -d '' -a key_array < <(printf '%s\0' "$keys")
+    echo "${key_array[@]}"
+}
+
 obtain_ca_resource_locations()
 {
   CURL_RESPONSE_FILE="$(mktemp 2>/dev/null || mktemp -t getssl.XXXXXX)"
@@ -2322,6 +2510,25 @@ obtain_ca_resource_locations()
     URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
     URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
     URL_revoke=$(echo "$ca_all_loc" | grep "revokeCert" | awk -F'"' '{print $4}')
+
+    URL_profiles=""
+    # Check if we have a profiles element
+    if echo "$ca_all_loc" | grep -q '"profiles"'; then
+      meta=$(get_json_value "$ca_all_loc" "meta")
+      URL_profiles=$(get_json_value "$meta", "profiles")
+      read -r -a URL_profiles_array <<< "$(get_json_keys "$URL_profiles")"
+
+      debug "Server supports profiles"
+      debug "profile list:"
+      for key in "${URL_profiles_array[@]}"; do
+        debug "$key"
+      done
+
+      # if the profile isn't set, then use the first value in the profile array
+      if [[ -z "$PROFILE" ]]; then
+        PROFILE=${URL_profiles_array[0]}
+      fi
+    fi
 
     if [[ -n "$URL_new_reg" ]] || [[ -n "$URL_newAccount" ]]; then
       break
@@ -3374,6 +3581,7 @@ if [[ -s "$CERT_FILE" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
   existing_sanlist=$(openssl x509 -in "$CERT_FILE" -noout -text | grep "DNS:" | sed '{ s/ *DNS://g; y/,/\n/; }' | sort -u | xargs | sed 's/ /,/g')
   sorted_sanlist=$(echo "$SANLIST" | sed '{ s/subjectAltName=//; s/ *DNS://g; y/,/\n/; }' | sort -u | xargs | sed 's/ /,/g')
   debug "local cert is for domains: ${existing_sanlist}"
+  debug "existing cert is for domains: ${sorted_sanlist}"
   if [[ "$enddate" != "-" ]]; then
     enddate_s=$(date_epoc "$enddate")
     if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]] && [[ "$existing_sanlist" == "$sorted_sanlist" ]]; then
