@@ -976,6 +976,7 @@ clean_up() { # Perform pre-exit housekeeping
     fi
   fi
 }
+export -f clean_up # for use in DNS scripts
 
 copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
   cert=$1   # descriptive name, just used for display
@@ -1300,11 +1301,11 @@ debug() { # write out debug info if the debug flag has been set
     if [[ -n ${BATS_RUN_TMPDIR} ]]; then
       echo "$(date "+%b %d %T") ${FUNCNAME[1]}:${BASH_LINENO[1]}" "$@"
     else
-      echo " "
-      echo "$@"
+      echo -e "\n$@"
     fi
   fi
 }
+export -f debug # for use in DNS scripts
 
 error_exit() { # give error message on error exit
   echo -e "${PROGNAME}: ${1:-"Unknown Error"}" >&2
@@ -1314,6 +1315,7 @@ error_exit() { # give error message on error exit
   clean_up
   exit 1
 }
+export -f error_exit # for use in DNS scripts
 
 find_dns_utils() {
   HAS_NSLOOKUP=false
@@ -1373,7 +1375,7 @@ add_dns_rr() {
   # shellcheck disable=SC2018,SC2019
   lower_d=$(printf '%s' "${d#\*.}" | tr 'A-Z' 'a-z')
   debug "adding DNS RR via command: ${DNS_ADD_COMMAND} ${lower_d} ${auth_key}"
-  eval "${DNS_ADD_COMMAND}" "${lower_d}" "${auth_key}"
+  eval "PROGNAME=$PROGNAME _USE_DEBUG=$_USE_DEBUG WORKING_DIR=$WORKING_DIR ${DNS_ADD_COMMAND}" "${lower_d}" "${auth_key}"
 }
 
 del_dns_rr() {
@@ -1383,7 +1385,7 @@ del_dns_rr() {
   # shellcheck disable=SC2018,SC2019
   lower_d=$(printf '%s' "${d#\*.}" | tr 'A-Z' 'a-z')
   debug "removing DNS RR via command: ${DNS_DEL_COMMAND} ${lower_d} ${auth_key}"
-  eval "${DNS_DEL_COMMAND}" "${lower_d}" "${auth_key}"
+  eval "PROGNAME=$PROGNAME _USE_DEBUG=$_USE_DEBUG WORKING_DIR=$WORKING_DIR ${DNS_DEL_COMMAND}" "${lower_d}" "${auth_key}"
 }
 
 fulfill_challenges() {
@@ -2647,6 +2649,7 @@ requires() { # check if required function is available
     fi
   fi
 }
+export -f requires # for use in DNS scripts
 
 set_server_type() { # uses SERVER_TYPE to set REMOTE_PORT and REMOTE_EXTRA
   if [[ ${SERVER_TYPE} == "https" ]] || [[ ${SERVER_TYPE} == "webserver" ]]; then
@@ -2889,6 +2892,7 @@ traceback() { # Print function traceback
   done
   return 0
 }
+export -f traceback # for use in DNS scripts
 
 urlbase64() { # urlbase64: base64 encoded string with '+' replaced with '-' and '/' replaced with '_'
   openssl base64 -e | tr -d '\n\r' | os_esed -e 's:=*$::g' -e 'y:+/:-_:'
