@@ -5,11 +5,13 @@ on:
       - '.github/workflows/*'
     branches:
       - master
+      - add-docker-buildx-caching
   pull_request:
     paths-ignore:
       - '.github/workflows/*'
     branches:
       - master
+      - add-docker-buildx-caching
   workflow_dispatch:
   schedule:
     - cron: '15 3 5 * *'
