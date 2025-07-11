@@ -1,8 +1,6 @@
 name: Run all tests on pebble
 on:
   push:
-    paths-ignore:
-      - '.github/workflows/*'
     branches:
       - master
       - add-docker-buildx-caching
