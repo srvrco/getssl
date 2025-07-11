@@ -68,7 +68,7 @@ else
   INT=""
 fi
 
-docker buildx --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" --cache-from=type=gha --cache-to=type=gha,mode=max .
+docker buildx build --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" --cache-from=type=gha --cache-to=type=gha,mode=max .
 # shellcheck disable=SC2086
 docker run $INT\
   --env GETSSL_HOST=$ALIAS $STAGING \

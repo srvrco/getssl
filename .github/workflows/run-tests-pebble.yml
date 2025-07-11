@@ -20,10 +20,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            cache-from=type=gha
-            cache-to=type=gha,mode=max
       - name: Build the docker compose stack
         run: |
           export DOCKER_BUILDKIT=1
@@ -38,10 +34,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            cache-from=type=gha
-            cache-to=type=gha,mode=max
       - name: Build the docker compose stack
         run: |
           export DOCKER_BUILDKIT=1
@@ -56,10 +48,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            cache-from=type=gha
-            cache-to=type=gha,mode=max
       - name: Build the docker compose stack
         run: |
           export DOCKER_BUILDKIT=1
@@ -74,10 +62,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            cache-from=type=gha
-            cache-to=type=gha,mode=max
       - name: Build the docker compose stack
         run: |
           export DOCKER_BUILDKIT=1
@@ -92,10 +76,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            cache-from=type=gha
-            cache-to=type=gha,mode=max
       - name: Build the docker compose stack
         run: |
           export DOCKER_BUILDKIT=1
@@ -110,10 +90,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            cache-from=type=gha
-            cache-to=type=gha,mode=max
       - name: Build the docker compose stack
         run: |
           export DOCKER_BUILDKIT=1
@@ -128,10 +104,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            cache-from=type=gha
-            cache-to=type=gha,mode=max
       - name: Build the docker compose stack
         run: |
           export DOCKER_BUILDKIT=1
@@ -146,10 +118,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            cache-from=type=gha
-            cache-to=type=gha,mode=max
       - name: Build the docker compose stack
         run: |
           export DOCKER_BUILDKIT=1
@@ -164,10 +132,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            cache-from=type=gha
-            cache-to=type=gha,mode=max
       - name: Build the docker compose stack
         run: |
           export DOCKER_BUILDKIT=1
@@ -182,10 +146,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            cache-from=type=gha
-            cache-to=type=gha,mode=max
       - name: Build the docker compose stack
         run: |
           export DOCKER_BUILDKIT=1
@@ -200,10 +160,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            cache-from=type=gha
-            cache-to=type=gha,mode=max
       - name: Build the docker compose stack
         run: |
           export DOCKER_BUILDKIT=1
@@ -218,10 +174,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            cache-from=type=gha
-            cache-to=type=gha,mode=max
       - name: Build the docker compose stack
         run: |
           export DOCKER_BUILDKIT=1
@@ -236,10 +188,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            cache-from=type=gha
-            cache-to=type=gha,mode=max
       - name: Build the docker compose stack
         run: |
           export DOCKER_BUILDKIT=1
