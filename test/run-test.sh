@@ -68,7 +68,10 @@ else
   INT=""
 fi
 
-docker buildx build --load --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" --cache-from=type=gha --cache-to=type=gha,mode=max .
+# Check if image already exists (built by GitHub Action), otherwise build it
+if ! docker image inspect "getssl-$OS" >/dev/null 2>&1; then
+  docker buildx build --load --rm -f "test/Dockerfile-$OS" -t "getssl-$OS" --cache-from=type=gha --cache-to=type=gha,mode=max .
+fi
 # shellcheck disable=SC2086
 docker run $INT\
   --env GETSSL_HOST=$ALIAS $STAGING \

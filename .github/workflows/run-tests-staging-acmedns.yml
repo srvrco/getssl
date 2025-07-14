@@ -21,6 +21,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build test image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: test/Dockerfile-ubuntu-acmedns
+          tags: getssl-ubuntu-acmedns
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: Build the docker compose stack
         run: docker compose up -d --build
       - name: Run test suite on Ubuntu against Staging using acmedns
