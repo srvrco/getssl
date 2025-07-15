@@ -64,8 +64,8 @@ response='
     token=$(json_get "$response" "challenges" "type" $type "token")
     # when using pebble this sometimes appears to have a newline which causes problems in send_signed_request
     uri=$(echo "$uri" | tr -d '\r')
-    echo uri "$uri" >&3
-    echo token "$token" >&3
+    #echo uri "$uri" >&3
+    #echo token "$token" >&3
 
     # check the uri begins with https
     begins_with_https=0
@@ -83,8 +83,8 @@ response='
     type="dns-01"
     uri=$(json_get "$response" "challenges" "type" $type '"url"')
     token=$(json_get "$response" "challenges" "type" $type '"token"')
-    echo uri "$uri" >&3
-    echo token "$token" >&3
+    #echo uri "$uri" >&3
+    #echo token "$token" >&3
 
     # check the uri begins with https
     begins_with_https=0
