@@ -306,7 +306,7 @@ VERSION="2.49"
 # defaults
 ACCOUNT_KEY_LENGTH=4096
 ACCOUNT_KEY_TYPE="rsa"
-ACME_RESPONSE_PENDING_WAIT=2
+ACME_RESPONSE_PENDING_WAIT=5
 CA_CERT_LOCATION=""
 CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 CHALLENGE_CHECK_TYPE="http"
@@ -359,7 +359,7 @@ CHECK_PUBLIC_DNS_SERVER="true"  # Check the public DNS server as well as the aut
 DNS_ADD_COMMAND=""              # Use this command/script to add the challenge token to the DNS entries for the domain
 DNS_DEL_COMMAND=""              # Use this command/script to remove the challenge token from the DNS entries for the domain
 DNS_WAIT_COUNT=100              # How many times to wait for the DNS record to update
-DNS_WAIT=2                      # How long to wait before checking the DNS record again
+DNS_WAIT=5                      # How long to wait before checking the DNS record again
 DNS_EXTRA_WAIT=60               # How long to wait after the DNS entries are visible to us before telling the ACME server to check.
 DNS_WAIT_RETRY_ADD="false"      # Try the dns_add_command again if the DNS record hasn't updated
 
