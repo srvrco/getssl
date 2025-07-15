@@ -95,7 +95,7 @@ teardown() {
     run get_auth_dns _acme-challenge.ubuntu-getssl.ignorelist.com
 
     # Assert that we've found the primary_ns server
-    assert_output --regexp 'set primary_ns=ns[1-3]+\.afraid\.org' || echo "warn $BATS_SUITE_TEST_NUMBER $BATS_TEST_DESCRIPTION Can't find              primary DNS servers for duckdns using local DNS server" >&3
+    assert_output --regexp 'set primary_ns=ns[1-3]+\.afraid\.org' || echo "warn $BATS_SUITE_TEST_NUMBER $BATS_TEST_DESCRIPTION Can't find primary DNS servers for duckdns using local DNS server" >&3
 
     # Assert that we had to use nslookup NS
     assert_line --regexp 'Using nslookup.*-type=soa'
@@ -131,7 +131,7 @@ teardown() {
     run get_auth_dns www.duckdns.org
 
     # Assert that we've found the primary_ns server
-    assert_output --regexp 'set primary_ns=ns.*\.awsdns.*\.org' || echo "warn $BATS_SUITE_TEST_NUMBER $BATS_TEST_DESCRIPTION Can't find              authoritative DNS servers for duckdns using local DNS servers" >&3
+    assert_output --regexp 'set primary_ns=ns.*\.awsdns.*\.org' || echo "warn $BATS_SUITE_TEST_NUMBER $BATS_TEST_DESCRIPTION Can't find authoritative DNS servers for duckdns using local DNS servers" >&3
 
     # Assert that we found a CNAME
     assert_line --partial 'appears to be a CNAME'
@@ -139,10 +139,10 @@ teardown() {
     # Check all Authoritive DNS servers are returned if requested
     CHECK_ALL_AUTH_DNS=true
     run get_auth_dns www.duckdns.org
-    assert_output --regexp 'set primary_ns=(ns.*\.awsdns.*\.org )+' || echo "warn $BATS_SUITE_TEST_NUMBER $BATS_TEST_DESCRIPTION Can't find              authoritative DNS servers for duckdns using local DNS servers" >&3
+    assert_output --regexp 'set primary_ns=(ns.*\.awsdns.*\.org )+' || echo "warn $BATS_SUITE_TEST_NUMBER $BATS_TEST_DESCRIPTION Can't find authoritative DNS servers for duckdns using local DNS servers" >&3
 
     # Check that we also check the public DNS server if requested
     CHECK_PUBLIC_DNS_SERVER=true
     run get_auth_dns www.duckdns.org
-    assert_output --regexp 'set primary_ns=(ns.*\.awsdns.* )+ 1\.0\.0\.1' || echo "warn $BATS_SUITE_TEST_NUMBER $BATS_TEST_DESCRIPTION Can't find   authoritative servers for duckdns using Public DNS server" >&3
+    assert_output --regexp 'set primary_ns=(ns.*\.awsdns.* )+ 1\.0\.0\.1' || echo "warn $BATS_SUITE_TEST_NUMBER $BATS_TEST_DESCRIPTION Can't find authoritative servers for duckdns using Public DNS server" >&3
 }
