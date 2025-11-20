@@ -166,7 +166,7 @@ GETSSL_CMD_HOST=$GETSSL_HOST
 export GETSSL_CMD_HOST
 
 if [ -z "$STAGING" ] && [ ! -f ${INSTALL_DIR}/pebble.minica.pem ]; then
-  wget --quiet --no-clobber https://raw.githubusercontent.com/letsencrypt/pebble/master/test/certs/pebble.minica.pem 2>&1
+  wget --quiet --no-clobber https://raw.githubusercontent.com/letsencrypt/pebble/main/test/certs/pebble.minica.pem 2>&1
   CERT_FILE=/etc/ssl/certs/ca-certificates.crt
   if [ ! -f $CERT_FILE ]; then
     CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt
