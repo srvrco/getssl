@@ -1,27 +1,25 @@
 #! /usr/bin/env bash
 
+set -e
+
 function add-dynu-domain() {
   domain=$1
-  curl --fail -X POST "https://api.dynu.com/v2/dns" \
+  curl --silent --fail-with-body -X POST "https://api.dynu.com/v2/dns" \
   -H "accept: application/json" \
   -H "API-Key: $DYNU_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "'"${domain}"'",
-    "group": "",
     "ipv4Address": "1.2.3.4",
-    "ipv6Address": "",
-    "ttl": 30,
+    "ttl": 60,
     "ipv4": true,
-    "ipv6": false,
-    "ipv4WildcardAlias": false,
-    "ipv6WildcardAlias": false
+    "ipv6": false
   }'
 }
 
 function get-dynu-domain-id() {
   domain=$1
-  curl --fail -s -X GET "https://api.dynu.com/v2/dns" \
+  curl --silent --fail-with-body -X GET "https://api.dynu.com/v2/dns" \
   -H "accept: application/json" \
   -H "API-Key: $DYNU_API_KEY" | \
   jq -r ".domains[] | select(.name == \"${domain}\") | .id"
@@ -33,7 +31,7 @@ function remove-dynu-domain() {
   domain_id=$(get-dynu-domain-id "$domain")
   echo "Found id for dynu domain: $domain = $domain_id"
   if [ -n "$domain_id" ] && [ "$domain_id" != "null" ]; then
-    curl --fail -X DELETE "https://api.dynu.com/v2/dns/${domain_id}" \
+    curl --silent --fail-with-body -X DELETE "https://api.dynu.com/v2/dns/${domain_id}" \
     -H "accept: application/json" \
     -H "API-Key: $DYNU_API_KEY"
     echo "Domain $domain removed successfully"
@@ -49,7 +47,7 @@ function add-dynu-cname() {
   echo "Creating CNAME record: ${subdomain}.${domain} -> ${target}"
   domain_id=$(get-dynu-domain-id "$domain")
   if [ -n "$domain_id" ] && [ "$domain_id" != "null" ]; then
-   curl --fail -X POST "https://api.dynu.com/v2/dns/${domain_id}/record" \
+   curl --silent --fail-with-body -X POST "https://api.dynu.com/v2/dns/${domain_id}/record" \
     -H "accept: application/json" \
     -H "API-Key: $DYNU_API_KEY" \
     -H "Content-Type: application/json" \
@@ -59,7 +57,6 @@ function add-dynu-cname() {
       "state": true,
       "host": "'"${target}"'"
     }'
-    echo "CNAME record created successfully"
   else
     echo "Error: Domain $domain not found"
     return 1
