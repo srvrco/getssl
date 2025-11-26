@@ -32,7 +32,8 @@ EOF
     check_output_for_errors
 
     if [ -n "$STAGING" ]; then
-        PREFERRED_CHAIN="(STAGING) Doctored Durian Root CA X3"
+        # https://letsencrypt.org/docs/staging-environment/
+        PREFERRED_CHAIN="(STAGING) Pretend Pear X1"
     else
         # pebble doesn't support CA Issuers so the fullchain.crt will just contain the certificate (code path means it won't contain the intermediate cert in this case)
         # This is testing that requesting FULL_CHAIN_INCLUDE_ROOT doesn't fail if there is no CA Issuers in the certificate
@@ -76,7 +77,7 @@ EOF
     assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.ec.crt" ]
 
     if [ -n "$STAGING" ]; then
-        PREFERRED_CHAIN="(STAGING) Doctored Durian Root CA X3"
+        PREFERRED_CHAIN="(STAGING) Pretend Pear X1"
     else
         # pebble doesn't support CA Issuers so the fullchain.crt will just contain the certificate (code path means it won't contain the intermediate cert in this case)
         # This is testing that requesting FULL_CHAIN_INCLUDE_ROOT doesn't fail if there is no CA Issuers in the certificate
