@@ -24,7 +24,7 @@ function get-dynu-domain-id() {
   curl -s -X GET "https://api.dynu.com/v2/dns" \
   -H "accept: application/json" \
   -H "API-Key: $DYNU_API_KEY" | \
-  jq -r ".domains[] | select(.name | contains(\"${domain}\")) | .id"
+  jq -r ".domains[] | select(.name == \"${domain}\") | .id"
 }
 
 function remove-dynu-domain() {
@@ -42,14 +42,41 @@ function remove-dynu-domain() {
   fi
 }
 
-# Cleanup function to remove dynu domains on exit
-cleanup() {
-  if [[ "$OS" == *"dynu"* ]] && [ -n "$DYNU_API_KEY" ]; then
-    echo "Cleaning up dynu domains..."
-    remove-dynu-domain "wild-$ALIAS"
-    remove-dynu-domain "$ALIAS"
+function add-dynu-cname() {
+  subdomain=$1
+  domain=$2
+  target=$3
+  echo "Creating CNAME record: ${subdomain}.${domain} -> ${target}"
+  domain_id=$(get-dynu-domain-id "$domain")
+  if [ -n "$domain_id" ] && [ "$domain_id" != "null" ]; then
+   curl -X POST "https://api.dynu.com/v2/dns/${domain_id}/record" \
+    -H "accept: application/json" \
+    -H "API-Key: $DYNU_API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "nodeName": "'"${subdomain}"'",
+      "recordType": "CNAME",
+      "state": true,
+      "host": "'"${target}"'"
+    }'
+    echo "CNAME record created successfully"
+  else
+    echo "Error: Domain $domain not found"
+    return 1
   fi
 }
+
+# Cleanup function to remove dynu domains on exit
+cleanup() {
+  if [[ ("$OS" == *"dynu"* || "$OS" == *"acmedns"*)]] && [ -n "$DYNU_API_KEY" ]; then
+    echo "Cleaning up domains..."
+    remove-dynu-domain "$ALIAS"
+    remove-dynu-domain "wild-$ALIAS"
+  fi
+}
+
+# Set up trap to run cleanup on exit
+trap cleanup EXIT
 
 if [ $# -eq 0 ]; then
   echo "Usage: $(basename "$0") <os> [<command>]"
@@ -116,6 +143,14 @@ elif [[ "$OS" == *"acmedns"* ]]; then
   ALIAS="${REPO}${OS}-getssl.freeddns.org"
   STAGING="--env STAGING=true --env dynamic_dns=acmedns"
   GETSSL_OS="${OS%-acmedns}"
+  if [ -n "$DYNU_API_KEY" ]; then
+    echo "Creating Dynu domains for $OS..."
+    add-dynu-domain "$ALIAS"
+    add-dynu-domain "wild-$ALIAS"
+    add-dynu-cname "_acme-challenge" "$ALIAS" "${ACMEDNS_SUBDOMAIN}.auth.acme-dns.io"
+  else
+    echo "Warning: DYNU_API_KEY not set, skipping domain creation"
+  fi
 elif [[ "$OS" == "bash"* ]]; then
   GETSSL_OS="alpine"
 fi
@@ -135,6 +170,9 @@ docker run $INT\
   --env GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
   --env DUCKDNS_TOKEN="${DUCKDNS_TOKEN}" \
   --env DYNU_API_KEY="${DYNU_API_KEY}" \
+  --env ACMEDNS_API_KEY="${ACMEDNS_API_KEY}" \
+  --env ACMEDNS_API_USER="${ACMEDNS_API_USER}" \
+  --env ACMEDNS_SUBDOMAIN="${ACMEDNS_SUBDOMAIN}" \
   -v "$(pwd)":/getssl \
   --rm \
   --network ${PWD##*/}_acmenet \
@@ -156,5 +194,3 @@ docker run $INT\
   "getssl-$OS" \
   $COMMAND
 
-# Run cleanup function to delete Dynu domains (otherwise get misused)
-cleanup

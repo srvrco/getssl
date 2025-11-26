@@ -24,6 +24,11 @@ For dynu.com:
 - Add DYNU_API_KEY to your repository's environment secrets.  The value is your account's API Key.
 - Add domains \<reponame>-centos7-getssl.freedns.org, wild-\<reponame>-centos7.freedns.org, \<reponame>-ubuntu-getssl.freedns.org, and wild-\<reponame>-ubuntu-getssl.freedns.org
 
+For ACME DNS (also needs Dynu)
+
+- Register to get a user, key and subdomain from acme-dns.io (see https://github.com/joohoi/acme-dns?tab=readme-ov-file)
+- Create a CNAME _acme-challenge.ubuntu-acmedns-getssl.freeddns.org. to ${ACMEDNS_SUBDOMAIN}.auth.acme-dns.io (this is done automatically in run-test.sh)
+
 To run dynamic DNS tests outside the CI environment, you need accounts without \<reponame> in the domain names.  Export the environment variable corresponding to the secrets (with the same values).
 
 For individual accounts, \<reponame> is your github account name.
