@@ -2,7 +2,7 @@
 
 function add-dynu-domain() {
   domain=$1
-  curl -X POST "https://api.dynu.com/v2/dns" \
+  curl --fail -X POST "https://api.dynu.com/v2/dns" \
   -H "accept: application/json" \
   -H "API-Key: $DYNU_API_KEY" \
   -H "Content-Type: application/json" \
@@ -21,7 +21,7 @@ function add-dynu-domain() {
 
 function get-dynu-domain-id() {
   domain=$1
-  curl -s -X GET "https://api.dynu.com/v2/dns" \
+  curl --fail -s -X GET "https://api.dynu.com/v2/dns" \
   -H "accept: application/json" \
   -H "API-Key: $DYNU_API_KEY" | \
   jq -r ".domains[] | select(.name == \"${domain}\") | .id"
@@ -33,7 +33,7 @@ function remove-dynu-domain() {
   domain_id=$(get-dynu-domain-id "$domain")
   echo "Found id for dynu domain: $domain = $domain_id"
   if [ -n "$domain_id" ] && [ "$domain_id" != "null" ]; then
-    curl -X DELETE "https://api.dynu.com/v2/dns/${domain_id}" \
+    curl --fail -X DELETE "https://api.dynu.com/v2/dns/${domain_id}" \
     -H "accept: application/json" \
     -H "API-Key: $DYNU_API_KEY"
     echo "Domain $domain removed successfully"
@@ -49,7 +49,7 @@ function add-dynu-cname() {
   echo "Creating CNAME record: ${subdomain}.${domain} -> ${target}"
   domain_id=$(get-dynu-domain-id "$domain")
   if [ -n "$domain_id" ] && [ "$domain_id" != "null" ]; then
-   curl -X POST "https://api.dynu.com/v2/dns/${domain_id}/record" \
+   curl --fail -X POST "https://api.dynu.com/v2/dns/${domain_id}/record" \
     -H "accept: application/json" \
     -H "API-Key: $DYNU_API_KEY" \
     -H "Content-Type: application/json" \
@@ -148,6 +148,7 @@ elif [[ "$OS" == *"acmedns"* ]]; then
     add-dynu-domain "$ALIAS"
     add-dynu-domain "wild-$ALIAS"
     add-dynu-cname "_acme-challenge" "$ALIAS" "${ACMEDNS_SUBDOMAIN}.auth.acme-dns.io"
+    add-dynu-cname "_acme-challenge" "wild-$ALIAS" "${ACMEDNS_SUBDOMAIN}.auth.acme-dns.io"
   else
     echo "Warning: DYNU_API_KEY not set, skipping domain creation"
   fi
