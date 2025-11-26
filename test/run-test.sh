@@ -1,5 +1,56 @@
 #! /usr/bin/env bash
 
+function add-dynu-domain() {
+  domain=$1
+  curl -X POST "https://api.dynu.com/v2/dns" \
+  -H "accept: application/json" \
+  -H "API-Key: $DYNU_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "'"${domain}"'",
+    "group": "",
+    "ipv4Address": "1.2.3.4",
+    "ipv6Address": "",
+    "ttl": 30,
+    "ipv4": true,
+    "ipv6": false,
+    "ipv4WildcardAlias": false,
+    "ipv6WildcardAlias": false
+  }'
+}
+
+function get-dynu-domain-id() {
+  domain=$1
+  curl -s -X GET "https://api.dynu.com/v2/dns" \
+  -H "accept: application/json" \
+  -H "API-Key: $DYNU_API_KEY" | \
+  jq -r ".domains[] | select(.name | contains(\"${domain}\")) | .id"
+}
+
+function remove-dynu-domain() {
+  domain=$1
+  echo "Removing dynu domain: $domain"
+  domain_id=$(get-dynu-domain-id "$domain")
+  echo "Found id for dynu domain: $domain = $domain_id"
+  if [ -n "$domain_id" ] && [ "$domain_id" != "null" ]; then
+    curl -X DELETE "https://api.dynu.com/v2/dns/${domain_id}" \
+    -H "accept: application/json" \
+    -H "API-Key: $DYNU_API_KEY"
+    echo "Domain $domain removed successfully"
+  else
+    echo "Domain $domain not found or already removed"
+  fi
+}
+
+# Cleanup function to remove dynu domains on exit
+cleanup() {
+  if [[ "$OS" == *"dynu"* ]] && [ -n "$DYNU_API_KEY" ]; then
+    echo "Cleaning up dynu domains..."
+    remove-dynu-domain "wild-$ALIAS"
+    remove-dynu-domain "$ALIAS"
+  fi
+}
+
 if [ $# -eq 0 ]; then
   echo "Usage: $(basename "$0") <os> [<command>]"
   echo "e.g. $(basename "$0") alpine bats /getssl/test"
@@ -54,6 +105,13 @@ elif [[ "$OS" == *"dynu"* ]]; then
   ALIAS="${REPO}${OS%-dynu}-getssl.freeddns.org"
   STAGING="--env STAGING=true --env dynamic_dns=dynu"
   GETSSL_OS="${OS%-dynu}"
+  if [ -n "$DYNU_API_KEY" ]; then
+    echo "Creating Dynu domains for $OS..."
+    add-dynu-domain "$ALIAS"
+    add-dynu-domain "wild-$ALIAS"
+  else
+    echo "Warning: DYNU_API_KEY not set, skipping domain creation"
+  fi
 elif [[ "$OS" == *"acmedns"* ]]; then
   ALIAS="${REPO}${OS}-getssl.freeddns.org"
   STAGING="--env STAGING=true --env dynamic_dns=acmedns"
@@ -97,3 +155,6 @@ docker run $INT\
   --name "getssl-$OS" \
   "getssl-$OS" \
   $COMMAND
+
+# Run cleanup function to delete Dynu domains (otherwise get misused)
+cleanup
