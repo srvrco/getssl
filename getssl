@@ -294,6 +294,7 @@
 # 2024-10-16 Add newlines to /directory response (#765)(#859)
 # 2025-06-18 Support profiles
 # 2025-12-02 Fix cPanel support for API zone record updates and wildcard domain support
+# 2025-07-28 Accept lowercase replay-nonce headers (#884)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -2722,9 +2723,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   # get nonce from ACME server
   if [[ $API -eq 1 ]]; then
     nonceurl="$CA/directory"
-    nonce=$($CURL -I "$nonceurl" | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
+    nonce=$($CURL -I "$nonceurl" | grep -i "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
   else # APIv2
-    nonce=$($CURL -I "$URL_newNonce" | grep "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
+    nonce=$($CURL -I "$URL_newNonce" | grep -i "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
   fi
 
   nonceproblem="true"
