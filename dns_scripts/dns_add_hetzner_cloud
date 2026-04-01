@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+fulldomain="${1}"
+token="${2}"
+api_url="https://api.hetzner.cloud/v1"
+api_key=${HETZNER_KEY:-''}
+zone_id=${HETZNER_ZONE_ID:-''}
+zone_name=${HETZNER_ZONE_NAME:-''}
+
+# Verify that required parameters are set
+if [[ -z "$fulldomain" ]]; then
+  echo "DNS script requires full domain name as first parameter"
+  exit 1
+fi
+if [[ -z "$token" ]]; then
+  echo "DNS script requires challenge token as second parameter"
+  exit 1
+fi
+if [[ -z "$HETZNER_KEY" ]]; then
+  echo "HETZNER_KEY variable not set"
+  exit 1
+fi
+if [[ -z "$HETZNER_ZONE_ID" && -z "$HETZNER_ZONE_NAME" ]] ; then
+  echo "HETZNER_ZONE_ID and HETZNER_ZONE_NAME variables not set"
+  exit 1
+fi
+
+# Get Zone ID if not set
+if [[ -z "$HETZNER_ZONE_ID" ]] ; then
+  zone_id=$(curl --silent -X GET "$api_url/zones?name=$zone_name" -H 'Authorization: Bearer '"$api_key"'' | jq -r '.zones[0].id')
+  if [[ "$zone_id" == "null" ]] ; then
+    echo "Zone ID not found"
+    exit 1
+  fi
+fi
+
+relative=$(echo "$fulldomain" | awk -F. 'NF>2 {for(i=1;i<=NF-2;i++) printf "%s%s", $i, (i==NF-2?"":".")}')
+txtname="_acme-challenge.${relative}"
+
+payload=$(jq -n \
+  --arg token "$token" \
+  '{
+    ttl: 60,
+    records: [
+      { value: ("\"" + $token + "\"") }
+    ]
+  }')
+
+# Create TXT record
+response=$(curl -s -o /dev/null -w '%{http_code}' \
+  -X POST "$api_url/zones/$zone_id/rrsets/$txtname/TXT/actions/add_records" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $api_key" \
+  -d "$payload")
+
+if [[ "$response" != "201" ]] ; then
+  echo "Record not created"
+  echo "Response code: $response"
+  exit 1
+fi
