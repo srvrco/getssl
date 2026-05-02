@@ -34,8 +34,17 @@ if [[ -z "$HETZNER_ZONE_ID" ]] ; then
   fi
 fi
 
-relative=$(echo "$fulldomain" | awk -F. 'NF>2 {for(i=1;i<=NF-2;i++) printf "%s%s", $i, (i==NF-2?"":".")}')
-txtname="_acme-challenge.${relative}"
+# Get Zone name if not set
+if [[ -z "$zone_name" ]] ; then
+  zone_name=$(curl --silent -X GET "$api_url/zones/$zone_id" -H 'Authorization: Bearer '"$api_key"'' | jq -r '.zone.name')
+  if [[ "$zone_name" == "null" ]] ; then
+    echo "Zone name not found"
+    exit 1
+  fi
+fi
+
+txtname="_acme-challenge.$fulldomain"
+txtname="${txtname%."$zone_name"}"
 
 # Delete TXT record
 payload=$(jq -n \
