@@ -9,6 +9,7 @@ CA="https://api.test4.buypass.no/acme"
 
 # This is run for every test
 setup() {
+    skip "buypass.no has stopped selling SSL certificates"
     [ ! -f $BATS_RUN_TMPDIR/failed.skip ] || skip "skipping tests after first failure"
 
     . /getssl/getssl --source
