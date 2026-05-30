@@ -979,6 +979,16 @@ clean_up() { # Perform pre-exit housekeeping
   fi
 }
 
+validate_token() { # validate token per RFC 8555 §8.3: base64url alphabet, max 255 chars
+  local token="$1"
+  if [[ ${#token} -gt 255 ]]; then
+    error_exit "Invalid token: exceeds 255 character maximum (RFC 8555)"
+  fi
+  if [[ ! "$token" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    error_exit "Invalid token: contains characters outside base64url alphabet (RFC 8555)"
+  fi
+}
+
 copy_file_to_location() { # copies a file, using scp, sftp or ftp if required.
   cert=$1   # descriptive name, just used for display
   from=$2   # current file location
@@ -1426,12 +1436,14 @@ for d in "${alldomains[@]}"; do
         # get the dns component of the ACME response
         # get the token and uri from the dns component
         token=$(json_get "$response" "token" "dns-01")
+        validate_token "$token"
         uri=$(json_get "$response" "uri" "dns-01")
         debug uri "$uri"
       else # APIv2
         debug "authlink response = ${response//[$'\t\r\n']}"
         # get the token and uri from the dns-01 component
         token=$(json_get "$response" "challenges" "type" "dns-01" '"token"')
+        validate_token "$token"
         uri=$(json_get "$response" "challenges" "type" "dns-01" '"url"')
         debug uri "$uri"
       fi
@@ -1487,6 +1499,7 @@ for d in "${alldomains[@]}"; do
       if [[ $API -eq 1 ]]; then
         # get the token from the http component
         token=$(json_get "$response" "token" "http-01")
+        validate_token "$token"
         # get the uri from the http component
         uri=$(json_get "$response" "uri" "http-01")
         debug uri "$uri"
@@ -1494,6 +1507,7 @@ for d in "${alldomains[@]}"; do
         debug "authlink response = ${response//[$'\t\r\n']}"
         # get the token from the http-01 component
         token=$(json_get "$response" "challenges" "type" "http-01" '"token"')
+        validate_token "$token"
         # get the uri from the http component
         uri=$(json_get "$response" "challenges" "type" "http-01" '"url"' | head -n1)
         debug uri "$uri"
@@ -1501,6 +1515,9 @@ for d in "${alldomains[@]}"; do
 
       #create signed authorization key from token.
       keyauthorization="$token.$thumbprint"
+
+      # defense-in-depth: strip path traversal components from token
+      token=$(basename "$token")
 
       # save variable into temporary file
       echo -n "$keyauthorization" > "$TEMP_DIR/$token"
