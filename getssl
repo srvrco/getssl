@@ -1517,7 +1517,7 @@ for d in "${alldomains[@]}"; do
       keyauthorization="$token.$thumbprint"
 
       # defense-in-depth: strip path traversal components from token
-      token=$(basename "$token")
+      token=$(basename -- "$token")
 
       # save variable into temporary file
       echo -n "$keyauthorization" > "$TEMP_DIR/$token"
