@@ -290,6 +290,7 @@
 # 2023-02-04 Create newline to ensure [SAN] section can be parsed (#792)(MRigal)
 # 2023-02-22 Remove cronie from deb package dependencies (2.48)
 # 2024-03-18 Refresh the TXT record if a CNAME is found (JoergBruce #828) (2.49)
+# 2024-03-26 - 2025-07-28 Multiple improvements: DNS script additions for Google Cloud, PowerDNS, Hetzner, INWX, Route 53 bash implementation, profiles support, lowercase replay-nonce headers, RFC 8555 validation and security improvements, test stability improvements, basename dash fix, and processing debug messages (2.50)
 # 2024-03-26 Test for "true" in wildcard property of authorization responses
 # 2024-10-16 Add newlines to /directory response (#765)(#859)
 # 2025-06-18 Support profiles
@@ -302,7 +303,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.49"
+VERSION="2.50"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
