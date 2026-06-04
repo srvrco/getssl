@@ -99,6 +99,35 @@ create_certificate() {
   run ${CODE_DIR}/getssl -U -d "$@" "$GETSSL_CMD_HOST"
 }
 
+configure_pebble_ari_window() {
+  local mode cert_file ari_start ari_end ari_response cert_pem payload
+  mode="$1"
+  cert_file="$2"
+  case "$mode" in
+    future)
+      ari_start="2999-01-01T00:00:00Z"
+      ari_end="2999-01-02T00:00:00Z"
+      ;;
+    open)
+      ari_start="2000-01-01T00:00:00Z"
+      ari_end="2000-01-02T00:00:00Z"
+      ;;
+    *)
+      echo "Unknown ARI mode: $mode" >&2
+      return 1
+      ;;
+  esac
+
+  ari_response=$(printf '{"suggestedWindow":{"start":"%s","end":"%s"}}' "$ari_start" "$ari_end")
+  cert_pem=$(cat "$cert_file")
+  payload=$(jq -n --arg cert "$cert_pem" --arg ari "$ari_response" '{Certificate:$cert,ARIResponse:$ari}')
+
+  curl --silent --show-error --fail \
+    -H "Content-Type: application/json" \
+    -d "$payload" \
+    https://pebble:15000/set-renewal-info/ >/dev/null
+}
+
 init_getssl() {
   # Run initialisation (create account key, etc)
   run ${CODE_DIR}/getssl -U -d -c "$GETSSL_CMD_HOST"
