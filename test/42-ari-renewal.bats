@@ -33,7 +33,7 @@ setup_file() {
     check_output_for_errors
 
     CERT=${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt
-    ORIGINAL_SERIAL=$(openssl x509 -in "$CERT" -noout -serial 2>/dev/null)
+    ORIGINAL_SERIAL=$(openssl x509 -in "$CERT" -noout -serial)
 
     configure_pebble_ari_window future "$CERT"
     run "${CODE_DIR}/getssl" -U -d "$GETSSL_CMD_HOST"
@@ -42,7 +42,7 @@ setup_file() {
     assert_line --partial 'certificate has not yet reached ARI renewal window'
     check_output_for_errors
 
-    UPDATED_SERIAL=$(openssl x509 -in "$CERT" -noout -serial 2>/dev/null)
+    UPDATED_SERIAL=$(openssl x509 -in "$CERT" -noout -serial)
     [[ "$ORIGINAL_SERIAL" = "$UPDATED_SERIAL" ]]
 }
 
@@ -57,7 +57,7 @@ setup_file() {
     check_output_for_errors
 
     CERT=${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt
-    ORIGINAL_SERIAL=$(openssl x509 -in "$CERT" -noout -serial 2>/dev/null)
+    ORIGINAL_SERIAL=$(openssl x509 -in "$CERT" -noout -serial)
 
     configure_pebble_ari_window open "$CERT"
     run "${CODE_DIR}/getssl" -U -d "$GETSSL_CMD_HOST"
@@ -67,6 +67,6 @@ setup_file() {
     assert_line --regexp '"replaces":[[:space:]]*"[^"]+"'
     check_output_for_errors
 
-    UPDATED_SERIAL=$(openssl x509 -in "$CERT" -noout -serial 2>/dev/null)
+    UPDATED_SERIAL=$(openssl x509 -in "$CERT" -noout -serial)
     [[ "$ORIGINAL_SERIAL" != "$UPDATED_SERIAL" ]]
 }

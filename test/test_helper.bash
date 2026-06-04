@@ -105,12 +105,12 @@ configure_pebble_ari_window() {
   cert_file="$2"
   case "$mode" in
     future)
-      ari_start="2999-01-01T00:00:00Z"
-      ari_end="2999-01-02T00:00:00Z"
+      ari_start=$(date -u -d "+2 days" "+%Y-%m-%dT%H:%M:%SZ")
+      ari_end=$(date -u -d "+3 days" "+%Y-%m-%dT%H:%M:%SZ")
       ;;
     open)
-      ari_start="2000-01-01T00:00:00Z"
-      ari_end="2000-01-02T00:00:00Z"
+      ari_start=$(date -u -d "-2 days" "+%Y-%m-%dT%H:%M:%SZ")
+      ari_end=$(date -u -d "+1 day" "+%Y-%m-%dT%H:%M:%SZ")
       ;;
     *)
       echo "Unknown ARI mode: $mode" >&2
@@ -125,7 +125,7 @@ configure_pebble_ari_window() {
   curl --silent --show-error --fail \
     -H "Content-Type: application/json" \
     -d "$payload" \
-    https://pebble:15000/set-renewal-info/ >/dev/null
+    https://pebble:15000/set-renewal-info/
 }
 
 init_getssl() {
