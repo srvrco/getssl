@@ -115,18 +115,18 @@ For example, the release v2.49 contains the following packages in the release se
 
 ### **RPM Based Packages (RedHat, CentOS, SuSe, Oracle Linux, AWS Linux)**
 
-- [getssl-2.49-1.src.rpm](https://github.com/srvrco/getssl/releases/download/2.49/getssl-2.49-1.src.rpm) (source)
-- [getssl-2.49-1.noarch.rpm](https://github.com/srvrco/getssl/releases/download/2.49/getssl-2.49-1.noarch.rpm) (binary)
+- [getssl-2.50-1.src.rpm](https://github.com/srvrco/getssl/releases/download/2.50/getssl-2.50-1.src.rpm) (source)
+- [getssl-2.50-1.noarch.rpm](https://github.com/srvrco/getssl/releases/download/2.50/getssl-2.50-1.noarch.rpm) (binary)
 
 ### **Debian Based Packages (Debian, Ubuntu)**
 
-- [getssl_2.49-1_all.deb](https://github.com/srvrco/getssl/releases/download/v2.49/getssl_2.49-1_all.deb) (binary)
+- [getssl_2.50-1_all.deb](https://github.com/srvrco/getssl/releases/download/v2.50/getssl_2.50-1_all.deb) (binary)
 
 ### **Installing Binary Packages**
 
 To install the binary package with the rpm package manager for RedHat, CentOS, SuSe, Oracle Linux, or AWS Linux distributions:
 ```sh
-rpm -i getssl-2.49-1.noarch.rpm
+rpm -i getssl-2.50-1.noarch.rpm
 ```
 
 To deinstall the RPM binary package:
@@ -136,7 +136,7 @@ rpm -e getssl
 
 To install the binary package with the Debian dpkg package manager for Debian and Ubuntu Linux distributions:
 ```sh
-dpkg -i getssl_2.49-1_all.deb
+dpkg -i getssl_2.50-1_all.deb
 ```
 
 To deinstall the Debian dpkg binary package:
