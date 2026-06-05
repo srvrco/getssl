@@ -1283,16 +1283,26 @@ renew_ari() { # Return "1" if ARI says we should renew
   # of the authority key identifier and serial number
 
   aki=$(openssl x509 -noout -text -in "$CERT_FILE" 2>/dev/null |
-        grep "Authority Key Identifier" -A1 | \
-	grep -E '^[A-Fa-f0-9: 	]+$' | \
-	tr -d ':' | \
-	hex2bin | \
-	urlbase64)
+    grep "Authority Key Identifier" -A1 | \
+    sed 's/^.*keyid://' | \
+    grep -E '^[A-Fa-f0-9: 	]+$' | \
+    tr -d ':' | \
+    hex2bin | \
+    urlbase64)
 
+  # Extract the hex serial number from openssl output. OpenSSL 3.x puts it
+  # on the same line as "Serial Number:" (as "(0xHEX)"), while older
+  # versions put colon-separated hex on the following line.
   serial=$(openssl x509 -noout -text -in "$CERT_FILE" 2>/dev/null | \
-	   grep "Serial Number" -A1 | \
-	   grep -E '^[A-Fa-f0-9:   ]+$' | \
-	   tr -d ': 	')
+     grep "Serial Number" | \
+     grep -oiE '0x[0-9a-f]+' | \
+     cut -dx -f2)
+  if [[ -z "$serial" ]]; then
+    serial=$(openssl x509 -noout -text -in "$CERT_FILE" 2>/dev/null | \
+      grep "Serial Number" -A1 | \
+      grep -E '^[A-Fa-f0-9:   ]+$' | \
+      tr -d ': 	')
+  fi
 
   # If the high bit is set then we need to prepend an extra byte so
   # the DER encoding is positive
@@ -1320,7 +1330,7 @@ renew_ari() { # Return "1" if ARI says we should renew
   debug "Renewal window starts at $_ARI_STARTTIME"
 
   if [[ "$(date +%s)" -gt $(date_rfc3339 "$_ARI_STARTTIME") ]]; then
-    debug "Within ARI rewewal window, using ARI"
+    debug "Within ARI renewal window, using ARI"
     _REPLACES="${aki}.${serialb64}"
     return 0
   fi
@@ -1343,7 +1353,9 @@ date_rfc3339() { # convert rfc3339 format date into epoch time
   elif [[ "$os" == "mac" ]]; then
     date -j -f "%Y-%m-%dT%H:%M:%S%z" "$convdate" +%s
   elif [[ "$os" == "busybox" ]]; then
-    date -D "%Y-%m-%dT%H:%M:%S%z" -d "$convdate" +%s
+    # busybox doesn't support timezones in the input format
+    convdate=$(printf "%s\n" "$convdate" | sed 's/[+-][0-9]\{4\}$//')
+    date -D "%Y-%m-%dT%H:%M:%S" -d "$convdate" +%s
   else
     date -d "$convdate" +%s
   fi
@@ -1360,7 +1372,6 @@ date_epoc() { # convert the date into epoch time
   else
     date -d "$1" +%s
   fi
-
 }
 
 date_fmt() { # format date from epoc time to YYYY-MM-DD
@@ -3678,10 +3689,10 @@ if [[ -s "$CERT_FILE" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
     if [[ -n "$URL_renewInfo" ]] && [[ "true" == "$ARI_ENABLE" ]]; then
       if renew_ari "$enddate_s"; then
         debug "Renewing via ARI"
-	ari=1
+        ari=1
       else
         debug "ARI is supported, but not reached start of window"
-	ari=0
+        ari=0
       fi
     else
       ari=-1
@@ -3693,9 +3704,9 @@ if [[ -s "$CERT_FILE" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
       else
         if [[ $ari -eq -1 ]]; then
           info "${DOMAIN}: certificate is valid for more than $RENEW_ALLOW days (until $enddate)"
-	else
-	  info "${DOMAIN}: certificate has not yet reached ARI renewal window (window starts at $_ARI_STARTTIME)"
-	fi
+        else
+          info "${DOMAIN}: certificate has not yet reached ARI renewal window (window starts at $_ARI_STARTTIME)"
+	      fi
         # everything is OK, so exit, if requested with the --notify-valid, exit with code 2
         graceful_exit $_NOTIFY_VALID
       fi
@@ -3758,21 +3769,21 @@ info "Registering account"
 # send the request to the ACME server.
 if [[ $API -eq 1 ]]; then
   if [[ "$ACCOUNT_EMAIL" ]] ; then
-  	regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
+    regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
   else
-  	regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
+    regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
   fi
   send_signed_request "$URL_new_reg"  "$regjson"
 elif [[ $API -eq 2 ]]; then
   if [[ "$ACCOUNT_EMAIL" ]] ; then
-  	regjson='{"termsOfServiceAgreed": true, "contact": ["mailto: '$ACCOUNT_EMAIL'"]}'
+    regjson='{"termsOfServiceAgreed": true, "contact": ["mailto: '$ACCOUNT_EMAIL'"]}'
   else
-  	regjson='{"termsOfServiceAgreed": true}'
+    regjson='{"termsOfServiceAgreed": true}'
   fi
   send_signed_request "$URL_newAccount"  "$regjson"
 else
-	debug "cant determine account API"
-	graceful_exit
+  debug "cant determine account API"
+  graceful_exit
 fi
 
 if [[ "$code" == "" ]] || [[ "$code" == '201' ]] ; then

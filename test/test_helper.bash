@@ -99,6 +99,37 @@ create_certificate() {
   run ${CODE_DIR}/getssl -U -d "$@" "$GETSSL_CMD_HOST"
 }
 
+configure_pebble_ari_window() {
+  local mode cert_file ari_start ari_end ari_response cert_pem payload
+  mode="$1"
+  cert_file="$2"
+  # Note funky date logic to workaround alpine busybox date not supporting "+2 days"
+  # https://stackoverflow.com/questions/72864376/get-the-date-three-days-from-today-with-busybox-date
+  case "$mode" in
+    future)
+      ari_start=$(date -u -d "@$(( $(date +%s) + 2 * 24 * 60 * 60 ))" "+%Y-%m-%dT%H:%M:%SZ")
+      ari_end=$(date -u -d "@$(( $(date +%s) + 3 * 24 * 60 * 60 ))" "+%Y-%m-%dT%H:%M:%SZ")
+      ;;
+    open)
+      ari_start=$(date -u -d "@$(( $(date +%s) - 2 * 24 * 60 * 60 ))" "+%Y-%m-%dT%H:%M:%SZ")
+      ari_end=$(date -u -d "@$(( $(date +%s) + 1 * 24 * 60 * 60 ))" "+%Y-%m-%dT%H:%M:%SZ")
+      ;;
+    *)
+      echo "Unknown ARI mode: $mode" >&2
+      return 1
+      ;;
+  esac
+
+  ari_response=$(printf '{"suggestedWindow":{"start":"%s","end":"%s"}}' "$ari_start" "$ari_end")
+  cert_pem=$(cat "$cert_file")
+  payload=$(jq -n --arg cert "$cert_pem" --arg ari "$ari_response" '{Certificate:$cert,ARIResponse:$ari}')
+
+  curl --silent --show-error --fail \
+    -H "Content-Type: application/json" \
+    -d "$payload" \
+    https://pebble:15000/set-renewal-info/
+}
+
 init_getssl() {
   # Run initialisation (create account key, etc)
   run ${CODE_DIR}/getssl -U -d -c "$GETSSL_CMD_HOST"
