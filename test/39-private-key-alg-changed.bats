@@ -23,7 +23,7 @@ teardown_file() {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
-    CONFIG_FILE="getssl-http01.cfg"
+    CONFIG_FILE="getssl-http01-no-ari.cfg"
     setup_environment
     init_getssl
     create_certificate

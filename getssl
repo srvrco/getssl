@@ -1341,6 +1341,7 @@ renew_ari() { # Return "1" if ARI says we should renew
 }
 
 date_rfc3339() { # convert rfc3339 format date into epoch time
+  # shellcheck disable=SC2018,SC2019
   convdate=$(printf "%s\n" "$1" | tr a-z A-Z)
   if [[ "${convdate: -1:1}" == 'Z' ]]; then
     convdate="${convdate:0:${#convdate}-1}+0000"
