@@ -1315,6 +1315,7 @@ renew_ari() { # Return "1" if ARI says we should renew
 
   debug "Authority key id is $aki, serial is $serialb64"
 
+  # shellcheck disable=SC2086
   response=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent "${URL_renewInfo}/${aki}.${serialb64}")
 
   debug "ARI response is $response"
