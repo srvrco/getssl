@@ -61,7 +61,7 @@ teardown_file() {
     refute_line --partial "does not match domains requested"
     refute_line --partial "does not have the same domains as the config - re-create-csr"
     refute_line --partial "certificate installed OK on server"
-    assert_line --partial 'certificate is valid for more than'
+    assert_line --regexp 'certificate is valid for more than|certificate has not yet reached ARI renewal window'
 
     # Check that the SAN list in the certificate matches the expected value
     SAN_IN_CERT=$(openssl x509 -in "$CERT" -noout -text | grep "DNS:" | sed 's/^ *//g')
@@ -129,7 +129,7 @@ EOF
     refute_line --partial "does not match domains requested"
     refute_line --partial "does not have the same domains as the config - re-create-csr"
     refute_line --partial "certificate installed OK on server"
-    assert_line --partial 'certificate is valid for more than'
+    assert_line --regexp 'certificate is valid for more than|certificate has not yet reached ARI renewal window'
 
     # Check that the SAN list in the certificate matches the expected value
     SAN_IN_CERT=$(openssl x509 -in "$CERT" -noout -text | grep "DNS:" | sed 's/^ *//g')
@@ -164,7 +164,7 @@ EOF
     refute_line --partial "does not match domains requested"
     refute_line --partial "does not have the same domains as the config - re-create-csr"
     refute_line --partial "certificate installed OK on server"
-    assert_line --partial 'certificate is valid for more than'
+    assert_line --regexp 'certificate is valid for more than|certificate has not yet reached ARI renewal window'
 
     # Check that the SAN list in the certificate matches the expected value
     SAN_IN_CERT=$(openssl x509 -in "$CERT" -noout -text | grep "DNS:" | sed 's/^ *//g')
