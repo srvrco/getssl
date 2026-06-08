@@ -1227,13 +1227,9 @@ create_order() {
   done
   dstring="${dstring::${#dstring}-1}]"
   replaces="${_REPLACES:+, \"replaces\": \"${_REPLACES}\"}"
+  profile="${PROFILE:+, \"profile\": \"$PROFILE\"}"
 
-  # Check if the server supports profiles using the URL_profiles variable
-  if [[ -z "$URL_profiles" ]]; then
-    request="{\"identifiers\": $dstring$replaces}"
-  else
-    request="{\"identifiers\": $dstring, \"profile\": \"$PROFILE\"$replaces}"
-  fi
+  request="{\"identifiers\": $dstring$profile$replaces}"
   send_signed_request "$URL_newOrder" "$request"
   OrderLink=$(echo "$responseHeaders" | grep -i location | awk '{print $2}'| tr -d '\r\n ')
   debug "Order link $OrderLink"
@@ -2627,7 +2623,15 @@ obtain_ca_resource_locations()
     URL_revoke=$(echo "$ca_all_loc" | grep "revokeCert" | awk -F'"' '{print $4}')
     URL_renewInfo=$(echo "$ca_all_loc" | grep "renewalInfo" | awk -F'"' '{print $4}')
 
-    URL_profiles=""
+    if [[ -n "$URL_new_reg" ]] || [[ -n "$URL_newAccount" ]]; then
+      break
+    fi
+  done
+
+  # If a directory offers both versions, select V2.
+  if [[ -n "$URL_newAccount" ]]; then
+    API=2
+    # Only check profile support for V2
     # Check if we have a profiles element
     if echo "$ca_all_loc" | grep -q '"profiles"'; then
       meta=$(get_json_value "$ca_all_loc" "meta")
@@ -2639,23 +2643,14 @@ obtain_ca_resource_locations()
       for key in "${URL_profiles_array[@]}"; do
         debug "$key"
       done
-
-      # if the profile isn't set, then use the first value in the profile array
-      if [[ -z "$PROFILE" ]]; then
-        PROFILE=${URL_profiles_array[0]}
-      fi
+      debug "Chosen profile: ${PROFILE:-server default}"
+    else
+      # If we don't have profile support, then clear out PROFILE var
+      PROFILE=""
     fi
-
-    if [[ -n "$URL_new_reg" ]] || [[ -n "$URL_newAccount" ]]; then
-      break
-    fi
-  done
-
-  # If a directory offers both versions, select V2.
-  if [[ -n "$URL_newAccount" ]]; then
-    API=2
   elif [[ -n "$URL_new_reg" ]]; then
     API=1
+    PROFILE=""
   else
     error_exit "unknown API version"
   fi
@@ -3049,6 +3044,9 @@ write_domain_template() { # write out a template file for a domain.
 		# This server issues full certificates, however has rate limits
 		#CA="https://acme-v02.api.letsencrypt.org"
 
+		# Certificate profile to use.  If left blank then use the server default
+		#PROFILE=""
+
 		# Private key types - can be rsa, prime256v1, secp384r1 or secp521r1
 		#PRIVATE_KEY_ALG="rsa"
 
@@ -3133,6 +3131,9 @@ write_getssl_template() { # write out the main template file
 	CA="https://acme-staging-v02.api.letsencrypt.org"
 	# This server issues full certificates, however has rate limits
 	#CA="https://acme-v02.api.letsencrypt.org"
+
+	# Certificate profile to use. If left blank then use the server default
+	#PROFILE=""
 
 	# The agreement that must be signed with the CA, if not defined the default agreement will be used
 	#AGREEMENT="$AGREEMENT"
