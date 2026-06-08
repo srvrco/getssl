@@ -2841,6 +2841,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     nonce=$($CURL -I "$URL_newNonce" | grep -i "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
   fi
 
+  loop_limit=5
   nonceproblem="true"
   while [[ "$nonceproblem" == "true" ]]; do
 
@@ -2881,7 +2882,6 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     fi
 
     code="500"
-    loop_limit=5
     while [[ "$code" == 5* ]]; do
       if [[ "$outfile" ]] ; then
         $CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" > "$outfile"
