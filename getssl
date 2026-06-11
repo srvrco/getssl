@@ -1370,7 +1370,8 @@ date_rfc3339() { # convert rfc3339 format date into epoch time
     convdate=$(printf "%s\n" "$convdate" | sed 's/[+-][0-9]\{4\}$//')
     date -D "%Y-%m-%dT%H:%M:%S" -d "$convdate" +%s
   else
-    date -d "$convdate" +%s
+    # convert date "<date>T<time>" to epoch, fallback to "<date> <time>" to support old coreutils date on Centos6
+    date -d "$convdate" +%s || date -d "${convdate/T/ }" +%s || error_exit "Failed to parse date ${convdate}"
   fi
 }
 
