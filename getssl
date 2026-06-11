@@ -309,6 +309,7 @@ VERSION="2.50"
 ACCOUNT_KEY_LENGTH=4096
 ACCOUNT_KEY_TYPE="rsa"
 ACME_RESPONSE_PENDING_WAIT=5
+ARI_ENABLE="true"
 CA_CERT_LOCATION=""
 CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 CHALLENGE_CHECK_TYPE="http"
@@ -366,6 +367,7 @@ DNS_EXTRA_WAIT=60               # How long to wait after the DNS entries are vis
 DNS_WAIT_RETRY_ADD="false"      # Try the dns_add_command again if the DNS record hasn't updated
 
 # Private variables
+_ARI_STARTTIME=""
 _CHECK_ALL=0
 _CREATE_CONFIG=0
 _CURL_VERSION=""
@@ -376,6 +378,7 @@ _NOMETER=""
 _QUIET=0
 _RECREATE_CSR=0
 _REDIRECT_OUTPUT="1>/dev/null 2>&1"
+_REPLACES=""
 _REVOKE=0
 _SHOW_ACCOUNT_ID=0
 _TEST_SKIP_CNAME_CALL=0
@@ -1223,12 +1226,13 @@ create_order() {
     dstring="${dstring}{\"type\":\"dns\",\"value\":\"$d\"},"
   done
   dstring="${dstring::${#dstring}-1}]"
+  replaces="${_REPLACES:+, \"replaces\": \"${_REPLACES}\"}"
 
   # Check if the server supports profiles using the URL_profiles variable
   if [[ -z "$URL_profiles" ]]; then
-    request="{\"identifiers\": $dstring}"
+    request="{\"identifiers\": $dstring$replaces}"
   else
-    request="{\"identifiers\": $dstring, \"profile\": \"$PROFILE\"}"
+    request="{\"identifiers\": $dstring, \"profile\": \"$PROFILE\"$replaces}"
   fi
   send_signed_request "$URL_newOrder" "$request"
   OrderLink=$(echo "$responseHeaders" | grep -i location | awk '{print $2}'| tr -d '\r\n ')
@@ -1278,6 +1282,98 @@ create_order() {
   fi
 }
 
+renew_ari() { # Return "1" if ARI says we should renew
+  # If cert has expired, don't fetch ARI info and just say we should renew
+
+  if [[ "$1" -lt "$(date +s)" ]]; then
+    debug "Certificate expired, not fetching ARI info"
+    return 0
+  fi
+
+  # Construct the certificate identifier which is the base64url encoding
+  # of the authority key identifier and serial number
+
+  aki=$(openssl x509 -noout -text -in "$CERT_FILE" 2>/dev/null |
+    grep "Authority Key Identifier" -A1 | \
+    sed 's/^.*keyid://' | \
+    grep -E '^[A-Fa-f0-9: 	]+$' | \
+    tr -d ':' | \
+    hex2bin | \
+    urlbase64)
+
+  # Extract the hex serial number from openssl output. OpenSSL 3.x puts it
+  # on the same line as "Serial Number:" (as "(0xHEX)"), while older
+  # versions put colon-separated hex on the following line.
+  serial=$(openssl x509 -noout -text -in "$CERT_FILE" 2>/dev/null | \
+     grep "Serial Number" | \
+     grep -oiE '0x[0-9a-f]+' | \
+     cut -dx -f2)
+  if [[ -z "$serial" ]]; then
+    serial=$(openssl x509 -noout -text -in "$CERT_FILE" 2>/dev/null | \
+      grep "Serial Number" -A1 | \
+      grep -E '^[A-Fa-f0-9:   ]+$' | \
+      tr -d ': 	')
+  fi
+
+  # If the high bit is set then we need to prepend an extra byte so
+  # the DER encoding is positive
+
+  if printf "%s\n" "$serial" | grep -q -E '^[89ABCDEFabcdef]'; then
+    serial="00$serial"
+  fi
+
+  serialb64=$(printf "%s\n" "$serial" | hex2bin | urlbase64)
+
+  debug "Authority key id is $aki, serial is $serialb64"
+
+  # shellcheck disable=SC2086
+  response=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent "${URL_renewInfo}/${aki}.${serialb64}")
+
+  debug "ARI response is $response"
+
+  _ARI_STARTTIME=$(json_get "$response" suggestedWindow start)
+
+  if [[ -z "$_ARI_STARTTIME" ]]; then
+    info "Warning: ARI query returned $response"
+    info "Not processing ARI renewal info"
+    return 1
+  fi
+
+  debug "Renewal window starts at $_ARI_STARTTIME"
+
+  if [[ "$(date +%s)" -gt $(date_rfc3339 "$_ARI_STARTTIME") ]]; then
+    debug "Within ARI renewal window, using ARI"
+    _REPLACES="${aki}.${serialb64}"
+    return 0
+  fi
+
+  debug "Not within ARI renewal window"
+
+  return 1
+}
+
+date_rfc3339() { # convert rfc3339 format date into epoch time
+  # shellcheck disable=SC2018,SC2019
+  convdate=$(printf "%s\n" "$1" | tr a-z A-Z)
+  if [[ "${convdate: -1:1}" == 'Z' ]]; then
+    convdate="${convdate:0:${#convdate}-1}+0000"
+  else
+    convdate=$(printf "%s\n" "$convdate" | sed -e 's/:\([0-9][0-9]\)$/\1/')
+  fi
+
+  if [[ "$os" == "bsd" ]]; then
+    date -j -f "%Y-%m-%dT%H:%M:%S%z" "$convdate" +%s
+  elif [[ "$os" == "mac" ]]; then
+    date -j -f "%Y-%m-%dT%H:%M:%S%z" "$convdate" +%s
+  elif [[ "$os" == "busybox" ]]; then
+    # busybox doesn't support timezones in the input format
+    convdate=$(printf "%s\n" "$convdate" | sed 's/[+-][0-9]\{4\}$//')
+    date -D "%Y-%m-%dT%H:%M:%S" -d "$convdate" +%s
+  else
+    date -d "$convdate" +%s
+  fi
+}
+
 date_epoc() { # convert the date into epoch time
   if [[ "$os" == "bsd" ]]; then
     date -j -f "%b %d %T %Y %Z" "$1" +%s
@@ -1289,7 +1385,6 @@ date_epoc() { # convert the date into epoch time
   else
     date -d "$1" +%s
   fi
-
 }
 
 date_fmt() { # format date from epoc time to YYYY-MM-DD
@@ -2530,6 +2625,7 @@ obtain_ca_resource_locations()
     URL_newNonce=$(echo "$ca_all_loc" | grep "newNonce" | awk -F'"' '{print $4}')
     URL_newOrder=$(echo "$ca_all_loc" | grep "newOrder" | awk -F'"' '{print $4}')
     URL_revoke=$(echo "$ca_all_loc" | grep "revokeCert" | awk -F'"' '{print $4}')
+    URL_renewInfo=$(echo "$ca_all_loc" | grep "renewalInfo" | awk -F'"' '{print $4}')
 
     URL_profiles=""
     # Check if we have a profiles element
@@ -3064,6 +3160,12 @@ write_getssl_template() { # write out the main template file
 	# Several (ssh) commands may be given using a bash array:
 	# RELOAD_CMD=('ssh:sshuserid@server5:systemctl reload httpd' 'logger getssl for server5 efficient.')
 	#RELOAD_CMD=""
+
+	# If your ACME server supports ARI, then use that to make the decision
+	# about whether or not to renew your certificate.  If this is set to "true"
+	# and the ACME server supports ARI, then the RENEW_ALLOW setting will have
+	# no effect.
+	ARI_ENABLE="true"
 
 	# The time period within which you want to allow renewal of a certificate
 	#  this prevents hitting some of the rate limits.
@@ -3604,12 +3706,27 @@ if [[ -s "$CERT_FILE" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
   debug "existing cert is for domains: ${sorted_sanlist}"
   if [[ "$enddate" != "-" ]]; then
     enddate_s=$(date_epoc "$enddate")
-    if [[ $(date_renew) -lt "$enddate_s" ]] && [[ $_FORCE_RENEW -ne 1 ]] && [[ "$existing_sanlist" == "$sorted_sanlist" ]]; then
+    if [[ -n "$URL_renewInfo" ]] && [[ "true" == "$ARI_ENABLE" ]]; then
+      if renew_ari "$enddate_s"; then
+        debug "Renewing via ARI"
+        ari=1
+      else
+        debug "ARI is supported, but not reached start of window"
+        ari=0
+      fi
+    else
+      ari=-1
+    fi
+    if [[ $ari -eq 0 || ( $ari -eq -1 && $(date_renew) -lt "$enddate_s" ) ]] && [[ $_FORCE_RENEW -ne 1 ]] && [[ "$existing_sanlist" == "$sorted_sanlist" ]]; then
       issuer=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null)
       if [[ "$issuer" == *"Fake LE Intermediate"* ]] && [[ "$CA" == "https://acme-v02.api.letsencrypt.org" ]]; then
         debug "upgrading from fake cert to real"
       else
-        info "${DOMAIN}: certificate is valid for more than $RENEW_ALLOW days (until $enddate)"
+        if [[ $ari -eq -1 ]]; then
+          info "${DOMAIN}: certificate is valid for more than $RENEW_ALLOW days (until $enddate)"
+        else
+          info "${DOMAIN}: certificate has not yet reached ARI renewal window (window starts at $_ARI_STARTTIME)"
+	      fi
         # everything is OK, so exit, if requested with the --notify-valid, exit with code 2
         graceful_exit $_NOTIFY_VALID
       fi
@@ -3672,21 +3789,21 @@ info "Registering account"
 # send the request to the ACME server.
 if [[ $API -eq 1 ]]; then
   if [[ "$ACCOUNT_EMAIL" ]] ; then
-  	regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
+    regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
   else
-  	regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
+    regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
   fi
   send_signed_request "$URL_new_reg"  "$regjson"
 elif [[ $API -eq 2 ]]; then
   if [[ "$ACCOUNT_EMAIL" ]] ; then
-  	regjson='{"termsOfServiceAgreed": true, "contact": ["mailto: '$ACCOUNT_EMAIL'"]}'
+    regjson='{"termsOfServiceAgreed": true, "contact": ["mailto: '$ACCOUNT_EMAIL'"]}'
   else
-  	regjson='{"termsOfServiceAgreed": true}'
+    regjson='{"termsOfServiceAgreed": true}'
   fi
   send_signed_request "$URL_newAccount"  "$regjson"
 else
-	debug "cant determine account API"
-	graceful_exit
+  debug "cant determine account API"
+  graceful_exit
 fi
 
 if [[ "$code" == "" ]] || [[ "$code" == '201' ]] ; then

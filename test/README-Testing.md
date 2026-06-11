@@ -12,6 +12,8 @@ For continuous integration testing we have the following:
 
 Tests can also be triggered manually from the GitHub website.
 
+## Testing using the Staging server
+
 For dynamic DNS tests, you need accounts on duckdns.org and dynu.com, and need to create 4 domain names in each account.
 
 For duckdns.org:
@@ -33,13 +35,15 @@ To run dynamic DNS tests outside the CI environment, you need accounts without \
 
 For individual accounts, \<reponame> is your github account name.
 
-## To run all the tests on a single OS
+## Testing locally using pebble
+
+### To run all the tests on a single OS
 
 1. Start `pebble` and `challtestsrv` using ```docker compose up -d --build```
 2. Run the test suite ```test/run-test.sh [<os>]```
 3. eg. `test/run-test.sh ubuntu16`
 
-## To run a single bats test on a single OS
+### To run a single bats test on a single OS
 
 1. Start `pebble` and `challtestsrv` using ```docker compose up -d --build```
 2. ```test/run-test.sh <os> bats <bats test script>```
@@ -52,7 +56,18 @@ For individual accounts, \<reponame> is your github account name.
 3. e.g. `test/run-test.sh ubuntu /getssl/test/debug-test.sh -d /getssl/test/test-config/getssl-http01.cfg`
 4. or (`test/run-test.sh ubuntu /getssl/test/debug-test.sh -d getssl-http01.cfg`)
 
-## TODO
+### To start a shell and debug a test
+
+1. Start `pebble` and `challtestsrv` using ```docker compose up -d --build```
+2. ```run-test.sh <os> bash```
+3. `cd /getssl`
+4. `test/debug-test.sh -d /getssl/test/test-config/getssl-http01.cfg`
+
+Note: If curl to pebble:14000 fails, change debug-test.sh to use the pebble.minica.pem file
+
+Note: Certificates will be created in /etc/nginx/pki
+
+### TODO
 
 1. Test wildcards
 2. Test SSH, SFTP, SCP
