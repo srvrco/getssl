@@ -18,7 +18,7 @@ setup() {
 
     # 1. Create smart mock curl
     cat << 'MOCK_CURL' > /getssl/test/curl
-#!/bin/bash
+#!/usr/bin/env bash
 # Only mock if explicitly enabled AND it's a POST request (ACME requests)
 echo "# Inside mock curl" >> /tmp/mock.out
 if [[ "$GETSSL_MOCK_500" == "1" ]] && [[ "$*" == *"-X POST"* ]]; then
@@ -53,7 +53,7 @@ MOCK_CURL
 
     # 2. Create smart mock sleep (only intercepts the exact 30s loop delay)
     cat << 'MOCK_SLEEP' > /getssl/test/sleep
-#!/bin/bash
+#!/usr/bin/env bash
 if [[ "$1" == "30" ]]; then
   exit 0
 else
@@ -81,7 +81,7 @@ setup_file() {
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
 }
 
-@test "getssl should exit with error after 5 retries on persistent 500 error" {
+@test "getssl should exit with error after 5 retries on persistent 400 error" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
