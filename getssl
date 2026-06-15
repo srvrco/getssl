@@ -2842,6 +2842,7 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     nonce=$($CURL -I "$URL_newNonce" | grep -i "^Replay-Nonce:" | awk '{print $2}' | tr -d '\r\n ')
   fi
 
+  loop_limit=5
   nonceproblem="true"
   while [[ "$nonceproblem" == "true" ]]; do
 
@@ -2882,7 +2883,6 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     fi
 
     code="500"
-    loop_limit=5
     while [[ "$code" == 5* ]]; do
       if [[ "$outfile" ]] ; then
         $CURL -X POST -H "Content-Type: application/jose+json" --data "$body" "$url" > "$outfile"
@@ -2943,6 +2943,12 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       debug "bad nonce"
       nonce=$(echo "$responseHeaders" | grep -i "^replay-nonce:" | awk '{print $2}' | tr -d '\r\n ')
       debug "trying new nonce $nonce"
+      # Need to decrement the loop limit here as well to fix the infinite loop (see PR #902 and test/43-test-acme-400-error-loop) 
+      debug "loop_limit = $loop_limit"
+      loop_limit=$((loop_limit - 1))
+      if [[ $loop_limit -lt 1 ]]; then
+        error_exit "$code error from ACME server: $response"
+      fi
     else
       nonceproblem="false"
     fi
