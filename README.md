@@ -18,6 +18,7 @@ for automating the process on remote servers.
 - [Automating updates](#automating-updates)
 - [Structure](#structure)
 - [Custom template for configuration](#custom-template-for-configuration)
+- [Configuration Variables](#configuration-variables)
 - [Server-Types](#server-types)
 - [Revoke a certificate](#revoke-a-certificate)
 - [Elliptic curve keys](#elliptic-curve-keys)
@@ -531,6 +532,76 @@ SERVER_TYPE="https"
 CHECK_REMOTE_WAIT="1" # wait 1 second before checking the remote server
 
 ```
+
+## Configuration Variables
+
+All variables below can be set at either the account level (`~/.getssl/getssl.cfg`) or the per-domain level (`~/.getssl/<domain>/getssl.cfg`). Settings at the domain level override those at the account level.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ACCOUNT_EMAIL` | `""` | Contact email for the ACME account (used for expiry reminders, etc.) |
+| `ACCOUNT_KEY_LENGTH` | `4096` | Account key length in bits |
+| `ACCOUNT_KEY` | `"$WORKING_DIR/account.key"` | Path to the account key file |
+| `ACCOUNT_KEY_TYPE` | `"rsa"` | Account key type (`rsa`, `prime256v1`, `secp384r1`, `secp521r1`) |
+| `ACL` | | Challenge file locations for the domain and each SAN (local, `ssh:`, `ftp:`, `sftp:`, `davs:`) |
+| `ACME_RESPONSE_PENDING_WAIT` | `5` | Seconds to wait between polling when ACME status is pending/processing |
+| `AGREEMENT` | `""` | Terms-of-service agreement URL; if blank, the CA's current agreement is used |
+| `ARI_ENABLE` | `"true"` | Whether to consult the CA's ACME Renewal Information (ARI) endpoint before renewing |
+| `AUTH_DNS_SERVER` | `""` | Specific authoritative DNS server to use for challenge verification |
+| `CA` | Let's Encrypt Staging | URL of the ACME CA directory. Production: `https://acme-v02.api.letsencrypt.org` |
+| `CA_CERT_LOCATION` | `""` | Destination for the CA (chain) certificate file |
+| `CHALLENGE_CHECK_TYPE` | `"http"` | Protocol used to verify the challenge URL (`http` or `https`) |
+| `CHECK_ALL_AUTH_DNS` | `"false"` | Check the DNS challenge token on all authoritative DNS servers, not just one |
+| `CHECK_PUBLIC_DNS_SERVER` | `"true"` | Also query the public DNS server (with `VALIDATE_VIA_DNS`) |
+| `CHECK_REMOTE` | `"true"` | Check the remote server after install to confirm correct certificate is loaded |
+| `CHECK_REMOTE_WAIT` | `0` | Seconds to wait after `RELOAD_CMD` before checking the remote server |
+| `CSR_SUBJECT` | `"/"` | Subject for the CSR (most fields are stripped by Let's Encrypt) |
+| `DEACTIVATE_AUTH` | `"false"` | Deactivate authorization after each use (requires re-authorization next time) |
+| `DEFAULT_REVOKE_CA` | Let's Encrypt | Default CA server used by `getssl -r` if none is specified on the command line |
+| `DNS_ADD_COMMAND` | `""` | Script/command to add a DNS challenge TXT record |
+| `DNS_DEL_COMMAND` | `""` | Script/command to remove a DNS challenge TXT record |
+| `DNS_EXTRA_WAIT` | `0` | Seconds to wait after DNS propagation before asking the CA to validate |
+| `DNS_WAIT` | `5` | Seconds between DNS propagation re-checks |
+| `DNS_WAIT_COUNT` | `100` | Maximum number of DNS propagation re-checks before giving up |
+| `DNS_WAIT_RETRY_ADD` | `"false"` | Re-run `DNS_ADD_COMMAND` every 10 retries if DNS hasn't updated |
+| `DOMAIN_CERT_LOCATION` | `""` | Destination for the domain certificate file |
+| `DOMAIN_CHAIN_LOCATION` | `""` | Destination for a combined domain + CA certificate file |
+| `DOMAIN_KEY_CERT_LOCATION` | `""` | Destination for a combined private key + domain certificate file |
+| `DOMAIN_KEY_LENGTH` | `4096` | Domain key length in bits (RSA only) |
+| `DOMAIN_KEY_LOCATION` | `""` | Destination for the private key file |
+| `DOMAIN_PEM_LOCATION` | `""` | Destination for a combined private key + domain + CA certificate file |
+| `DOMAIN_STORAGE` | `~/.getssl` | Directory where all per-domain config and certificates are stored |
+| `DUAL_RSA_ECDSA` | `"false"` | Obtain both an RSA and an ECDSA certificate for each order |
+| `FTP_ARGS` | `""` | Extra arguments passed to `ftp` (e.g. `-p` for passive mode) |
+| `FTP_OPTIONS` | `""` | Options inserted into the ftp upload script (e.g. `passive`) |
+| `FTP_PORT` | `""` | Port used for ftp/sftp/ftps/ftpes uploads |
+| `FTPS_OPTIONS` | `""` | Options passed to `curl` for ftps/ftpes uploads (e.g. `--insecure`) |
+| `FULL_CHAIN_INCLUDE_ROOT` | `"false"` | Include the root CA certificate in the full chain file |
+| `GETSSL_IGNORE_CP_PRESERVE` | `"false"` | Don't try to preserve permissions when copying files |
+| `HTTP_TOKEN_CHECK_WAIT` | `0` | Seconds to wait after uploading a token before verifying it |
+| `IGNORE_DIRECTORY_DOMAIN` | `"false"` | Don't include the directory name as the main domain on the certificate |
+| `OCSP_MUST_STAPLE` | `"false"` | Add the OCSP Must-Staple extension to the certificate |
+| `PREFERRED_CHAIN` | `""` | Substring match against issuer CN to select a specific root chain |
+| `PREVENT_NON_INTERACTIVE_RENEWAL` | `"false"` | Disallow non-interactive (cron) reissue of this certificate |
+| `PRIVATE_KEY_ALG` | `"rsa"` | Domain key algorithm (`rsa`, `prime256v1`, `secp384r1`, `secp521r1`) |
+| `PROFILE` | `""` | ACME certificate profile name, if offered by the CA |
+| `PUBLIC_DNS_SERVER` | `""` | Public DNS server to consult alongside the authoritative servers |
+| `RELOAD_CMD` | `""` | Command(s) to reload services after installing a new certificate |
+| `REMOTE_EXTRA` | `""` | Extra `curl` options used when `SERVER_TYPE` is a port number |
+| `RENEW_ALLOW` | `30` | Days before expiry within which renewal is allowed |
+| `REUSE_PRIVATE_KEY` | `"true"` | Reuse the existing private key when renewing a certificate |
+| `SANS` | `""` | Comma-separated list of Subject Alternative Names |
+| `SCP_OPTS` | `""` | Extra options passed to `scp` (e.g. `-i identity_file`) |
+| `SERVER_TYPE` | `"https"` | Service type to check for correct certificate installation (see [Server-Types](#server-types)) |
+| `SFTP_OPTS` | `""` | Extra options passed to `sftp` (e.g. `-P 1234`) |
+| `SKIP_HTTP_TOKEN_CHECK` | `"false"` | Don't fetch the challenge URL after uploading the token |
+| `SSH_OPTS` | `""` | Extra options passed to `ssh` (e.g. `-p 1234 -i identity_file`) |
+| `SSLCONF` | `openssl.cnf` | Path to the OpenSSL configuration file |
+| `TOKEN_USER_ID` | `""` | User (and group, as `user.group`) that should own the token file |
+| `USE_SINGLE_ACL` | `"false"` | Apply the first `ACL` entry to all domains, including each SAN |
+| `VALIDATE_VIA_DNS` | `"false"` | Use the DNS-01 challenge instead of HTTP-01 |
+
+Full details of each variable, with examples, are available in the [wiki Configuration Variables](https://github.com/srvrco/getssl/wiki/Config-variables) page and in the comments of the per-domain config template.
 
 ## Server-Types
 
