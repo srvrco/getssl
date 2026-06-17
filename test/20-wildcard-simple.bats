@@ -24,6 +24,9 @@ setup() {
     GETSSL_CMD_HOST="*.${GETSSL_HOST}"
     setup_environment
     init_getssl
+    if [ -n "$STAGING" ]; then
+        echo "PROFILE=\"classic\"" >> "${INSTALL_DIR}/.getssl/*.${GETSSL_HOST}/getssl_test_specific.cfg"
+    fi
     create_certificate
     assert_success
     check_output_for_errors
