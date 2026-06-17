@@ -19,7 +19,7 @@ setup() {
 
 
 @test "Create wildcard certificate" {
-    CONFIG_FILE="getssl-dns01.cfg"
+    CONFIG_FILE="getssl-dns01-no-ari.cfg"
 
     GETSSL_CMD_HOST="*.${GETSSL_HOST}"
     setup_environment
