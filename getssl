@@ -294,6 +294,7 @@
 # 2024-03-26 Test for "true" in wildcard property of authorization responses
 # 2024-10-16 Add newlines to /directory response (#765)(#859)
 # 2025-06-18 Support profiles
+# 2025-12-02 Fix cPanel support for API zone record updates and wildcard domain support
 # 2025-07-28 Accept lowercase replay-nonce headers (#884)
 # ----------------------------------------------------------------------------------------
 

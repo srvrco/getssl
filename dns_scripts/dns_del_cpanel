@@ -58,7 +58,7 @@ fi
 line=$(echo "$resp" | sed -e 's/.*line":\([0-9]*\),.*/\1/')
 if [[ "$line" != "" ]]; then
   # Delete the challenge token
-  request_params="&cpanel_jsonapi_func=remove_zone_record&domain=$domain&type=TXT&name=_acme-challenge$name&line=$line"
+  request_params="&cpanel_jsonapi_func=remove_zone_record&domain=${domain}&type=TXT&name=_acme-challenge&line=${line}"
   resp=$(curl --silent "${curl_params[@]}" "$request_func$request_params")
 fi
 
