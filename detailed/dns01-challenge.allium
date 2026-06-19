@@ -1,0 +1,289 @@
+-- allium: 3
+-- dns01-challenge.allium
+--
+-- Scope
+--   Include:
+--     - The DNS-01 challenge mechanics per the ACME protocol
+--     - Key-authorization hashing for the TXT record value
+--     - Integration with the dns.service contract via one of ~30 providers
+--     - DNS propagation waiting semantics
+--     - Validation polling against the CA
+--     - TXT record removal after validation (success or failure)
+--     - Authoritative nameserver resolution
+--   Exclude:
+--     - The ACME envelope / JWS machinery
+--     - Order lifecycle (covered by the parent spec)
+--     - HTTP-01 coverage (see http01-challenge.allium)
+--     - Specific DNS provider implementations (captured as dns.service
+--       contract consumers)
+--
+-- Summary
+--   In DNS-01, the ACME CA proves domain control by querying a TXT
+--   record at `_acme-challenge.<domain>`. The TXT value must equal
+--   base64url(SHA-256(key_authorization)). The tool uses the dns.service
+--   contract to add and remove the record via one of many configured
+--   providers (Cloudflare, Route 53, PowerDNS, dnsmasq, etc.).
+
+use "./dns-service.allium" as dns
+
+config {
+    propagation_wait: Duration = 30.seconds     -- baseline wait before polling
+    propagation_max_wait: Duration = 10.minutes -- hard upper bound per record
+    propagation_poll_interval: Duration = 10.seconds
+    authoritativeresolver_max_attempts: Integer = 3
+    validation_max_attempts: Integer = 20
+    validation_poll_interval: Duration = 2.seconds
+}
+
+-- ============================================================
+-- Entities
+-- ============================================================
+
+entity ACMEChallenge {
+    authorization_url: String
+    domain: String
+    token: String
+    challenge_url: String
+    status: ChallengeStatus
+
+    is_pending: status = pending
+    is_valid: status = valid
+}
+
+enum ChallengeStatus { pending | valid | invalid | processing }
+
+entity TXTRecordDeployment {
+    -- A single TXT record added to a DNS provider, with its propagation
+    -- and validation state tracked.
+    challenge: ACMEChallenge
+    record_name: String                -- `_acme-challenge.<domain>`
+    record_value: String               -- base64url(SHA-256(key_authorization))
+    provider: DnsProvider
+    status: DeploymentStatus
+
+    transitions status {
+        pending -> submitted
+        submitted -> propagated
+        propagated -> validated
+        propagated -> validated_failure
+        submitted -> validated_failure
+        -- On cleanup:
+        propagated -> removed
+        validated -> removed
+        validated_failure -> removed
+        terminal: removed
+    }
+}
+
+enum DeploymentStatus {
+    pending | submitted | propagated | validated |
+    validated_failure | removed
+}
+
+external entity DnsProvider {
+    -- A DNS provider that implements the dns.service contract. Any of:
+    -- Cloudflare, Route 53, Google Cloud DNS, PowerDNS, Linode, etc.
+    -- See dns-service.allium.
+    name: String
+}
+
+entity DNS01Session {
+    challenges: Set<ACMEChallenge> with session = this
+    deployments: Set<TXTRecordDeployment> with session = this
+    result: SessionOutcome
+
+    transitions result {
+        pending -> succeeded
+        pending -> failed
+        terminal: succeeded, failed
+    }
+}
+
+enum SessionOutcome { pending | succeeded | failed }
+
+-- ============================================================
+-- Rules
+-- ============================================================
+
+rule AuthorizationHashConstructed {
+    -- For each DNS-01 challenge, compute the TXT record value:
+    --   record_name = `_acme-challenge.<domain>`
+    --   key_authorization = token + "." + base64url(SHA-256(account_jwk))
+    --   record_value = base64url(SHA-256(key_authorization))
+    -- The digest is computed via black-box hash because the algorithm
+    -- is a cryptographic detail outside spec purview.
+    when: session: DNS01Session.created
+
+    for c in session.challenges:
+        let thumbprint = thumbprint_of_account_key()
+        let key_authorization = c.token + "." + thumbprint.representation
+        let record_value = base64url(sha256(key_authorization))
+
+        ensures: TXTRecordDeployment.created(
+            session: session,
+            challenge: c,
+            record_name: "_acme-challenge." + c.domain,
+            record_value: record_value,
+            provider: dns.service.provider,
+            status: pending
+        )
+
+rule TXTRecordSubmitted {
+    -- Submit every pending record to the DNS provider via dns.service.
+    when: deployment: TXTRecordDeployment status becomes pending
+
+    ensures: dns.service.AddTXTRecord(entry: TXTRecord(
+        domain: deployment.record_name,
+        value: deployment.record_value
+    ))
+    ensures: deployment.status = submitted
+
+rule DNSPropagationWaited {
+    -- After submission, wait for the record to become resolvable in
+    -- the authoritative nameservers. The tool queries the SOA chain
+    -- to find the authoritative server and polls it until the record
+    -- appears. The CA queries public DNS, not the authoritativeresolver,
+    -- so the authoritativeresolver's presence is a proxy for public
+    -- visibility.
+    when: deployment: TXTRecordDeployment status becomes submitted
+
+    let attempts = 0
+    let visible = false
+
+    while attempts * config.propagation_poll_interval < config.propagation_max_wait
+          and not visible:
+        let queried = query_txt_record(deployment.record_name, resolve_authoritative(deployment.challenge.domain))
+        if queried = deployment.record_value:
+            let visible = true
+        else:
+            ensures: sleep(config.propagation_poll_interval)
+            let attempts = attempts + 1
+
+    if visible:
+        ensures: deployment.status = propagated
+    else:
+        ensures: deployment.status = validated_failure
+
+rule ValidationNotified {
+    -- Once all records for a session are propagated, inform the CA the
+    -- challenges are ready, then poll until each reaches a terminal state.
+    when: session: DNS01Session
+    let all_propagated = session.deployments.all(d => d.status = propagated)
+    requires: all_propagated
+
+    for c in session.challenges:
+        ensures: CAChallengeNotified(challenge: c, status: ready)
+
+    let attempts = 0
+    while attempts < config.validation_max_attempts and
+          session.challenges.any(c => c.status = pending | processing):
+        for c in session.challenges where c.status = pending | processing:
+            let ca_status = fetch_challenge_status(c)
+            if ca_status = valid:
+                ensures: c.status = valid
+            else if ca_status = invalid:
+                ensures: c.status = invalid
+            else:
+                ensures: sleep(config.validation_poll_interval)
+        let attempts = attempts + 1
+
+    if session.challenges.all(c => c.status = valid):
+        ensures: session.result = succeeded
+    else:
+        ensures: session.result = failed
+
+rule TXTRecordCleanedUp {
+    -- After session termination, remove every deployed TXT record from
+    -- its provider. Failure to remove is logged but does not block the
+    -- session from concluding (the provider will eventually TTL-expire
+    -- the record).
+    when: session: DNS01Session.result transitions_to succeeded | failed
+
+    for d in session.deployments where d.status in {propagated, validated, validated_failure}:
+        ensures: dns.service.RemoveTXTRecord(entry: TXTRecord(
+            domain: d.record_name,
+            value: d.record_value
+        ))
+        if remove_succeeded:
+            ensures: d.status = removed
+        else:
+            ensures: log_warning("TXT record could not be removed from provider " +
+                                 d.provider.name + " for " + d.record_name)
+
+-- ============================================================
+-- Invariants
+-- ============================================================
+
+invariant RecordValueIsHashOfAuthorization {
+    -- The TXT record value carried by every record must match the ACME
+    -- formula: base64url(SHA-256(key_authorization)) where key_authorization
+    -- is token + "." + thumbprint.
+    for d in TXTRecordDeployment where d.status != pending:
+        d.record_value = base64url(sha256(
+            d.challenge.token + "." + thumbprint_of_account_key().representation
+        ))
+}
+
+invariant AuthoritativeResolution {
+    -- Every DNS-01 deployment targets a resolved authoritative nameserver
+    -- for its challenge domain. This lets the tool poll the authoritative
+    -- source rather than public DNS (which may have stale answers).
+    for d in TXTRecordDeployment where d.status in {submitted, propagated}:
+        authoritative_server_for(d.challenge.domain) != null
+}
+
+invariant SessionTerminalCleanup {
+    -- After the session's outcome reaches a terminal state, every
+    -- deployment must be in the removed state (or have logged a removal
+    -- warning if the provider refused deletion).
+    for session in DNS01Session where session.result in {succeeded, failed}:
+        session.deployments.all(d => d.status = removed)
+}
+
+-- ============================================================
+-- Surfaces
+-- ============================================================
+
+surface DNS01ChallengeBoundary {
+    facing ca: ACMECA
+
+    context session: DNS01Session
+
+    contracts:
+        demands dns.service
+
+    exposes:
+        session.challenges
+        session.deployments
+        session.result
+
+    provides:
+        SubmitTXTRecords(session: DNS01Session)
+        WaitForPropagation(session: DNS01Session)
+        PollValidation(session: DNS01Session) -> SessionOutcome
+        CleanupTXTRecords(session: DNS01Session)
+
+    @guarantee RFC8555CompliantRecordValues
+        -- Every submitted TXT record carries the base64url(SHA-256(key))
+        -- value mandated by RFC 8555 §8.4. The CA reconstructs the same
+        -- value for verification.
+
+    @guidance
+        -- Authoritative name resolution traverses the SOA chain. If the
+        -- challenge domain is example.com with a SOA pointing at ns1.example.com,
+        -- the tool polls ns1.example.com rather than public DNS. This is
+        -- important because CNAMEs and split-horizon DNS can cause the
+        -- public resolver and the authoritativeresolver to disagree.
+}
+
+-- ============================================================
+-- Open questions
+-- ============================================================
+
+open question "Should the spec distinguish between 'record absent' and 'record present but with wrong value' during propagation polling? The current code treats both as 'keep waiting'."
+
+open question "When multiple challenges share the same `_acme-challenge.<domain>` record name (which the spec doesn't currently model), the provider would need to support multiple TXT records at the same name. Should the spec allow this or assume distinct domains per session?"
+
+open question "The current tool treats propagation failure as a non-fatal soft failure — it proceeds to poll the CA anyway. Should the spec model propagation failure as a hard failure requiring session rollback?"
+
+open question "Should the spec capture the SOA resolution logic (dig → drill → nslookup → host fallback) as a resolution service, or is that pure implementation detail?"

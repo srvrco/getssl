@@ -1,0 +1,755 @@
+-- allium: 3
+-- getssl.allium
+--
+-- Scope
+--   Include:
+--     - Certificate issuance, renewal, and revocation lifecycle
+--     - HTTP-01 and DNS-01 challenge fulfillment
+--     - Multi-protocol deployment of certificate artefacts
+--     - Dual RSA + ECDSA certificate issuance
+--     - Remote-server certificate synchronization
+--     - ACME Renewal Information (ARI) driven renewal
+--     - Account registration with the CA
+--     - Certificate archival plus 100-day purge
+--     - Self-upgrade via GitHub release feed
+--   Exclude:
+--     - Bash portability helpers (OS detection, sed / awk / date variants)
+--     - JSON parsing implementation
+--     - JWS / ACME envelope signing
+--     - Per-provider DNS-provider implementations (~30 of them)
+--     - Packaging (RPM / DEB), CI, tests, curl / openssl CLI details
+--
+-- Domain summary
+--   getssl is a CLI tool that obtains, renews, and deploys TLS certificates
+--   from an ACME-compliant Certificate Authority. It runs as a one-shot
+--   process: invoked for a domain, it issues a certificate if one is
+--   absent, about to expire, or out of date on the remote server. It
+--   supports seven deployment transports (local, ssh, sftp, ftp, ftpes,
+--   ftps, davs) for placing artefacts on remote application servers.
+
+use "./dns-service.allium" as dns
+
+-- Module-level bindings that apply to every rule in this spec.
+given {
+    tool: ToolSettings
+}
+
+config {
+    default_renew_days: Duration = 30.days
+    default_archive_retention: Duration = 100.days
+    default_account_key_length: Integer = 4096
+    default_domain_key_length: Integer = 4096
+    fulfillment_retries: Integer = 3
+    check_remote_wait: Duration = 0.seconds
+
+    default_ca_url: String = "https://acme-v02.api.letsencrypt.org"
+    staging_ca_url: String = "https://acme-staging-v02.api.letsencrypt.org"
+    release_api_url: String = "https://api.github.com/repos/srvrco/getssl/releases/latest"
+}
+
+-- ============================================================
+-- External entities
+-- ============================================================
+
+external entity ACMECA {
+    directory_url: String
+    supports_ari: Boolean
+    supports_http01: Boolean
+    supports_dns01: Boolean
+}
+
+external entity ReleaseRepository {
+    api_url: String
+}
+
+external entity RemoteServer {
+    host: String
+    port: Integer
+    server_kind: ServerKind
+}
+
+-- ============================================================
+-- Value types
+-- ============================================================
+
+-- Named enum for ServerKind so that comparisons are type-safe
+-- across fields (DomainDeployment.server_kind vs. etc.)
+enum ServerKind {
+    https | ftp | ftpi | imap | imaps | pop3 | pop3s |
+    smtp | smtps_deprecated | smtps | smtp_submission |
+    xmpp | xmpps | ldaps | postgres | custom_port
+}
+
+enum KeyAlgorithm { rsa | prime256v1 | secp384r1 | secp521r1 }
+
+enum DeploymentProtocol { local | ssh | sftp | ftp | ftpes | ftps | davs }
+
+enum ChallengeKind { http_01 | dns_01 }
+
+enum ReloadKind { local | ssh }
+
+value DeploymentTarget {
+    destination: String
+    protocol: DeploymentProtocol
+}
+
+value ReloadCommand {
+    kind: ReloadKind
+    body: String
+    ssh_host: String?        -- only set when kind = ssh
+}
+
+-- Represents a signed-order handle returned by the CA.
+entity Order {
+    ca: ACMECA
+    domains: Set<String>
+    status: OrderStatus
+}
+
+enum OrderStatus { pending | ready | valid | invalid }
+
+-- A certificate-signing request produced locally.
+value CSR {
+    domain: Domain
+    sans: Set<String>
+    key_algorithm: KeyAlgorithm
+    ocsp_must_staple: Boolean
+}
+
+-- A GitHub release returned by the query_releases black-box.
+value Release {
+    tag: String
+    version: String
+    download_url: String
+}
+
+-- A renewal window returned by the ACME ARI endpoint.
+value RenewalWindow {
+    start: Timestamp
+    end: Timestamp
+}
+
+-- Flags accepted on the CLI when issuing a certificate.
+value IssueFlags {
+    force: Boolean
+    quiet: Boolean
+    mute: Boolean
+    notify_valid: Boolean
+}
+
+-- ============================================================
+-- Entities
+-- ============================================================
+
+entity Account {
+    key_file: String
+    key_algorithm: KeyAlgorithm
+    key_length: Integer
+    contact_email: String?
+    kid: String?                   -- set on successful newAccount response
+    agreement_url: String?          -- set from CA directory
+
+    is_registered: kid != null
+}
+
+entity Domain {
+    common_name: String
+    subject_alternative_names: Set<String>
+    config_file: String
+
+    key_algorithm: KeyAlgorithm = rsa
+    dual_mode: Boolean = false
+    reuse_private_key: Boolean = false
+
+    server_kind: ServerKind = https
+    deployment_targets: DomainDeployment with domain = this
+
+    challenge_kind: ChallengeKind = http_01
+    access_control_locations: List<String>
+
+    reload_commands: List<ReloadCommand>
+
+    renew_days: Duration = config.default_renew_days
+    ari_enabled: Boolean = true
+    check_remote: Boolean = false
+    check_remote_wait: Duration = config.check_remote_wait
+    force_renewal_pending: Boolean = false
+
+    preferred_chain: String?
+    include_root_in_fullchain: Boolean = false
+    ocsp_must_staple: Boolean = false
+    deactivate_authorizations: Boolean = false
+    prevent_non_interactive_renewal: Boolean = false
+    ignore_directory_domain: Boolean = false
+
+    active_certificates: Certificate with domain = this
+    archives: ArchiveEntry with domain = this
+
+    effective_san_set:
+        if ignore_directory_domain: subject_alternative_names
+        else: subject_alternative_names + { common_name }
+}
+
+entity DomainDeployment {
+    domain: Domain
+    cert_location: DeploymentTarget?
+    key_location: DeploymentTarget?
+    ca_cert_location: DeploymentTarget?
+    chain_location: DeploymentTarget?
+    pem_location: DeploymentTarget?
+    key_cert_location: DeploymentTarget?
+}
+
+enum CertificateStatus { absent | issued | renewed | revoked | expired }
+
+entity Certificate {
+    domain: Domain
+    key_algorithm: KeyAlgorithm
+    serial_number: String
+    issuer: String
+    valid_until: Timestamp
+    subject_alternative_names: Set<String>
+    fingerprint: String
+    status: CertificateStatus
+
+    is_expired: valid_until <= now
+    renewal_date: valid_until - domain.renew_days
+    san_matches_domain: subject_alternative_names = domain.effective_san_set
+
+    transitions status {
+        absent -> issued
+        issued -> renewed
+        issued -> revoked
+        issued -> expired
+        renewed -> issued
+        renewed -> revoked
+        renewed -> expired
+        terminal: revoked, expired
+    }
+}
+
+enum PrivateKeyAlgorithm { rsa | prime256v1 | secp384r1 | secp521r1 }
+
+entity PrivateKey {
+    domain: Domain
+    algorithm: KeyAlgorithm
+    length: Integer
+}
+
+entity ArchiveEntry {
+    domain: Domain
+    captured_at: Timestamp
+    certificate_path: String
+    key_path: String
+    chain_path: String
+    fullchain_path: String
+
+    age: now - captured_at
+}
+
+entity Installation {
+    -- Represents the result of the final remote-verification check.
+    domain: Domain
+    cert: Certificate
+    outcome: InstallOutcome
+}
+
+enum InstallOutcome { verified | server_cert_missing | server_cert_mismatch }
+
+-- Singleton carrying the tool's process-level state for the current invocation.
+entity ToolSettings {
+    current_version: String
+    upgrade_requested: Boolean
+    upgrade_to_tag: String?         -- pinned tag for testing
+    working_directory: String
+}
+
+-- Represents the one-shot invocation of the tool for a given domain.
+-- The user's CLI invocation creates an Invocation; rules fire in response.
+entity Invocation {
+    domain: Domain
+    is_interactive: Boolean
+    check_remote_requested: Boolean
+    force_renewal_file_present: Boolean
+}
+
+enum ReissueReason { forcing_renewal | san_mismatch | ari_window }
+
+-- Triggers used across rule bodies (emitted, never stored):
+--   ForcedRenewal(domain)
+--   SanSetChanged(domain)
+--   ARIRenewalWindowReached(domain)
+--   ReissueRequested(domain, reason)
+--   CheckRemoteTriggered(domain)
+--   ReissueCompleted(domain)
+--   AccountRegistrationRequested(domain)
+
+-- ============================================================
+-- Defaults
+-- ============================================================
+
+-- No defaults for entity instances in this spec.
+
+-- ============================================================
+-- Rules: renewal decision
+-- ============================================================
+
+rule RenewsSkippedWhenValid {
+    -- On each invocation, if the active certificate has enough validity
+    -- remaining, uses the correct algorithm/SAN set, and no forced-renewal
+    -- signal is present, exit early without re-issuing. This is the
+    -- "nothing to do" path.
+    when: invocation: Invocation.created
+    let domain = invocation.domain
+    requires: domain.active_certificates.any()
+    requires: domain.active_certificates.all(c => c.renewal_date > now)
+    requires: domain.active_certificates.all(c => c.san_matches_domain)
+    requires: domain.active_certificates.all(c => c.status in {issued, renewed})
+    requires: domain.active_certificates.all(c => c.key_algorithm = domain.key_algorithm)
+    requires: not invocation.force_renewal_file_present
+
+    ensures: RenewalSkipped(domain: domain, reason: "valid beyond renewal window")
+}
+
+rule ForcedRenewalSignalled {
+    -- The FORCE_RENEWAL sentinel file, when present, signals that the
+    -- next invocation should re-issue regardless of validity.
+    when: invocation: Invocation.created
+    requires: invocation.force_renewal_file_present
+
+    ensures: ForcedRenewal(domain: invocation.domain)
+}
+
+rule KeyAlgorithmMismatchDetected {
+    -- If the configured algorithm no longer matches the on-disk key,
+    -- discard the key and force a re-issue.
+    when: invocation: Invocation.created
+    let domain = invocation.domain
+    requires: domain.active_certificates.any()
+    requires: domain.active_certificates.all(c => c.key_algorithm != domain.key_algorithm)
+
+    ensures: DiscardKeyFor(domain: domain)
+    ensures: ForcedRenewal(domain: domain)
+}
+
+rule SANSChangedDetected {
+    -- If the existing cert's SAN list doesn't match the configured set,
+    -- signal a re-issue.
+    when: invocation: Invocation.created
+    let domain = invocation.domain
+    requires: domain.active_certificates.any()
+    requires: domain.active_certificates.all(c => not c.san_matches_domain)
+
+    ensures: SanSetChanged(domain: domain)
+}
+
+rule RemoteSyncRequested {
+    -- When CHECK_REMOTE is enabled, schedule the remote-sync rule.
+    when: invocation: Invocation.created
+    requires: invocation.check_remote_requested
+
+    ensures: CheckRemoteTriggered(domain: invocation.domain)
+}
+
+rule ReissueViaForcedRenewal {
+    when: ForcedRenewal(domain)
+    requires: not domain.prevent_non_interactive_renewal or interactive_invocation()
+    ensures: ReissueRequested(domain: domain, reason: forcing_renewal)
+}
+
+rule ReissueViaSanMismatch {
+    when: SanSetChanged(domain)
+    requires: not domain.prevent_non_interactive_renewal or interactive_invocation()
+    ensures: ReissueRequested(domain: domain, reason: san_mismatch)
+}
+
+rule ReissueViaARI {
+    when: ARIRenewalWindowReached(domain)
+    requires: not domain.prevent_non_interactive_renewal or interactive_invocation()
+    ensures: ReissueRequested(domain: domain, reason: ari_window)
+}
+
+rule PerformReissue {
+    -- The issuance flow body, reached via a ReissueRequest trigger
+    -- emitted by one of the three signal rules above.
+    when: ReissueRequested(domain, reason)
+
+    let ca = resolve_ca(domain)
+    let account = Account{key_file: account_key_path_for(tool)}
+    requires: exists account
+
+    ensures: AccountRegistrationRequested(domain: domain)
+
+    let rsa_key = PrivateKey.created(
+        domain: domain,
+        algorithm: rsa,
+        length: config.default_domain_key_length
+    )
+    ensures: RSAKeyIssued(domain: domain, key: rsa_key)
+    ensures: CSRPlaced(domain: domain, key: rsa_key, sans: domain.effective_san_set)
+    ensures: OrderSubmitted(ca: ca, domains: domain.effective_san_set)
+    ensures: ChallengesFulfilled(domain: domain, ca: ca, kind: domain.challenge_kind)
+    ensures: Certificate.created(
+        domain: domain,
+        key_algorithm: rsa,
+        serial_number: from_ca_serial_of_finalization(),
+        issuer: ca.directory_url,
+        valid_until: now + 90.days,
+        subject_alternative_names: domain.effective_san_set,
+        fingerprint: from_ca_fingerprint_of_finalization(),
+        status: issued
+    )
+
+    if domain.dual_mode:
+        let ec_key = PrivateKey.created(
+            domain: domain,
+            algorithm: alternate_algorithm(domain.key_algorithm),
+            length: config.default_domain_key_length
+        )
+        ensures: ECKeyIssued(domain: domain, key: ec_key)
+        ensures: CSRPlaced(domain: domain, key: ec_key, sans: domain.effective_san_set)
+        ensures: OrderSubmitted(ca: ca, domains: domain.effective_san_set)
+        ensures: ChallengesFulfilled(domain: domain, ca: ca, kind: domain.challenge_kind)
+        ensures: Certificate.created(
+            domain: domain,
+            key_algorithm: alternate_algorithm(domain.key_algorithm),
+            serial_number: from_ca_serial_of_finalization(),
+            issuer: ca.directory_url,
+            valid_until: now + 90.days,
+            subject_alternative_names: domain.effective_san_set,
+            fingerprint: from_ca_fingerprint_of_finalization(),
+            status: issued
+        )
+
+    -- Certificate.created(...) above implicitly fires the .created trigger,
+    -- which the CertificateArchived rule subscribes to for archival.
+    ensures: ServiceReloadRequested(domain: domain)
+    ensures: ReissueCompleted(domain: domain)
+
+    if domain.deactivate_authorizations:
+        ensures: AuthorizationsDeactivated(domain: domain)
+
+rule ChallengesFulfilled {
+    -- Dispatched per-order. One challenge per domain SAN; each challenge
+    -- is fulfilled via HTTP-01 or DNS-01 depending on configuration.
+    when: OrderSubmitted(ca, domains)
+    requires: domain.challenge_kind = http_01 or ca.supports_dns01
+    requires: domain.challenge_kind = dns_01 or ca.supports_http01
+
+    for auth in authorizations_of(ca, domains):
+        if domain.challenge_kind = http_01:
+            ensures: HTTPTokenDeployed(
+                token: auth.token,
+                key_authorization: auth.key_authorization,
+                targets: domain.access_control_locations
+            )
+        else:
+            ensures: DNSRecordCreated(
+                challenge_domain: dns_challenge_name_for(auth),
+                value: auth.key_authorization,
+                provider: dns.service
+            )
+
+    ensures:
+        for auth in authorizations_of(ca, domains):
+            ChallengeValidated(auth: auth, retrying: config.fulfillment_retries)
+
+rule AccountRegistered {
+    -- Register the account with the CA, either as a new registration
+    -- or as an idempotent check of the existing one.
+    when: AccountRegistrationRequested(domain)
+    let account = Account{key_file: account_key_path_for(tool)}
+    requires: exists account
+    let ca = resolve_ca(domain)
+
+    if not account.is_registered:
+        ensures: NewAccountRequest(ca: ca, contact: account.contact_email, key_file: account.key_file)
+        ensures: account.kid = ca_returned_kid()
+        ensures: account.is_registered = true
+    else:
+        ensures: ExistingAccountVerified(ca: ca, kid: account.kid)
+}
+
+rule ServiceReloaded {
+    -- Execute all configured reload commands for a domain. SSH-prefixed
+    -- commands run over an SSH connection to the named host; others run
+    -- in the local shell.
+    when: ServiceReloadRequested(domain)
+    requires: domain.reload_commands.any()
+
+    for cmd in domain.reload_commands:
+        if cmd.kind = ssh:
+            ensures: SSHCommandExecuted(host: cmd.ssh_host, command: cmd.body)
+        else:
+            ensures: LocalCommandExecuted(command: cmd.body)
+}
+
+rule RevocationRequested {
+    -- Distinct invocation path via the -r flag. Revokes a single
+    -- certificate using a key supplied by the user.
+    when: RevokeCertificateRequested(cert_path, key_path, ca, reason)
+
+    ensures: RevokeCertificateRequest(
+        ca: ca,
+        certificate_data: der_base64_from_file(cert_path),
+        reason: reason,
+        signed_by_key_file: key_path
+    )
+}
+
+rule SelfUpgradeExecuted {
+    -- On each invocation with --upgrade, replace the binary and exec
+    -- the new version with --nocheck + --upgrade-free flags.
+    when: tool: ToolSettings.upgrade_requested = true
+
+    let latest = query_releases(tool.upgrade_to_tag)
+    requires: latest.version > tool.current_version
+
+    ensures: BinaryReplaced(old_version: tool.current_version, new_version: latest.version)
+    ensures: NewBinaryVerified(version: latest.version)
+    ensures: StaleBinariesPurged(kept_current: tool.current_version)
+    ensures: ProcessRestarted(version: latest.version, flags: flags_without_upgrade())
+
+rule SelfUpgradeNotification {
+    -- When not upgrading but an upgrade is available, surface the notice.
+    when: tool: ToolSettings.upgrade_requested = false
+    requires: query_releases(tool.upgrade_to_tag).version > tool.current_version
+
+    ensures: UpgradeNotificationShown(current: tool.current_version, available: query_releases(tool.upgrade_to_tag).version)
+
+-- ============================================================
+-- Rules: remote-server synchronisation
+-- ============================================================
+
+rule RemoteCertificateSyncEvaluated {
+    -- On each invocation for a domain with CHECK_REMOTE enabled, compare
+    -- the remote-served cert with the local copy. If the remote expires
+    -- sooner, upload from local. In dual mode, compare against the RSA
+    -- certificate (the primary active cert).
+    when: CheckRemoteTriggered(domain)
+    requires: domain.check_remote
+    requires: domain.force_renewal_pending = false
+    requires: domain.active_certificates.any()
+
+    let local_cert = active_certificate_for(domain)
+    requires: exists local_cert
+
+    let remote_cert = fetch_certificate_from(
+        deployment_host_for(domain),
+        deployment_port_for(domain)
+    )
+
+    if remote_cert = null or domain.common_name not in remote_cert.subject_alternative_names:
+        ensures: RemoteSyncIgnored(domain: domain, reason: "cert missing or CN mismatch")
+
+    else if remote_cert.fingerprint = local_cert.fingerprint:
+        ensures: RemoteSyncIgnored(domain: domain, reason: "already in sync")
+
+    else if remote_cert.valid_until >= local_cert.valid_until:
+        ensures: RemoteSyncIgnored(domain: domain, reason: "remote cert fresher")
+
+    else:
+        ensures: ServiceReloadRequested(domain: domain)
+
+rule FinalVerification {
+    -- After install + reload with CHECK_REMOTE on, re-fetch the
+    -- remote cert and confirm it matches the issued cert.
+    when: ReissueCompleted(domain)
+    requires: domain.check_remote
+
+    for cert in domain.active_certificates:
+        let remote = fetch_certificate_from(
+            deployment_host_for(domain),
+            deployment_port_for(domain)
+        )
+
+        if remote = null:
+            ensures: Installation.created(
+                domain: domain, cert: cert, outcome: server_cert_missing
+            )
+        else if remote.fingerprint != cert.fingerprint:
+            ensures: Installation.created(
+                domain: domain, cert: cert, outcome: server_cert_mismatch
+            )
+        else:
+            ensures: Installation.created(
+                domain: domain, cert: cert, outcome: verified
+            )
+
+-- ============================================================
+-- Rules: archival
+-- ============================================================
+
+rule CertificateArchived {
+    when: cert: Certificate.created
+
+    ensures: ArchiveEntry.created(
+        domain: cert.domain,
+        captured_at: now,
+        certificate_path: "archive/YYYY_MM_DD_HH_MM/domain.crt",
+        key_path: "archive/YYYY_MM_DD_HH_MM/domain.key",
+        chain_path: "archive/YYYY_MM_DD_HH_MM/chain.crt",
+        fullchain_path: "archive/YYYY_MM_DD_HH_MM/fullchain.crt"
+    )
+
+rule ArchivePurged {
+    -- After every successful archive, drop entries older than 100 days.
+    when: ArchiveEntry.created(domain, captured_at)
+
+    for entry in domain.archives where entry.age > config.default_archive_retention:
+        ensures: not exists entry
+
+-- ============================================================
+-- Invariants
+-- ============================================================
+
+invariant SingleActiveCertificatePerAlgorithm {
+    for domain in Domain:
+        domain.active_certificates.where(c => c.key_algorithm = rsa).count <= 1
+        domain.active_certificates.where(c => c.key_algorithm != rsa).count <= 1
+}
+
+invariant SANConsistency {
+    for c in Certificate where c.status in {issued, renewed}:
+        c.domain.common_name in c.subject_alternative_names
+}
+
+invariant InstalledCertMatchesDomain {
+    -- A remote certificate presented for a domain must always be for that
+    -- domain's common_name. The remote-sync rule verifies this before
+    -- any upload.
+    for domain in Domain where domain.check_remote:
+        remote_cert_of(domain).subject_alternative_names.all(
+            san => san = domain.common_name or san in domain.subject_alternative_names
+        )
+}
+
+-- ============================================================
+-- Surfaces
+-- ============================================================
+
+surface CLI {
+    facing actor User
+
+    provides:
+        IssueCertificate(common_name: String, flags: IssueFlags)
+        RevokeCertificate(cert_file: String, key_file: String, ca: String?, reason: Integer)
+        InstallOnly(common_name: String)
+        ScaffoldConfig(common_name: String, working_dir: String)
+        CheckConfigOnly(common_name: String)
+        UpgradeSelf(tag: String?)
+        PrintAccountId()
+        PrintVersion()
+
+    related:
+        ACMECAIntegration
+        RemoteServerDeployment
+        ReleaseRepositoryIntegration
+}
+
+surface ACMECAIntegration {
+    facing account: Account
+
+    context ca: ACMECA
+
+    contracts:
+        demands dns.service
+
+    exposes:
+        ca.directory_url
+        ca.supports_ari
+        ca.supports_http01
+        ca.supports_dns01
+
+    provides:
+        RegisterAccount(contact: String?, key_file: String) -> String
+        PlaceOrder(domains: Set<String>, profile: String?) -> Order
+        FinalizeOrder(order: Order, csr: CSR) -> Certificate
+        RevokeCertificate(ca: ACMECA, cert_data: String, reason: Integer, signed_by: String)
+        QueryRenewalInfo(ca: ACMECA, cert_id: String) -> RenewalWindow?
+        DeactivateAuthorization(auth_url: String)
+}
+
+surface RemoteServerDeployment {
+    facing actor ServerOperator
+
+    context deployment: DomainDeployment
+
+    exposes:
+        deployment.cert_location
+        deployment.key_location
+        deployment.ca_cert_location
+        deployment.chain_location
+        deployment.pem_location
+        deployment.key_cert_location
+
+    provides:
+        DeployCert(to: deployment.cert_location) when deployment.cert_location != null
+        DeployKey(to: deployment.key_location) when deployment.key_location != null
+        DeployChain(to: deployment.chain_location) when deployment.chain_location != null
+        DeployKeyCertBundle(to: deployment.key_cert_location) when deployment.key_cert_location != null
+        DeployFullPEM(to: deployment.pem_location) when deployment.pem_location != null
+}
+
+surface DNSServiceSurface {
+    facing dns.service
+
+    context challenge: TXTRecord
+
+    provides:
+        dns.service.AddTXTRecord(entry: challenge)
+        dns.service.RemoveTXTRecord(entry: challenge)
+}
+
+surface ReleaseRepositoryIntegration {
+    facing actor ReleaseManager
+
+    context repo: ReleaseRepository
+
+    exposes:
+        repo.api_url
+
+    provides:
+        QueryLatestRelease() -> Release?
+        DownloadReleaseAsset(release: Release) -> String
+}
+
+surface CertificateStorage {
+    facing actor User
+
+    context domain: Domain
+
+    exposes:
+        domain.common_name
+        domain.archives
+
+    provides:
+        ScaffoldWorkingDirectory(domain: Domain)
+        MarkForceRenewal(domain: Domain)
+        ReadActiveCertificate(domain: Domain) -> Certificate?
+}
+
+-- ============================================================
+-- Deferred specifications
+-- ============================================================
+
+deferred ChallengeFulfillment.http01_details    -- see: detailed/http01-challenge.allium
+deferred ChallengeFulfillment.dns01_details     -- see: detailed/dns01-challenge.allium
+deferred Deployment.transports                  -- see: detailed/multi-protocol-deployment.allium
+deferred Upgrade.binary_swap                    -- see: detailed/upgrade-flow.allium
+
+-- ============================================================
+-- Open questions
+-- ============================================================
+
+open question "How should the tool behave when a domain has both a local cert and an ARI-supported CA but the cert was issued by a different CA? Does ARI still drive renewal?"
+
+open question "Should purge retention be configurable per-domain via getssl.cfg rather than a hard-coded 100 days? The current 100-day constant tracks Let's Encrypt's 90-day validity."
+
+open question "Revocation today is cert-file-only, not domain-scoped. Should the spec expose a domain-scoped revoke as a distinct operation?"
+
+open question "When a remote cert is for a different CN, the tool silently ignores it. Should this be InstallationFailure to surface misconfiguration earlier?"
+
+open question "During self-upgrade, if the new binary's version output fails, the tool rolls back. Should a rollback failure surface an InstallationFailed-style outcome on the Upgrade entity rather than error_exit?"
+
+open question "Should `DeploymentTarget` and `ReloadCommand` be entities rather than value types? They are fully determined by Domain configuration, which suggests values, but they are referenced across surfaces."

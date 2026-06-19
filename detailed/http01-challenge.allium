@@ -1,0 +1,279 @@
+-- allium: 3
+-- http01-challenge.allium
+--
+-- Scope
+--   Include:
+--     - The HTTP-01 challenge mechanics per the ACME protocol
+--     - Key-authorization computation and file deployment
+--     - Multi-ACL placement of challenge tokens
+--     - Validation polling against the CA
+--     - Token cleanup after validation (success or failure)
+--   Exclude:
+--     - The ACME envelope / JWS machinery
+--     - Order lifecycle (covered by the parent spec)
+--     - DNS-01 coverage (see dns01-challenge.allium)
+--
+-- Summary
+--   In HTTP-01, the ACME CA proves domain control by fetching a
+--   well-known URL. The tool writes a file at that URL path with the
+--   key authorization as the body. The CA's GET returns that body and
+--   the CA verifies it matches the challenge it issued.
+
+config {
+    -- The well-known path mandated by the ACME protocol (RFC 8555 §8.3).
+    challenge_path_prefix: String = ".well-known/acme-challenge"
+    -- Validation polling caps.
+    validation_max_attempts: Integer = 20
+    validation_poll_interval: Duration = 2.seconds
+}
+
+-- ============================================================
+-- Entities
+-- ============================================================
+
+entity ACMEChallenge {
+    -- A single HTTP-01 challenge issued by the CA for one domain.
+    authorization_url: String
+    domain: String
+    token: String                    -- random base64url per RFC 8555 §8.3
+    challenge_url: String
+    status: ChallengeStatus
+
+    is_pending: status = pending
+    is_valid: status = valid
+}
+
+enum ChallengeStatus { pending | valid | invalid | processing }
+
+entity HTTPLocation {
+    -- A single destination where the challenge file must be placed.
+    -- Each Destination corresponds to one ACL entry from getssl.cfg.
+    destination: String
+    protocol: DeploymentProtocol
+    well_known_dir: String           -- parent directory for .well-known/
+}
+
+enum DeploymentProtocol { local | ssh | sftp | ftp | ftpes | ftps | davs }
+
+entity ChallengeToken {
+    -- A deployment record: one per (challenge, location) pair.
+    challenge: ACMEChallenge
+    location: HTTPLocation
+    path: String                     -- full URL-mapped path on the target
+    content: String                  -- `token + "." + thumbprint`
+    status: TokenStatus
+
+    transitions status {
+        pending -> deployed
+        deployed -> verified
+        deployed -> cleaned
+        verified -> cleaned
+        terminal: cleaned
+    }
+}
+
+enum TokenStatus { pending | deployed | verified | cleaned }
+
+entity HTTP01Session {
+    -- A single HTTP-01 fulfillment session for an order. Ties
+    -- together the challenges, locations and the resulting tokens.
+    challenges: Set<ACMEChallenge> with session = this
+    locations: Set<HTTPLocation>
+    tokens: Set<ChallengeToken> with session = this
+
+    result: SessionOutcome
+}
+
+enum SessionOutcome { pending | succeeded | failed }
+
+-- ============================================================
+-- Derived values (black-box helpers)
+-- ============================================================
+
+value Thumbprint {
+    -- The base64url-encoded SHA-256 digest of the account JWK.
+    -- Computed from the account key file; treated as a black-box value
+    -- because the digest algorithm is a cryptographic implementation detail.
+    representation: String
+}
+
+-- ============================================================
+-- Rules
+-- ============================================================
+
+rule TokenAuthored {
+    -- For each challenge in the session and each location, produce a
+    -- ChallengeToken record with the key-authorization content.
+    --
+    -- Content per RFC 8555 §8.1:
+    --   token = challenge.token (base64url, upper-case letters, digits,
+    --           "-", "_"; max 255 chars)
+    --   key_authorization = token + "." + base64url(SHA-256(account_jwk))
+    when: session: HTTP01Session.created
+    for c in session.challenges:
+        requires: token_is_well_formed(c.token)
+        let thumbprint = thumbprint_of_account_key()
+        for loc in session.locations:
+            ensures: ChallengeToken.created(
+                session: session,
+                challenge: c,
+                location: loc,
+                path: loc.well_known_dir + "/" +
+                       config.challenge_path_prefix + "/" + c.token,
+                content: c.token + "." + thumbprint.representation,
+                status: pending
+            )
+
+rule TokensDeployed {
+    -- Copy each token's content to its destination path using the
+    -- destination's configured protocol. Each copy is idempotent:
+    -- deploying the same (path, content) twice produces the same state.
+    when: token: ChallengeToken status becomes pending
+
+    ensures: FileTransferred(
+        source_content: token.content,
+        destination_path: token.path,
+        protocol: token.location.protocol,
+        destination: token.location.destination
+    )
+    ensures: token.status = deployed
+
+rule ValidationPolled {
+    -- After all tokens for a session are deployed, tell the CA the
+    -- challenge is ready and poll until each challenge reaches a
+    -- terminal state (valid or invalid).
+    when: session: HTTP01Session
+    let deployed_tokens = session.tokens.all(t => t.status = deployed)
+    requires: deployed_tokens
+
+    for c in session.challenges:
+        ensures: CAChallengeNotified(challenge: c, status: ready)
+
+    let attempts = 0
+    while attempts < config.validation_max_attempts and
+          session.challenges.any(c => c.status = pending | processing):
+        for c in session.challenges where c.status = pending | processing:
+            let ca_status = fetch_challenge_status(c)
+            if ca_status = valid:
+                ensures: c.status = valid
+            else if ca_status = invalid:
+                ensures: c.status = invalid
+            else:
+                ensures: sleep(config.validation_poll_interval)
+        let attempts = attempts + 1
+
+    if session.challenges.all(c => c.status = valid):
+        ensures: session.result = succeeded
+    else:
+        ensures: session.result = failed
+
+rule TokensCleanedUp {
+    -- After validation finishes (success or failure), remove every
+    -- deployed token file from every location. This prevents stale
+    -- tokens from leaking secrets or conflicting with future runs.
+    when: session: HTTP01Session.result transitions_to succeeded | failed
+
+    for token in session.tokens:
+        requires: token.status = deployed
+        ensures: FileRemoved(path: token.path,
+                             protocol: token.location.protocol,
+                             destination: token.location.destination)
+        ensures: token.status = cleaned
+
+-- ============================================================
+-- Invariants
+-- ============================================================
+
+invariant TokenContentMatchesChallenge {
+    -- The content of every deployed token encodes the expected key
+    -- authorization: the challenge's token, a period, and the account
+    -- key thumbprint.
+    for token in ChallengeToken where token.status in {deployed, verified, cleaned}:
+        token.content =
+            token.challenge.token + "." + thumbprint_of_account_key().representation
+}
+
+invariant ChallengeTokenCompleteness {
+    -- A well-formed session deploys one token per (challenge, location)
+    -- pair. Under-deployment leaves challenges invalid; over-deployment
+    -- leaves dangling files.
+    for session in HTTP01Session:
+        session.tokens.count =
+            session.challenges.count * session.locations.count
+}
+
+invariant CleanupOnTerminalSession {
+    -- After the session reaches a terminal outcome, no token file
+    -- should remain on any target.
+    for session in HTTP01Session where session.result in {succeeded, failed}:
+        session.tokens.all(t => t.status = cleaned)
+}
+
+-- ============================================================
+-- Surfaces
+-- ============================================================
+
+surface HTTP01ChallengeBoundary {
+    -- The HTTP-01 challenge boundary: given a set of challenges and
+    -- a set of destinations, the tool must place the right content
+    -- and the CA must see it.
+    facing ca: ACMECA
+
+    context session: HTTP01Session
+
+    exposes:
+        session.challenges
+        session.locations
+        session.result
+
+    provides:
+        DeployTokens(session: HTTP01Session)
+        PollValidation(session: HTTP01Session) -> SessionOutcome
+        CleanupTokens(session: HTTP01Session)
+
+    @guarantee RFC8555CompliantTokens
+        -- Each token content is the canonical key authorization for
+        -- the challenge, formatted per RFC 8555 §8.1. The CA can
+        -- reconstruct this from (token, thumbprint) and verify equality.
+
+    @guarantee IdempotentPlacement
+        -- Deploying the same token multiple times to the same path is
+        -- observable as a single placement. The destination file's
+        -- contents are identical across deployments.
+
+    @guidance
+        -- The "well-known directory" for an HTTP-01 challenge is the
+        -- directory that the CA expects to serve /.well-known/ from.
+        -- For a web server with document root at /var/www, that is
+        -- /var/www. The tool resolves this from each ACL entry.
+}
+
+surface FileTransferBoundary {
+    -- The transport boundary. The same surface is exposed for every
+    -- configured deployment protocol (local, ssh, sftp, ftp, ftpes,
+    -- ftps, davs). The protocol is a runtime parameter selected by
+    -- the location's configuration.
+    facing actor SystemOperator
+
+    provides:
+        FileTransferred(
+            source_content: String,
+            destination_path: String,
+            protocol: DeploymentProtocol,
+            destination: String
+        )
+        FileRemoved(
+            path: String,
+            protocol: DeploymentProtocol,
+            destination: String
+        )
+
+-- ============================================================
+-- Open questions
+-- ============================================================
+
+open question "The current implementation deploys challenge tokens to all ACLs before polling. Should the spec model partial success — e.g. some ACLs deploy while others fail — and specify a rollback of successful deployments before reporting overall failure?"
+
+open question "Token cleanup is currently best-effort. If a cleanup step fails (e.g. transient FTP error), the tool logs a warning and continues. Should the spec treat cleanup failure as a session-level failure with a distinct outcome (e.g. `failed_with_leaked_token`)?"
+
+open question "The ACME protocol permits multiple challenges of different kinds for the same authorization. Should this spec model the case where HTTP-01 is one of several offered options, and the tool's challenge-kind preference is a first-class decision?"

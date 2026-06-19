@@ -1,0 +1,44 @@
+-- allium: 3
+-- dns-service.allium
+--
+-- A minimal library spec capturing the DNS provider integration
+-- contract used by getssl's DNS-01 challenge flow. The implementation
+-- is provided by one of 30+ provider-specific scripts (Cloudflare,
+-- Route53, Google Cloud DNS, PowerDNS, etc.) that implement the
+-- DnsService contract.
+--
+-- Scope
+--   Include:
+--     - The add / remove TXT record contract
+--     - The TXT record value type
+--   Exclude:
+--     - Specific provider implementations
+
+external entity Provider {
+    -- A DNS provider. Each provider implements the DnsService contract
+    -- for a specific DNS backend (Cloudflare, Route 53, etc.).
+    name: String
+    supports_propagation_check: Boolean = true
+}
+
+value TXTRecord {
+    domain: String
+    value: String
+}
+
+contract DnsService {
+    -- The interface any DNS provider must satisfy to support DNS-01
+    -- challenge validation with an ACME CA.
+
+    add_record: (entry: TXTRecord) -> Void
+    remove_record: (entry: TXTRecord) -> Void
+
+    @invariant Roundtrip
+        -- add_record is idempotent within a single challenge's
+        -- lifetime: calling it twice with the same entry produces the
+        -- same observable DNS state as calling it once.
+
+    @invariant Cleanup
+        -- After remove_record returns successfully, the TXT record
+        -- for that domain must no longer be resolvable.
+}

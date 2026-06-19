@@ -1,0 +1,312 @@
+-- allium: 3
+-- multi-protocol-deployment.allium
+--
+-- Scope
+--   Include:
+--     - File transfer over local filesystem, SSH, SFTP, FTP, FTPS, FTPES, DAVS
+--     - Per-protocol authentication semantics (password, SSH key, anonymous)
+--     - Source-file preparation (concatenation of cert + key + chain)
+--     - Per-destination permission / umask enforcement
+--     - Error surfacing per protocol
+--   Exclude:
+--     - The specific shell utility chosen per OS (scp vs ssh, lftp vs curl)
+--       — that is a runtime decision; the spec models the protocol contract only
+--     - Cert-bundling rules (covered by cert_install / CertificateArchived in
+--       the parent spec)
+--
+-- Summary
+--   getssl supports seven deployment transports so that certs issued
+--   on one machine can land on a remote application server. The tool is
+--   designed to be invoked from a laptop, cron-job, or CI runner and
+--   place its artefacts wherever the serving process expects them. This
+--   spec captures the semantics of each transport and their error model.
+
+config {
+    secure_umask: Integer = 0o077            -- for cert + key files
+    default_umask: Integer = 0o022
+    ssh_options: String = ""                 -- user-configurable
+    connection_timeout: Duration = 30.seconds
+}
+
+-- ============================================================
+-- Value types
+-- ============================================================
+
+value DeploymentTarget {
+    destination: String
+    protocol: DeploymentProtocol
+}
+
+enum DeploymentProtocol { local | ssh | sftp | ftp | ftpes | ftps | davs }
+
+value LocalTarget {
+    path: String
+}
+
+value SSHHost {
+    host: String
+    remote_path: String
+    user: String?
+}
+
+value SFTPHost {
+    host: String
+    remote_path: String
+    user: String
+    password: String
+}
+
+value FTPHost {
+    host: String
+    remote_path: String
+    user: String
+    password: String
+    use_ssl: Boolean
+    explicit_tls: Boolean                  -- FTPES uses explicit TLS; FTPS implicit
+}
+
+value DAVHost {
+    url: String                            -- HTTPS URL of the WebDAV endpoint
+}
+
+-- ============================================================
+-- Entities
+-- ============================================================
+
+entity FileTransfer {
+    -- A single file transfer operation. The protocol is fixed at creation;
+    -- the tool dispatches to the appropriate handler by matching on protocol.
+    source_path: String                    -- local file to copy from
+    target: DeploymentTarget
+    intent: TransferIntent
+    status: TransferStatus
+
+    transitions status {
+        pending -> in_progress
+        in_progress -> succeeded
+        in_progress -> failed
+        terminal: succeeded, failed
+    }
+}
+
+enum TransferIntent {
+    cert_file | key_file | ca_cert | full_chain | key_cert_bundle | full_pem
+}
+
+enum TransferStatus { pending | in_progress | succeeded | failed }
+
+entity TransferBatch {
+    -- A group of related file transfers issued during cert_install or
+    -- RemoteCertificateSync. All transfers attempt; individual failures
+    -- are recorded but do not abort siblings.
+    domain: Domain
+    transfers: Set<FileTransfer> with batch = this
+    outcome: BatchOutcome
+}
+
+enum BatchOutcome { pending | all_succeeded | partial_failure | all_failed }
+
+-- ============================================================
+-- Rules
+-- ============================================================
+
+rule LocalFileTransferred {
+    -- Direct filesystem copy with restrictive umask.
+    when: transfer: FileTransfer status becomes pending
+    requires: transfer.target.protocol = local
+
+    let destination = parse_local_destination(transfer.target.destination)
+    requires: exists destination
+
+    ensure_umask(config.secure_umask)
+    ensures: FileCopied(src: transfer.source_path, dst: destination.path)
+    ensure_umask(config.default_umask)
+    ensures: transfer.status = succeeded
+
+rule SSHFileTransferred {
+    -- Copy a file to an SSH host via scp. The SSH binary is a runtime
+    -- concern; the spec models the protocol contract: authenticated
+    -- file write to a remote path.
+    when: transfer: FileTransfer status becomes pending
+    requires: transfer.target.protocol = ssh
+
+    let ssh_host = parse_ssh_destination(transfer.target.destination)
+    requires: exists ssh_host
+
+    ensures: SSHConnectionOpen(host: ssh_host.host, user: ssh_host.user, timeout: config.connection_timeout)
+    ensures: RemoteFileWritten(
+        host: ssh_host.host,
+        remote_path: ssh_host.remote_path,
+        content_of: transfer.source_path,
+        via_protocol: ssh
+    )
+    ensures: ssh_connection_closed(ssh_host.host)
+    ensures: transfer.status = succeeded
+
+rule SFTPFileTransferred {
+    -- Copy a file to an SFTP host using sshpass-supplied credentials.
+    -- The tool prefers sftp over scp because SFTP supports arbitrary
+    -- remote paths without the quoting problems of scp.
+    when: transfer: FileTransfer status becomes pending
+    requires: transfer.target.protocol = sftp
+
+    let sftp_host = parse_sftp_destination(transfer.target.destination)
+    requires: exists sftp_host
+
+    ensures: SSHPasswordAuth(host: sftp_host.host, user: sftp_host.user, password: sftp_host.password)
+    ensures: SFTPFileUploaded(
+        host: sftp_host.host,
+        remote_path: sftp_host.remote_path,
+        content_of: transfer.source_path
+    )
+    ensures: transfer.status = succeeded
+
+rule FTPFileTransferred {
+    -- Upload a file over plain or SSL/TLS FTP. The tool chooses between
+    -- lftp and curl based on runtime availability; either satisfies
+    -- the spec contract.
+    when: transfer: FileTransfer status becomes pending
+    requires: transfer.target.protocol in {ftp, ftps, ftpes}
+
+    let ftp_host = parse_ftp_destination(transfer.target.destination)
+    requires: exists ftp_host
+
+    ensures: FTPConnectionOpen(
+        host: ftp_host.host,
+        user: ftp_host.user,
+        password: ftp_host.password,
+        tls_mode:
+            if transfer.target.protocol = ftp then none
+            else if transfer.target.protocol = ftps then implicit
+            else: explicit
+    )
+    ensures: FTPFileUploaded(
+        host: ftp_host.host,
+        remote_path: ftp_host.remote_path,
+        content_of: transfer.source_path
+    )
+    ensures: ftp_connection_closed(ftp_host.host)
+    ensures: transfer.status = succeeded
+
+rule DAVSFileTransferred {
+    -- PUT a file over WebDAV-HTTPS. Used mainly for reverse-proxy
+    -- deployments where the application server exposes an HTTPS-managed
+    -- upload endpoint.
+    when: transfer: FileTransfer status becomes pending
+    requires: transfer.target.protocol = davs
+
+    let dav_host = parse_davs_destination(transfer.target.destination)
+    requires: exists dav_host
+
+    ensures: HTTPSPUTRequest(
+        url: dav_host.url,
+        content_of: transfer.source_path,
+        content_type: "application/octet-stream"
+    )
+    ensures: transfer.status = succeeded
+
+rule TransferRecordedOutcome {
+    -- After each transfer finishes, the batch's outcome is recomputed.
+    when: transfer: FileTransfer status transitions_to succeeded | failed
+    let batch = TransferBatch{domain: transfer.domain}
+    requires: exists batch
+
+    if batch.transfers.all(t => t.status = succeeded):
+        ensures: batch.outcome = all_succeeded
+    else if batch.transfers.all(t => t.status in {succeeded, failed}):
+        if batch.transfers.any(t => t.status = failed):
+            ensures: batch.outcome = partial_failure
+    if batch.transfers.all(t => t.status = failed):
+        ensures: batch.outcome = all_failed
+
+-- ============================================================
+-- Invariants
+-- ============================================================
+
+invariant KeyFilesTransferredWithRestrictivePermissions {
+    -- Key-file intents always land with mode 0600. This prevents any
+    -- non-owner process from reading the private key on the destination.
+    for transfer in FileTransfer
+        where transfer.intent in {key_file, full_pem, key_cert_bundle}
+        and transfer.status = succeeded
+        and transfer.target.protocol = local:
+        destination_file_mode(transfer.target.destination) = 0o0600
+}
+
+invariant IdempotentTransfer {
+    -- A transfer of the same (source, target, intent) pair always
+    -- produces the same destination state. The destination file's
+    -- contents and permissions are identical regardless of how many
+    -- times the transfer runs (barring source-file changes, which
+    -- change the source's identity).
+    for t1 in FileTransfer where t1.status = succeeded:
+        for t2 in FileTransfer where
+            t2.source_path = t1.source_path and
+            t2.target.destination = t1.target.destination and
+            t2.target.protocol = t1.target.protocol:
+        destination_contents_identical(t1.target.destination, t2.target.destination)
+}
+
+invariant BatchOutcomeReflectsTransfers {
+    -- A batch's reported outcome matches the actual transfer outcomes.
+    -- Partial failures are visible as partial_failure, never conflated
+    -- with total failure or total success.
+    for batch in TransferBatch where batch.outcome != pending:
+        succeeded_count = batch.transfers.where(t => t.status = succeeded).count
+        total_count = batch.transfers.count
+        (batch.outcome = all_succeeded implies succeeded_count = total_count) and
+        (batch.outcome = all_failed implies succeeded_count = 0) and
+        (batch.outcome = partial_failure implies 0 < succeeded_count and succeeded_count < total_count)
+}
+
+-- ============================================================
+-- Surfaces
+-- ============================================================
+
+surface FileTransferBoundary {
+    facing actor SystemOperator
+
+    context batch: TransferBatch
+
+    exposes:
+        batch.transfers
+        batch.outcome
+
+    provides:
+        TransferFile(transfer: FileTransfer)
+        ExecuteBatch(batch: TransferBatch) -> BatchOutcome
+
+    @guarantee ProtocolCorrectness
+        -- Each protocol delivers the source file's bytes faithfully to
+        -- the destination path, preserving integrity. For local, this
+        -- means a byte-identical copy. For remote protocols, the
+        -- destination filesystem contains the same bytes as the source.
+
+    @guarantee ErrorVisibility
+        -- A failed transfer is reported in the batch outcome. The caller
+        -- can inspect `batch.transfers.where(t => t.status = failed)`
+        -- to identify which destination(s) failed.
+
+    @guidance
+        -- The destination format for each protocol:
+        --   local:        absolute or relative path on the local filesystem
+        --   ssh:          `user@host:remote_path` or `host:remote_path`
+        --   sftp:         `sftp:user:pass:host:remote_path` (pass is
+        --                 plaintext; prefer SSH keys for sensitive deployments)
+        --   ftp/ftps/ftpes: `ftp://user:pass@host:port/remote_path`
+        --   davs:         `https://user:pass@host/remote_path`
+        -- Passwords appear in URIs; this is an implementation-level
+        -- concern but domain-configurable via getssl.cfg.
+}
+
+-- ============================================================
+-- Open questions
+-- ============================================================
+
+open question "Should password-in-URI for SFTP and FTP be model-level information, or an implementation-level concern hidden behind a 'credentials reference' type?"
+
+open question "The current tool silently uses anonymous FTP when no credentials are supplied. Should anonymous FTP be a first-class protocol variant or just an FTP configuration?"
+
+open question "For DAVS, should the spec model authentication failure as distinct from transfer failure, since 401 vs. 403 vs. network errors have different mitigation paths?"
+
+open question "The batch outcome currently collapses partial success into partial_failure. Should it distinguish 'certs transferred but reload failed' as its own outcome?"

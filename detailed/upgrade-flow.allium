@@ -1,0 +1,310 @@
+-- allium: 3
+-- upgrade-flow.allium
+--
+-- Scope
+--   Include:
+--     - Release discovery (query GitHub API for latest tag)
+--     - Version comparison (semver-like: strip 'v' prefix, split on '.')
+--     - Binary download from tag-specific CODE_LOCATION
+--     - Atomic local replacement (rename + install)
+--     - Post-install verification (run new binary with --version)
+--     - Automatic rollback on verification failure
+--     - Stale backup deletion
+--     - Process restart with flag stripping
+--   Exclude:
+--     - The actual download mechanics (curl implementation)
+--     - The HTTP/HTTPS transport details
+--     - The shell argument parsing for flag stripping
+--
+-- Summary
+--   getssl self-upgrades by fetching an updated binary from GitHub,
+--   replacing the current binary atomically, verifying the new one
+--   runs and reports the expected version, and either committing the
+--   installation (deleting old backups) or rolling back on failure.
+--   After a successful install, the current process execs the new
+--   binary with the --upgrade flag removed so the new version handles
+--   the original per-domain work.
+
+config {
+    release_api_url: String =
+        "https://api.github.com/repos/srvrco/getssl/releases/latest"
+    code_location_template: String =
+        "https://raw.githubusercontent.com/srvrco/getssl/master/getssl"
+    -- When verifying, the new binary is invoked with these flags
+    -- to inhibit an upgrade-check loop and surface version output.
+    verification_flags: List<String> = ["-U", "-v"]
+}
+
+-- ============================================================
+-- Entities
+-- ============================================================
+
+entity Release {
+    tag: String
+    version: String                         -- `tag` stripped of the 'v' prefix
+    download_url: String
+    description: String?
+}
+
+entity UpgradeAttempt {
+    -- Tracks the state of one upgrade session, from release lookup
+    -- through post-install verification.
+    current_version: String
+    current_binary_path: String
+    target_tag: String?                      -- null = "latest release"
+    discovered_release: Release?
+    downloaded_file: String?
+    backup_path: String?
+    status: UpgradeStatus
+
+    transitions status {
+        pending -> discovery
+        discovery -> comparing
+        comparing -> downloading
+        downloading -> replacing
+        replacing -> verifying
+        verifying -> committed
+        verifying -> rolling_back
+        rolling_back -> rolled_back
+        rolling_back -> rollback_failed
+        terminal: committed, rolled_back, rollback_failed
+    }
+}
+
+enum UpgradeStatus {
+    pending | discovery | comparing | downloading | replacing |
+    verifying | committed | rolling_back | rolled_back | rollback_failed
+}
+
+entity ProcessContext {
+    -- Snapshot of the invoking shell's state, carried across exec.
+    original_command: String
+    upgrade_flag_present: Boolean
+    experimental_tag: String?
+    quiet_flag: Boolean
+    mute_flag: Boolean
+}
+
+-- ============================================================
+-- Rules
+-- ============================================================
+
+rule ReleaseDiscovered {
+    -- Fetch the latest release (or the tag pinned via --experimental)
+    -- from the GitHub API. The tag is parsed for the version.
+    when: attempt: UpgradeAttempt status becomes pending
+
+    let tag_url =
+        if exists attempt.target_tag:
+            config.release_api_url + "/tags/" + attempt.target_tag
+        else:
+            config.release_api_url
+
+    let release_data = fetch_release_info(tag_url)
+    let release = parse_release(release_data)
+    requires: exists release
+
+    ensures: attempt.discovered_release = release
+    ensures: attempt.status = comparing
+
+rule VersionCompared {
+    -- Compare the current version against the discovered release.
+    -- Versions are compared numerically by stripping 'v' and the
+    -- dot separators. If current >= discovered, there is nothing
+    -- to do.
+    when: attempt: UpgradeAttempt status becomes comparing
+    requires: exists attempt.discovered_release
+
+    let current_numeric = numeric_version(attempt.current_version)
+    let discovered_numeric = numeric_version(attempt.discovered_release.version)
+
+    if current_numeric >= discovered_numeric:
+        -- Per semantics: -u on a current version reports "no update"
+        -- and exits without replacement. The attempt stays in pending
+        -- state; no further steps occur.
+        ensures: UpgradeNotNeeded(attempt: attempt)
+    else:
+        ensures: attempt.status = downloading
+
+rule BinaryDownloaded {
+    -- Download the updated source from the tag-specific CODE_LOCATION.
+    -- The URL is the template with 'master' substituted for the target tag.
+    when: attempt: UpgradeAttempt status becomes downloading
+    requires: exists attempt.discovered_release
+
+    let code_url = substitute_tag(
+        config.code_location_template,
+        attempt.discovered_release.tag
+    )
+    let temp_path = create_temp_file(pattern: "getssl.XXXXXX")
+    requires: exists temp_path
+
+    ensures: HTTPGet(url: code_url, target_path: temp_path)
+    ensures: attempt.downloaded_file = temp_path
+    ensures: attempt.status = replacing
+
+rule BinaryReplaced {
+    -- Atomically swap the running binary for the new version. The old
+    -- file is renamed to `<binary>.v<current_version>`, then the new
+    -- file is installed in place with executable permissions (0700).
+    when: attempt: UpgradeAttempt status becomes replacing
+    requires: exists attempt.downloaded_file
+
+    let backup_path = attempt.current_binary_path + ".v" + attempt.current_version
+    ensures: RenameFile(src: attempt.current_binary_path, dst: backup_path)
+    ensures: attempt.backup_path = backup_path
+    ensures: InstallFile(src: attempt.downloaded_file, dst: attempt.current_binary_path, mode: 0o700)
+    ensures: attempt.status = verifying
+
+rule NewBinaryVerified {
+    -- Invoke the newly installed binary with the verification flags.
+    -- Its stdout must contain `getssl <tag>` (case-insensitive match
+    -- of the expected tag). If this fails, initiate rollback.
+    when: attempt: UpgradeAttempt status becomes verifying
+    requires: exists attempt.discovered_release
+
+    let expected_output = "getssl " + uppercase(attempt.discovered_release.tag)
+    let verification_cmd = "bash " + attempt.current_binary_path + " " +
+                           join_with_space(config.verification_flags)
+    let actual_output = capture_stdout(verification_cmd)
+
+    if actual_output = expected_output:
+        ensures: attempt.status = committed
+    else:
+        ensures: LogWarning("new binary verification failed: expected \"" +
+                            expected_output + "\", got \"" + actual_output + "\"")
+        ensures: attempt.status = rolling_back
+
+rule RollbackExecuted {
+    -- When verification fails, restore the old binary from the backup.
+    -- If the restore itself fails, report rollback_failed for manual
+    -- intervention.
+    when: attempt: UpgradeAttempt status becomes rolling_back
+    requires: exists attempt.backup_path
+
+    let restore_result = RenameFile(
+        src: attempt.backup_path,
+        dst: attempt.current_binary_path
+    )
+
+    if restore_result.succeeded:
+        ensures: attempt.status = rolled_back
+    else:
+        ensures: LogError("rollback failed; manual inspection of " +
+                          attempt.current_binary_path + " and " +
+                          attempt.backup_path + " required")
+        ensures: attempt.status = rollback_failed
+
+rule StaleBackupsPurged {
+    -- After a committed upgrade, delete any other `.v*` backups next
+    -- to the current binary, but preserve the immediate predecessor
+    -- so the user can inspect the prior version.
+    when: attempt: UpgradeAttempt status transitions_to committed
+
+    let current_dir = dirname(attempt.current_binary_path)
+    let backups = list_files_matching(current_dir, "*.v*")
+
+    for backup in backups where backup != attempt.backup_path:
+        ensures: RemoveFile(backup)
+
+rule ProcessRestarted {
+    -- After committing, re-execute the binary with the upgrade-related
+    -- flags stripped and --nocheck prepended (to inhibit a second
+    -- upgrade check on the new version).
+    when: attempt: UpgradeAttempt status transitions_to committed
+    requires: exists attempt.discovered_release
+
+    let stripped_command = strip_upgrade_flags(process_context.original_command)
+    let prefixed_command = prepend_flag(stripped_command, "--nocheck")
+
+    ensures: ExecProcess(command: prefixed_command)
+    ensures: UpgradeCompleted(
+        old_version: attempt.current_version,
+        new_version: attempt.discovered_release.tag
+    )
+
+-- ============================================================
+-- Invariants
+-- ============================================================
+
+invariant BinaryIntegrityAfterRollback {
+    -- After a successful rollback, the restored binary must be the old
+    -- version, not the new one. The backup path exists at verification
+    -- time; its restoration must be byte-identical to its pre-rename state.
+    for attempt in UpgradeAttempt where attempt.status = rolled_back:
+        file_exists(attempt.current_binary_path) and
+        file_content_matches(attempt.current_binary_path, attempt.backup_path)
+}
+
+invariant CommittedUpgradeImpliesVerified {
+    -- The only way to reach `committed` is by passing verification.
+    -- The transition graph already encodes this, but the invariant
+    -- adds an additional assertion: the binary at the committed binary
+    -- path produces the expected version output when run.
+    for attempt in UpgradeAttempt where attempt.status = committed:
+        produces_version_output(attempt.current_binary_path, attempt.discovered_release.tag)
+}
+
+invariant StaleBackupCleanup {
+    -- After a committed upgrade and purge, the only `.v*` backup adjacent
+    -- to the binary is the one corresponding to the just-replaced version.
+    for attempt in UpgradeAttempt where attempt.status = committed:
+        let dir = dirname(attempt.current_binary_path)
+        count(list_files_matching(dir, "*.v*")) <= 1
+        (count(list_files_matching(dir, "*.v*")) = 1 implies
+            attempt.backup_path in list_files_matching(dir, "*.v*"))
+}
+
+-- ============================================================
+-- Surfaces
+-- ============================================================
+
+surface UpgradeBoundary {
+    -- The upgrade surface: a single invoker requests an upgrade; the
+    -- tool handles discovery through verification / rollback.
+    facing actor ReleaseConsumer
+
+    context attempt: UpgradeAttempt
+
+    exposes:
+        attempt.current_version
+        attempt.discovered_release
+        attempt.status
+
+    provides:
+        DiscoverRelease(attempt: UpgradeAttempt)
+        Download(attempt: UpgradeAttempt)
+        Replace(attempt: UpgradeAttempt)
+        Verify(attempt: UpgradeAttempt)
+        Rollback(attempt: UpgradeAttempt)
+        Finalize(attempt: UpgradeAttempt)
+
+    @guarantee AtomicReplace
+        -- The current binary is renamed before the new one is installed.
+        -- At no point is the destination path missing a valid binary —
+        -- the backup is always available for restoration.
+
+    @guarantee VerifiedBeforeCommitment
+        -- The attempt reaches `committed` only after the newly-installed
+        -- binary successfully reports the expected version when executed.
+        -- Without verification, the attempt remains in `verifying` or
+        -- transitions to `rolling_back`.
+
+    @guidance
+        -- The `--nocheck` flag is injected on restart to prevent an
+        -- infinite upgrade loop. Without it, the new binary would
+        -- query GitHub on every invocation and restart itself forever
+        -- if the release metadata is misconfigured.
+}
+
+-- ============================================================
+-- Open questions
+-- ============================================================
+
+open question "The current tool reports 'Updated getssl from vA to vB' before re-executing. Should this notification be a first-class outcome of the UpgradeAttempt entity, captured in its terminal state?"
+
+open question "When a user pins a specific tag via --experimental and that tag is already installed, the upgrade path differs from -u (exact equality vs. strictly-greater comparison). Should the spec model these as two distinct upgrade strategies?"
+
+open question "Cleanup of stale `.v*` backups currently preserves only the immediate predecessor. Should the retention of prior versions be user-configurable (e.g. keep the last N versions)?"
+
+open question "If the process restart itself fails (the exec call never returns successfully), should the tool surface a rollback_failed-equivalent state to the user, or is the rolled_back backup sufficient?"
