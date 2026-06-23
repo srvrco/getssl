@@ -295,6 +295,7 @@
 # 2024-10-16 Add newlines to /directory response (#765)(#859)
 # 2025-06-18 Support profiles
 # 2025-07-28 Accept lowercase replay-nonce headers (#884)
+# 2026-06-23 Obtain the SAN challenge tokens at the start, so that we can submit them in bulk to the DNS, to minimise the DNS propagation time.
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -1492,6 +1493,9 @@ del_dns_rr() {
 }
 
 fulfill_challenges() {
+
+challenge_data=()
+
 dn=0
 for d in "${alldomains[@]}"; do
   # $d is domain in current loop, which is number $dn for ACL
@@ -1577,17 +1581,7 @@ for d in "${alldomains[@]}"; do
       fi
       debug set primary_ns = "$primary_ns"
 
-      # internal check
-      check_challenge_completion_dns "${d}" "${rr}" "${primary_ns}" "${auth_key}"
-
-      # let Let's Encrypt check
-      check_challenge_completion "${uri}" "${d}" "${keyauthorization}"
-      result=$?
-      del_dns_rr "${d}" "${auth_key}"
-      if [[ $result -eq 1 ]]; then
-        # check_challenge_completion failed with "invalid" - order creation cancelled, return error so we can retryS
-        return 1
-      fi
+      challenge_data+=("$d" "$rr" "$primary_ns" "$auth_key" "$uri" "$keyauthorization")
     else      # set up the correct http token for verification
       if [[ $API -eq 1 ]]; then
         # get the token from the http component
@@ -1684,6 +1678,18 @@ for d in "${alldomains[@]}"; do
     ((dn++))
   fi
 done # end of ... loop through domains for cert ( from SANS list)
+
+for ((i=0; i<${#challenge_data[@]}; i+=6)); do
+  check_challenge_completion_dns "${challenge_data[i]}" "${challenge_data[i+1]}" "${challenge_data[i+2]}" "${challenge_data[i+3]}"
+  check_challenge_completion "${challenge_data[i+4]}" "${challenge_data[i]}" "${challenge_data[i+5]}"
+  result=$?
+  del_dns_rr "${challenge_data[i]}" "${challenge_data[i+3]}"
+  if [[ $result -eq 1 ]]; then
+    # check_challenge_completion failed with "invalid" - order creation cancelled, return error so we can retryS
+    return 1
+  fi
+done
+
 #end of verify each domain.
 return 0
 }
