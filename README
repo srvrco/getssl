@@ -7,25 +7,26 @@ for automating the process on remote servers.
 
 Table of Contents 
 
--   Upgrade broken in v2.43
--   Features
--   Overview
--   Quick Start Guide
--   Manual Installation
--   Getting started
--   Detailed guide to getting started with more examples
--   Wildcard certificates
--   ISPConfig
--   Automating updates
--   Structure
--   Custom template for configuration
--   Server-Types
--   Revoke a certificate
--   Elliptic curve keys
--   Preferred Chain
--   Include Root certificate in full chain
--   Windows Server and IIS Support
--   Issues / problems / help
+- Upgrade broken in v2.43
+- Features
+- Overview
+- Quick Start Guide
+- Manual Installation
+- Getting started
+- Detailed guide to getting started with more examples
+- Wildcard certificates
+- ISPConfig
+- Automating updates
+- Structure
+- Custom template for configuration
+- Configuration Variables
+- Server-Types
+- Revoke a certificate
+- Elliptic curve keys
+- Preferred Chain
+- Include Root certificate in full chain
+- Windows Server and IIS Support
+- Issues / problems / help
 
 Upgrade broken in v2.43
 
@@ -35,34 +36,34 @@ curl --silent --user-agent getssl/manual https://raw.githubusercontent.com/srvrc
 
 Features
 
--   Bash - It runs on virtually all unix machines, including BSD, most
-    Linux distributions, macOS.
--   Get certificates for remote servers - The tokens used to provide
-    validation of domain ownership, and the certificates themselves can
-    be automatically copied to remote servers (via ssh, sftp or ftp for
-    tokens). The script doesn’t need to run on the server itself. This
-    can be useful if you don’t have access to run such scripts on the
-    server itself, e.g. if it’s a shared server.
--   Runs as a daily cron - so certificates will be automatically renewed
-    when required.
--   Automatic certificate renewals
--   Checks certificates are correctly loaded - After installation of a
-    new certificate it will test the port specified ( see Server-Types
-    for options ) that the certificate is actually being used correctly.
--   Automatically updates - The script can automatically update itself
-    with bug fixes etc if required.
--   Extensively configurable - With a simple configuration file for each
-    certificate it is possible to configure it exactly for your needs,
-    whether a simple single domain or multiple domains across multiple
-    servers on the same certificate.
--   Supports http and dns challenges - Full ACME implementation
--   Simple and easy to use
--   Detailed debug info - Whilst it shouldn’t be needed, detailed debug
-    information is available.
--   Reload services - After a new certificate is obtained then the
-    relevant services (e.g. apache/nginx/postfix) can be reloaded.
--   ACME v1 and V2 - Supports both ACME versions 1 and 2 (note ACMEv1 is
-    deprecated and clients will automatically use v2)
+- Bash - It runs on virtually all unix machines, including BSD, most
+  Linux distributions, macOS.
+- Get certificates for remote servers - The tokens used to provide
+  validation of domain ownership, and the certificates themselves can be
+  automatically copied to remote servers (via ssh, sftp or ftp for
+  tokens). The script doesn’t need to run on the server itself. This can
+  be useful if you don’t have access to run such scripts on the server
+  itself, e.g. if it’s a shared server.
+- Runs as a daily cron - so certificates will be automatically renewed
+  when required.
+- Automatic certificate renewals
+- Checks certificates are correctly loaded - After installation of a new
+  certificate it will test the port specified ( see Server-Types for
+  options ) that the certificate is actually being used correctly.
+- Automatically updates - The script can automatically update itself
+  with bug fixes etc if required.
+- Extensively configurable - With a simple configuration file for each
+  certificate it is possible to configure it exactly for your needs,
+  whether a simple single domain or multiple domains across multiple
+  servers on the same certificate.
+- Supports http and dns challenges - Full ACME implementation
+- Simple and easy to use
+- Detailed debug info - Whilst it shouldn’t be needed, detailed debug
+  information is available.
+- Reload services - After a new certificate is obtained then the
+  relevant services (e.g. apache/nginx/postfix) can be reloaded.
+- ACME v1 and V2 - Supports both ACME versions 1 and 2 (note ACMEv1 is
+  deprecated and clients will automatically use v2)
 
 Overview
 
@@ -111,23 +112,23 @@ certificate
     RPM and DEB packages for each release include a binary architecture specific package
     and a source package which can be downloaded and built/rebuilt and which contains the source code.
 
-    For example, the release v2.50 contains the following packages in the release section:
+    For example, the release v2.51 contains the following packages in the release section:
 
     ### **RPM Based Packages (RedHat, CentOS, SuSe, Oracle Linux, AWS Linux)**
 
-    - [getssl-2.50-1.src.rpm](https://github.com/srvrco/getssl/releases/download/2.50/getssl-2.50-1.src.rpm) (source)
-    - [getssl-2.50-1.noarch.rpm](https://github.com/srvrco/getssl/releases/download/2.50/getssl-2.50-1.noarch.rpm) (binary)
+    - [getssl-2.51-1.src.rpm](https://github.com/srvrco/getssl/releases/download/2.51/getssl-2.51-1.src.rpm) (source)
+    - [getssl-2.51-1.noarch.rpm](https://github.com/srvrco/getssl/releases/download/2.51/getssl-2.51-1.noarch.rpm) (binary)
 
     ### **Debian Based Packages (Debian, Ubuntu)**
 
-    - [getssl_2.50-1_all.deb](https://github.com/srvrco/getssl/releases/download/v2.50/getssl_2.50-1_all.deb) (binary)
+    - [getssl_2.51-1_all.deb](https://github.com/srvrco/getssl/releases/download/v2.51/getssl_2.51-1_all.deb) (binary)
 
     ### **Installing Binary Packages**
 
     To install the binary package with the rpm package manager for RedHat, CentOS, SuSe, Oracle Linux, or AWS Linux distributions:
 
     ```sh
-    rpm -i getssl-2.50-1.noarch.rpm
+    rpm -i getssl-2.51-1.noarch.rpm
 
 To deinstall the RPM binary package:
 
@@ -136,7 +137,7 @@ To deinstall the RPM binary package:
 To install the binary package with the Debian dpkg package manager for
 Debian and Ubuntu Linux distributions:
 
-    dpkg -i getssl_2.50-1_all.deb
+    dpkg -i getssl_2.51-1_all.deb
 
 To deinstall the Debian dpkg binary package:
 
@@ -147,7 +148,7 @@ Installing Source Packages
 To install the source package with the rpm package manager for RedHat,
 CentOS, SuSe, Oracle Linux, or AWS Linux distributions:
 
-    rpm -i getssl-2.50-1.src.rpm 
+    rpm -i getssl-2.51-1.src.rpm 
 
 (Note: rpm installs the source code files in /root/rpmbuild/ as top
 directory for RedHat, CentOS, Oracle Linux, and AWS Linux platforms.
@@ -156,7 +157,7 @@ SuSe platforms install the source code files in /usr/src/packages/)
 To install the source package with the Debbuild package tool for Debian
 or Ubuntu Linux distributions:
 
-    debbuild -i getssl-2.50-1.sdeb
+    debbuild -i getssl-2.51-1.sdeb
 
 (Note: Debbuild installs the source code files in /root/debbuild/ as top
 directory)
@@ -167,8 +168,8 @@ SPECS and SOURCES directory tree structure. Subsequently, an SDEB can
 also be extracted and installed with the tar -xvf command or the files
 listed with the tar -tvf command:
 
-    [root@localhost getssl]$ tar -tvf /root/debbuild/SDEBS/getssl-2.50-1.sdeb 
-    -rw-r--r-- root/root   1772110 2022-10-12 20:42 SOURCES/getssl-2.50.tar.gz
+    [root@localhost getssl]$ tar -tvf /root/debbuild/SDEBS/getssl-2.51-1.sdeb 
+    -rw-r--r-- root/root   1772110 2022-10-12 20:42 SOURCES/getssl-2.51.tar.gz
     -rw-r--r-- root/root       192 2022-08-02 15:02 SOURCES/getssl.crontab
     -rw-r--r-- root/root       126 2022-08-02 15:02 SOURCES/getssl.logrotate
     -rw-r--r-- root/root      1537 2022-08-02 15:02 SPECS/getssl.spec
@@ -177,8 +178,8 @@ listed with the tar -tvf command:
 For building or rebuilding RPMS or DEB Packages after you have installed
 the associated source packages on your platform, refer to the following:
 
--   Building getssl as an RPM Package (Redhat/CentOS/SuSe/Oracle/AWS)
--   Building getssl as a Debian Package (Debian/Ubuntu)
+- Building getssl as an RPM Package (Redhat/CentOS/SuSe/Oracle/AWS)
+- Building getssl as a Debian Package (Debian/Ubuntu)
 
 Manual Installation
 
@@ -341,12 +342,12 @@ I use the following cron job
 The cron will automatically update getssl and renew any certificates,
 only giving output if there are issues / errors.
 
--   The -u flag updates getssl if there is a more recent version
-    available.
--   The -a flag automatically renews any certificates that are due for
-    renewal.
--   The -q flag is “quiet” so that it only outputs and emails me if
-    there was an error / issue.
+- The -u flag updates getssl if there is a more recent version
+  available.
+- The -a flag automatically renews any certificates that are due for
+  renewal.
+- The -q flag is “quiet” so that it only outputs and emails me if there
+  was an error / issue.
 
 Structure
 
@@ -505,6 +506,207 @@ as in the example below:
     #CHECK_REMOTE="true"
     CHECK_REMOTE_WAIT="1" # wait 1 second before checking the remote server
 
+Configuration Variables
+
+All variables below can be set at either the account level
+(~/.getssl/getssl.cfg) or the per-domain level
+(~/.getssl/<domain>/getssl.cfg). Settings at the domain level override
+those at the account level.
+
+  -----------------------------------------------------------------------------------------------------
+  Variable                          Default                      Description
+  --------------------------------- ---------------------------- --------------------------------------
+  ACCOUNT_EMAIL                     ""                           Contact email for the ACME account
+                                                                 (used for expiry reminders, etc.)
+
+  ACCOUNT_KEY_LENGTH                4096                         Account key length in bits
+
+  ACCOUNT_KEY                       "$WORKING_DIR/account.key"   Path to the account key file
+
+  ACCOUNT_KEY_TYPE                  "rsa"                        Account key type (rsa, prime256v1,
+                                                                 secp384r1, secp521r1)
+
+  ACL                                                            Challenge file locations for the
+                                                                 domain and each SAN (local, ssh:,
+                                                                 ftp:, sftp:, davs:)
+
+  ACME_RESPONSE_PENDING_WAIT        5                            Seconds to wait between polling when
+                                                                 ACME status is pending/processing
+
+  AGREEMENT                         ""                           Terms-of-service agreement URL; if
+                                                                 blank, the CA’s current agreement is
+                                                                 used
+
+  ARI_ENABLE                        "true"                       Whether to consult the CA’s ACME
+                                                                 Renewal Information (ARI) endpoint
+                                                                 before renewing
+
+  AUTH_DNS_SERVER                   ""                           Specific authoritative DNS server to
+                                                                 use for challenge verification
+
+  CA                                Let’s Encrypt Staging        URL of the ACME CA directory.
+                                                                 Production:
+                                                                 https://acme-v02.api.letsencrypt.org
+
+  CA_CERT_LOCATION                  ""                           Destination for the CA (chain)
+                                                                 certificate file
+
+  CHALLENGE_CHECK_TYPE              "http"                       Protocol used to verify the challenge
+                                                                 URL (http or https)
+
+  CHECK_ALL_AUTH_DNS                "false"                      Check the DNS challenge token on all
+                                                                 authoritative DNS servers, not just
+                                                                 one
+
+  CHECK_PUBLIC_DNS_SERVER           "true"                       Also query the public DNS server (with
+                                                                 VALIDATE_VIA_DNS)
+
+  CHECK_REMOTE                      "true"                       Check the remote server after install
+                                                                 to confirm correct certificate is
+                                                                 loaded
+
+  CHECK_REMOTE_WAIT                 0                            Seconds to wait after RELOAD_CMD
+                                                                 before checking the remote server
+
+  CSR_SUBJECT                       "/"                          Subject for the CSR (most fields are
+                                                                 stripped by Let’s Encrypt)
+
+  DEACTIVATE_AUTH                   "false"                      Deactivate authorization after each
+                                                                 use (requires re-authorization next
+                                                                 time)
+
+  DEFAULT_REVOKE_CA                 Let’s Encrypt                Default CA server used by getssl -r if
+                                                                 none is specified on the command line
+
+  DNS_ADD_COMMAND                   ""                           Script/command to add a DNS challenge
+                                                                 TXT record
+
+  DNS_DEL_COMMAND                   ""                           Script/command to remove a DNS
+                                                                 challenge TXT record
+
+  DNS_EXTRA_WAIT                    0                            Seconds to wait after DNS propagation
+                                                                 before asking the CA to validate
+
+  DNS_WAIT                          5                            Seconds between DNS propagation
+                                                                 re-checks
+
+  DNS_WAIT_COUNT                    100                          Maximum number of DNS propagation
+                                                                 re-checks before giving up
+
+  DNS_WAIT_RETRY_ADD                "false"                      Re-run DNS_ADD_COMMAND every 10
+                                                                 retries if DNS hasn’t updated
+
+  DOMAIN_CERT_LOCATION              ""                           Destination for the domain certificate
+                                                                 file
+
+  DOMAIN_CHAIN_LOCATION             ""                           Destination for a combined domain + CA
+                                                                 certificate file
+
+  DOMAIN_KEY_CERT_LOCATION          ""                           Destination for a combined private
+                                                                 key + domain certificate file
+
+  DOMAIN_KEY_LENGTH                 4096                         Domain key length in bits (RSA only)
+
+  DOMAIN_KEY_LOCATION               ""                           Destination for the private key file
+
+  DOMAIN_PEM_LOCATION               ""                           Destination for a combined private
+                                                                 key + domain + CA certificate file
+
+  DOMAIN_STORAGE                    ~/.getssl                    Directory where all per-domain config
+                                                                 and certificates are stored
+
+  DUAL_RSA_ECDSA                    "false"                      Obtain both an RSA and an ECDSA
+                                                                 certificate for each order
+
+  FTP_ARGS                          ""                           Extra arguments passed to ftp (e.g. -p
+                                                                 for passive mode)
+
+  FTP_OPTIONS                       ""                           Options inserted into the ftp upload
+                                                                 script (e.g. passive)
+
+  FTP_PORT                          ""                           Port used for ftp/sftp/ftps/ftpes
+                                                                 uploads
+
+  FTPS_OPTIONS                      ""                           Options passed to curl for ftps/ftpes
+                                                                 uploads (e.g. --insecure)
+
+  FULL_CHAIN_INCLUDE_ROOT           "false"                      Include the root CA certificate in the
+                                                                 full chain file
+
+  GETSSL_IGNORE_CP_PRESERVE         "false"                      Don’t try to preserve permissions when
+                                                                 copying files
+
+  HTTP_TOKEN_CHECK_WAIT             0                            Seconds to wait after uploading a
+                                                                 token before verifying it
+
+  IGNORE_DIRECTORY_DOMAIN           "false"                      Don’t include the directory name as
+                                                                 the main domain on the certificate
+
+  OCSP_MUST_STAPLE                  "false"                      Add the OCSP Must-Staple extension to
+                                                                 the certificate
+
+  PREFERRED_CHAIN                   ""                           Substring match against issuer CN to
+                                                                 select a specific root chain
+
+  PREVENT_NON_INTERACTIVE_RENEWAL   "false"                      Disallow non-interactive (cron)
+                                                                 reissue of this certificate
+
+  PRIVATE_KEY_ALG                   "rsa"                        Domain key algorithm (rsa, prime256v1,
+                                                                 secp384r1, secp521r1)
+
+  PROFILE                           ""                           ACME certificate profile name, if
+                                                                 offered by the CA
+
+  PUBLIC_DNS_SERVER                 ""                           Public DNS server to consult alongside
+                                                                 the authoritative servers
+
+  RELOAD_CMD                        ""                           Command(s) to reload services after
+                                                                 installing a new certificate
+
+  REMOTE_EXTRA                      ""                           Extra curl options used when
+                                                                 SERVER_TYPE is a port number
+
+  RENEW_ALLOW                       30                           Days before expiry within which
+                                                                 renewal is allowed
+
+  REUSE_PRIVATE_KEY                 "true"                       Reuse the existing private key when
+                                                                 renewing a certificate
+
+  SANS                              ""                           Comma-separated list of Subject
+                                                                 Alternative Names
+
+  SCP_OPTS                          ""                           Extra options passed to scp
+                                                                 (e.g. -i identity_file)
+
+  SERVER_TYPE                       "https"                      Service type to check for correct
+                                                                 certificate installation (see
+                                                                 Server-Types)
+
+  SFTP_OPTS                         ""                           Extra options passed to sftp
+                                                                 (e.g. -P 1234)
+
+  SKIP_HTTP_TOKEN_CHECK             "false"                      Don’t fetch the challenge URL after
+                                                                 uploading the token
+
+  SSH_OPTS                          ""                           Extra options passed to ssh
+                                                                 (e.g. -p 1234 -i identity_file)
+
+  SSLCONF                           openssl.cnf                  Path to the OpenSSL configuration file
+
+  TOKEN_USER_ID                     ""                           User (and group, as user.group) that
+                                                                 should own the token file
+
+  USE_SINGLE_ACL                    "false"                      Apply the first ACL entry to all
+                                                                 domains, including each SAN
+
+  VALIDATE_VIA_DNS                  "false"                      Use the DNS-01 challenge instead of
+                                                                 HTTP-01
+  -----------------------------------------------------------------------------------------------------
+
+Full details of each variable, with examples, are available in the wiki
+Configuration Variables page and in the comments of the per-domain
+config template.
+
 Server-Types
 
 OpenSSL has built-in support for getting the certificate from a number
@@ -562,9 +764,9 @@ certificate returned by the CA which contains the text “X1”, Note you
 may need to escape any characters which special characters, e.g.
 PREFERRED_CHAIN="\(STAGING\) Doctored Durian Root CA X3"
 
--   Staging options are: “(STAGING) Doctored Durian Root CA X3” and
-    “(STAGING) Pretend Pear X1”
--   Production options are: “ISRG Root X1” and “ISRG Root X2”
+- Staging options are: “(STAGING) Doctored Durian Root CA X3” and
+  “(STAGING) Pretend Pear X1”
+- Production options are: “ISRG Root X1” and “ISRG Root X2”
 
 Include Root certificate in full chain
 
@@ -585,73 +787,71 @@ Windows Server and IIS Support
 
 System and software requirements:
 
--   Windows Server with DNS and IIS services
--   One of
-    -   WSL Windows Sub for Linux
-        -   Ubuntu or any other distro
-        -   gettssl can be installed inside WSL or using /mnt/ path to
-            windows
-    -   Bash - gettssl should be installed in Windows
-        -   Git Bash - https://git-scm.com/downloads
-        -   Rtools4.0 - https://cran.r-project.org/bin/windows/Rtools/
+- Windows Server with DNS and IIS services
+- One of
+  - WSL Windows Sub for Linux
+    - Ubuntu or any other distro
+    - gettssl can be installed inside WSL or using /mnt/ path to windows
+  - Bash - gettssl should be installed in Windows
+    - Git Bash - https://git-scm.com/downloads
+    - Rtools4.0 - https://cran.r-project.org/bin/windows/Rtools/
 
 WSL
 
--   Installing and configuring WSL 2
-    -   Add remove Windows features and choose “Windows for sub Linux”
-    -   Install a distro like Ubuntu or any other Linux platform
-        -   If newly added to the system a reboot is required to
-            continue
-        -   wsl –install -d ubuntu
-        -   Any user will work
-        -   Copying files to WSL
-            -   From Windows open Windows Explorer and browse to
-                \\wsl$\Ubuntu\home\user\ and then place the getssl files
-                and folders .getssl and getssl into users home directory
-                \\wsl$\Ubuntu\home\user\.getssl . or in Windows
-        -   Open cmd in Widnows and type
-            wsl -d Ubuntu /bin/bash /home/UserName/getssl/getssl domain.eu && exit
-        -   Using a specific distro if not set as default in WSL then
-            use the wsl -d distro command
+- Installing and configuring WSL 2
+  - Add remove Windows features and choose “Windows for sub Linux”
+  - Install a distro like Ubuntu or any other Linux platform
+    - If newly added to the system a reboot is required to continue
+    - wsl –install -d ubuntu
+    - Any user will work
+    - Copying files to WSL
+      - From Windows open Windows Explorer and browse to
+        \\wsl$\Ubuntu\home\user\ and then place the getssl files and
+        folders .getssl and getssl into users home directory
+        \\wsl$\Ubuntu\home\user\.getssl . or in Windows
+    - Open cmd in Widnows and type
+      wsl -d Ubuntu /bin/bash /home/UserName/getssl/getssl domain.eu && exit
+    - Using a specific distro if not set as default in WSL then use the
+      wsl -d distro command
 
-    Notes:
-    -   While configuring WSL please do check the /etc/hosts file if the
-        IP of the domain is correct since it overrides the DNS server.
-    -   Make sure running version 2.
+  Notes:
+  - While configuring WSL please do check the /etc/hosts file if the IP
+    of the domain is correct since it overrides the DNS server.
+  - Make sure running version 2.
 
 GIT Bash - MINGW64_NT
 
--   Install git GIT Bash
--   "C:\Program Files\Git\bin\bash.exe" --login -i -- path_to/getssl/getssl domain.eu
+- Install git GIT Bash
+- "C:\Program Files\Git\bin\bash.exe" --login -i -- path_to/getssl/getssl domain.eu
 
 Rtools Bash - MSYS_NT
 
--   Make sure that the path of \rtools42\usr\bin in Windows system
-    environment variables is right before c:\windows\system32\ so that
-    getssl will use the Rtools applications instead of Windows
-    applications such as sort.exe that crashes or speify full path to
-    sort.
--   \rtools42\usr\bin\bash.exe \Users\Administrator\getssl\getssl domain.eu 2>&1 1>out.txt
+- Make sure that the path of \rtools42\usr\bin in Windows system
+  environment variables is right before c:\windows\system32\ so that
+  getssl will use the Rtools applications instead of Windows
+  applications such as sort.exe that crashes or speify full path to
+  sort.
+- \rtools42\usr\bin\bash.exe \Users\Administrator\getssl\getssl domain.eu 2>&1 1>out.txt
 
 Updating DNS TXT records
 
--   Using PowerShell to add and delete _acme-challenge records
-    -   dns_add_windows_dnsserver
-    -   dns_del_windows_dnsserver
+- Using PowerShell to add and delete _acme-challenge records
+  - dns_add_windows_dnsserver
+  - dns_del_windows_dnsserver
 
-    Notes: The script supports optional second level TLDs.
-    sub.domain.co.uk You can update the reqexp .(co|com).uk to fit your
-    needs.
+  Notes: The script supports optional second level TLDs.
+  sub.domain.co.uk You can update the reqexp .(co|com).uk to fit your
+  needs.
 
 IIS internet information service
 
--   Under folder other_scripts you can find a PowerSheell script
-    iis_install_certeficate.ps1 which generates PFX certificate to be
-    installed in IIS and binds the domains to the PFX certificate.
--   WSL
-    -   RELOAD_CMD=("powershell.exe -ExecutionPolicy Bypass -File "\\\\wsl$\\Ubuntu\\home\\user\\getssl\\other_scripts\\iis_install_certeficate.ps1" "domain.eu" "IIS SiteName" "\\\\wsl$\\Ubuntu\\home\\user\\ssl\\" "path_to_ssl_dir" )
--   GIT and Rtools4 Bash
-    -   RELOAD_CMD=("powershell.exe /c/Users/Administrator/getssl/other_scripts/iis_install_certeficate.ps1 domain.eu domain path_to_ssl_dir")
+- Under folder other_scripts you can find a PowerSheell script
+  iis_install_certeficate.ps1 which generates PFX certificate to be
+  installed in IIS and binds the domains to the PFX certificate.
+- WSL
+  - RELOAD_CMD=("powershell.exe -ExecutionPolicy Bypass -File "\\\\wsl$\\Ubuntu\\home\\user\\getssl\\other_scripts\\iis_install_certeficate.ps1" "domain.eu" "IIS SiteName" "\\\\wsl$\\Ubuntu\\home\\user\\ssl\\" "path_to_ssl_dir" )
+- GIT and Rtools4 Bash
+  - RELOAD_CMD=("powershell.exe /c/Users/Administrator/getssl/other_scripts/iis_install_certeficate.ps1 domain.eu domain path_to_ssl_dir")
 
 Issues / problems / help
 
