@@ -16,8 +16,8 @@
 
 ## Create a PR to Merge the release_2_nn branch into main
 
-1. `gh pr create --title "Release 2.nn"`
-2. `gh pr merge nnn`
+1. `gh auth login` - need to login via browser as Personal token doesn't have enough permissions
+2. `gh pr create --draft --title "Release 2.nn" --body "Release 2.nn"`
 
 ## Build the .deb and .rpm packages
 
