@@ -17,16 +17,20 @@
 ## Create a PR to Merge the release_2_nn branch into main
 
 1. `gh auth login` - need to login via browser as Personal token doesn't have enough permissions
-2. `gh pr create --draft --title "Release 2.nn" --body "Release 2.nn"`
+2. `gh pr create --title "Release 2.nn" --body "Release 2.nn"`
+3. `gh pr merge`
+4. Wait for the tests to finish
 
 ## Build the .deb and .rpm packages
 
-1. Create the release and deb/rpm packages using the deploy github action `gh workflow run "Deploy getssl" --field tags=v2.nn`
-2. Wait for the build process to finish `gh release view v2.nn`
+1. Create the release and deb/rpm packages using the deploy github action `gh workflow run "Deploy getssl" --field tags=2.nn` 
+2. Use `gh run list --workflow="release-and-package.yml"` to find the ID
+3. Wait for the build process to finish `gh run watch <ID>`
+4. This creates a draft release
 
-## Change the status of the release from draft to pre-release
+## Change the status of the release from draft to pre-release (so the deb and rpm packages can be downloaded)
 
-1. `gh release edit 2.nn --draft=false --prerelease`
+1. `gh release edit v2.nn --draft=false --title "Release 2.nn" --prerelease`
 
 ## Test the .deb file using the following steps
 
@@ -45,7 +49,7 @@
 
 ## Change the release from pre-release to latest
 
-1. `gh release edit v2.nn --latest`
+1. `gh release edit v2.nn --prerelease=false --latest`
 
 ## Update the latest tag post-release
 
