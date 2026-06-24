@@ -2826,9 +2826,6 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
     CURL="$CURL --trace-ascii $dp "
   fi
 
-  # convert payload to url base 64
-  payload64="$(printf '%s' "${payload}" | urlbase64)"
-
   # get nonce from ACME server
   if [[ $API -eq 1 ]]; then
     nonceurl="$CA/directory"
@@ -2840,6 +2837,9 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
   loop_limit=5
   nonceproblem="true"
   while [[ "$nonceproblem" == "true" ]]; do
+
+    # convert payload to url base 64
+    payload64="$(printf '%s' "${payload}" | urlbase64)"
 
     # Build header with just our public key and algorithm information
     header='{"alg": "'"$jwkalg"'", "jwk": '"$jwk"'}'
@@ -2932,18 +2932,28 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
         if [[ $loop_limit -lt 1 ]]; then
           error_exit "$code error from ACME server: $response"
         fi
+        # Check for ARI-specific intermittent error and fix by removing the "replaces" from the payload
+        if [[ $response == *"could not find an order for the given certificate"* ]] && [[ -n "$_REPLACES" ]]; then
+          debug "ARI 'could not find order' error detected"
+          break
+        fi
       fi
     done
     if [[ $response == *"error:badNonce"* ]]; then
       debug "bad nonce"
       nonce=$(echo "$responseHeaders" | grep -i "^replay-nonce:" | awk '{print $2}' | tr -d '\r\n ')
       debug "trying new nonce $nonce"
-      # Need to decrement the loop limit here as well to fix the infinite loop (see PR #902 and test/43-test-acme-400-error-loop) 
+      # Need to decrement the loop limit here as well to fix the infinite loop (see PR #902 and test/43-test-acme-400-error-loop)
       debug "loop_limit = $loop_limit"
       loop_limit=$((loop_limit - 1))
       if [[ $loop_limit -lt 1 ]]; then
         error_exit "$code error from ACME server: $response"
       fi
+    elif [[ $response == *"could not find an order for the given certificate"* ]] && [[ -n "$_REPLACES" ]]; then
+      # ARI renewal encountered an error because pebble couldn't find the certificate to replace, seeing this intermittently on the pebble tests and this is a quick fix
+      debug "ARI renewal error: 'could not find order' - clearing _REPLACES and retrying"
+      # Remove , "replaces": "..." from the payload
+      payload="${payload//, \"replaces\": \"$_REPLACES\"/}"
     else
       nonceproblem="false"
     fi
