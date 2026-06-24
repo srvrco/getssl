@@ -116,7 +116,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag: ${{ github.event.inputs.tags }}
+          tag: v${{ github.event.inputs.tags }}
           name: Draft Release ${{ github.event.inputs.tags }}
           generateReleaseNotes: true
           draft: true
