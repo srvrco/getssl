@@ -1,7 +1,8 @@
-FROM ubuntu:xenial
-# xenial = 16
+FROM ubuntu:noble
+# Noble Numbat = 24 LTS (long term support)
 
-# Note this image uses mawk
+# Set the frontend to noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Update and install required software
 RUN apt-get update --fix-missing
@@ -16,22 +17,21 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
-WORKDIR /root
-RUN mkdir -p /etc/nginx/pki/private
-COPY ./test/test-config/nginx-ubuntu-no-ssl /etc/nginx/sites-enabled/default
-
 # Setup ftp
 ENV VSFTPD_CONF=/etc/vsftpd.conf
 ENV FTP_PASSIVE_DEFAULT=false
 COPY test/test-config/vsftpd.conf /etc/vsftpd.conf
-# The default init.d script seems to have an incorrect check that vsftpd has started
-COPY test/test-config/vsftpd.initd /etc/init.d/vsftpd
 RUN adduser ftpuser
 RUN echo 'ftpuser:ftpuser' | chpasswd
 RUN adduser ftpuser www-data
 RUN adduser root www-data
 RUN chown -R www-data.www-data /var/www
 RUN chmod g+w -R /var/www
+
+WORKDIR /root
+
+# Prevent "Can't load /root/.rnd into RNG" error from openssl
+RUN touch /root/.rnd
 
 # BATS (Bash Automated Testings)
 RUN git clone --depth 1 https://github.com/bats-core/bats-core.git /bats-core
