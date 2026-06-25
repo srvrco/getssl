@@ -298,6 +298,7 @@
 # 2026-06-11 Add ARI support to getssl (kenh)(#894)
 # 2026-06-15 Move loop_limit variable init to fix infinite loop (kenh)(#902)
 # 2026-06-17 Improve profile support (kenh)(#901)(2.51)
+# 2026-06-25 Improve CentOS 6 date support (combolek)(#907)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
