@@ -2953,16 +2953,14 @@ send_signed_request() { # Sends a request to the ACME server, signed with your p
       if [[ $loop_limit -lt 1 ]]; then
         error_exit "$code error from ACME server: $response"
       fi
-    elif [[ $response == *"could not find an order for the given certificate"* ]] && [[ -n "$_REPLACES" ]]; then
-      # ARI renewal encountered an error because pebble couldn't find the certificate to replace, seeing this intermittently on the pebble tests and this is a quick fix
-      debug "ARI renewal error: 'could not find order' - clearing _REPLACES and retrying"
+    # Either the ACME server coun't find the certificate to replace (intermittent pebble error) or the certificate with this serial has already had a replacement (#908),
+    # in both scenarios, clear the replace serial from the order and try again.
+    elif [[ ( $response == *"could not find an order for the given certificate"* \
+       || $response == *"error:alreadyReplaced"* ) ]] && [[ -n "$_REPLACES" ]]; then
+      debug "ARI renewal error - clearing replaces from payload and retrying (response: $response)"
       # Remove , "replaces": "..." from the payload
       payload="${payload//, \"replaces\": \"$_REPLACES\"/}"
-    elif [[ $response == *"error:alreadyReplaced"* ]] && [[ -n "$_REPLACES" ]]; then
-      # ARI renewal encountered an error because certificate with serial $serialb64 already has a replacement order
-      debug "ARI renewal error: 'could not validate ARI 'replaces' field' - clearing _REPLACES and retrying"
-      # Remove , "replaces": "..." from the payload
-      payload="${payload//, \"replaces\": \"$_REPLACES\"/}"
+      _REPLACES=""
     else
       nonceproblem="false"
     fi
