@@ -84,8 +84,8 @@ jobs:
       - uses: actions/checkout@v6
       - name: Build the docker compose stack
         run: docker compose up -d --build
-      - name: Run test suite on RockyLinux8
-        run: test/run-test.sh rockylinux8
+      - name: Run test suite on RockyLinux10
+        run: test/run-test.sh rockylinux10
   test-ubuntu:
     runs-on: ubuntu-latest
     steps:
@@ -94,22 +94,6 @@ jobs:
         run: docker compose up -d --build
       - name: Run test suite on Ubuntu
         run: test/run-test.sh ubuntu
-  test-ubuntu14:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Build the docker compose stack
-        run: docker compose up -d --build
-      - name: Run test suite on Ubuntu14
-        run: test/run-test.sh ubuntu14
-  test-ubuntu16:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Build the docker compose stack
-        run: docker compose up -d --build
-      - name: Run test suite on Ubuntu16
-        run: test/run-test.sh ubuntu16
   test-ubuntu18:
     runs-on: ubuntu-latest
     steps:
@@ -118,3 +102,27 @@ jobs:
         run: docker compose up -d --build
       - name: Run test suite on Ubuntu18
         run: test/run-test.sh ubuntu18
+  test-ubuntu20:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build the docker compose stack
+        run: docker compose up -d --build
+      - name: Run test suite on Ubuntu20
+        run: test/run-test.sh ubuntu20
+  test-ubuntu22:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build the docker compose stack
+        run: docker compose up -d --build
+      - name: Run test suite on Ubuntu22
+        run: test/run-test.sh ubuntu22
+  test-ubuntu24:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build the docker compose stack
+        run: docker compose up -d --build
+      - name: Run test suite on Ubuntu24
+        run: test/run-test.sh ubuntu24
