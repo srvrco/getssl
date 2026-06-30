@@ -14,7 +14,7 @@
 set -eu
 
 : "${SLEEP_REDUCTION_FACTOR:=0.9}"
-: "${SLEEP_MIN_SECONDS:=1}"
+: "${SLEEP_MIN_SECONDS:=0.1}"
 
 reduced_arg="$1"
 if [[ "$reduced_arg" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
