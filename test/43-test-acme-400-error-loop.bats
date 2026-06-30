@@ -11,8 +11,12 @@ load '/getssl/test/test_helper.bash'
  
 teardown() {
     [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
-    rm /getssl/test/curl
-    rm /tmp/mock.out
+    if [ -e /getssl/test/curl ]; then
+      rm /getssl/test/curl
+    fi
+    if [ -e /tmp/mock.out ]; then
+      rm /tmp/mock.out
+    fi
 }
 
 setup() {
@@ -64,7 +68,7 @@ setup_file() {
     # guard fails and an infinite loop occurs. With the smart mocks, this test should
     # naturally complete in < 1 second.
     # Using 1200 instead of 120 as sleep is overridden in testing to 10% of original value
-    export BATS_TEST_TIMEOUT=1200
+    # export BATS_TEST_TIMEOUT=1200
 
     export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
 }

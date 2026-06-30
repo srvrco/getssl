@@ -11,8 +11,12 @@ load '/getssl/test/test_helper.bash'
 
 teardown() {
     [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
-    rm /getssl/test/curl
-    rm /tmp/mock.out
+    if [ -e /getssl/test/curl ]; then
+      rm /getssl/test/curl
+    fi
+    if [ -e /tmp/mock.out]; then
+      rm /tmp/mock.out
+    fi
 }
 
 setup() {
