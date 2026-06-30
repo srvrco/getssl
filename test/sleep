@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+#
+# When running pebble test/test_helper.bash updates the PATH so that 
+# every `sleep <duration>` call made by getssl is reduced by
+# SLEEP_REDUCTION_FACTOR (default 0.9, so sleep 30 -> sleep 3) and floored
+# at SLEEP_MIN_SECONDS (default 1), then delegated to the real sleep
+# binary. Non-numeric arguments (suffixed durations, multiple values, etc.)
+# are passed through untouched.
+#
+# Scope: deliberately intercepts only getssl's own propagation waits. 
+# Tests that need real timing semantics should unset SLEEP_REDUCTION_FACTOR
+# in their setup or use a different binary name.
+
+set -eu
+
+: "${SLEEP_REDUCTION_FACTOR:=0.9}"
+: "${SLEEP_MIN_SECONDS:=1}"
+
+reduced_arg="$1"
+if [[ "$reduced_arg" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    reduced_arg=$(awk -v d="$1" -v r="$SLEEP_REDUCTION_FACTOR" -v m="$SLEEP_MIN_SECONDS" \
+        'BEGIN {
+            eff = d * (1 - r)
+            if (eff < m) eff = m
+            printf "%.6f\n", eff
+        }')
+fi
+
+# Strip our own directory from PATH before delegating, to prevent recursive
+# interception. Follow the proven pattern from test/43-test-acme-400-error-loop.bats.
+export PATH="${PATH#/getssl/test:}"
+REAL_SLEEP=$(command -v sleep)
+exec "$REAL_SLEEP" "$reduced_arg"
