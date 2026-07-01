@@ -64,8 +64,16 @@ For individual accounts, \<reponame> is your github account name.
 4. `test/debug-test.sh -d /getssl/test/test-config/getssl-http01.cfg`
 
 Note: If curl to pebble:14000 fails, change debug-test.sh to use the pebble.minica.pem file
-
 Note: Certificates will be created in /etc/nginx/pki
+
+### To run bats on a file manually
+
+1. Start `pebble` and `challtestsrv` using ```docker compose up -d --build```
+2. ```run-test.sh <os> bash```
+3. `cd /root`
+4. `bats /getssl/test/<test-script>.bats`
+
+Note: This doesn't work if run inside the `getssl` directory
 
 ### TODO
 

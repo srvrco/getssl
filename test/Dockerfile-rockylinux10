@@ -1,10 +1,10 @@
-FROM rockylinux/rockylinux:8
+FROM rockylinux/rockylinux:10
 
 # Update and install required software
 RUN yum -y update && \
     yum -y install \
         epel-release \
-        git curl bind-utils wget which nginx jq procps findutils \
+        git curl bind-utils wget which nginx jq procps findutils openssl \
         ftp vsftpd \
         openssh-server \
         glibc-locale-source glibc-langpack-en # for en_US.UTF-8 support

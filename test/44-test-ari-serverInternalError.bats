@@ -11,6 +11,12 @@ load '/getssl/test/test_helper.bash'
 
 teardown() {
     [ -n "$BATS_TEST_COMPLETED" ] || touch $BATS_RUN_TMPDIR/failed.skip
+    if [ -e /getssl/test/curl ]; then
+      rm /getssl/test/curl
+    fi
+    if [ -e /tmp/mock.out]; then
+      rm /tmp/mock.out
+    fi
 }
 
 setup() {
@@ -78,23 +84,8 @@ else
 fi
 MOCK_CURL
     chmod +x /getssl/test/curl
-
-    # 2. Create smart mock sleep (only intercepts the exact 30s loop delay)
-    cat << 'MOCK_SLEEP' > /getssl/test/sleep
-#!/usr/bin/env bash
-if [[ "$1" == "30" ]]; then
-  exit 0
-else
-  export PATH="${PATH#/getssl/test:}"
-  REAL_SLEEP=$(command -v sleep)
-  exec "$REAL_SLEEP" "$@"
-fi
-MOCK_SLEEP
-    chmod +x /getssl/test/sleep
-
-    # 3. Prepend test directory to PATH to activate mocks
-    export PATH="/getssl/test:$PATH"
 }
+
 
 setup_file() {
     if [ -n "$STAGING" ]; then

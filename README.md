@@ -6,6 +6,7 @@ Obtain SSL certificates from the letsencrypt.org ACME server. Suitable
 for automating the process on remote servers.
 
 ## Table of Contents <!-- omit in toc -->
+
 - [Upgrade broken in v2.43](#upgrade-broken-in-v243)
 - [Features](#features)
 - [Overview](#overview)
@@ -26,11 +27,6 @@ for automating the process on remote servers.
 - [Include Root certificate in full chain](#include-root-certificate-in-full-chain)
 - [Windows Server and IIS Support](#windows-server-and-iis-support)
 - [Issues / problems / help](#issues--problems--help)
-
-## Upgrade broken in v2.43
-
-The automatic upgrade in v2.43 is broken as the url is incorrect.  If you have this version installed you'll need to manually upgrade using:
-```curl --silent --user-agent getssl/manual https://raw.githubusercontent.com/srvrco/getssl/latest/getssl --output getssl```
 
 ## Features
 
@@ -114,8 +110,8 @@ For example, the release v2.51 contains the following packages in the release se
 
 ### **RPM Based Packages (RedHat, CentOS, SuSe, Oracle Linux, AWS Linux)**
 
-- [getssl-2.51-1.src.rpm](https://github.com/srvrco/getssl/releases/download/2.51/getssl-2.51-1.src.rpm) (source)
-- [getssl-2.51-1.noarch.rpm](https://github.com/srvrco/getssl/releases/download/2.51/getssl-2.51-1.noarch.rpm) (binary)
+- [getssl-2.51-1.src.rpm](https://github.com/srvrco/getssl/releases/download/v2.51/getssl-2.51-1.src.rpm) (source)
+- [getssl-2.51-1.noarch.rpm](https://github.com/srvrco/getssl/releases/download/v2.51/getssl-2.51-1.noarch.rpm) (binary)
 
 ### **Debian Based Packages (Debian, Ubuntu)**
 
@@ -732,6 +728,11 @@ FULL_CHAIN_INCLUDE_ROOT="true"
     -   `RELOAD_CMD=("powershell.exe -ExecutionPolicy Bypass -File "\\\\wsl$\\Ubuntu\\home\\user\\getssl\\other_scripts\\iis_install_certeficate.ps1" "domain.eu" "IIS SiteName" "\\\\wsl$\\Ubuntu\\home\\user\\ssl\\" "path_to_ssl_dir" )`
 -   GIT and Rtools4 Bash
     -   `RELOAD_CMD=("powershell.exe /c/Users/Administrator/getssl/other_scripts/iis_install_certeficate.ps1 domain.eu domain path_to_ssl_dir")`
+
+## Upgrade broken in v2.43
+
+The automatic upgrade in v2.43 is broken as the url is incorrect.  If you have this version installed you'll need to manually upgrade using:
+```curl --silent --user-agent getssl/manual https://raw.githubusercontent.com/srvrco/getssl/latest/getssl --output getssl```
 
 ## Issues / problems / help
 
