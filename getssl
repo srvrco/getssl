@@ -990,9 +990,11 @@ clean_up() { # Perform pre-exit housekeeping
 validate_token() { # validate token per RFC 8555 §8.3: base64url alphabet, max 255 chars
   local token="$1"
   if [[ ${#token} -gt 255 ]]; then
+    debug "Invalid token (exceeds 255 characters): $token"
     error_exit "Invalid token: exceeds 255 character maximum (RFC 8555)"
   fi
   if [[ ! "$token" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    debug "Invalid token (contains characters outside base64url): $token"
     error_exit "Invalid token: contains characters outside base64url alphabet (RFC 8555)"
   fi
 }
