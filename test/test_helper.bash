@@ -90,6 +90,9 @@ check_output_for_errors() {
 }
 
 cleanup_environment() {
+  if [ -f ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg ]; then
+    rm ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
+  fi
   if [ -z "$STAGING" ]; then
     curl --silent -X POST -d '{"host":"'"$GETSSL_HOST"'"}' http://10.30.50.3:8055/clear-a
   fi
