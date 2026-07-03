@@ -37,46 +37,46 @@ For individual accounts, \<reponame> is your github account name.
 
 ## Testing locally using pebble
 
+1. Start `pebble` and `challtestsrv` using ```docker compose up -d --build```
+
 ### To run all the tests on a single OS
 
-1. Start `pebble` and `challtestsrv` using ```docker compose up -d --build```
-2. Run the test suite ```test/run-test.sh [<os>]```
-3. eg. `test/run-test.sh ubuntu16`
+Run the test suite ```test/run-test.sh [<os>]```
+eg. `test/run-test.sh ubuntu16`
 
 ### To run a single bats test on a single OS
 
-1. Start `pebble` and `challtestsrv` using ```docker compose up -d --build```
-2. ```test/run-test.sh <os> bats <bats test script>```
-3. e.g. `test/run-test.sh ubuntu bats /getssl/test/1-simple-http01.bats`
+`test/run-test.sh <os> <bats test script>`
+e.g. `test/run-test.sh ubuntu test/1-simple-http01.bats`
 
-## To debug a test
+### To print the output of a test when it succeeds (automatically printed if it fails)
 
-1. Start `pebble` and `challtestsrv` using ```docker compose up -d --build```
-2. ```run-test.sh <os> /getssl/test/debug-test.sh <getssl config file>```
-3. e.g. `test/run-test.sh ubuntu /getssl/test/debug-test.sh -d /getssl/test/test-config/getssl-http01.cfg`
-4. or (`test/run-test.sh ubuntu /getssl/test/debug-test.sh -d getssl-http01.cfg`)
+`test/run-test.sh <os> -d <test script>`
+e.g. `test/run-test.sh ubuntu -d test/1-simple-http01-dig.bats`
+
+### To debug a test
+
+`run-test.sh <os> /getssl/test/debug-test.sh <getssl config file>`
+e.g. `test/run-test.sh ubuntu /getssl/test/debug-test.sh -d /getssl/test/test-config/getssl-http01.cfg`
+or `test/run-test.sh ubuntu /getssl/test/debug-test.sh -d getssl-http01.cfg`
 
 ### To start a shell and debug a test
 
-1. Start `pebble` and `challtestsrv` using ```docker compose up -d --build```
-2. ```run-test.sh <os> bash```
-3. `cd /getssl`
-4. `test/debug-test.sh -d /getssl/test/test-config/getssl-http01.cfg`
+```bash
+run-test.sh <os> bash
+cd /getssl
+test/debug-test.sh -d /getssl/test/test-config/getssl-http01.cfg
+```
 
 Note: If curl to pebble:14000 fails, change debug-test.sh to use the pebble.minica.pem file
 Note: Certificates will be created in /etc/nginx/pki
 
 ### To run bats on a file manually
 
-1. Start `pebble` and `challtestsrv` using ```docker compose up -d --build```
-2. ```run-test.sh <os> bash```
-3. `cd /root`
-4. `bats /getssl/test/<test-script>.bats`
+```bash
+run-test.sh <os> bash
+cd /root
+bats /getssl/test/<test-script>.bats
+```
 
 Note: This doesn't work if run inside the `getssl` directory
-
-### TODO
-
-1. Test wildcards
-2. Test SSH, SFTP, SCP
-3. Test change of key algorithm (should automatically delete and re-create account.key)
