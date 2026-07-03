@@ -86,15 +86,21 @@ OS=$1
 
 if [ $# -gt 1 ]; then
   shift
+  if [ $1 == "-d" ]; then
+    DEBUG="--verbose-run --show-output-of-passing-tests "
+    shift
+  else
+    DEBUG=""
+  fi
   COMMAND=$*
   if [[ $COMMAND != bash ]] && [[ $COMMAND != /getssl/test/debug-test.sh* ]]; then
     if [[ $COMMAND != "bats /getssl/test"* ]]; then
       if [[ $COMMAND == /getssl/test* ]]; then
-        COMMAND="bats $COMMAND"
+        COMMAND="bats ${DEBUG}$COMMAND"
       elif [[ $COMMAND == test/* ]]; then
-        COMMAND="bats /getssl/$COMMAND"
+        COMMAND="bats ${DEBUG}/getssl/$COMMAND"
       else
-        COMMAND="bats /getssl/test/$COMMAND"
+        COMMAND="bats ${DEBUG}/getssl/test/$COMMAND"
       fi
     fi
     if [[ $COMMAND != *.bats ]]; then
@@ -102,7 +108,7 @@ if [ $# -gt 1 ]; then
     fi
   fi
 else
-  COMMAND="bats /getssl/test --timing"
+  COMMAND="bats ${DEBUG}/getssl/test --timing"
 fi
 echo "Running $COMMAND"
 
