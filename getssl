@@ -311,7 +311,7 @@ VERSION="2.51"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
-ACCOUNT_KEY_TYPE="rsa"
+ACCOUNT_KEY_TYPE="prime256v1"
 ACME_RESPONSE_PENDING_WAIT=5
 ARI_ENABLE="true"
 CA_CERT_LOCATION=""
@@ -344,7 +344,7 @@ OCSP_MUST_STAPLE="false"
 ORIG_UMASK=$(umask)
 PREFERRED_CHAIN=""              # Set this to use an alternative root certificate
 PREVIOUSLY_VALIDATED="true"
-PRIVATE_KEY_ALG="rsa"
+PRIVATE_KEY_ALG="prime256v1"
 PROFILE=""
 RELOAD_CMD=""
 RENEW_ALLOW="30"
@@ -3171,7 +3171,7 @@ write_getssl_template() { # write out the main template file
 
 	# Account key and private key types - can be rsa, prime256v1, secp384r1 or secp521r1
 	#ACCOUNT_KEY_TYPE="rsa"
-	PRIVATE_KEY_ALG="rsa"
+	PRIVATE_KEY_ALG="prime256v1"
 	#REUSE_PRIVATE_KEY="true"
 
 	# Preferred Chain - use an different certificate root from the default
