@@ -7,7 +7,6 @@ for automating the process on remote servers.
 
 ## Table of Contents <!-- omit in toc -->
 
-- [Upgrade broken in v2.43](#upgrade-broken-in-v243)
 - [Features](#features)
 - [Overview](#overview)
 - [Quick Start Guide](#quick-start-guide)
@@ -15,6 +14,7 @@ for automating the process on remote servers.
 - [Getting started](#getting-started)
 - [Detailed guide to getting started with more examples](#detailed-guide-to-getting-started-with-more-examples)
 - [Wildcard certificates](#wildcard-certificates)
+- [PowerDNS](#powerdns)
 - [ISPConfig](#ispconfig)
 - [Automating updates](#automating-updates)
 - [Structure](#structure)
@@ -26,6 +26,7 @@ for automating the process on remote servers.
 - [Preferred Chain](#preferred-chain)
 - [Include Root certificate in full chain](#include-root-certificate-in-full-chain)
 - [Windows Server and IIS Support](#windows-server-and-iis-support)
+- [Upgrade broken in v2.43](#upgrade-broken-in-v243)
 - [Issues / problems / help](#issues--problems--help)
 
 ## Features
