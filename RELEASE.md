@@ -3,8 +3,7 @@
 ## Update the version and tag the release
 
 1. `git pull`
-2. `git branch -c release_2_nn`
-3. `git switch release_2_nn`
+3. `git switch -c release_2_nn`
 4. update VERSION in `getssl` and `getssl.spec`
 5. update the changelog in `getssl`
 6. update the rpm and deb packages in README.md

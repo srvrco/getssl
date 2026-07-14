@@ -21,6 +21,9 @@ env:
 jobs:
   test-ubuntu-acmedns:
     runs-on: ubuntu-latest
+    concurrency:
+      group: getssl-acmedns
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v6
       - name: Build the docker compose stack
