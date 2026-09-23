@@ -1293,7 +1293,7 @@ create_order() {
 renew_ari() { # Return "1" if ARI says we should renew
   # If cert has expired, don't fetch ARI info and just say we should renew
 
-  if [[ "$1" -lt "$(date +s)" ]]; then
+  if [[ "$1" -lt "$(date +%s)" ]]; then
     debug "Certificate expired, not fetching ARI info"
     return 0
   fi
