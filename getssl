@@ -329,6 +329,7 @@ FTP_ARGS=""
 FTP_PORT=""
 FULL_CHAIN_INCLUDE_ROOT="false"
 GETSSL_IGNORE_CP_PRESERVE="false"
+GETSSL_LOG_TO_SYSLOG="false"
 HTTP_TOKEN_CHECK_WAIT=0
 IGNORE_DIRECTORY_DOMAIN="false"
 OCSP_MUST_STAPLE="false"
@@ -341,7 +342,7 @@ RENEW_ALLOW="30"
 REUSE_PRIVATE_KEY="true"
 SERVER_TYPE="https"
 SKIP_HTTP_TOKEN_CHECK="false"
-SSLCONF="$(openssl version -d 2>/dev/null| cut -d\" -f2)/openssl.cnf"
+SSLCONF="$(openssl version -d 2>/dev/null| cut -d\" -f2)/openssl.cnf"kjkk
 TOKEN_USER_ID=""
 USE_SINGLE_ACL="false"
 WORKING_DIR_CANDIDATES=("/etc/getssl" "${PROGDIR}/conf" "${PROGDIR}/.getssl" "${HOME}/.getssl")
@@ -2838,6 +2839,9 @@ write_getssl_template() { # write out the main template file
 	# RELOAD_CMD=('ssh:sshuserid@server5:systemctl reload httpd' 'logger getssl for server5 efficient.')
 	#RELOAD_CMD=""
 
+	# Set to true to send getssl output to syslog (requires logger).
+	#GETSSL_LOG_TO_SYSLOG="true"
+
 	# The time period within which you want to allow renewal of a certificate
 	#  this prevents hitting some of the rate limits.
 	# Creating a file called FORCE_RENEWAL in the domain directory allows one-off overrides
@@ -2963,9 +2967,14 @@ fi
 # Main logic
 ############
 
-# log results to system log - if the logger utility is in the path
-if [ $(which logger) ] ; then
-  exec 1> >(logger -s -t $(basename $0)) 2>&1
+# First check whether to redirect output to syslog - this only activates if GETSSL_LOG_TO_SYSLOG is set in the environment
+if [[ "$GETSSL_LOG_TO_SYSLOG" == "true" ]] && [[ "${GETSSL_SYSLOG_ACTIVE:-false}" != "true" ]]; then
+  if command -v logger >/dev/null 2>&1; then
+    export GETSSL_SYSLOG_ACTIVE=true
+    exec 1> >(logger -t "$PROGNAME") 2>&1
+  else
+    debug "GETSSL_LOG_TO_SYSLOG is enabled, but logger is not available"
+  fi
 fi
 
 # Get the current OS, so the correct functions can be used for that OS. (sets the variable os)
@@ -3077,6 +3086,16 @@ if [[ -s "$WORKING_DIR/getssl.cfg" ]]; then
   debug "reading config from $WORKING_DIR/getssl.cfg"
   # shellcheck source=/dev/null
   . "$WORKING_DIR/getssl.cfg"
+fi
+
+# Second check whether to redirect output to syslog - this activates when GETSSL_LOG_TO_SYSLOG is set in getssl.cfg
+if [[ "$GETSSL_LOG_TO_SYSLOG" == "true" ]] && [[ "${GETSSL_SYSLOG_ACTIVE:-false}" != "true" ]]; then
+  if command -v logger >/dev/null 2>&1; then
+    export GETSSL_SYSLOG_ACTIVE=true
+    exec 1> >(logger -t "$PROGNAME") 2>&1
+  else
+    debug "GETSSL_LOG_TO_SYSLOG is enabled, but logger is not available"
+  fi
 fi
 
 if [[ -n "$DNS_CHECK_FUNC" ]]; then
