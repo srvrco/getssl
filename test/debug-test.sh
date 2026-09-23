@@ -21,9 +21,10 @@ setup_environment 3>&1
 
 # Only add the pebble CA to the cert bundle if using pebble
 if grep -q pebble "${CONFIG_FILE}"; then
-    export CURL_CA_BUNDLE=/root/pebble-ca-bundle.crt
+    export CURL_CA_BUNDLE=${INSTALL_DIR}/pebble-ca-bundle.crt
 fi
 
+echo $CURL_CA_BUNDLE
 "${CODE_DIR}/getssl" -U -c "$GETSSL_HOST" 3>&1
 cp "${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_HOST}/getssl.cfg"
 # shellcheck disable=SC2086

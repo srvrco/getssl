@@ -23,13 +23,13 @@ teardown_file() {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
-    CONFIG_FILE="getssl-http01.cfg"
+    CONFIG_FILE="getssl-http01-no-ari.cfg"
     setup_environment
     init_getssl
     create_certificate
     assert_success
     check_output_for_errors
-    # save a coy of the private key
+    # save a copy of the private key
     cp "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key" "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key.orig"
 }
 
@@ -73,7 +73,7 @@ teardown_file() {
     ORIG_KEY_HASH="$(cat ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key | sha256sum)"
 
     cat <<- 'EOF' > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
-PRIVATE_KEY_ALG="prime256v1"
+PRIVATE_KEY_ALG="rsa"
 EOF
 
     run ${CODE_DIR}/getssl -U -d $GETSSL_HOST

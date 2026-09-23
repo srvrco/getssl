@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+
+fulldomain="${1}"
+token="${2}"
+api_url="${PDNS_API_URL:-}"
+api_key="${PDNS_API_KEY:-}"
+server_id="${PDNS_SERVER_ID:-localhost}"
+ttl="${PDNS_TTL:-120}"
+
+if [[ -z "$fulldomain" ]]; then
+  echo "DNS script requires full domain name as first parameter"
+  exit 1
+fi
+if [[ -z "$token" ]]; then
+  echo "DNS script requires challenge token as second parameter"
+  exit 1
+fi
+if [[ -z "$api_url" ]]; then
+  echo "PDNS_API_URL variable not set"
+  exit 1
+fi
+if [[ -z "$api_key" ]]; then
+  echo "PDNS_API_KEY variable not set"
+  exit 1
+fi
+if ! command -v jq >/dev/null 2>&1; then
+  echo "jq command not found"
+  exit 1
+fi
+
+api_get() {
+  curl --silent -X GET "${1}" \
+    -H "X-API-Key: ${api_key}"
+}
+
+find_zone() {
+  local domain="${1}"
+  local candidate="${domain}"
+  while [[ "${candidate}" == *"."* ]]; do
+    response=$(curl --silent "${api_url%/}/api/v1/servers/${server_id}/zones/${candidate}." \
+      -H "X-API-Key: ${api_key}" \
+      -o /dev/null \
+      -w '%{http_code}')
+    if [[ "$response" == "200" ]]; then
+      printf '%s.\n' "${candidate}"
+      return 0
+    fi
+    candidate="$(echo "${candidate}" | cut -d. -f1 --complement)"
+  done
+  return 1
+}
+
+zone_name=$(find_zone "$fulldomain")
+if [[ -z "$zone_name" ]]; then
+  echo "Cannot find matching PowerDNS zone"
+  exit 1
+fi
+
+txtname="_acme-challenge.${fulldomain}."
+
+zone_data=$(api_get "${api_url%/}/api/v1/servers/${server_id}/zones/${zone_name}")
+
+records=$(echo "$zone_data" | jq -c --arg txtname "$txtname" --arg token "$token" '
+  [
+    .rrsets[]? 
+    | select(.name == $txtname and .type == "TXT")
+    | .records[]?.content
+  ] as $existing
+  | ($existing + [$token | @json] | unique)
+  | map({content: ., disabled: false})
+')
+
+payload=$(jq -cn \
+  --arg txtname "$txtname" \
+  --argjson ttl "${ttl}" \
+  --argjson records "$records" \
+  '{rrsets:[{changetype:"REPLACE",name:$txtname,type:"TXT",ttl:$ttl,records:$records}]}')
+
+response=$(curl --silent -X PATCH "${api_url%/}/api/v1/servers/${server_id}/zones/${zone_name}" \
+  -H 'Content-Type: application/json' \
+  -H "X-API-Key: ${api_key}" \
+  -d "$payload" \
+  -o /dev/null -w '%{http_code}')
+
+if [[ "$response" != "204" ]]; then
+  echo "Record not created"
+  echo "Response code: $response"
+  exit 1
+fi
+
+curl --silent -X PUT "${api_url%/}/api/v1/servers/${server_id}/zones/${zone_name}/notify" \
+  -H "X-API-Key: ${api_key}" \
+  -o /dev/null

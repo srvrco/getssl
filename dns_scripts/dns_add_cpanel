@@ -61,11 +61,11 @@ fi
 
 # If no existing record, create a new TXT record, otherwise edit the existing record
 if [[ "$resp" == *\"data\":[]* ]]; then
-  request_params="&cpanel_jsonapi_func=add_zone_record&domain=$domain&type=TXT&name=_acme-challenge$name&txtdata=$token"
+  request_params="&cpanel_jsonapi_func=add_zone_record&domain=${domain}&type=TXT&name=_acme-challenge&txtdata=${token}"
 else
   # shellcheck disable=SC2001
   line=$(echo "$resp" | sed -e 's/.*line":\([0-9]*\),.*/\1/')
-  request_params="&cpanel_jsonapi_func=edit_zone_record&domain=$domain&type=TXT&name=_acme-challenge$name&txtdata=${token}&line=${line}"
+  request_params="&cpanel_jsonapi_func=edit_zone_record&domain=${domain}&type=TXT&name=_acme-challenge&txtdata=${token}&line=${line}"
 fi
 resp=$(curl --silent "${curl_params[@]}" "$request_func$request_params")
 

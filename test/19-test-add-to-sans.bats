@@ -34,7 +34,7 @@ teardown_file() {
     if [ -n "$STAGING" ]; then
         skip "Not trying on staging server yet"
     fi
-    CONFIG_FILE="getssl-dns01.cfg"
+    CONFIG_FILE="getssl-dns01-no-ari.cfg"
     setup_environment
     init_getssl
 
@@ -48,7 +48,7 @@ teardown_file() {
     if [ -n "$STAGING" ]; then
         skip "Not trying on staging server yet"
     fi
-    CONFIG_FILE="getssl-dns01.cfg"
+    CONFIG_FILE="getssl-dns01-no-ari.cfg"
 
     . "${CODE_DIR}/test/test-config/${CONFIG_FILE}"
     CERT=${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt
@@ -78,7 +78,7 @@ teardown_file() {
     if [ -n "$STAGING" ]; then
         skip "Not trying on staging server yet"
     fi
-    CONFIG_FILE="getssl-dns01.cfg"
+    CONFIG_FILE="getssl-dns01-no-ari.cfg"
 
     cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
 SANS="a.${GETSSL_HOST}"
@@ -112,7 +112,7 @@ EOF
     if [ -n "$STAGING" ]; then
         skip "Not trying on staging server yet"
     fi
-    CONFIG_FILE="getssl-dns01.cfg"
+    CONFIG_FILE="getssl-dns01-no-ari.cfg"
 
     cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
 SANS="a.${GETSSL_HOST}"
@@ -146,7 +146,7 @@ EOF
     if [ -n "$STAGING" ]; then
         skip "Not trying on staging server yet"
     fi
-    CONFIG_FILE="getssl-dns01.cfg"
+    CONFIG_FILE="getssl-dns01-no-ari.cfg"
 
     cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
 IGNORE_DIRECTORY_DOMAIN="true"

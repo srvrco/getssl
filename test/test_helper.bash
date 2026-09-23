@@ -31,7 +31,9 @@ check_github_quota() {
     remaining="$(jq -r '.resources.core.remaining' <<<"$limits")"
     echo "# Remaining: $remaining"
     reset="$(jq -r '.resources.core.reset' <<<"$limits")"
-    if [[ "$remaining" -ge "$need" ]] ; then return 0 ; fi
+    if [[ "$remaining" -ge "$need" ]] ; then
+      return 0
+    fi
     limit="$(jq -r '.resources.core.limit' <<<"$limits")"
     echo "# Limit: $limit"
     if [[ "$limit" -lt "$need" ]] ; then
@@ -72,9 +74,10 @@ check_output_for_errors() {
   contains_whitelisted_phrase=0
   for phrase in "${whitelist_array[@]}"; do
     #echo "# DEBUG: checking output for whitelisted phrase: $phrase"
-    status=1
-    assert_output --regexp "$phrase" 2>/dev/null || status=0
-    contains_whitelisted_phrase=$((status || contains_whitelisted_phrase))
+    if grep -qE "$phrase" <<<"$output"; then
+      contains_whitelisted_phrase=1
+      break
+    fi
   done
 
   if [[ $contains_whitelisted_phrase -eq 0 ]]; then
@@ -87,6 +90,9 @@ check_output_for_errors() {
 }
 
 cleanup_environment() {
+  if [ -f ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg ]; then
+    rm ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
+  fi
   if [ -z "$STAGING" ]; then
     curl --silent -X POST -d '{"host":"'"$GETSSL_HOST"'"}' http://10.30.50.3:8055/clear-a
   fi
@@ -97,6 +103,37 @@ create_certificate() {
   cp "${CODE_DIR}/test/test-config/${CONFIG_FILE}" "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg"
   # shellcheck disable=SC2086
   run ${CODE_DIR}/getssl -U -d "$@" "$GETSSL_CMD_HOST"
+}
+
+configure_pebble_ari_window() {
+  local mode cert_file ari_start ari_end ari_response cert_pem payload
+  mode="$1"
+  cert_file="$2"
+  # Note funky date logic to workaround alpine busybox date not supporting "+2 days"
+  # https://stackoverflow.com/questions/72864376/get-the-date-three-days-from-today-with-busybox-date
+  case "$mode" in
+    future)
+      ari_start=$(date -u -d "@$(( $(date +%s) + 2 * 24 * 60 * 60 ))" "+%Y-%m-%dT%H:%M:%SZ")
+      ari_end=$(date -u -d "@$(( $(date +%s) + 3 * 24 * 60 * 60 ))" "+%Y-%m-%dT%H:%M:%SZ")
+      ;;
+    open)
+      ari_start=$(date -u -d "@$(( $(date +%s) - 2 * 24 * 60 * 60 ))" "+%Y-%m-%dT%H:%M:%SZ")
+      ari_end=$(date -u -d "@$(( $(date +%s) + 1 * 24 * 60 * 60 ))" "+%Y-%m-%dT%H:%M:%SZ")
+      ;;
+    *)
+      echo "Unknown ARI mode: $mode" >&2
+      return 1
+      ;;
+  esac
+
+  ari_response=$(printf '{"suggestedWindow":{"start":"%s","end":"%s"}}' "$ari_start" "$ari_end")
+  cert_pem=$(cat "$cert_file")
+  payload=$(jq -n --arg cert "$cert_pem" --arg ari "$ari_response" '{Certificate:$cert,ARIResponse:$ari}')
+
+  curl --silent --show-error --fail \
+    -H "Content-Type: application/json" \
+    -d "$payload" \
+    https://pebble:15000/set-renewal-info/
 }
 
 init_getssl() {
@@ -166,10 +203,15 @@ GETSSL_CMD_HOST=$GETSSL_HOST
 export GETSSL_CMD_HOST
 
 if [ -z "$STAGING" ] && [ ! -f ${INSTALL_DIR}/pebble.minica.pem ]; then
-  wget --quiet --no-clobber https://raw.githubusercontent.com/letsencrypt/pebble/master/test/certs/pebble.minica.pem 2>&1
+  wget --quiet --no-clobber https://raw.githubusercontent.com/letsencrypt/pebble/main/test/certs/pebble.minica.pem 2>&1
   CERT_FILE=/etc/ssl/certs/ca-certificates.crt
   if [ ! -f $CERT_FILE ]; then
     CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt
   fi
   cat $CERT_FILE ${INSTALL_DIR}/pebble.minica.pem > ${INSTALL_DIR}/pebble-ca-bundle.crt
+fi
+
+# Mock sleep for pebble testing
+if [ -z "$STAGING" ]; then
+    export PATH="/getssl/test:$PATH"
 fi

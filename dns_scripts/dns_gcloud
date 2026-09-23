@@ -1,0 +1,327 @@
+#!/usr/bin/env bash
+# dns_gcloud
+# Add/Del/List TXT record using the Google Cloud DNS gcloud command
+# ver 2025-09-23 # shellcheck has read, even I'll say eveything was so nice  
+# org. version:
+# https://github.com/kshji/gitssl_gcloud
+#
+# Main reason to make was to support getssl using DNS validation with Google Cloud DNS
+# You can use this script to any host setting TXT records, default is _acme-challenge
+#
+# dns_gloud -c command domain token
+#
+# get help:
+# dns_gloud -? | --help
+#
+# dns_gloud -c add example.com "testN" 
+# dns_gloud -c list example.com 
+# dns_gloud -c del example.com "testN" 
+# dns_gloud -c add example.com "test1" "test2"
+# dns_gloud -c list example.com 
+# dns_gloud -c del example.com "test1" "test2"
+#     
+# options:
+#     -d 0|1       # debug on/off to the file /var/tmp/getssl/...log
+#     -s 10        # sleeptime after gcloud add/del process, default 10
+#     -h hostname  # default is "_acme-challenge."
+#                  # if like to use domain without host, set host empty string  !!!
+#     -t ttlvalue  # set ttl, default 60 = 1 min
+#     
+#     
+
+PRG="$0"
+BINDIR="${PRG%/*}"
+[ "$PRG" = "$BINDIR" ] && BINDIR="." # - same dir as program
+PRG="${PRG##*/}"
+
+#######################################################################################
+usage()
+{
+cat <<EOT
+usage:$PRG -c COMMAND [ -d 0|1 ] [ -t ttlvalue ] [ -s sleep_sec_after_gcloud ] [ -h hostname ] DOMAIN TOKEN
+or
+$PRG --command COMMAND [ --debug 0|1 ] [ --ttl ttlvalue ] [ --sleep sleep_sec_after_gcloud ] [ --host hostname ] DOMAIN TOKEN
+
+    -d 1        # print some debug data and make debug file to the dir /var/tmp/getssl/
+    -t NNN      # set TTL value, default 60. Have to be same in the ADD and DEL
+    -s NN       # default 10 s, sleep seconds after gcloud process
+    -h hostname # hostname, default is _acme-challenge, empty string = use domain
+  
+EOT
+
+}
+
+#######################################################################################
+err()
+{
+	echo "$PRG err:$*"
+}
+
+#######################################################################################
+dbgstr()
+{
+	((DEBUG<1)) && return
+	echo "$PRG debug:$*"
+}
+
+#######################################################################################
+dbg()
+{
+
+
+	Xdomain="$1"  # domain + command
+	Xcmd="$2"
+	[ "$Xdomain" = "" ] && Xdomain="default"
+	[ "$Xcmd" = "" ] && Xcmd="cmd"
+	Xdomain="${Xdomain%.}" # del last dot
+	tmpd="/var/tmp/getssl"
+	tmpf="$tmpd/$PRG.$Xdomain.$Xcmd.log"
+	mkdir -p "$tmpd" 2>/dev/null
+	chmod 1777 "$tmpd" 2>/dev/null
+	
+
+	cnt=0
+	# save only last execute info
+	{
+	date
+	echo "GCLOUD_PROJECTID:$GCLOUD_PROJECTID"  
+	echo "GCLOUD_ZONE:$GCLOUD_ZONE"  
+	echo "GCLOUD_ACCOUNT:$GCLOUD_ACCOUNT"  
+	echo "GCLOUD_KEYFILE:$GCLOUD_KEYFILE"  
+	env
+	} > "$tmpf"
+	for var in $all
+	do
+        	((cnt++))
+        	echo "$cnt:<$var>" >> "$tmpf"
+	done
+
+}
+
+#######################################################################################
+check_end_dot()
+{
+		# gcloud need fulldomain ending dot = absolut domain path
+		# set the last dot if missing
+		Xorg="$1"
+		Xnodot="${Xorg%.}"  # remove last dot if there is
+		echo "$Xnodot."     # add dot allways
+}
+
+#######################################################################################
+list_txt()
+{
+
+	Xname="$1"
+	list=$(gcloud dns record-sets list --zone="$GCLOUD_ZONE" --name="$Xname" --type="TXT" )
+	stat=$?
+	(( stat > 0 )) && err "gcloud error to list TXT record" && exit 2
+	variables=variables
+
+	# Some shell checkers (ex.shellcheck) like to do next different way. I'll say both works
+	# you can read 1st line to var and then use {$var?} on reading
+	# in this case you'll get same result. This read 1st loop varianle variables, look value of variables
+ 	# on the second loop it read variables, which was on the 1st line ... command line process is so nice
+	# this do exactly what we need to do ... (not that what https://www.shellcheck.net/wiki/SC2229 explain)
+	oifs="$IFS"
+	cnt=0
+	echo "$list" | while read $variables
+	do
+        	(( cnt++ ))
+		# 1st line is header, read next line
+        	(( cnt == 1 )) && continue
+        	echo "name:$NAME type:$TYPE ttl:$TTL data:$DATA"
+		# next line works just what we need, shellcheck not like this ...
+		# Wiki's last part: it's okay https://www.shellcheck.net/wiki/SC2206
+        	IFS="," values=($DATA)
+        	IFS="$oifs"
+        	numOfvalues=${#values[@]}
+        	for (( var=0; var<numOfvalues ; var++ ))
+        	do
+                	echo " - data($var):${values[$var]}"
+        	done
+	done
+	sleep 1
+	exit 0
+}
+
+#######################################################################################
+del_txt()
+{
+
+	Xname="$1"
+	shift
+	#
+	Xtoken=""
+	while [ $# -gt 0 ]
+	do
+		Xtoken="$Xtoken \"$1\""
+		shift
+	done
+	dbgstr "<$Xtoken>"
+
+#exit
+	# start transaction
+	gcloud dns record-sets transaction start --zone="$GCLOUD_ZONE" --project="$GCLOUD_PROJECTID"
+	stat=$?
+	(( stat > 0 )) && err "gcloud start transaction error" && exit 2
+	
+	# del TXT
+	dbgstr gcloud dns record-sets transaction remove  --name="$Xname" --ttl="$ttl" --type="TXT" \
+			--zone="$GCLOUD_ZONE" --project="$GCLOUD_PROJECTID" "$Xtoken"
+	gcloud dns record-sets transaction remove  --name="$Xname" --ttl="$ttl" --type="TXT" \
+        	--zone="$GCLOUD_ZONE" --project="$GCLOUD_PROJECTID" "$Xtoken"
+	stat=$?
+	if (( stat > 0 )) ; then
+		err "gcloud remove error" 
+		gcloud dns record-sets transaction abort --zone="$GCLOUD_ZONE"  --project="$GCLOUD_PROJECTID" 
+		exit 2
+	fi
+	
+	gcloud dns record-sets transaction execute --zone="$GCLOUD_ZONE" --project="$GCLOUD_PROJECTID"
+	stat=$?
+	(( stat > 0 )) && err "gcloud transaction execute error" && exit 2
+	
+	# if not sleep, get error ???
+	sleep "$sleepafter"
+	exit 0
+}
+
+#######################################################################################
+add_txt()
+{
+
+	Xname="$1"
+	shift
+	# could be 1-n values
+	Xtoken=""
+	while [ $# -gt 0 ]
+	do
+		Xtoken="$Xtoken \"$1\""
+		shift
+	done
+	dbgstr "<$Xtoken>"
+
+
+
+	# start transaction
+	gcloud dns record-sets transaction start --zone="$GCLOUD_ZONE" --project="$GCLOUD_PROJECTID"
+	stat=$?
+	if (( stat > 0 )) ; then
+		err "gcloud start transaction error"
+		gcloud dns record-sets transaction abort --zone="$GCLOUD_ZONE"  --project="$GCLOUD_PROJECTID"
+		exit 2
+	fi
+	
+	# add TXT
+	dbgstr gcloud dns record-sets transaction add  --name="$Xname" --ttl="$ttl" --type="TXT" \
+		--zone="$GCLOUD_ZONE" --project="$GCLOUD_PROJECTID" "$Xtoken"
+	gcloud dns record-sets transaction add  --name="$Xname" --ttl="$ttl" --type="TXT" \
+		--zone="$GCLOUD_ZONE" --project="$GCLOUD_PROJECTID" "$Xtoken"
+	stat=$?
+	if (( stat > 0 )) ; then
+		err "gcloud add error" 
+		gcloud dns record-sets transaction abort --zone="$GCLOUD_ZONE"  --project="$GCLOUD_PROJECTID"
+		exit 2
+	fi
+	
+	gcloud dns record-sets transaction execute --zone="$GCLOUD_ZONE" --project="$GCLOUD_PROJECTID"
+	stat=$?
+	#echo "execute stat:$stat"
+	(( stat > 0 )) && err "gcloud transaction execute error" && exit 2
+	
+	# if not sleep, get error ???
+	sleep "$sleepafter"
+	exit 0
+}
+
+#######################################################################################
+# MAIN
+#######################################################################################
+
+DEBUG=0
+command=""
+sleepafter=10
+# default host to manipulate
+host="_acme-challenge."
+ttl=60
+
+while [ $# -gt 0 ]
+do
+	arg="$1"
+	case "$arg" in
+		-c|--command|--cmd) command="$2"; shift ;;
+		-d|--debug) DEBUG="$2" ; shift ;;
+		-s|--sleep) sleepafter="$2"; shift ;;
+		-h|--host) host="$2" 
+			   [ $# -lt 2 ] && usage && exit 2
+			   host="$2"
+			   shift 
+			;;
+		-t|--ttl) ttl="$2"; shift ;;
+		-?|--help) usage; exit 2 ;;
+		-*) # unknown option
+			err "unknown option $arg"
+			usage
+			exit 2
+		;;
+		*) # arguments, stop the option parser
+			break 
+		;;
+	esac
+	shift
+done
+
+[ "$GCLOUD_PROJECTID" = "" ] && err "GCLOUD_PROJECTID is not set. Unable to set TXT records." && exit 2
+[ "$GCLOUD_ZONE" = "" ] && err "GCLOUD_ZONE is not set. Unable to set TXT records." && exit 2
+[ "$GCLOUD_ACCOUNT" = "" ] && err "GCLOUD_ACCOUNT is not set. Unable to set TXT records." && exit 2
+[ "$GCLOUD_KEYFILE" = "" ] && err "GCLOUD_KEYFILE is not set. Unable to set TXT records." && exit 2
+[ ! -f "$GCLOUD_KEYFILE" ] && err "file not usable:$GCLOUD_KEYFILE" && exit 2
+
+
+all="$*"
+fulldomain="$1"
+shift
+token="$*"  # could be 1-n tokens if del
+
+case "$command" in
+	add) ;;
+	del) ;;
+	list) ;;
+	*) command="" ;;
+esac
+
+
+[ "$command" = "" ] && err "need option -c add | -c del | -c list" && exit 2
+[ "$fulldomain" = "" ] && err "need fulldomain argument." && exit 2
+[ "$token" = "" ] && [ "$command" != "list" ] && err "need token argument." && exit 2
+
+# dbg info to the program tmp dir
+(( DEBUG>0)) && dbg "$fulldomain" "$command"
+
+# host check ending of dot
+[ "$host" != "" ] && host=$(check_end_dot "$host")
+# host fullname
+gname=$(check_end_dot "$host$fulldomain")
+#echo "gname: $gname"
+
+# activate google cloud account
+gcloud auth activate-service-account "$GCLOUD_ACCOUNT" --key-file="$GCLOUD_KEYFILE" --project="$GCLOUD_PROJECTID"
+stat=$?
+(( stat > 0 )) && err "gcloud activate account error" && exit 2
+
+case "$command" in
+	add) add_txt "$gname" "$token"
+	    ;;
+	del) del_txt "$gname" "$token"
+	    ;;
+	list) list_txt "$gname"
+	    ;;
+	*)
+			err "unknown command" 
+			exit 2
+	    ;;
+esac
+
+
+

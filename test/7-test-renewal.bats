@@ -37,7 +37,7 @@ teardown_file() {
     if [ -n "$STAGING" ]; then
         skip "Not testing renewal on staging server"
     fi
-    CONFIG_FILE="getssl-dns01.cfg"
+    CONFIG_FILE="getssl-dns01-no-ari.cfg"
     setup_environment
     init_getssl
 
@@ -52,7 +52,7 @@ teardown_file() {
         skip "Not trying on staging server yet"
     fi
 
-    CONFIG_FILE="getssl-dns01.cfg"
+    CONFIG_FILE="getssl-dns01-no-ari.cfg"
     . "${CODE_DIR}/test/test-config/${CONFIG_FILE}"
     CERT=${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt
     ORIGINAL_ENDDATE=$(openssl x509 -in "$CERT" -noout -enddate 2>/dev/null| cut -d= -f 2-)
@@ -81,7 +81,7 @@ teardown_file() {
         skip "Not trying on staging server yet"
     fi
 
-    CONFIG_FILE="getssl-dns01.cfg"
+    CONFIG_FILE="getssl-dns01-no-ari.cfg"
     cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
 RENEW_ALLOW=2000
 EOF
