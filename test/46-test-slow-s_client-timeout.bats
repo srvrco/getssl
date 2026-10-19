@@ -71,6 +71,6 @@ teardown() {
     assert_success
 
     # Check that the domain config was created
-    assert [ -s "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg" ]
+    assert_file_not_empty "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg"
 }
 

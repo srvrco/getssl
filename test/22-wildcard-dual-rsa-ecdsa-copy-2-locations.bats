@@ -51,16 +51,16 @@ EOF
     fi
 
     # Check that the RSA chain and key have been copied to both locations
-    assert [ -e "/etc/nginx/pki/domain-chain.crt" ]
-    assert [ -e "/root/a.${GETSSL_HOST}/domain-chain.crt" ]
-    assert [ -e "/etc/nginx/pki/private/server.key" ]
-    assert [ -e "/root/a.${GETSSL_HOST}/server.key" ]
+    assert_file_exists "/etc/nginx/pki/domain-chain.crt"
+    assert_file_exists "/root/a.${GETSSL_HOST}/domain-chain.crt"
+    assert_file_exists "/etc/nginx/pki/private/server.key"
+    assert_file_exists "/root/a.${GETSSL_HOST}/server.key"
 
     # Check that the ECDSA chain and key have been copied to both locations
-    assert [ -e "/etc/nginx/pki/domain-chain.ec.crt" ]
-    assert [ -e "/root/a.${GETSSL_HOST}/domain-chain.ec.crt" ]
-    assert [ -e "/etc/nginx/pki/private/server.ec.key" ]
-    assert [ -e "/root/a.${GETSSL_HOST}/server.ec.key" ]
+    assert_file_exists "/etc/nginx/pki/domain-chain.ec.crt"
+    assert_file_exists "/root/a.${GETSSL_HOST}/domain-chain.ec.crt"
+    assert_file_exists "/etc/nginx/pki/private/server.ec.key"
+    assert_file_exists "/root/a.${GETSSL_HOST}/server.ec.key"
 
     cleanup_environment
 }

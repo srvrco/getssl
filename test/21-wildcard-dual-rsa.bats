@@ -65,9 +65,9 @@ EOF
     assert_success
     check_output_for_errors
     check_certificates
-    assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/chain.ec.crt" ]
-    assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.ec.crt" ]
-    assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.ec.crt" ]
+    assert_file_exists "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/chain.ec.crt"
+    assert_file_exists "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.ec.crt"
+    assert_file_exists "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.ec.crt"
 
     run openssl x509 -noout -text -in "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt"
     assert_line --partial "Public Key Algorithm: rsaEncryption"
