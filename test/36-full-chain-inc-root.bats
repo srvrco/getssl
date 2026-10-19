@@ -40,7 +40,7 @@ EOF
     create_certificate
     assert_success
     check_output_for_errors
-    #assert_archived_fullchain "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" "fullchain.crt"
+    assert_archived_fullchain "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" "fullchain.crt"
 
     if [ -n "$STAGING" ]; then
         # https://letsencrypt.org/docs/staging-environment/
@@ -83,8 +83,8 @@ EOF
     assert_success
     check_output_for_errors
     check_certificates
-    #assert_archived_fullchain "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" "fullchain.crt"
-    #assert_archived_fullchain "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.ec.crt" "fullchain.ec.crt"
+    assert_archived_fullchain "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" "fullchain.crt"
+    assert_archived_fullchain "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.ec.crt" "fullchain.ec.crt"
     assert_file_exists "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/chain.ec.crt"
     assert_file_exists "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.ec.crt"
     assert_file_exists "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.ec.crt"
