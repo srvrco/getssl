@@ -2,11 +2,16 @@ INSTALL_DIR=/root
 CODE_DIR=/getssl
 LIMIT_API="https://api.github.com/rate_limit"
 
+# The helper is also sourced by debug-test.sh outside of Bats.
+if declare -F load >/dev/null; then
+  load '/bats-file/load.bash'
+fi
+
 check_certificates()
 {
-  assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/chain.crt" ]
-  assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" ]
-  assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt" ]
+  assert_file_exists "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/chain.crt"
+  assert_file_exists "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt"
+  assert_file_exists "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt"
 }
 
 # Quota generally shouldn't be an issue - except for tests
@@ -140,7 +145,7 @@ init_getssl() {
   # Run initialisation (create account key, etc)
   run ${CODE_DIR}/getssl -U -d -c "$GETSSL_CMD_HOST"
   assert_success
-  [ -d "$INSTALL_DIR/.getssl" ]
+  assert_dir_exists "$INSTALL_DIR/.getssl"
 }
 
 setup_environment() {

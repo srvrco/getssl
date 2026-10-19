@@ -18,6 +18,16 @@ setup() {
 }
 
 
+assert_archived_fullchain() {
+    local fullchain_file archive_name archive_file
+    fullchain_file="$1"
+    archive_name="$2"
+    archive_file=$(find "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/archive" -type f -name "$archive_name" -print | head -n 1)
+    assert_file_exists "$archive_file"
+    assert_files_equal "$fullchain_file" "$archive_file"
+}
+
+
 @test "Use FULL_CHAIN_INCLUDE_ROOT to include the root certificate in the fullchain" {
     CONFIG_FILE="getssl-dns01.cfg"
     setup_environment
@@ -30,6 +40,7 @@ EOF
     create_certificate
     assert_success
     check_output_for_errors
+    assert_archived_fullchain "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" "fullchain.crt"
 
     if [ -n "$STAGING" ]; then
         # https://letsencrypt.org/docs/staging-environment/
@@ -72,9 +83,11 @@ EOF
     assert_success
     check_output_for_errors
     check_certificates
-    assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/chain.ec.crt" ]
-    assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.ec.crt" ]
-    assert [ -e "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.ec.crt" ]
+    assert_archived_fullchain "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.crt" "fullchain.crt"
+    assert_archived_fullchain "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.ec.crt" "fullchain.ec.crt"
+    assert_file_exists "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/chain.ec.crt"
+    assert_file_exists "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/fullchain.ec.crt"
+    assert_file_exists "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.ec.crt"
 
     if [ -n "$STAGING" ]; then
         PREFERRED_CHAIN="(STAGING) Pretend Pear X1"

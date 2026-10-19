@@ -38,39 +38,33 @@ teardown_file() {
         skip "Using staging server, skipping internal test"
     fi
 
-    ORIG_KEY_HASH="$(cat ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key | sha256sum)"
-
     run ${CODE_DIR}/getssl -U -d $GETSSL_HOST
     assert_success
     assert_line --partial "certificate is valid for more than 30 days"
     check_output_for_errors
 
-    NEW_KEY_HASH="$(cat ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key  | sha256sum)"
-
-    assert [ "$NEW_KEY_HASH" == "$ORIG_KEY_HASH" ]
+    assert_files_equal \
+        "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key.orig" \
+        "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key"
 }
 
 @test "Force renewal and check key hasn't changed" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
-    ORIG_KEY_HASH="$(cat ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key | sha256sum)"
-
     run ${CODE_DIR}/getssl -U -d -f $GETSSL_HOST
     assert_success
     check_output_for_errors
 
-    NEW_KEY_HASH="$(cat ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key  | sha256sum)"
-
-    assert [ "$NEW_KEY_HASH" == "$ORIG_KEY_HASH" ]
+    assert_files_equal \
+        "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key.orig" \
+        "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key"
 }
 
 @test "Change key algorithm, force renewal, and check key has changed" {
     if [ -n "$STAGING" ]; then
         skip "Using staging server, skipping internal test"
     fi
-
-    ORIG_KEY_HASH="$(cat ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key | sha256sum)"
 
     cat <<- 'EOF' > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
 PRIVATE_KEY_ALG="rsa"
@@ -82,7 +76,7 @@ EOF
 
     check_output_for_errors
 
-    NEW_KEY_HASH="$(cat ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key  | sha256sum)"
-
-    assert [ "$NEW_KEY_HASH" != "$ORIG_KEY_HASH" ]
+    assert_files_not_equal \
+        "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key.orig" \
+        "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.key"
 }

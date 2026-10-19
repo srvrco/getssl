@@ -41,4 +41,5 @@ RUN chmod g+w -R /var/www
 RUN git clone --depth 1 https://github.com/bats-core/bats-core.git /bats-core
 RUN git clone --depth 1 https://github.com/bats-core/bats-support /bats-support
 RUN git clone --depth 1 https://github.com/bats-core/bats-assert /bats-assert
+RUN git clone --depth 1 https://github.com/bats-core/bats-file /bats-file
 RUN /bats-core/install.sh /usr/local

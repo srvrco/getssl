@@ -55,7 +55,7 @@ teardown_file() {
     check_output_for_errors
     assert_line --partial 'Verification completed, obtaining certificate.'
     assert_line --partial 'Requesting certificate'
-    refute [ -d '$HOME/.getssl' ]
+    assert_dir_not_exists "${HOME}/.getssl"
 }
 
 

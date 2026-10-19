@@ -43,8 +43,6 @@ setup() {
     run ${CODE_DIR}/getssl -U -d -c "${GETSSL_CMD_HOST}"
 
     # Assert that the newly created configuration contains the additional domain in SANS
-    # if this fails then error in tests will be "grep failed" - this means SANS did not hold the expected value
     # eg   SANS="a.centos7.getssl.test"
-    grep -q "SANS=\"a.${GETSSL_HOST}\"" ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg
-    assert_success
+    assert_file_contains "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg" "SANS=\"a.${GETSSL_HOST}\""
 }
