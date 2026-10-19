@@ -305,6 +305,7 @@
 # 2026-07-07 Handle missing auth link response without failing (timkimber)(#911)(2.52)
 # 2026-07-31 Obtain the SAN challenge tokens at the start, so that we can submit them in bulk to the DNS, to minimise the DNS propagation time (#904)(mhameed)
 # 2026-07-31 Fix cPanel support for API zone record updates and wildcard domain support (#874)(pgoforth)
+# 2026-10-05 Fix missing root cert from fullchain.crt in the archive (tom1v)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -429,13 +430,13 @@ cert_archive() {  # Archive certificate file by copying files to dated archive d
   cp "$DOMAIN_DIR/${DOMAIN}.csr" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.csr"
   cp "$DOMAIN_DIR/${DOMAIN}.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.key"
   cp "$CA_CERT" "${DOMAIN_DIR}/archive/${date_time}/chain.crt"
-  cat "$CERT_FILE" "$CA_CERT" > "${DOMAIN_DIR}/archive/${date_time}/fullchain.crt"
+  cp "$FULL_CHAIN" "${DOMAIN_DIR}/archive/${date_time}/fullchain.crt"
   if [[ "$DUAL_RSA_ECDSA" == "true" ]]; then
     cp "${CERT_FILE%.*}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.crt"
     cp "$DOMAIN_DIR/${DOMAIN}.ec.csr" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.csr"
     cp "$DOMAIN_DIR/${DOMAIN}.ec.key" "${DOMAIN_DIR}/archive/${date_time}/${DOMAIN}.ec.key"
     cp "${CA_CERT%.*}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/chain.ec.crt"
-    cat "${CERT_FILE%.*}.ec.crt" "${CA_CERT%.*}.ec.crt" > "${DOMAIN_DIR}/archive/${date_time}/fullchain.ec.crt"
+    cp "${FULL_CHAIN%.*}.ec.crt" "${DOMAIN_DIR}/archive/${date_time}/fullchain.ec.crt"
   fi
   umask "$ORIG_UMASK"
   debug "purging old GetSSL archives"
