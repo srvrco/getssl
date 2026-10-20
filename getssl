@@ -1491,20 +1491,26 @@ add_dns_rr() {
   d=${1}
   auth_key=${2}
 
+  # Export these values for the DNS command
+  local -x PROGNAME="${PROGNAME}" _USE_DEBUG="${_USE_DEBUG}" WORKING_DIR="${WORKING_DIR}"
+  
   # shellcheck disable=SC2018,SC2019
   lower_d=$(printf '%s' "${d#\*.}" | tr 'A-Z' 'a-z')
   debug "adding DNS RR via command: ${DNS_ADD_COMMAND} ${lower_d} ${auth_key}"
-  eval "PROGNAME=$PROGNAME _USE_DEBUG=$_USE_DEBUG WORKING_DIR=$WORKING_DIR ${DNS_ADD_COMMAND}" "${lower_d}" "${auth_key}"
+  eval "${DNS_ADD_COMMAND}" "${lower_d}" "${auth_key}"
 }
 
 del_dns_rr() {
   d=${1}
   auth_key=${2}
 
+  # Export these values for the DNS command
+  local -x PROGNAME="${PROGNAME}" _USE_DEBUG="${_USE_DEBUG}" WORKING_DIR="${WORKING_DIR}"
+
   # shellcheck disable=SC2018,SC2019
   lower_d=$(printf '%s' "${d#\*.}" | tr 'A-Z' 'a-z')
   debug "removing DNS RR via command: ${DNS_DEL_COMMAND} ${lower_d} ${auth_key}"
-  eval "PROGNAME=$PROGNAME _USE_DEBUG=$_USE_DEBUG WORKING_DIR=$WORKING_DIR ${DNS_DEL_COMMAND}" "${lower_d}" "${auth_key}"
+  eval "${DNS_DEL_COMMAND}" "${lower_d}" "${auth_key}"
 }
 
 fulfill_challenges() {
