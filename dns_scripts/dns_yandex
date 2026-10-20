@@ -1,0 +1,144 @@
+#!/bin/bash
+
+### Functions
+check() { # Verify that required parameters are set
+  IFS=$'\n'
+  for var in ${check_vars[@]}; do
+    var_name=$(echo $var | awk -F, '{ print $1 }')
+    err_msg=$( echo $var | awk -F, '{ print $2 }')
+    [ -z "${!var_name}" ] && error_exit "variable '${var_name}' empty. Error:$err_msg"
+  done
+}
+
+add() { # Add challenge domain to DNS
+  debug "create domain '$acme_domain'"
+  response=`curl --silent \
+            -X POST https://api360.yandex.net/directory/v1/org/${orgId}/domains/${domain}/dns \
+            -H "Authorization: OAuth ${OAuth}" \
+            -H "Content-Type: application/json" \
+            -d '{"name":"'"$acme_domain"'","type":"TXT","ttl":"3600","text":"'"$token"'"}'`
+  debug "Asked record: {\"name\":\"$acme_domain\",\"type\":\"TXT\",\"ttl\":\"3600\",\"text\":\"$token\"}"
+  debug "Recieved response: \"$response\""
+  recordId=$(echo $response | jq .recordId)
+  if [ "$recordId" != "null" ]; then
+    # Save recordId for cleanup later
+    mkdir -p -m 0700 $(dirname $recordIdFile)
+    echo $response >> $recordIdFile
+    debug "File '$recordIdFile' created/updated:\n$(sed -E '/^#/d;/^\s*$/d' $recordIdFile)"
+  else
+    err_code=$(echo $response | jq .code)
+    err_message=$(echo $response | jq .message)
+    error_exit "error code: $err_code -- $err_message"
+  fi
+}
+
+del() { # Delete all or specific challenge domains from DNS
+  if [[ "$1" == "cleanup" ]]; then # Cleanup records for specific domain
+    if [ -z "$subdomain" ]; then # Delete all records for domain if 'domain.tld' specimied
+      # Get ALL recordIDs from file
+      debug "all '$domain' domain records will be removed"
+      recordIds=`sed -E '/^#/d;/^\s*$/d' $recordIdFile | jq .recordId`
+    else # Delete all records for specific subdomain only if 'subdomain.domain.tld' specified
+      # Get ALL recordIDs from file for specific domain
+      debug "all '$acme_domain' domain records will be removed"
+      recordIds=`sed -E '/^#/d;/^\s*$/d' $recordIdFile | jq "select(.name == \"$acme_domain\") | .recordId"`
+    fi
+  else # Delete specific records for specific domain or subdomain specified challenge token
+    # Get specific combinations of domain and token
+    debug "'$acme_domain' domain records with token '$token' will be removed"
+    recordIds=`sed -E '/^#/d;/^\s*$/d' $recordIdFile | jq "select(.name == \"$acme_domain\" and .text == \"$token\") | .recordId"`
+  fi
+  # Check selected exist records
+  [ -z "$recordIds" ] && error_exit "can't parse '$recordIdFile' file or matched recordIds not found"
+  # Delete selected records if exist
+  unset not_removed
+  for recordId in $recordIds; do
+    debug "removeing record '$recordId'"
+    del_result=`curl -H "Authorization: OAuth ${OAuth}" --silent \
+                     -X DELETE https://api360.yandex.net/directory/v1/org/${orgId}/domains/${domain}/dns/${recordId}`
+    if [ "$del_result" == "{}" ]; then
+      sed -i "/$recordId/d" $recordIdFile # Remove record from file if it was removed from DNS
+      unset del_msg
+    else
+      not_removed=${not_removed:+$not_removed, }$recordId
+      del_msg=' NOT'
+    fi
+    debug "'$recordId' was$rm_msg removed from DNS and file '$recordIdFile'"
+  done
+  [ -n "$not_removed" ] && error_exit "Something went wrong. Server says: '$del_result' This records was NOT removed: '$not_removed'"
+}
+
+### Requires
+requires jq
+
+### Presets
+# Yandex Authentication credintals
+orgId=${YANDEX_ORGID:-''}
+OAuth=${YANDEX_OAUTH:-''}
+
+# Let's Encrypt DNS validtaion token
+token=$3
+
+# Split FQDN to domain and subdomain. Specific for Yandex API
+fqdn=`echo $2         | grep -Po '^(?:(?!-)[a-z0-9-]{0,62}[a-z0-9]\.)+[a-z]{2,}$'`
+domain=`echo $fqdn    | grep -Po '(?!-)[a-z0-9-]{0,62}[a-z0-9]\.[a-z]{2,}$'`
+subdomain=`echo $fqdn | sed  -E  's/(\.?[^.]+){2}$//'`
+
+acme_domain="_acme-challenge${subdomain:+.$subdomain}"
+recordIdFile=${WORKING_DIR:-/tmp}/getssl_yandex_dns_records
+
+debug "FQDN: '$fqdn'
+Validation token: '$token'
+Asked domain: '$domain'
+Asked subdomain: '$subdomain'
+Record ID file: '$recordIdFile'"
+
+# Yandex API returns JSON with recordId as successful result
+# It's required for remove this record later. Yandex API cant't remove records by names, by recordId only
+[ -f "$recordIdFile" ] || echo -n "
+# DON'T EDIT! DON'T DELETE!
+# This is active Yandex DNS challenge records
+# Don't remove manually
+# Just run \`$(cd "$(dirname "$0")" || exit; pwd -P;) cleanup [subdomain.]domain.tld\`
+
+" > "$recordIdFile"
+
+### Main process
+case "$1" in
+    "add" )
+    check_vars=(
+    "fqdn, No or invalid FQDN"
+    "domain, No or invalid DOMAIN"
+    "token, No challenge token"
+    "orgId, No Yandex OrgID"
+    "OAuth, No Yandex OAuth"
+    )
+    check
+    add
+    ;;
+
+    "del" )
+    check_vars=(
+    "domain, No or invalid DOMAIN"
+    "token, No challenge token"
+    "orgId, No Yandex OrgID"
+    "OAuth, No Yandex OAuth"
+    )
+    check
+    del
+    ;;
+
+    "cleanup" )
+    check_vars=(
+    "domain, No or invalid DOMAIN"
+    "orgId, No Yandex OrgID"
+    "OAuth, No Yandex OAuth"
+    )
+    check
+    del cleanup
+    ;;
+
+    * )
+    echo "Unknown command '$1'. Valid commands: (add|del|cleanup)"
+    ;;
+esac
