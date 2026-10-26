@@ -306,6 +306,7 @@
 # 2026-07-31 Obtain the SAN challenge tokens at the start, so that we can submit them in bulk to the DNS, to minimise the DNS propagation time (#904)(mhameed)
 # 2026-07-31 Fix cPanel support for API zone record updates and wildcard domain support (#874)(pgoforth)
 # 2026-10-05 Fix missing root cert from fullchain.crt in the archive (tom1v)
+# 2026-10-26 Don't block renewal when the CA has no ARI info for a cert (#924)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -1293,7 +1294,8 @@ create_order() {
   fi
 }
 
-renew_ari() { # Return "1" if ARI says we should renew
+renew_ari() { # Return 0 to renew now, 1 if the ARI window is in the future,
+              # 2 if the CA has no usable ARI information for this certificate
   # If cert has expired, don't fetch ARI info and just say we should renew
 
   if [[ "$1" -lt "$(date +%s)" ]]; then
@@ -1338,21 +1340,54 @@ renew_ari() { # Return "1" if ARI says we should renew
   debug "Authority key id is $aki, serial is $serialb64"
 
   # shellcheck disable=SC2086
-  response=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent "${URL_renewInfo}/${aki}.${serialb64}")
+  ari_response=$(curl ${_NOMETER} --user-agent "$CURL_USERAGENT" --silent \
+    --write-out '\n%{http_code}' "${URL_renewInfo}/${aki}.${serialb64}")
 
-  debug "ARI response is $response"
+  # Separate the response body from the HTTP status code appended by curl.
+  # Some test mocks only return the body, in which case the status is taken
+  # from the JSON response instead.
+
+  ari_code=""
+  if [[ "$ari_response" == *$'\n'* ]]; then
+    ari_code="${ari_response##*$'\n'}"
+    response="${ari_response%$'\n'*}"
+  else
+    response="$ari_response"
+  fi
+
+  debug "ARI response ($ari_code) is $response"
 
   _ARI_STARTTIME=$(json_get "$response" suggestedWindow start)
 
-  if [[ -z "$_ARI_STARTTIME" ]]; then
-    info "Warning: ARI query returned $response"
+  if [[ -z "$response" ]] || [[ "$_ARI_STARTTIME" == "json was blank" ]] || [[ -z "$_ARI_STARTTIME" ]]; then
+    # Strip newlines so the detail can be reported on a single line
+    ari_detail=$(printf '%s' "${response//[$'\t\r\n']/}" | \
+      sed -n 's/.*"detail"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+
+    if [[ "$ari_code" == "404" ]] || [[ "$(json_get "$response" status)" == "404" ]]; then
+      # A 404 means the CA has no information for this certificate - it was
+      # issued by a different CA, it has already been replaced, or its issuer
+      # is no longer known to the CA. RFC 9773 section 4.3.3 treats non-5xx
+      # responses as long term errors, so fall back to the normal expiry based
+      # renewal checks rather than failing.
+      info "ARI renewal information is not available for this certificate: ${ari_detail:-$response}"
+    else
+      info "Warning: ARI query returned ${response:-no response}"
+    fi
     info "Not processing ARI renewal info"
-    return 1
+    return 2
+  fi
+
+  # An invalid renewal window is treated the same as no response from the server
+  if ! printf "%s\n" "$_ARI_STARTTIME" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'; then
+    info "Warning: ARI query returned an invalid renewal window start ($_ARI_STARTTIME)"
+    info "Not processing ARI renewal info"
+    return 2
   fi
 
   debug "Renewal window starts at $_ARI_STARTTIME"
 
-  if [[ "$(date +%s)" -gt $(date_rfc3339 "$_ARI_STARTTIME") ]]; then
+  if [[ "$(date +%s)" -gt "$(date_rfc3339 "$_ARI_STARTTIME")" ]]; then
     debug "Within ARI renewal window, using ARI"
     _REPLACES="${aki}.${serialb64}"
     return 0
@@ -3788,9 +3823,14 @@ if [[ -s "$CERT_FILE" ]] && [[ $_SHOW_ACCOUNT_ID -eq 0 ]]; then
   if [[ "$enddate" != "-" ]]; then
     enddate_s=$(date_epoc "$enddate")
     if [[ -n "$URL_renewInfo" ]] && [[ "true" == "$ARI_ENABLE" ]]; then
-      if renew_ari "$enddate_s"; then
+      renew_ari "$enddate_s"
+      ari_rc=$?
+      if [[ $ari_rc -eq 0 ]]; then
         debug "Renewing via ARI"
         ari=1
+      elif [[ $ari_rc -eq 2 ]]; then
+        debug "No ARI renewal information available, using normal renewal checks"
+        ari=-1
       else
         debug "ARI is supported, but not reached start of window"
         ari=0
