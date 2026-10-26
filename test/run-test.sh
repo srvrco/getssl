@@ -86,7 +86,7 @@ OS=$1
 
 if [ $# -gt 1 ]; then
   shift
-  if [ $1 == "-d" ]; then
+  if [ "$1" == "-d" ]; then
     DEBUG="--verbose-run --show-output-of-passing-tests "
     shift
   else

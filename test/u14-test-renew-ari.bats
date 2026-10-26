@@ -17,6 +17,11 @@ setup() {
 
     . /getssl/getssl --source
 
+    # Sourcing with --source skips the main flow, so detect the OS here.
+    # Without this, date_rfc3339 uses GNU date syntax on busybox based images
+    # (e.g. bash4-0) and cannot convert the ARI renewal window.
+    get_os
+
     API=2
     _USE_DEBUG=1
     _QUIET=0
