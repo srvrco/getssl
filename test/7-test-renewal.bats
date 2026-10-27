@@ -82,8 +82,10 @@ teardown_file() {
     fi
 
     CONFIG_FILE="getssl-dns01-no-ari.cfg"
+    # Pebble issues 90 day certificates and RENEW_ALLOW longer than the
+    # certificate lifetime is ignored, so 90 days makes it due for renewal
     cat <<- EOF > ${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg
-RENEW_ALLOW=2000
+RENEW_ALLOW=90
 EOF
 
     . "${CODE_DIR}/test/test-config/${CONFIG_FILE}"

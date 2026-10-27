@@ -8,7 +8,8 @@ load '/getssl/test/test_helper.bash'
 # Certificates are renewed once a third of the certificate lifetime remains.
 # Pebble's "shortlived" profile issues certificates valid for 6 days, so they
 # are renewed 2 days before expiry.  A hardcoded 30 day RENEW_ALLOW would renew
-# them on every run, which is what these tests guard against.
+# them on every run, so a RENEW_ALLOW longer than the certificate lifetime is
+# ignored; these tests guard both behaviours.
 
 setup() {
     [ ! -f "$BATS_RUN_TMPDIR/failed.skip" ] || skip "skipping tests after first failure"
@@ -109,9 +110,10 @@ check_certificate_lifetime() {
     CERT="${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt"
     ORIGINAL_SERIAL=$(openssl x509 -in "$CERT" -noout -serial)
 
-    # more than the 6 days which remain on a short lived certificate
+    # equal to the 6 day lifetime of a short lived certificate, so it is used
+    # and, as less than 6 days remain, the certificate is due
     cat <<- EOF > "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg"
-RENEW_ALLOW=7
+RENEW_ALLOW=6
 EOF
 
     create_certificate
@@ -128,6 +130,44 @@ EOF
 
     # the renewed certificate must also use the short lived profile
     check_certificate_lifetime "$CERT" 5 7
+}
+
+
+@test "an old 30 day RENEW_ALLOW is ignored for short lived certificates" {
+    if [ -n "$STAGING" ]; then
+        skip "Using staging server, skipping internal test"
+    fi
+    # shellcheck disable=SC2034
+    CONFIG_FILE="getssl-http01-shortlived.cfg"
+    setup_environment
+    init_getssl
+    create_certificate
+    assert_success
+    check_output_for_errors
+
+    CERT="${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/${GETSSL_CMD_HOST}.crt"
+    ORIGINAL_SERIAL=$(openssl x509 -in "$CERT" -noout -serial)
+
+    # configs created before the lifetime based default was added still
+    # contain RENEW_ALLOW="30", which is longer than a 6 day lifetime
+    cat <<- EOF > "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg"
+RENEW_ALLOW=30
+EOF
+
+    create_certificate
+    assert_success
+    check_output_for_errors
+
+    assert_line --partial 'RENEW_ALLOW (30 days) is longer than the certificate lifetime'
+    assert_line --partial 'certificate is valid for more than 2 days'
+    refute_line --partial 'certificate needs renewal'
+
+    UPDATED_SERIAL=$(openssl x509 -in "$CERT" -noout -serial)
+    if [[ "$ORIGINAL_SERIAL" != "$UPDATED_SERIAL" ]]; then
+        echo "# ORIGINAL_SERIAL=$ORIGINAL_SERIAL"
+        echo "# UPDATED_SERIAL =$UPDATED_SERIAL"
+    fi
+    [[ "$ORIGINAL_SERIAL" = "$UPDATED_SERIAL" ]]
 }
 
 

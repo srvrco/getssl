@@ -397,6 +397,7 @@ PRIVATE_KEY_ALG="rsa"
 # The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
 # Leave this blank (the default) to renew once a third of the certificate lifetime remains, so a
 # 90 day certificate renews 30 days before expiry, a 45 day certificate 15 days and a 6 day certificate 2 days.
+# A value longer than the certificate lifetime is ignored.
 #RENEW_ALLOW=""
 
 # openssl config file.  The default should work in most cases.
@@ -593,7 +594,7 @@ All variables below can be set at either the account level (`~/.getssl/getssl.cf
 | `PUBLIC_DNS_SERVER` | `""` | Public DNS server to consult alongside the authoritative servers |
 | `RELOAD_CMD` | `""` | Command(s) to reload services after installing a new certificate |
 | `REMOTE_EXTRA` | `""` | Extra `curl` options used when `SERVER_TYPE` is a port number |
-| `RENEW_ALLOW` | `""` | Days before expiry within which renewal is allowed; empty renews once a third of the certificate lifetime remains |
+| `RENEW_ALLOW` | `""` | Days before expiry within which renewal is allowed; empty renews once a third of the certificate lifetime remains. Values longer than the certificate lifetime are ignored |
 | `REUSE_PRIVATE_KEY` | `"true"` | Reuse the existing private key when renewing a certificate |
 | `SANS` | `""` | Comma-separated list of Subject Alternative Names |
 | `SCP_OPTS` | `""` | Extra options passed to `scp` (e.g. `-i identity_file`) |

@@ -81,11 +81,56 @@ teardown() {
 
     [ "$(date_renew "$CERT_START" "$cert_end")" -eq "$(( cert_end - 20 * DAY ))" ]
     [ "$(date_renew_allow "$CERT_START" "$cert_end")" = "20 days" ]
+}
 
-    # RENEW_ALLOW larger than the lifetime means renewal on every run
+
+@test "date_renew ignores RENEW_ALLOW longer than the certificate lifetime" {
+    # the old default of 30 days with a 6 day short lived certificate
+    cert_end=$(( CERT_START + 6 * DAY ))
+    RENEW_ALLOW=30
+
+    [ "$(date_renew "$CERT_START" "$cert_end")" -eq "$(( cert_end - 2 * DAY ))" ]
+    [ "$(date_renew_allow "$CERT_START" "$cert_end")" = "2 days" ]
+
+    # 2000 days with a 90 day certificate
+    cert_end=$(( CERT_START + 90 * DAY ))
     RENEW_ALLOW=2000
 
-    [ "$(date_renew "$CERT_START" "$cert_end")" -eq "$(( cert_end - 2000 * DAY ))" ]
+    [ "$(date_renew "$CERT_START" "$cert_end")" -eq "$(( cert_end - 30 * DAY ))" ]
+}
+
+
+@test "date_renew honours RENEW_ALLOW equal to the certificate lifetime" {
+    # Pebble issues certificates one second short of the profile lifetime, so
+    # RENEW_ALLOW is compared against the lifetime rounded up to whole days
+    cert_end=$(( CERT_START + 6 * DAY - 1 ))
+    RENEW_ALLOW=6
+
+    [ "$(date_renew "$CERT_START" "$cert_end")" -eq "$(( cert_end - 6 * DAY ))" ]
+
+    cert_end=$(( CERT_START + 90 * DAY - 1 ))
+    RENEW_ALLOW=90
+
+    [ "$(date_renew "$CERT_START" "$cert_end")" -eq "$(( cert_end - 90 * DAY ))" ]
+}
+
+
+@test "renew_allow_exceeds_lifetime reports whether RENEW_ALLOW is ignored" {
+    cert_end=$(( CERT_START + 90 * DAY ))
+
+    RENEW_ALLOW=""
+    refute renew_allow_exceeds_lifetime "$CERT_START" "$cert_end"
+
+    RENEW_ALLOW=30
+    refute renew_allow_exceeds_lifetime "$CERT_START" "$cert_end"
+    assert renew_allow_exceeds_lifetime "$CERT_START" "$(( CERT_START + 6 * DAY ))"
+
+    # equal to the lifetime (rounded up) is not longer than the lifetime
+    RENEW_ALLOW=6
+    refute renew_allow_exceeds_lifetime "$CERT_START" "$(( CERT_START + 6 * DAY - 1 ))"
+
+    # unknown lifetime - the value can't be compared, so it is honoured
+    refute renew_allow_exceeds_lifetime "-" "$cert_end"
 }
 
 
@@ -105,6 +150,10 @@ teardown() {
 
     # start date after the end date
     [ "$(date_renew "$cert_end" "$CERT_START")" -eq "$(( CERT_START - 30 * DAY ))" ]
+
+    # an explicit RENEW_ALLOW is used as it can't be compared to the lifetime
+    RENEW_ALLOW=15
+    [ "$(date_renew "-" "$cert_end")" -eq "$(( cert_end - 15 * DAY ))" ]
 }
 
 

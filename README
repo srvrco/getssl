@@ -375,6 +375,7 @@ simple bash file containing variables, an example of which is:
 
     # The time period within which you want to allow renewal of a certificate - this prevents hitting some of the rate limits.
     # Leave this blank (the default) to renew once a third of the certificate lifetime remains.
+    # A value longer than the certificate lifetime is ignored.
     #RENEW_ALLOW=""
 
     # openssl config file.  The default should work in most cases.
@@ -671,7 +672,8 @@ those at the account level.
   RENEW_ALLOW                       ""                           Days before expiry within which
                                                                  renewal is allowed.  Empty renews
                                                                  once a third of the certificate
-                                                                 lifetime remains
+                                                                 lifetime remains; values longer
+                                                                 than the lifetime are ignored
 
   REUSE_PRIVATE_KEY                 "true"                       Reuse the existing private key when
                                                                  renewing a certificate
