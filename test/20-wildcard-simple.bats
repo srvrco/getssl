@@ -62,7 +62,9 @@ setup() {
         skip "Using staging server, skipping internal test"
     fi
 
-    echo "RENEW_ALLOW=2000" >> "${INSTALL_DIR}/.getssl/*.${GETSSL_HOST}/getssl.cfg"
+    # Pebble issues 90 day certificates and RENEW_ALLOW longer than the
+    # certificate lifetime is ignored, so 90 days makes it due for renewal
+    echo "RENEW_ALLOW=90" >> "${INSTALL_DIR}/.getssl/*.${GETSSL_HOST}/getssl.cfg"
 
     run ${CODE_DIR}/getssl -U -d "*.$GETSSL_HOST"
     assert_success

@@ -50,6 +50,9 @@ setup_file() {
     CONFIG_FILE="getssl-http01.cfg"
     setup_environment
     init_getssl
+    # Pebble picks a random profile when the order doesn't specify one, so pin
+    # the 90 day profile as the renewal check below depends on the lifetime
+    echo 'PROFILE="default"' > "${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl_test_specific.cfg"
     create_certificate
     assert_success
     check_output_for_errors
@@ -58,9 +61,11 @@ setup_file() {
     ORIGINAL_SERIAL=$(openssl x509 -in "$CERT" -noout -serial)
 
     # Make the normal expiry checks consider the certificate due for renewal, so
-    # the only thing that can stop the renewal is the ARI result.
+    # the only thing that can stop the renewal is the ARI result.  Pebble issues
+    # 90 day certificates and RENEW_ALLOW longer than the certificate lifetime
+    # is ignored, so use 90 days.
     CONFIG_PATH="${INSTALL_DIR}/.getssl/${GETSSL_CMD_HOST}/getssl.cfg"
-    printf '\nRENEW_ALLOW="36500"\n' >> "$CONFIG_PATH"
+    printf '\nRENEW_ALLOW="90"\n' >> "$CONFIG_PATH"
 
     export GETSSL_MOCK_ARI_CERTID_ERROR=1
     run "${CODE_DIR}/getssl" -U -d "$GETSSL_CMD_HOST"
