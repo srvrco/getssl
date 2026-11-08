@@ -77,6 +77,28 @@ curl() {
 }
 
 
+@test "renew_ari compares renewal window endpoints with different UTC offsets" {
+    ARI_BODY='{"suggestedWindow":{"start":"2020-01-01T01:00:00+01:00","end":"2020-01-01T00:30:00Z"}}'
+    ARI_CODE=200
+
+    run renew_ari "$FUTURE_EXPIRY"
+
+    assert_equal "$status" "0"
+    assert_output --partial "Within ARI renewal window, using ARI"
+}
+
+
+@test "renew_ari returns 2 when different offsets describe equal endpoints" {
+    ARI_BODY='{"suggestedWindow":{"start":"2020-01-01T00:00:00Z","end":"2019-12-31T23:00:00-01:00"}}'
+    ARI_CODE=200
+
+    run renew_ari "$FUTURE_EXPIRY"
+
+    assert_equal "$status" "2"
+    assert_output --partial "Not processing ARI renewal info"
+}
+
+
 @test "renew_ari returns 2 without a warning when the CA does not know the certificate" {
     ARI_BODY='{"type":"urn:ietf:params:acme:error:malformed","detail":"While parsing ARI CertID an error occurred :: path contained an Authority Key Identifier that did not match a known issuer","status":404}'
     ARI_CODE=404
@@ -135,6 +157,81 @@ curl() {
     assert_equal "$status" "2"
     assert_output --partial "Not processing ARI renewal info"
     refute_output --partial "Failed to parse date"
+}
+
+
+@test "renew_ari returns 2 when the renewal window has no end" {
+    ARI_BODY='{"suggestedWindow":{"start":"2020-01-01T00:00:00Z"}}'
+    ARI_CODE=200
+
+    run renew_ari "$FUTURE_EXPIRY"
+
+    assert_equal "$status" "2"
+    assert_output --partial "Not processing ARI renewal info"
+}
+
+
+@test "renew_ari returns 2 when the renewal window end cannot be parsed" {
+    ARI_BODY='{"suggestedWindow":{"start":"2020-01-01T00:00:00Z","end":"2020-01-02Tnot-a-time"}}'
+    ARI_CODE=200
+
+    run renew_ari "$FUTURE_EXPIRY"
+
+    assert_equal "$status" "2"
+    assert_output --partial "Not processing ARI renewal info"
+    refute_output --partial "Failed to parse date"
+}
+
+
+@test "renew_ari returns 2 when the renewal window start cannot be parsed" {
+    ARI_BODY='{"suggestedWindow":{"start":"2020-01-01Tnot-a-time","end":"2020-01-02T00:00:00Z"}}'
+    ARI_CODE=200
+
+    TEMP_DIR="$BATS_TEST_TMPDIR/renewal"
+    DOMAIN_DIR="$BATS_TEST_TMPDIR"
+    mkdir "$TEMP_DIR"
+    touch "$TEMP_DIR/pending"
+
+    run renew_ari "$FUTURE_EXPIRY"
+
+    assert_equal "$status" "2"
+    assert_output --partial "Not processing ARI renewal info"
+    refute_output --partial "Failed to parse date"
+    assert_file_exists "$TEMP_DIR/pending"
+}
+
+
+@test "renew_ari returns 2 when the renewal window end equals its start" {
+    ARI_BODY='{"suggestedWindow":{"start":"2020-01-01T00:00:00Z","end":"2020-01-01T00:00:00Z"}}'
+    ARI_CODE=200
+
+    run renew_ari "$FUTURE_EXPIRY"
+
+    assert_equal "$status" "2"
+    assert_output --partial "Not processing ARI renewal info"
+}
+
+
+@test "renew_ari returns 2 when the renewal window end precedes its start" {
+    ARI_BODY='{"suggestedWindow":{"start":"2020-01-02T00:00:00Z","end":"2020-01-01T00:00:00Z"}}'
+    ARI_CODE=200
+
+    run renew_ari "$FUTURE_EXPIRY"
+
+    assert_equal "$status" "2"
+    assert_output --partial "Not processing ARI renewal info"
+}
+
+
+@test "renew_ari returns 2 for a reversed renewal window in the future" {
+    ARI_BODY='{"suggestedWindow":{"start":"2099-01-02T00:00:00Z","end":"2099-01-01T00:00:00Z"}}'
+    ARI_CODE=200
+
+    run renew_ari "$FUTURE_EXPIRY"
+
+    assert_equal "$status" "2"
+    assert_output --partial "Not processing ARI renewal info"
+    refute_output --partial "Not within ARI renewal window"
 }
 
 
