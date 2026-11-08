@@ -8,19 +8,17 @@ load '/getssl/test/test_helper.bash'
 setup() {
     [ ! -f "$BATS_RUN_TMPDIR/failed.skip" ] || skip "skipping tests after first failure"
 
-    mkdir "$BATS_TEST_TMPDIR/bin"
-    cat << 'MOCK_CURL' > "$BATS_TEST_TMPDIR/bin/curl"
-#!/usr/bin/env bash
-if [[ -n "$GETSSL_TEST_ARI_RESPONSE" ]] &&
-   [[ "$*" == *"/renewal-info/"* || "$*" == *"/renewalInfo/"* ]]; then
-    printf '%s\n200' "$GETSSL_TEST_ARI_RESPONSE"
-    exit 0
-fi
-export PATH="${PATH#*:}"
-exec curl "$@"
-MOCK_CURL
-    chmod +x "$BATS_TEST_TMPDIR/bin/curl"
-    export PATH="$BATS_TEST_TMPDIR/bin:$PATH"
+    export -f curl
+}
+
+
+curl() {
+    if [[ -n "$GETSSL_TEST_ARI_RESPONSE" ]] &&
+       [[ "$*" == *"/renewal-info/"* || "$*" == *"/renewalInfo/"* ]]; then
+        printf '%s\n200' "$GETSSL_TEST_ARI_RESPONSE"
+        return 0
+    fi
+    command curl "$@"
 }
 
 

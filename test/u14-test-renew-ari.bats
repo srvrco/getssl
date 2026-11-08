@@ -88,6 +88,51 @@ curl() {
 }
 
 
+@test "renew_ari compares fractional seconds without rounding the window" {
+    for window in '1 9 0' '10 100 2' '9 1 2' '09 1 0'; do
+        read -r start_fraction end_fraction expected <<< "$window"
+        ARI_BODY='{"suggestedWindow":{"start":"2020-01-01T00:00:00.'"$start_fraction"'Z","end":"2020-01-01T00:00:00.'"$end_fraction"'Z"}}'
+        ARI_CODE=200
+
+        run renew_ari "$FUTURE_EXPIRY"
+
+        assert_equal "$status" "$expected"
+    done
+}
+
+
+@test "renew_ari rejects malformed timestamps and nonexistent dates" {
+    for end in \
+        '2020-01-02T00:00:00' \
+        '2020-01-02T00:00:00Z next day' \
+        '2020-02-31T00:00:00Z' \
+        '2100-02-29T00:00:00Z' \
+        '2020-13-01T00:00:00Z' \
+        '2020-01-00T00:00:00Z' \
+        '2020-01-02T24:00:00Z' \
+        '2020-01-02T00:00:00+99:99'; do
+        ARI_BODY='{"suggestedWindow":{"start":"2020-01-01T00:00:00Z","end":"'"$end"'"}}'
+        ARI_CODE=200
+
+        run renew_ari "$FUTURE_EXPIRY"
+
+        assert_equal "$status" "2"
+        assert_output --partial "Not processing ARI renewal info"
+    done
+}
+
+
+@test "renew_ari accepts leap days and lowercase timestamp separators" {
+    ARI_BODY='{"suggestedWindow":{"start":"2000-02-29t00:00:00z","end":"2000-03-01t00:00:00z"}}'
+    ARI_CODE=200
+
+    run renew_ari "$FUTURE_EXPIRY"
+
+    assert_equal "$status" "0"
+    assert_output --partial "Within ARI renewal window, using ARI"
+}
+
+
 @test "renew_ari returns 2 when different offsets describe equal endpoints" {
     ARI_BODY='{"suggestedWindow":{"start":"2020-01-01T00:00:00Z","end":"2019-12-31T23:00:00-01:00"}}'
     ARI_CODE=200

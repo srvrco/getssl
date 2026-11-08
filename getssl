@@ -1298,7 +1298,7 @@ create_order() {
 
 renew_ari() { # Return 0 to renew now, 1 if the ARI window is in the future,
               # 2 if the CA has no usable ARI information for this certificate
-  local ari_endtime ari_start_s ari_end_s
+  local ari_window ari_endtime="" ari_start_s ari_end_s ari_start_fraction="" ari_end_fraction=""
   # If cert has expired, don't fetch ARI info and just say we should renew
 
   if [[ "$1" -lt "$(date +%s)" ]]; then
@@ -1360,7 +1360,12 @@ renew_ari() { # Return 0 to renew now, 1 if the ARI window is in the future,
 
   debug "ARI response ($ari_code) is $response"
 
-  _ARI_STARTTIME=$(json_get "$response" suggestedWindow start)
+  ari_window=$(get_json_value "$response" suggestedWindow) || ari_window=""
+  _ARI_STARTTIME=""
+  if [[ -n "$ari_window" ]]; then
+    _ARI_STARTTIME=$(get_json_value "$ari_window" start) || _ARI_STARTTIME=""
+    ari_endtime=$(get_json_value "$ari_window" end) || ari_endtime=""
+  fi
 
   if [[ -z "$response" ]] || [[ "$_ARI_STARTTIME" == "json was blank" ]] || [[ -z "$_ARI_STARTTIME" ]]; then
     # Strip newlines so the detail can be reported on a single line
@@ -1381,18 +1386,23 @@ renew_ari() { # Return 0 to renew now, 1 if the ARI window is in the future,
     return 2
   fi
 
-  # An invalid renewal window is treated the same as no response from the server
-  if ! printf "%s\n" "$_ARI_STARTTIME" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'; then
-    info "Warning: ARI query returned an invalid renewal window start ($_ARI_STARTTIME)"
-    info "Not processing ARI renewal info"
-    return 2
+  if [[ "$_ARI_STARTTIME" == *.* ]]; then
+    ari_start_fraction="${_ARI_STARTTIME#*.}"
+    ari_start_fraction="${ari_start_fraction%%[Zz+-]*}"
   fi
+  if [[ "$ari_endtime" == *.* ]]; then
+    ari_end_fraction="${ari_endtime#*.}"
+    ari_end_fraction="${ari_end_fraction%%[Zz+-]*}"
+  fi
+  # Pad fractional seconds so string comparison preserves their precision.
+  while [[ ${#ari_start_fraction} -lt ${#ari_end_fraction} ]]; do ari_start_fraction+="0"; done
+  while [[ ${#ari_end_fraction} -lt ${#ari_start_fraction} ]]; do ari_end_fraction+="0"; done
 
-  ari_endtime=$(json_get "$response" suggestedWindow end)
-  if ! printf "%s\n" "$ari_endtime" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T' ||
-     ! ari_start_s=$(date_rfc3339 "$_ARI_STARTTIME" 2>/dev/null) ||
+  # An invalid renewal window is treated the same as no response from the server.
+  if ! ari_start_s=$(date_rfc3339 "$_ARI_STARTTIME" 2>/dev/null) ||
      ! ari_end_s=$(date_rfc3339 "$ari_endtime" 2>/dev/null) ||
-     [[ "$ari_end_s" -le "$ari_start_s" ]]; then
+     [[ "$ari_end_s" -lt "$ari_start_s" ]] ||
+     [[ "$ari_end_s" -eq "$ari_start_s" && ! "$ari_end_fraction" > "$ari_start_fraction" ]]; then
     info "Warning: ARI query returned an invalid renewal window ($_ARI_STARTTIME - $ari_endtime)"
     info "Not processing ARI renewal info"
     return 2
@@ -1412,9 +1422,24 @@ renew_ari() { # Return 0 to renew now, 1 if the ARI window is in the future,
 }
 
 date_rfc3339() { # convert rfc3339 format date into epoch time
-  local date_s tzoffset
+  local date_s tzoffset year day maxday
   # shellcheck disable=SC2018,SC2019
   convdate=$(printf "%s\n" "$1" | tr a-z A-Z)
+  [[ "$convdate" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$ ]] || return 1
+  year=$(( 10#${convdate:0:4} ))
+  day=$(( 10#${convdate:8:2} ))
+  case "${convdate:5:2}" in
+    01|03|05|07|08|10|12) maxday=31 ;;
+    04|06|09|11) maxday=30 ;;
+    02)
+      maxday=28
+      if (( year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) )); then
+        maxday=29
+      fi ;;
+    *) return 1 ;;
+  esac
+  [[ "$day" -ge 1 && "$day" -le "$maxday" ]] || return 1
+  convdate=$(printf "%s\n" "$convdate" | sed 's/\.[0-9][0-9]*//')
   if [[ "${convdate: -1:1}" == 'Z' ]]; then
     convdate="${convdate:0:${#convdate}-1}+0000"
   else
