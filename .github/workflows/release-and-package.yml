@@ -43,7 +43,7 @@ jobs:
           mkdir -p ${{ github.workspace }}/rpmbuild/RPMS/SRPMS
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: source
 
