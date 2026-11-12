@@ -308,6 +308,7 @@
 # 2026-10-05 Fix missing root cert from fullchain.crt in the archive (tom1v)
 # 2026-10-26 Don't block renewal when the CA has no ARI info for a cert (#924)
 # 2026-10-27 Renew once a third of the certificate lifetime remains (RENEW_ALLOW optional)
+# 2026-11-08 Fall back to expiry checks for invalid ARI renewal windows (2.53)
 # ----------------------------------------------------------------------------------------
 
 case :$SHELLOPTS: in
@@ -316,7 +317,7 @@ esac
 
 PROGNAME=${0##*/}
 PROGDIR="$(cd "$(dirname "$0")" || exit; pwd -P;)"
-VERSION="2.52"
+VERSION="2.53"
 
 # defaults
 ACCOUNT_KEY_LENGTH=4096
@@ -1297,6 +1298,7 @@ create_order() {
 
 renew_ari() { # Return 0 to renew now, 1 if the ARI window is in the future,
               # 2 if the CA has no usable ARI information for this certificate
+  local ari_window ari_endtime="" ari_start_s ari_end_s ari_start_fraction="" ari_end_fraction=""
   # If cert has expired, don't fetch ARI info and just say we should renew
 
   if [[ "$1" -lt "$(date +%s)" ]]; then
@@ -1358,9 +1360,14 @@ renew_ari() { # Return 0 to renew now, 1 if the ARI window is in the future,
 
   debug "ARI response ($ari_code) is $response"
 
-  _ARI_STARTTIME=$(json_get "$response" suggestedWindow start)
+  ari_window=$(get_json_value "$response" suggestedWindow) || ari_window=""
+  _ARI_STARTTIME=""
+  if [[ -n "$ari_window" ]]; then
+    _ARI_STARTTIME=$(get_json_value "$ari_window" start) || _ARI_STARTTIME=""
+    ari_endtime=$(get_json_value "$ari_window" end) || ari_endtime=""
+  fi
 
-  if [[ -z "$response" ]] || [[ "$_ARI_STARTTIME" == "json was blank" ]] || [[ -z "$_ARI_STARTTIME" ]]; then
+  if [[ -z "$response" ]] || [[ -z "$_ARI_STARTTIME" ]]; then
     # Strip newlines so the detail can be reported on a single line
     ari_detail=$(printf '%s' "${response//[$'\t\r\n']/}" | \
       sed -n 's/.*"detail"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
@@ -1379,16 +1386,35 @@ renew_ari() { # Return 0 to renew now, 1 if the ARI window is in the future,
     return 2
   fi
 
-  # An invalid renewal window is treated the same as no response from the server
-  if ! printf "%s\n" "$_ARI_STARTTIME" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'; then
-    info "Warning: ARI query returned an invalid renewal window start ($_ARI_STARTTIME)"
+  if [[ "$_ARI_STARTTIME" == *.* ]]; then
+    ari_start_fraction="${_ARI_STARTTIME#*.}"
+    ari_start_fraction="${ari_start_fraction%%[Zz+-]*}"
+  fi
+  if [[ "$ari_endtime" == *.* ]]; then
+    ari_end_fraction="${ari_endtime#*.}"
+    ari_end_fraction="${ari_end_fraction%%[Zz+-]*}"
+  fi
+
+  # Pad and truncate fractional seconds to nanoseconds, so the comparison
+  # below is a numeric comparison of two 9 character strings.
+  ari_start_fraction="${ari_start_fraction}000000000"
+  ari_start_fraction="${ari_start_fraction:0:9}"
+  ari_end_fraction="${ari_end_fraction}000000000"
+  ari_end_fraction="${ari_end_fraction:0:9}"
+
+  # An invalid renewal window is treated the same as no response from the server.
+  if ! ari_start_s=$(date_rfc3339 "$_ARI_STARTTIME" 2>/dev/null) ||
+     ! ari_end_s=$(date_rfc3339 "$ari_endtime" 2>/dev/null) ||
+     [[ "$ari_end_s" -lt "$ari_start_s" ]] ||
+     [[ "$ari_end_s" -eq "$ari_start_s" && ! "$ari_end_fraction" > "$ari_start_fraction" ]]; then
+    info "Warning: ARI query returned an invalid renewal window ($_ARI_STARTTIME - $ari_endtime)"
     info "Not processing ARI renewal info"
     return 2
   fi
 
   debug "Renewal window starts at $_ARI_STARTTIME"
 
-  if [[ "$(date +%s)" -gt "$(date_rfc3339 "$_ARI_STARTTIME")" ]]; then
+  if [[ "$(date +%s)" -gt "$ari_start_s" ]]; then
     debug "Within ARI renewal window, using ARI"
     _REPLACES="${aki}.${serialb64}"
     return 0
@@ -1400,8 +1426,24 @@ renew_ari() { # Return 0 to renew now, 1 if the ARI window is in the future,
 }
 
 date_rfc3339() { # convert rfc3339 format date into epoch time
+  local date_s tzoffset year day maxday
   # shellcheck disable=SC2018,SC2019
   convdate=$(printf "%s\n" "$1" | tr a-z A-Z)
+  [[ "$convdate" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$ ]] || return 1
+  year=$(( 10#${convdate:0:4} ))
+  day=$(( 10#${convdate:8:2} ))
+  case "${convdate:5:2}" in
+    01|03|05|07|08|10|12) maxday=31 ;;
+    04|06|09|11) maxday=30 ;;
+    02)
+      maxday=28
+      if (( year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) )); then
+        maxday=29
+      fi ;;
+    *) return 1 ;;
+  esac
+  [[ "$day" -ge 1 && "$day" -le "$maxday" ]] || return 1
+  convdate=$(printf "%s\n" "$convdate" | sed 's/\.[0-9][0-9]*//')
   if [[ "${convdate: -1:1}" == 'Z' ]]; then
     convdate="${convdate:0:${#convdate}-1}+0000"
   else
@@ -1413,12 +1455,19 @@ date_rfc3339() { # convert rfc3339 format date into epoch time
   elif [[ "$os" == "mac" ]]; then
     date -j -f "%Y-%m-%dT%H:%M:%S%z" "$convdate" +%s
   elif [[ "$os" == "busybox" ]]; then
-    # busybox doesn't support timezones in the input format
-    convdate=$(printf "%s\n" "$convdate" | sed 's/[+-][0-9]\{4\}$//')
-    date -D "%Y-%m-%dT%H:%M:%S" -d "$convdate" +%s
+    # BusyBox cannot parse the timezone, so apply it to a UTC timestamp.
+    tzoffset="${convdate: -5}"
+    [[ "$tzoffset" =~ ^[+-][0-9]{4}$ ]] || return 1
+    convdate="${convdate:0:${#convdate}-5}"
+    date_s=$(TZ=UTC0 date -D "%Y-%m-%dT%H:%M:%S" -d "$convdate" +%s) || return 1
+    if [[ "${tzoffset:0:1}" == "+" ]]; then
+      echo "$(( date_s - 10#${tzoffset:1:2} * 3600 - 10#${tzoffset:3:2} * 60 ))"
+    else
+      echo "$(( date_s + 10#${tzoffset:1:2} * 3600 + 10#${tzoffset:3:2} * 60 ))"
+    fi
   else
     # convert date "<date>T<time>" to epoch, fallback to "<date> <time>" to support old coreutils date on Centos6
-    date -d "$convdate" +%s 2>/dev/null || date -d "${convdate/T/ }" +%s || error_exit "Failed to parse date ${convdate}"
+    date -d "$convdate" +%s 2>/dev/null || date -d "${convdate/T/ }" +%s
   fi
 }
 
