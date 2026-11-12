@@ -1367,7 +1367,7 @@ renew_ari() { # Return 0 to renew now, 1 if the ARI window is in the future,
     ari_endtime=$(get_json_value "$ari_window" end) || ari_endtime=""
   fi
 
-  if [[ -z "$response" ]] || [[ "$_ARI_STARTTIME" == "json was blank" ]] || [[ -z "$_ARI_STARTTIME" ]]; then
+  if [[ -z "$response" ]] || [[ -z "$_ARI_STARTTIME" ]]; then
     # Strip newlines so the detail can be reported on a single line
     ari_detail=$(printf '%s' "${response//[$'\t\r\n']/}" | \
       sed -n 's/.*"detail"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
@@ -1394,9 +1394,13 @@ renew_ari() { # Return 0 to renew now, 1 if the ARI window is in the future,
     ari_end_fraction="${ari_endtime#*.}"
     ari_end_fraction="${ari_end_fraction%%[Zz+-]*}"
   fi
-  # Pad fractional seconds so string comparison preserves their precision.
-  while [[ ${#ari_start_fraction} -lt ${#ari_end_fraction} ]]; do ari_start_fraction+="0"; done
-  while [[ ${#ari_end_fraction} -lt ${#ari_start_fraction} ]]; do ari_end_fraction+="0"; done
+
+  # Pad and truncate fractional seconds to nanoseconds, so the comparison
+  # below is a numeric comparison of two 9 character strings.
+  ari_start_fraction="${ari_start_fraction}000000000"
+  ari_start_fraction="${ari_start_fraction:0:9}"
+  ari_end_fraction="${ari_end_fraction}000000000"
+  ari_end_fraction="${ari_end_fraction:0:9}"
 
   # An invalid renewal window is treated the same as no response from the server.
   if ! ari_start_s=$(date_rfc3339 "$_ARI_STARTTIME" 2>/dev/null) ||
